@@ -1,0 +1,39 @@
+/* 视频控制栏通用缩放与原子样式
+ * 通过 CSS 容器查询单位（cqw）实现「自由缩放、自动匹配宽度」：
+ * 控制栏根节点加上 .vc-container 后，内部元素尺寸随容器宽度等比变化，
+ * 在嵌入小窗 / 大屏之间都能自动适配，无需 JS 计算。 */
+
+.vc-container {
+  container-type: inline-size;
+}
+
+/* 方形图标按钮：尺寸随容器宽度在 28~40px 之间自由缩放 */
+.vc-icon-btn {
+  height: clamp(28px, 6.5cqw, 38px);
+  min-width: clamp(28px, 6.5cqw, 38px);
+  padding: 0;
+  border-radius: 10px;
+}
+
+.vc-icon-btn svg {
+  width: clamp(15px, 3.2cqw, 20px);
+  height: clamp(15px, 3.2cqw, 20px);
+  flex-shrink: 0;
+}
+
+/* 小号图标按钮（弹幕发送等紧凑场景） */
+.vc-icon-btn-sm {
+  height: clamp(24px, 5cqw, 30px);
+  min-width: clamp(24px, 5cqw, 30px);
+  border-radius: 8px;
+}
+
+.vc-icon-btn-sm svg {
+  width: clamp(13px, 2.8cqw, 17px);
+  height: clamp(13px, 2.8cqw, 17px);
+}
+
+/* 控件间距随宽度自适应 */
+.vc-gap {
+  gap: clamp(4px, 1cqw, 8px);
+}
