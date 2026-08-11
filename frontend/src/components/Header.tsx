@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import {
   Palette,
   LogOut,
@@ -320,8 +321,8 @@ export function Header() {
           <button
             type="button"
             onClick={() => {
-              // Android (Capacitor) 端：跳转到 B站 账号管理页
-              if (typeof (window as any).Capacitor !== 'undefined') {
+              // Android (Capacitor) 原生端：跳转到 B站 账号管理页
+              if (Capacitor.isNativePlatform()) {
                 navigate('/bilibili-account')
                 return
               }
@@ -352,7 +353,7 @@ export function Header() {
             style={{
               border: '1px solid var(--md-sys-color-outline)',
             }}
-            title={typeof (window as any).Capacitor !== 'undefined' ? 'B站 账号管理' : '下载 CLI 高画质代理'}
+            title={Capacitor.isNativePlatform() ? 'B站 账号管理' : '下载 CLI 高画质代理'}
           >
             <Download className="w-4 h-4" />
           </button>

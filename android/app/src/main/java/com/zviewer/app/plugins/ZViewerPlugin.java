@@ -18,19 +18,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
-import java.util.Iterator;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
-
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 
 /**
  * ZViewer 原生插件：实现 B站 独立登录、Cookie 持久化、视频解析。
@@ -54,6 +44,12 @@ public class ZViewerPlugin extends Plugin {
     private static final String USER_AGENT =
         "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 " +
         "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+
+    // 桌面版 User-Agent：视频流代理时使用，与 ZViewerCLI userAgent 对齐。
+    // B站 CDN 可能根据 User-Agent 返回不同质量的视频流，桌面版更可靠。
+    private static final String DESKTOP_USER_AGENT =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
     private SharedPreferences getPrefs() {
         return getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
@@ -191,19 +187,18 @@ public class ZViewerPlugin extends Plugin {
     }
 
     private String extractCookieFromConnection(HttpURLConnection conn) {
-        String setCookie = conn.getHeaderField("Set-Cookie");
-        if (setCookie == null) return null;
-        // 提取所有 cookie，取第一个分号前作为完整 cookie 串
+        // B站 扫码登录返回多个 Set-Cookie 头，getHeaderField("Set-Cookie") 只返回第一个，
+        // 需要 getHeaderFields() 获取全部。
+        Map<String, List<String>> headers = conn.getHeaderFields();
+        List<String> setCookies = headers.get("Set-Cookie");
+        if (setCookies == null || setCookies.isEmpty()) return null;
         StringBuilder sb = new StringBuilder();
-        String[] parts = setCookie.split(";");
-        for (String part : parts) {
-            String trimmed = part.trim();
-            if (trimmed.contains("=") && !trimmed.startsWith("Path") && !trimmed.startsWith("Domain")
-                && !trimmed.startsWith("Expires") && !trimmed.startsWith("Max-Age")
-                && !trimmed.startsWith("HttpOnly") && !trimmed.startsWith("Secure")
-                && !trimmed.startsWith("SameSite")) {
+        for (String raw : setCookies) {
+            // 每个 Set-Cookie 取第一个分号前（name=value 部分）
+            String nameValue = raw.split(";")[0].trim();
+            if (nameValue.contains("=")) {
                 if (sb.length() > 0) sb.append("; ");
-                sb.append(trimmed);
+                sb.append(nameValue);
             }
         }
         return sb.length() > 0 ? sb.toString() : null;
@@ -484,6 +479,30 @@ public class ZViewerPlugin extends Plugin {
     private int proxyPort = 0;
     private volatile boolean proxyRunning = false;
 
+    // 备份 URL 缓存：主 CDN URL → 候选 URL 列表（含 backup），供 /proxy 失败时重试。
+    private final java.util.Map<String, java.util.List<String>> backupUrlCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** 缓存主 URL 与候选 URL 映射（与 ZViewerCLI Agent.setBackupUrls 对齐） */
+    private void backupUrlCachePut(String primaryUrl, java.util.List<String> candidates) {
+        if (primaryUrl == null || primaryUrl.isEmpty() || candidates == null || candidates.isEmpty()) {
+            return;
+        }
+        backupUrlCache.put(primaryUrl, new ArrayList<>(candidates));
+    }
+
+    /** 获取主 URL 的候选 URL 列表（不含主 URL 自身） */
+    private java.util.List<String> backupUrlCacheGet(String primaryUrl) {
+        java.util.List<String> candidates = backupUrlCache.get(primaryUrl);
+        if (candidates == null) return new ArrayList<>();
+        java.util.List<String> result = new ArrayList<>();
+        for (String u : candidates) {
+            if (u != null && !u.equals(primaryUrl)) {
+                result.add(u);
+            }
+        }
+        return result;
+    }
+
     /**
      * 启动本地 HTTP 代理服务器（Android 端本地代理）。
      * 前端将 B站 流地址重写为 http://127.0.0.1:<port>/proxy?url=...，
@@ -532,9 +551,143 @@ public class ZViewerPlugin extends Plugin {
         call.resolve();
     }
 
+    private void handleResolveRequest(java.net.Socket client, String queryString) {
+        try {
+            // 解析参数（与 ZViewerCLI /resolve 对齐：bvid / cid / qn / preferMp4 / forceDash）
+            String bvid = "";
+            long cid = 0;
+            int qn = 0;
+            boolean preferMp4 = false;
+            boolean forceDash = false;
+            for (String param : queryString.split("&")) {
+                String[] kv = param.split("=", 2);
+                if (kv.length == 2) {
+                    String val = java.net.URLDecoder.decode(kv[1], "UTF-8");
+                    switch (kv[0]) {
+                        case "bvid": bvid = val; break;
+                        case "cid":
+                            try { cid = Long.parseLong(val); } catch (NumberFormatException ignored) {}
+                            break;
+                        case "qn":
+                            try { qn = Integer.parseInt(val); } catch (NumberFormatException ignored) {}
+                            break;
+                        case "preferMp4": preferMp4 = "true".equals(val) || "1".equals(val); break;
+                        case "forceDash": forceDash = "true".equals(val) || "1".equals(val); break;
+                    }
+                }
+            }
+            if (bvid.isEmpty()) {
+                writeResponse(client, 400, "application/json",
+                    "{\"success\":false,\"message\":\"缺少 bvid\"}".getBytes());
+                return;
+            }
+
+            String cookie = getPrefs().getString(KEY_COOKIE, "");
+            if (cookie.isEmpty()) {
+                writeResponse(client, 400, "application/json",
+                    "{\"success\":false,\"message\":\"请先登录 B站 账号\"}".getBytes());
+                return;
+            }
+
+            // 委托 BilibiliResolver 执行完整解析（WBI 签名 / VIP 校验 / DASH 排序 / 备份 URL 收集）
+            BilibiliResolver.ResolveOptions opts = new BilibiliResolver.ResolveOptions();
+            opts.bvid = bvid;
+            opts.cookie = cookie;
+            opts.qn = qn;
+            opts.cid = cid;
+            opts.preferMp4 = preferMp4;
+            opts.forceDash = forceDash;
+            opts.skipCdnCheck = true; // CLI 代理模式：本地探测无意义，直接使用 BaseUrl
+
+            BilibiliResolver.ResolveResult result = BilibiliResolver.resolveBilibiliVideo(opts);
+
+            // 缓存主 URL 与候选 URL 映射（视频/音频分开），供 /proxy 失败时重试其他 CDN
+            if (result.videoBackupUrls != null && !result.videoBackupUrls.isEmpty()) {
+                backupUrlCachePut(result.videoUrl, result.videoBackupUrls);
+            }
+            if (result.audioUrl != null && !result.audioUrl.isEmpty()
+                && result.audioBackupUrls != null && !result.audioBackupUrls.isEmpty()) {
+                backupUrlCachePut(result.audioUrl, result.audioBackupUrls);
+            }
+
+            // 构建响应（与 ZViewerCLI /resolve 格式兼容）
+            // 注意：videoUrl / audioUrl 返回原始 B站 CDN URL，
+            // 前端 resolveBilibiliViaCli 会通过 wrapResolvedSourceWithCliProxy 包装为代理 URL。
+            // 这与 ZViewerCLI 的行为一致（CLI 端返回代理 URL，但前端会再次包装并去重）。
+            JSONObject resp = new JSONObject();
+            resp.put("success", true);
+            resp.put("title", result.title);
+            resp.put("duration", result.duration);
+            resp.put("cid", result.cid);
+            resp.put("videoUrl", result.videoUrl);
+            if (result.audioUrl != null && !result.audioUrl.isEmpty()) {
+                resp.put("audioUrl", result.audioUrl);
+            }
+            if (result.videoCodec != null && !result.videoCodec.isEmpty()) {
+                resp.put("videoCodec", result.videoCodec);
+            }
+            if (result.audioCodec != null && !result.audioCodec.isEmpty()) {
+                resp.put("audioCodec", result.audioCodec);
+            }
+            resp.put("format", result.format);
+            resp.put("loggedIn", result.loggedIn);
+            resp.put("vipStatus", result.vipStatus);
+            resp.put("currentQn", result.currentQn);
+
+            // acceptQuality 数组
+            JSONArray qualities = new JSONArray();
+            if (result.acceptQuality != null) {
+                for (BilibiliResolver.QualityItem q : result.acceptQuality) {
+                    qualities.put(q.toJson());
+                }
+            }
+            resp.put("acceptQuality", qualities);
+
+            // pages 数组（分集信息）
+            if (result.pages != null && !result.pages.isEmpty()) {
+                JSONArray pages = new JSONArray();
+                for (BilibiliResolver.VideoPage p : result.pages) {
+                    JSONObject pageObj = new JSONObject();
+                    pageObj.put("page", p.page);
+                    pageObj.put("cid", p.cid);
+                    pageObj.put("part", p.part);
+                    pageObj.put("duration", p.duration);
+                    pages.put(pageObj);
+                }
+                resp.put("pages", pages);
+                resp.put("currentPage", result.currentPage);
+            }
+
+            // 同时返回原始 URL 和代理 URL（与 ZViewerCLI 对齐）
+            // sourceVideoUrl / sourceAudioUrl 保留原始 CDN URL，供前端在需要时直接使用
+            String proxyBase = "http://127.0.0.1:" + proxyPort;
+            resp.put("sourceVideoUrl", result.videoUrl);
+            resp.put("videoUrl", proxyBase + "/proxy?url=" + URLEncoder.encode(result.videoUrl, "UTF-8"));
+            if (result.audioUrl != null && !result.audioUrl.isEmpty()) {
+                resp.put("sourceAudioUrl", result.audioUrl);
+                resp.put("audioUrl", proxyBase + "/proxy?url=" + URLEncoder.encode(result.audioUrl, "UTF-8"));
+            }
+
+            writeResponse(client, 200, "application/json", resp.toString().getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            try {
+                String errMsg = e.getMessage() != null ? e.getMessage().replace("\"", "'") : "解析失败";
+                String code = "";
+                if (e instanceof BilibiliResolver.ResolveException) {
+                    code = ((BilibiliResolver.ResolveException) e).code;
+                }
+                JSONObject errResp = new JSONObject();
+                errResp.put("success", false);
+                errResp.put("message", errMsg);
+                if (!code.isEmpty()) errResp.put("code", code);
+                writeResponse(client, 500, "application/json", errResp.toString().getBytes(StandardCharsets.UTF_8));
+            } catch (Exception ignored) {}
+        }
+    }
+
     private void handleProxyClient(java.net.Socket client) {
         try {
-            client.setSoTimeout(30000);
+            client.setSoTimeout(60000); // 与 ZViewerCLI proxyUpstreamTimeoutMs 对齐
             java.io.BufferedReader reader = new java.io.BufferedReader(
                 new java.io.InputStreamReader(client.getInputStream(), StandardCharsets.UTF_8));
             // 读取请求行：GET /proxy?url=... HTTP/1.1
@@ -542,22 +695,62 @@ public class ZViewerPlugin extends Plugin {
             if (requestLine == null) { client.close(); return; }
             String[] parts = requestLine.split(" ");
             if (parts.length < 2) { client.close(); return; }
+            String method = parts[0];
             String path = parts[1];
+            String queryString = path.contains("?") ? path.substring(path.indexOf("?") + 1) : "";
 
-            // 解析 url 参数
-            String targetUrl = null;
-            if (path.contains("url=")) {
-                String query = path.substring(path.indexOf("url=") + 4);
-                if (query.contains("&")) query = query.substring(0, query.indexOf("&"));
-                targetUrl = java.net.URLDecoder.decode(query, "UTF-8");
-            }
-
-            // 读取 Range 头
-            String range = null;
+            // 读取所有请求头
+            java.util.Map<String, String> headers = new java.util.HashMap<>();
             String line;
             while ((line = reader.readLine()) != null && !line.isEmpty()) {
-                if (line.toLowerCase().startsWith("range:")) {
-                    range = line.substring(6).trim();
+                int colon = line.indexOf(':');
+                if (colon > 0) {
+                    String key = line.substring(0, colon).trim().toLowerCase();
+                    String value = line.substring(colon + 1).trim();
+                    headers.put(key, value);
+                }
+            }
+
+            // CORS 预检：OPTIONS 请求直接返回 204 + CORS 头
+            if ("OPTIONS".equals(method)) {
+                java.io.OutputStream out = client.getOutputStream();
+                out.write("HTTP/1.1 204 No Content\r\n".getBytes());
+                out.write("Access-Control-Allow-Origin: *\r\n".getBytes());
+                out.write("Access-Control-Allow-Methods: GET, OPTIONS\r\n".getBytes());
+                out.write("Access-Control-Allow-Headers: Content-Type, Range\r\n".getBytes());
+                out.write("Access-Control-Max-Age: 86400\r\n".getBytes());
+                out.write("Content-Length: 0\r\n".getBytes());
+                out.write("\r\n".getBytes());
+                out.flush();
+                out.close();
+                client.close();
+                return;
+            }
+
+            // ===== /resolve 端点：模拟 CLI 的视频解析接口 =====
+            if (path.startsWith("/resolve")) {
+                handleResolveRequest(client, queryString);
+                return;
+            }
+
+            // ===== /health 端点：健康检查（与 ZViewerCLI /health 对齐） =====
+            if (path.startsWith("/health")) {
+                JSONObject health = new JSONObject();
+                health.put("ok", true);
+                health.put("agent", "zviewer-android");
+                health.put("version", "android");
+                writeResponse(client, 200, "application/json", health.toString().getBytes(StandardCharsets.UTF_8));
+                return;
+            }
+
+            // ===== /proxy 端点：代理视频流 =====
+            // 解析 url 参数
+            String targetUrl = null;
+            for (String param : queryString.split("&")) {
+                String[] kv = param.split("=", 2);
+                if (kv.length == 2 && "url".equals(kv[0])) {
+                    targetUrl = java.net.URLDecoder.decode(kv[1], "UTF-8");
+                    break;
                 }
             }
 
@@ -566,36 +759,115 @@ public class ZViewerPlugin extends Plugin {
                 return;
             }
 
-            String cookie = getPrefs().getString(KEY_COOKIE, "");
-            HttpURLConnection conn = openConnection(targetUrl, "GET", cookie);
-            if (range != null) {
+            String range = headers.get("range");
+
+            // 候选 URL：主 URL + backup URL（与 ZViewerCLI handleProxy 对齐）
+            java.util.List<String> candidates = new ArrayList<>();
+            candidates.add(targetUrl);
+            candidates.addAll(backupUrlCacheGet(targetUrl));
+
+            // 逐个尝试候选 CDN，首个成功即返回
+            Exception lastErr = null;
+            for (int i = 0; i < candidates.size(); i++) {
+                String candidate = candidates.get(i);
+                try {
+                    if (doProxyRequest(client, candidate, range)) {
+                        // 成功已写入响应
+                        return;
+                    }
+                } catch (Exception e) {
+                    lastErr = e;
+                    // 客户端已断开时不继续尝试
+                    if (client.isClosed()) return;
+                    // 继续尝试下一个候选
+                }
+            }
+
+            // 所有候选均失败
+            if (!client.isClosed()) {
+                String errMsg = lastErr != null ? lastErr.getMessage() : "代理请求失败";
+                writeResponse(client, 502, "application/json",
+                    ("{\"error\":\"" + errMsg.replace("\"", "'") + "\"}").getBytes(StandardCharsets.UTF_8));
+            }
+        } catch (Exception ignored) {
+            try { client.close(); } catch (Exception ignored2) {}
+        }
+    }
+
+    /**
+     * 执行单次上游代理请求，流式转发响应（边读边写，避免大文件 OOM）。
+     * 成功时已将响应写入 client 并返回 true；失败返回 false。
+     *
+     * 注意：不使用 openConnection，因为视频流代理需要更长的超时（60s，与 ZViewerCLI 对齐）、
+     * 不需要 Cookie、需要 Origin 头、Accept 应为通配符（而非 JSON）。
+     */
+    private boolean doProxyRequest(java.net.Socket client, String targetUrl, String range) throws Exception {
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL(targetUrl);
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            // 与 ZViewerCLI doProxyRequest 对齐：注入 B站 防盗链所需的 Referer/Origin/User-Agent
+            conn.setRequestProperty("User-Agent", DESKTOP_USER_AGENT);
+            conn.setRequestProperty("Accept", "*/*");
+            conn.setRequestProperty("Referer", "https://www.bilibili.com");
+            conn.setRequestProperty("Origin", "https://www.bilibili.com");
+            if (range != null && !range.isEmpty()) {
                 conn.setRequestProperty("Range", range);
             }
+            // 视频流是大文件传输，需要更长的超时（与 ZViewerCLI proxyUpstreamTimeoutMs 对齐）
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(60000);
+
             int code = conn.getResponseCode();
-            byte[] body;
-            if (code >= 400) {
-                body = readAllBytes(conn.getErrorStream());
-            } else {
-                body = readAllBytes(conn.getInputStream());
+            // 上游非 2xx 时透传状态码（与 ZViewerCLI doProxyRequest 对齐）
+            java.io.InputStream upstream = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
+            if (upstream == null) {
+                upstream = new java.io.ByteArrayInputStream(new byte[0]);
             }
 
             java.io.OutputStream out = client.getOutputStream();
-            String statusLine = "HTTP/1.1 " + code + " " + getStatusText(code) + "\r\n";
-            out.write(statusLine.getBytes());
-            out.write(("Content-Type: " + conn.getContentType() + "\r\n").getBytes());
-            out.write(("Content-Length: " + body.length + "\r\n").getBytes());
-            out.write(("Access-Control-Allow-Origin: *\r\n").getBytes());
-            if (range != null) {
-                String cr = conn.getHeaderField("Content-Range");
-                if (cr != null) out.write(("Content-Range: " + cr + "\r\n").getBytes());
+            // 状态行
+            out.write(("HTTP/1.1 " + code + " " + getStatusText(code) + "\r\n").getBytes());
+
+            // Content-Type：B站 CDN 偶发返回 application/json（实际是视频数据），
+            // 使用兜底 video/mp4 避免 MSE 引擎因类型不匹配拒绝处理。
+            String contentType = conn.getContentType();
+            if (contentType != null && contentType.toLowerCase().contains("application/json")) {
+                contentType = "video/mp4";
+            } else if (contentType == null || contentType.isEmpty()) {
+                contentType = "video/mp4";
             }
+            out.write(("Content-Type: " + contentType + "\r\n").getBytes());
+
+            // 透传关键头（与 ZViewerCLI proxyPassThroughHeaders 对齐）
+            String[] passThrough = {"Content-Length", "Accept-Ranges", "Content-Range", "ETag", "Last-Modified"};
+            for (String header : passThrough) {
+                String value = conn.getHeaderField(header);
+                if (value != null && !value.isEmpty()) {
+                    out.write((header + ": " + value + "\r\n").getBytes());
+                }
+            }
+
+            // CORS 头
+            out.write("Access-Control-Allow-Origin: *\r\n".getBytes());
+            out.write("Access-Control-Expose-Headers: Content-Range, Accept-Ranges, Content-Length\r\n".getBytes());
+
             out.write("\r\n".getBytes());
-            out.write(body);
+
+            // 流式转发：边读边写，避免大文件 OOM
+            byte[] buffer = new byte[64 * 1024]; // 64KB 缓冲区
+            int n;
+            while ((n = upstream.read(buffer)) != -1) {
+                out.write(buffer, 0, n);
+                out.flush();
+            }
             out.flush();
             out.close();
-            client.close();
-        } catch (Exception ignored) {
-            try { client.close(); } catch (Exception ignored2) {}
+            upstream.close();
+            return true;
+        } finally {
+            if (conn != null) conn.disconnect();
         }
     }
 
@@ -620,17 +892,9 @@ public class ZViewerPlugin extends Plugin {
             case 403: return "Forbidden";
             case 404: return "Not Found";
             case 500: return "Internal Server Error";
+            case 502: return "Bad Gateway";
             default: return "Unknown";
         }
-    }
-
-    private byte[] readAllBytes(java.io.InputStream in) throws Exception {
-        if (in == null) return new byte[0];
-        java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
-        byte[] tmp = new byte[8192];
-        int n;
-        while ((n = in.read(tmp)) != -1) buf.write(tmp, 0, n);
-        return buf.toByteArray();
     }
 
     // ==================== 通用 HTTP ====================

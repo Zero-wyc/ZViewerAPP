@@ -149,7 +149,16 @@ export function useCliAgent(roomId: string | undefined) {
 
     const handleAgents = (payload: CliAgentsPayload) => {
       if (payload.roomId !== roomId) return
-      setAgents(payload.agents)
+      // Android 原生代理（native-android-proxy）由 BilibiliParseSettings 手动注入 store，
+      // 未通过 socket 注册到后端，因此后端返回的 agents 列表不包含它。
+      // 若直接 setAgents(payload.agents) 会覆盖掉原生代理，导致 getActiveCliProxyUrl() 返回 null，
+      // 切换分辨率时误报"CLI 代理未连接"。
+      // 这里保留原生代理，只合并后端返回的 socket 注册代理。
+      const currentAgents = useCliAgentStore.getState().agents
+      const nativeAgents = currentAgents.filter(
+        (a) => a.socketId === 'native-android-proxy'
+      )
+      setAgents([...nativeAgents, ...payload.agents])
       setIsLoadingAgents(false)
     }
 

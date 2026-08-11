@@ -9,14 +9,16 @@ export default function BilibiliAccountPage() {
   const [userName, setUserName] = useState('')
   const [valid, setValid] = useState<boolean | null>(null)
   const [qrUrl, setQrUrl] = useState('')
-  const [qrStatus, setQrStatus] = useState('')
+  const [qrStatus, setQrStatus] = useState('正在生成二维码...')
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 加载已保存的 cookie
   useEffect(() => {
     loadSavedCookie()
     return () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
     }
   }, [])
 
@@ -39,10 +41,15 @@ export default function BilibiliAccountPage() {
     }
   }
 
-  // 自动生成二维码并开始轮询
+  // 自动生成二维码并开始轮询（失败自动重试）
   const startQrLogin = async () => {
     try {
+      setQrUrl('')
+      setQrStatus('正在生成二维码...')
       const qr = await initQr()
+      if (!qr?.qrUrl) {
+        throw new Error('二维码 URL 为空')
+      }
       setQrUrl(qr.qrUrl)
       setQrStatus('请使用手机 B站 扫码登录')
 
@@ -59,7 +66,7 @@ export default function BilibiliAccountPage() {
             setValid(true)
           } else if (result.status === 3) {
             // 二维码过期，重新生成
-            clearInterval(pollIntervalRef.current!)
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
             setQrUrl('')
             setQrStatus('二维码已过期，重新生成...')
             startQrLogin()
@@ -67,11 +74,17 @@ export default function BilibiliAccountPage() {
             setQrStatus(result.message || '等待扫码...')
           }
         } catch {
-          // 轮询失败重试
+          // 轮询失败，稍后重试
         }
       }, 2000)
     } catch (e) {
-      setQrStatus('生成二维码失败: ' + (e as Error).message)
+      // 生成二维码失败：显示错误并 3 秒后自动重试
+      setQrStatus('生成二维码失败，正在重试... ' + (e as Error).message)
+      setQrUrl('')
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+      retryTimerRef.current = setTimeout(() => {
+        void startQrLogin()
+      }, 3000)
     }
   }
 
@@ -134,10 +147,10 @@ export default function BilibiliAccountPage() {
         </div>
       )}
 
-      {/* 未登录 + 二维码加载中 */}
+      {/* 未登录 + 二维码加载中/失败 */}
       {valid === false && !qrUrl && (
         <div style={{ padding: 40, textAlign: 'center', color: 'var(--md-sys-color-on-surface-variant)' }}>
-          正在生成二维码...
+          {qrStatus}
         </div>
       )}
     </div>
