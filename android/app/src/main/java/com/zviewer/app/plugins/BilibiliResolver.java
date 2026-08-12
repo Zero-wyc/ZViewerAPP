@@ -47,7 +47,8 @@ public class BilibiliResolver {
 
     // ===================== 常量（与 resolver.go 对齐） =====================
 
-    private static final int BILIBILI_REQUEST_TIMEOUT_MS = 10000;
+    // B站 API 请求超时：8 秒（平衡网络波动与快速失败，CLI 代理模式下本地请求应很快）
+    private static final int BILIBILI_REQUEST_TIMEOUT_MS = 8000;
     private static final int MP4_MAX_QN = 80;
     private static final int DEFAULT_QN = 80;
     private static final int VIP_DEFAULT_QN = 120;
@@ -114,6 +115,19 @@ public class BilibiliResolver {
         VipCacheEntry(boolean isVip, long cachedAt) {
             this.isVip = isVip;
             this.cachedAt = cachedAt;
+        }
+    }
+
+    /** nav 接口合并请求结果：VIP 状态 + WBI keys */
+    private static class NavInfo {
+        final boolean isVip;
+        final String imgKey;
+        final String subKey;
+
+        NavInfo(boolean isVip, String imgKey, String subKey) {
+            this.isVip = isVip;
+            this.imgKey = imgKey;
+            this.subKey = subKey;
         }
     }
 
@@ -454,6 +468,49 @@ public class BilibiliResolver {
         } catch (Exception e) {
             Log.w(TAG, "VIP 校验失败: " + e.getMessage());
             return false;
+        }
+    }
+
+    /**
+     * 合并 nav 请求：一次调用同时获取 VIP 状态和 WBI keys。
+     *
+     * 性能优化：resolveBilibiliVideo 中需要 VIP 状态（过滤清晰度）和 WBI keys（签名 view/playurl）。
+     * 原实现分别调用 getVipStatus 和 getWbiKeys，各自请求一次 nav 接口，产生 2 个 RTT。
+     * 本方法合并为 1 次 nav 请求，同时更新两个缓存，节省 1 个 RTT（约 200-500ms）。
+     *
+     * @return NavInfo 包含 isVip, imgKey, subKey；nav 失败时返回 null（调用方降级处理）
+     */
+    private static NavInfo fetchNavInfo(String cookie) {
+        if (cookie == null || cookie.trim().isEmpty()) return null;
+        try {
+            JSONObject data = bilibiliFetch("https://api.bilibili.com/x/web-interface/nav", cookie);
+            if (data == null) return null;
+
+            // 提取 VIP 状态
+            boolean isLogin = data.optBoolean("isLogin", false);
+            int vipStatus = data.optInt("vipStatus", 0);
+            int vipType = data.optInt("vipType", 0);
+            boolean isVip = isLogin && (vipStatus == 1 || vipType > 0);
+
+            // 提取 WBI keys
+            JSONObject wbiImg = data.optJSONObject("wbi_img");
+            if (wbiImg == null) return null;
+            String imgUrl = wbiImg.optString("img_url", "");
+            String subUrl = wbiImg.optString("sub_url", "");
+            if (imgUrl.isEmpty() || subUrl.isEmpty()) return null;
+            String imgKey = extractKeyFromWbiUrl(imgUrl);
+            String subKey = extractKeyFromWbiUrl(subUrl);
+            if (imgKey.isEmpty() || subKey.isEmpty()) return null;
+
+            // 更新两个缓存
+            String cacheKey = wbiCacheKey(cookie);
+            vipStatusCache.put(cacheKey, new VipCacheEntry(isVip, System.currentTimeMillis()));
+            wbiKeyCache.put(cacheKey, new WbiKeyPair(imgKey, subKey, System.currentTimeMillis()));
+
+            return new NavInfo(isVip, imgKey, subKey);
+        } catch (Exception e) {
+            Log.w(TAG, "nav 合并请求失败: " + e.getMessage());
+            return null;
         }
     }
 
@@ -840,14 +897,21 @@ public class BilibiliResolver {
         String cookie = opts.cookie != null ? opts.cookie.trim() : "";
         boolean hasCookie = !cookie.isEmpty();
 
-        // 1. 获取视频信息
+        // 1. 合并 nav 请求：一次获取 VIP 状态 + WBI keys（节省 1 个 RTT）
+        //    nav 失败时降级：getVideoInfo 内部会降级到未签名 view 接口，isVip 默认 false
+        boolean isVip = false;
+        if (hasCookie) {
+            NavInfo navInfo = fetchNavInfo(cookie);
+            if (navInfo != null) {
+                isVip = navInfo.isVip;
+            }
+        }
+
+        // 2. 获取视频信息（WBI keys 已由 fetchNavInfo 缓存，不会重复请求 nav）
         VideoInfo info = getVideoInfo(bvid, cookie);
         if (info == null) {
             throw new ResolveException("获取视频信息失败", "INFO_FAILED");
         }
-
-        // 2. VIP 校验
-        boolean isVip = getVipStatus(cookie);
 
         // 3. 确定当前播放分集
         long effectiveCid = info.cid;

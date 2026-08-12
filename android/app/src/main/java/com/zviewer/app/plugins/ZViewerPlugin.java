@@ -804,24 +804,71 @@ public class ZViewerPlugin extends Plugin {
     private boolean doProxyRequest(java.net.Socket client, String targetUrl, String range) throws Exception {
         HttpURLConnection conn = null;
         try {
-            URL url = new URL(targetUrl);
-            conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            // 与 ZViewerCLI doProxyRequest 对齐：注入 B站 防盗链所需的 Referer/Origin/User-Agent
-            conn.setRequestProperty("User-Agent", DESKTOP_USER_AGENT);
-            conn.setRequestProperty("Accept", "*/*");
-            conn.setRequestProperty("Referer", "https://www.bilibili.com");
-            conn.setRequestProperty("Origin", "https://www.bilibili.com");
-            if (range != null && !range.isEmpty()) {
-                conn.setRequestProperty("Range", range);
-            }
-            // 视频流是大文件传输，需要更长的超时（与 ZViewerCLI proxyUpstreamTimeoutMs 对齐）
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(60000);
+            // 禁用自动重定向：HttpURLConnection 跟随重定向时不保留 Referer/Origin 头，
+            // 导致 B站 CDN 重定向后返回 403。手动处理重定向并注入防盗链头（与 ZViewerCLI
+            // CheckRedirect 对齐）。
+            String currentUrl = targetUrl;
+            int redirectCount = 0;
+            int code;
 
-            int code = conn.getResponseCode();
-            // 上游非 2xx 时透传状态码（与 ZViewerCLI doProxyRequest 对齐）
-            java.io.InputStream upstream = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
+            while (true) {
+                URL url = new URL(currentUrl);
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setInstanceFollowRedirects(false);
+                // 每次请求（含重定向）都注入 B站 防盗链所需的头
+                conn.setRequestProperty("User-Agent", DESKTOP_USER_AGENT);
+                conn.setRequestProperty("Accept", "*/*");
+                conn.setRequestProperty("Accept-Encoding", "identity");
+                conn.setRequestProperty("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
+                conn.setRequestProperty("Referer", "https://www.bilibili.com");
+                conn.setRequestProperty("Origin", "https://www.bilibili.com");
+                conn.setRequestProperty("Connection", "close");
+                conn.setRequestProperty("Sec-Fetch-Dest", "video");
+                conn.setRequestProperty("Sec-Fetch-Mode", "no-cors");
+                conn.setRequestProperty("Sec-Fetch-Site", "cross-site");
+                if (range != null && !range.isEmpty()) {
+                    conn.setRequestProperty("Range", range);
+                }
+                conn.setConnectTimeout(10000);
+                conn.setReadTimeout(60000);
+
+                code = conn.getResponseCode();
+
+                // 3xx 重定向：手动跟随（与 ZViewerCLI CheckRedirect 对齐）
+                if (code == 301 || code == 302 || code == 303 || code == 307 || code == 308) {
+                    String location = conn.getHeaderField("Location");
+                    conn.disconnect();
+                    conn = null;
+                    if (location == null || location.isEmpty() || redirectCount >= 10) {
+                        return false;
+                    }
+                    // 处理相对路径重定向
+                    if (location.startsWith("http")) {
+                        currentUrl = location;
+                    } else {
+                        URL base = url;
+                        currentUrl = new URL(base, location).toString();
+                    }
+                    redirectCount++;
+                    continue;
+                }
+                break;
+            }
+
+            // 上游返回 4xx/5xx 时：记录错误详情，返回 false 尝试 backup URL
+            if (code >= 400) {
+                try {
+                    java.io.InputStream errStream = conn.getErrorStream();
+                    if (errStream != null) {
+                        String errBody = new String(readAllBytes(errStream), StandardCharsets.UTF_8).substring(0, 500);
+                        System.err.println("[Proxy] 上游 " + code + " for " + currentUrl.substring(0, 80) + ": " + errBody);
+                    }
+                } catch (Exception ignored) {}
+                return false;
+            }
+
+            java.io.InputStream upstream = conn.getInputStream();
             if (upstream == null) {
                 upstream = new java.io.ByteArrayInputStream(new byte[0]);
             }
@@ -881,6 +928,15 @@ public class ZViewerPlugin extends Plugin {
         out.write(body);
         out.flush();
         out.close();
+    }
+
+    private byte[] readAllBytes(java.io.InputStream in) throws Exception {
+        if (in == null) return new byte[0];
+        java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+        byte[] tmp = new byte[8192];
+        int n;
+        while ((n = in.read(tmp)) != -1) buf.write(tmp, 0, n);
+        return buf.toByteArray();
     }
 
     private String getStatusText(int code) {

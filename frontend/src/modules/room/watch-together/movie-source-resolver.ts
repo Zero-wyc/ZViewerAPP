@@ -12,7 +12,7 @@
 import type { Movie } from '@/store/roomStore'
 import type { MediaFormat } from '@/lib/mediaFormat'
 import { resolveBilibiliWithOptions } from '@/modules/bilibili/bilibiliApi'
-import { extractBvid, resolveBilibiliViaCli } from '@/modules/bilibili/cliApi'
+import { extractBvid, resolveBilibiliViaCli, clearResolveCache } from '@/modules/bilibili/cliApi'
 import { useCliAgentStore } from '@/store/cliAgentStore'
 import { getBilibiliParseOptions } from '@/modules/bilibili/parseOptions'
 import { useSystemSettingsStore } from '@/store/systemSettingsStore'
@@ -107,6 +107,9 @@ export function getActiveCliProxyUrl(): string | null {
  *
  * 当服务器端 DASH 被禁用（dashDisabled）且 CLI 未启用时，强制 MP4。
  */
+// 重新导出 cliApi 中的缓存清理函数，供 useWatchTogether 切换影片时调用
+export { clearResolveCache }
+
 export function getEffectivePreferMp4(movieId: number): boolean {
   const { preferMp4, cliEnabled } = getBilibiliParseOptions(movieId)
   if (cliEnabled) {
@@ -178,12 +181,19 @@ export async function resolveBilibiliOnline(
 
   if (proxyUrl) {
     const bvid = extractBvid(movie.url)
-    if (bvid && movie.cid) {
+    if (bvid) {
+      // cid 可选：未传入时 CLI /resolve 会自动使用视频默认 cid（第一 P）
+      // 首次加载时 movie.cid 可能为空，不应因此回退到服务端解析
+      // CLI 模式：默认使用 1080P（qn=80），让用户通过分辨率切换 UI 选择更高或更低清晰度
+      const cliQn =
+        movie.currentQn && movie.currentQn > 0
+          ? Math.max(movie.currentQn, 80)
+          : 80
       const resolved = await resolveBilibiliViaCli(
         proxyUrl,
         bvid,
         movie.cid,
-        movie.currentQn,
+        cliQn,
         effectivePreferMp4,
         forceDash
       )

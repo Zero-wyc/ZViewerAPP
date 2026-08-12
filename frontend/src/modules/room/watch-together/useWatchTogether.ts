@@ -27,6 +27,7 @@ import {
   resolveBilibiliOnline,
   getEffectivePreferMp4,
   getActiveCliProxyUrl,
+  clearResolveCache,
   type ResolvedMovieSource,
 } from './movie-source-resolver'
 import type { ResolvedSource } from '@/modules/bilibili/types'
@@ -745,6 +746,9 @@ export function useWatchTogether({
     ) {
       return
     }
+
+    // 切换影片时清除 CLI 解析缓存，避免旧影片的解析结果影响新影片加载
+    clearResolveCache()
 
     const video = videoRef.current
     if (!video) return
