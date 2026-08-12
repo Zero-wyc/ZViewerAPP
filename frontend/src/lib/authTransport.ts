@@ -12,7 +12,13 @@
  * 两侧分离点：
  * - HTTPS 模式不读本地 token（cookie 已自动携带）
  * - HTTP 模式不依赖 cookie（后端 HTTP 请求不写 cookie）
+ *
+ * Android Capacitor 特殊处理：
+ * Capacitor 默认以 https://localhost 加载 WebView，window.location.protocol === 'https:'
+ * 但实际后端地址为 http:// 且无法设置 cookie（跨站 + 非 Secure）。
+ * 原生平台必须强制走 Bearer token 通道，否则所有请求无鉴权凭证导致 401。
  */
+import { Capacitor } from '@capacitor/core'
 
 /** Bearer token 存储 key（HTTP 场景；HTTPS 场景使用 httpOnly cookie，不读写此存储） */
 const ACCESS_TOKEN_KEY = 'zviewer-access-token'
@@ -38,9 +44,18 @@ function writeStored(key: string, value: string): void {
   }
 }
 
-/** 当前页面是否为 HTTPS 上下文（反向代理终止 TLS 后浏览器视角仍为 https） */
+/**
+ * 当前页面是否为 HTTPS 上下文（反向代理终止 TLS 后浏览器视角仍为 https）。
+ *
+ * 原生平台（Android Capacitor）始终视为非 HTTPS 上下文：
+ * WebView 虽以 https://localhost 加载，但后端为 http:// 跨站地址，
+ * cookie 无法跨站+非 Secure 设置，必须走 Bearer token 通道。
+ */
 export function isHttpsContext(): boolean {
-  return typeof window !== 'undefined' && window.location.protocol === 'https:'
+  if (typeof window === 'undefined') return false
+  // 原生平台强制走 Bearer token 通道，不依赖 cookie
+  if (Capacitor.isNativePlatform()) return false
+  return window.location.protocol === 'https:'
 }
 
 // ==================== Bearer token（HTTP 通道） ====================

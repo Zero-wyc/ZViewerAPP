@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { io, type Socket } from 'socket.io-client'
+import { Capacitor } from '@capacitor/core'
 import { useAuthStore, type User } from '@/store/authStore'
 import {
   apiFetch,
@@ -28,10 +29,12 @@ function getSocket(): Socket {
   if (globalSocket) return globalSocket
 
   const socketUrl = getSocketUrl()
+  const isNative = Capacitor.isNativePlatform()
   globalSocket = io(socketUrl, {
     transports: ['websocket', 'polling'],
     autoConnect: false,
-    withCredentials: true,
+    // 原生平台走 Bearer token（auth.token），不走 cookie，避免跨站 credentials 问题
+    withCredentials: !isNative,
     // 分离式鉴权：HTTPS 走 cookie（自动携带），HTTP 走 auth.token（每次握手取最新）
     // socket.io v4 的 auth 函数使用回调风格：cb(payload) 而非 return payload
     auth: (cb: (data: Record<string, string>) => void) => {

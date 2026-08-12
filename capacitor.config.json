@@ -3,7 +3,7 @@
   "appName": "ZViewer",
   "webDir": "frontend/dist",
   "server": {
-    "androidScheme": "https",
+    "androidScheme": "http",
     "cleartext": true
   },
   "plugins": {

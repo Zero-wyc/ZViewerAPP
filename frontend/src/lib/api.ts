@@ -20,6 +20,7 @@ import {
   saveAuthTokens,
   buildAuthHeaders,
 } from './authTransport'
+import { Capacitor } from '@capacitor/core'
 export {
   isHttpsContext,
   getAccessToken,
@@ -258,7 +259,8 @@ async function refreshAccessToken(): Promise<boolean> {
       const refreshToken = getRefreshToken()
       const res = await fetch(`${getApiUrl()}/api/auth/refresh`, {
         method: 'POST',
-        credentials: 'include',
+        // 原生平台走 Bearer token，不需要 cookies
+        credentials: Capacitor.isNativePlatform() ? 'omit' : 'include',
         headers: { 'Content-Type': 'application/json' },
         // 跨站 HTTP 场景 cookie 不可用，通过 body 携带 refresh token
         body: refreshToken ? JSON.stringify({ refreshToken }) : undefined,
@@ -313,7 +315,8 @@ export async function apiFetch(
 
   const res = await fetch(url, {
     ...rest,
-    credentials: 'include',
+    // 原生平台走 Bearer token，不需要 cookies（避免跨站 credentials 导致 CORS 问题）
+    credentials: Capacitor.isNativePlatform() ? 'omit' : 'include',
     headers: {
       ...(headers || {}),
       // 分离式鉴权：HTTPS 走 cookie（自动携带），HTTP 走 Bearer 头

@@ -34,11 +34,25 @@ interface MovieListPanelProps {
 
 const SOURCE_LABELS: Record<string, string> = {
   bilibili: '哔哩哔哩',
-  mp4: 'MP4',
+  mp4: '视频直链',
   webdav: 'WebDAV',
   ftp: 'FTP',
   openlist: 'OpenList',
   smb: 'SMB',
+}
+
+/** 格式标签映射，用于在影片卡片中显示真实媒体格式 */
+const FORMAT_LABELS: Record<string, string> = {
+  mp4: 'MP4',
+  hls: 'HLS',
+  flv: 'FLV',
+  dash: 'DASH',
+  webm: 'WebM',
+  mkv: 'MKV',
+  mov: 'MOV',
+  avi: 'AVI',
+  wmv: 'WMV',
+  ts: 'TS',
 }
 
 export function MovieListPanel({ isHost }: MovieListPanelProps) {
@@ -407,7 +421,9 @@ export function MovieListPanel({ isHost }: MovieListPanelProps) {
                         color="primary"
                         className="inline-flex min-w-0 max-w-full truncate"
                       >
-                        {SOURCE_LABELS[movie.sourceType] || movie.sourceType}
+                        {movie.sourceType === 'mp4' && movie.format
+                          ? FORMAT_LABELS[movie.format] || movie.format.toUpperCase()
+                          : SOURCE_LABELS[movie.sourceType] || movie.sourceType}
                       </Tag>
                       {movie.pages && movie.pages.length > 1 && (
                         <Tag

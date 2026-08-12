@@ -28,7 +28,8 @@ export interface VideoStatsMenuProps {
   format?: 'dash' | 'mp4'
   /**
    * 访问模式：true=直链（浏览器直接请求源服务器），false/undefined=服务器中转
-   * 仅对 custom 源（webdav/openlist/ftp 等）有意义；bilibili/webrtc 不传入。
+   * 对 custom 源（webdav/openlist/ftp/mp4 直链等）有意义；bilibili/webrtc 不传入。
+   * mp4 直链视频实际走浏览器直连源服务器，此处为 true。
    */
   directLink?: boolean
 }

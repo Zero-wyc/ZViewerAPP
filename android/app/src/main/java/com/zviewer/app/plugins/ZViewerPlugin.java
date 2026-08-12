@@ -953,6 +953,40 @@ public class ZViewerPlugin extends Plugin {
         }
     }
 
+    // ==================== 全屏沉浸模式 ====================
+
+    @PluginMethod
+    public void enterFullscreen(PluginCall call) {
+        try {
+            getActivity().runOnUiThread(() -> {
+                getActivity().getWindow().getDecorView().setSystemUiVisibility(
+                    android.view.View.SYSTEM_UI_FLAG_FULLSCREEN |
+                    android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+                    android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY |
+                    android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
+                    android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                );
+            });
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("全屏失败: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void exitFullscreen(PluginCall call) {
+        try {
+            getActivity().runOnUiThread(() -> {
+                getActivity().getWindow().getDecorView().setSystemUiVisibility(
+                    android.view.View.SYSTEM_UI_FLAG_VISIBLE
+                );
+            });
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("退出全屏失败: " + e.getMessage());
+        }
+    }
+
     // ==================== 通用 HTTP ====================
 
     private String httpGet(String urlStr, String cookie) throws Exception {

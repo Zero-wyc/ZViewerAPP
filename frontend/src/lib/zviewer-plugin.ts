@@ -47,6 +47,10 @@ export interface ZViewerPluginDefinitions {
   // 本地代理
   startProxy(): Promise<{ port: number; baseUrl: string }>
   stopProxy(): Promise<void>
+
+  // 全屏沉浸模式
+  enterFullscreen(): Promise<void>
+  exitFullscreen(): Promise<void>
 }
 
 const ZViewerPlugin = registerPlugin<ZViewerPluginDefinitions>('ZViewer')
@@ -60,5 +64,7 @@ export const resolveVideo = (bvid: string, cookie?: string) =>
   ZViewerPlugin.resolveVideo({ bvid, cookie })
 export const startProxy = () => ZViewerPlugin.startProxy()
 export const stopProxy = () => ZViewerPlugin.stopProxy()
+export const enterFullscreen = () => ZViewerPlugin.enterFullscreen()
+export const exitFullscreen = () => ZViewerPlugin.exitFullscreen()
 
 export default ZViewerPlugin
