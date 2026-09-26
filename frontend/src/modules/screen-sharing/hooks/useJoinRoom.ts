@@ -161,6 +161,14 @@ export function useJoinRoom(options: UseJoinRoomOptions): UseJoinRoomResult {
               setJoinStatus('password-required')
               requestedRoomIdRef.current = null
               message.error('密码错误，请重新输入')
+            } else if (response.code === 'ALREADY_IN_ROOM') {
+              // 同一账户已在另一个标签页进入此房间，拒绝加入并返回首页
+              setJoinStatus('rejected')
+              message.error(response.message ?? '该账户已在此房间内')
+              // 延迟导航，让用户看到提示
+              setTimeout(() => {
+                window.location.href = '/'
+              }, 2000)
             } else {
               setJoinStatus('idle')
               message.error(response.message ?? '加入房间失败')

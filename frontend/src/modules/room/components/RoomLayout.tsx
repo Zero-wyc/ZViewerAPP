@@ -8,7 +8,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, PanelRight, PanelRightClose } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
@@ -19,6 +18,7 @@ import { message } from '@/components/ui/message'
 import { SegmentedToggle } from '@/components/ui/SegmentedToggle'
 import { useRoomStore, type RoomMode } from '@/store/roomStore'
 import { useSocket } from '@/hooks/useSocket'
+import { useRoomExitGuard } from '@/hooks/useRoomExitGuard'
 import { SharingStatusPanel } from '@/modules/room/components/SharingStatusPanel'
 import {
   getFullscreenElement,
@@ -91,21 +91,12 @@ export function RoomLayout({
   sharingActive,
   webFullscreen = false,
 }: RoomLayoutProps) {
-  const navigate = useNavigate()
+  const { guardNavigate, confirmModal: exitGuardModal } = useRoomExitGuard()
   const { socket } = useSocket()
-  const exitRoom = useRoomStore((state) => state.exitRoom)
-  const defaultBack = () => {
-    // 房主返回主页时关闭旧房间，避免 socket 仍 joined 到旧 room、
-    // 旧 sharer session 残留，导致下次创建新房间时收到旧房间事件。
-    if (socket && isHost) {
-      socket.emit('close-room', () => {
-        /* ack，无需提示 */
-      })
-    }
-    // 明确退出房间：清除 activeRoomId + 重置房间状态
-    exitRoom()
-    navigate('/')
-  }
+  // defaultBack 由 guardNavigate 统一处理：
+  // 在房间内时弹出确认对话框，确认后执行 exitRoom + 房主 close-room + navigate。
+  // guardNavigate 内部的 confirmExit 已包含房主关闭房间的逻辑。
+  const defaultBack = () => guardNavigate('/')
   const handleBack = onBack ?? defaultBack
   // 移动端默认收起侧栏，给视频留出更多空间；桌面端默认展开
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(() => {
@@ -476,6 +467,7 @@ export function RoomLayout({
   )
 
   return (
+    <>
     <div
       className={cn(
         'flex flex-col items-center overflow-y-auto px-2 py-3 md:px-4 md:py-6',
@@ -586,5 +578,9 @@ export function RoomLayout({
         </div>
       )}
     </div>
+
+    {/* 离开房间确认对话框 */}
+    {exitGuardModal}
+    </>
   )
 }

@@ -14,6 +14,7 @@ import { MovieListPanel } from '@/modules/room/components/MovieListPanel'
 import { MoviePushPanel } from '@/modules/room/components/MoviePushPanel'
 import { CommentPanel } from '@/components/CommentPanel'
 import { Spinner } from '@/components/ui/Spinner'
+import { message } from '@/components/ui/message'
 import { SharePage, WatchPage } from '@/modules/screen-sharing'
 import type { MediaFormat } from '@/lib/mediaFormat'
 
@@ -192,6 +193,7 @@ function RoomPage() {
         (response: {
           success: boolean
           message?: string
+          code?: string
           data?: {
             mode?: RoomMode
             shareMethod?: 'webrtc' | 'stream-push'
@@ -224,6 +226,14 @@ function RoomPage() {
         }) => {
           if (!response?.success) {
             console.warn('[RoomPage] register-host failed:', response?.message)
+            // 同一账户已在另一个标签页进入此房间：显示提示并返回首页
+            if (response?.code === 'ALREADY_IN_ROOM') {
+              message.error(response.message ?? '该账户已在此房间内')
+              setTimeout(() => {
+                window.location.href = '/'
+              }, 2000)
+              return
+            }
             // 房主身份恢复失败（房间被关闭/被接管等）：清除本地标记，回退到观众流程
             clearHostRoomMark(roomId)
             // 即使失败也标记为已完成，避免 WatchTogetherPanel 永远不渲染

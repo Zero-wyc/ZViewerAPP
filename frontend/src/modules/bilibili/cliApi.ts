@@ -75,6 +75,22 @@ interface CliResolveResponse {
   currentPage?: number
 }
 
+/** CLI 代理连接失败（网络不可达 / CORS / 进程未启动） */
+export class CliConnectionError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'CliConnectionError'
+  }
+}
+
+/** CLI 代理解析失败（后端返回错误或响应数据不完整） */
+export class CliResolveError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'CliResolveError'
+  }
+}
+
 // ===================== 解析结果短期缓存 =====================
 //
 // 切换清晰度时，用户可能在短时间内来回切换多个清晰度。
@@ -192,17 +208,28 @@ export async function resolveBilibiliViaCli(
     })
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
-      throw new Error('CLI 解析超时，请检查网络或重启 CLI 代理')
+      throw new CliConnectionError('CLI 解析超时，请检查网络或重启 CLI 代理')
     }
-    throw new Error(`CLI 解析请求失败: ${err instanceof Error ? err.message : String(err)}`)
+    throw new CliConnectionError(
+      'CLI 代理连接失败，请确认本地 zcontrol-cli 已启动'
+    )
   } finally {
     clearTimeout(timeoutId)
   }
 
-  const data = (await res.json()) as CliResolveResponse
+  let data: CliResolveResponse
+  try {
+    data = (await res.json()) as CliResolveResponse
+  } catch {
+    throw new CliResolveError(
+      `CLI 代理返回了无效响应（HTTP ${res.status}）`
+    )
+  }
 
   if (!res.ok || data.success === false || !data.videoUrl) {
-    throw new Error(data.message || 'CLI 解析 B站 视频失败')
+    throw new CliResolveError(
+      data.message || `CLI 解析 B站 视频失败（HTTP ${res.status}）`
+    )
   }
 
   const resolved: ResolvedSource = {

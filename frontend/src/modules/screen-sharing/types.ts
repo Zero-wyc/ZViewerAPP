@@ -18,6 +18,8 @@ export type ConnectionState =
 export interface RequestJoinResponse {
   success: boolean
   message?: string
+  /** 错误码（如 ALREADY_IN_ROOM：同一账户已在房间内） */
+  code?: string
   data?: {
     mode?: RoomMode
     shareMethod?: 'webrtc' | 'stream-push'

@@ -59,6 +59,8 @@ import {
 import {
   extractBvid,
   resolveBilibiliViaCli,
+  CliConnectionError,
+  CliResolveError,
 } from '@/modules/bilibili/cliApi'
 import { getActiveCliProxyUrl } from '@/modules/room/watch-together/movie-source-resolver'
 import {
@@ -734,28 +736,40 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
     setLoading(true)
     setResolveProgress('正在初始化解析...')
     try {
-      // CLI 已连接时优先使用本地 CLI 代理解析（使用用户自己的 B站 Cookie，可获取高画质）
-      const cliProxyUrl = getActiveCliProxyUrl()
       const bvid = extractBvid(url.trim())
 
-      let resolved: ResolvedSource
+      let resolved: ResolvedSource | undefined
+      // CLI 已连接时优先使用本地 CLI 代理解析（使用用户自己的 B站 Cookie，可获取高画质）
+      const cliProxyUrl = getActiveCliProxyUrl()
       if (cliProxyUrl && bvid) {
-        setResolveProgress('正在通过 CLI 代理解析...')
-        resolved = await resolveBilibiliViaCli(
-          cliProxyUrl,
-          bvid,
-          undefined,
-          undefined,
-          false,
-          true
-        )
-      } else {
-        resolved = await resolveBilibili(
-          url.trim(),
-          undefined,
-          (_step, msg) => setResolveProgress(msg)
+        try {
+          setResolveProgress('正在通过 CLI 代理解析...')
+          resolved = await resolveBilibiliViaCli(
+            cliProxyUrl,
+            bvid,
+            undefined,
+            undefined,
+            false,
+            true
+          )
+        } catch (cliErr) {
+          // CLI 代理解析失败：连接失败或后端返回错误，自动回退到服务器端解析
+          if (cliErr instanceof CliConnectionError) {
+            console.warn('[MoviePushPanel] CLI 代理连接失败，回退到服务器端解析')
+          } else if (cliErr instanceof CliResolveError) {
+            message.warning(`${cliErr.message}，已回退到服务器端解析`)
+          }
+          // resolved 保持 undefined，下方走服务器端解析
+        }
+      }
+
+      if (!resolved) {
+        setResolveProgress('正在通过服务器解析...')
+        resolved = await resolveBilibili(url.trim(), undefined, (_step, msg) =>
+          setResolveProgress(msg)
         )
       }
+
       setResolvedMovie(resolved)
       // 自动检测多 P 视频：若有多 P，弹出分集选择界面
       if (resolved.pages && resolved.pages.length > 1) {
@@ -778,22 +792,33 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
     setQualityLoading(true)
     setResolveProgress('正在切换清晰度...')
     try {
-      // CLI 已连接时通过本地 CLI 代理切换清晰度（使用用户自己的 B站 Cookie）
-      const cliProxyUrl = getActiveCliProxyUrl()
       const bvid = extractBvid(url.trim())
 
-      let resolved: ResolvedSource
+      let resolved: ResolvedSource | undefined
+      // CLI 已连接时通过本地 CLI 代理切换清晰度（使用用户自己的 B站 Cookie）
+      const cliProxyUrl = getActiveCliProxyUrl()
       if (cliProxyUrl && bvid) {
-        setResolveProgress('正在通过 CLI 代理切换清晰度...')
-        resolved = await resolveBilibiliViaCli(
-          cliProxyUrl,
-          bvid,
-          resolvedMovie.cid,
-          qn,
-          false,
-          true
-        )
-      } else {
+        try {
+          setResolveProgress('正在通过 CLI 代理切换清晰度...')
+          resolved = await resolveBilibiliViaCli(
+            cliProxyUrl,
+            bvid,
+            resolvedMovie.cid,
+            qn,
+            false,
+            true
+          )
+        } catch (cliErr) {
+          if (cliErr instanceof CliConnectionError) {
+            console.warn('[MoviePushPanel] CLI 代理连接失败，回退到服务器端解析')
+          } else if (cliErr instanceof CliResolveError) {
+            message.warning(`${cliErr.message}，已回退到服务器端解析`)
+          }
+        }
+      }
+
+      if (!resolved) {
+        setResolveProgress('正在通过服务器切换清晰度...')
         resolved = await resolveBilibiliWithOptions(
           url.trim(),
           qn,
@@ -820,22 +845,33 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
     setPageSelectLoading(true)
     setResolveProgress(`正在解析 P${page} ${targetPage.part}...`)
     try {
-      // CLI 已连接时通过本地 CLI 代理切换分P（使用用户自己的 B站 Cookie）
-      const cliProxyUrl = getActiveCliProxyUrl()
       const bvid = extractBvid(url.trim())
 
-      let resolved: ResolvedSource
+      let resolved: ResolvedSource | undefined
+      // CLI 已连接时通过本地 CLI 代理切换分P（使用用户自己的 B站 Cookie）
+      const cliProxyUrl = getActiveCliProxyUrl()
       if (cliProxyUrl && bvid) {
-        setResolveProgress(`正在通过 CLI 代理解析 P${page}...`)
-        resolved = await resolveBilibiliViaCli(
-          cliProxyUrl,
-          bvid,
-          targetPage.cid,
-          resolvedMovie.currentQn,
-          false,
-          true
-        )
-      } else {
+        try {
+          setResolveProgress(`正在通过 CLI 代理解析 P${page}...`)
+          resolved = await resolveBilibiliViaCli(
+            cliProxyUrl,
+            bvid,
+            targetPage.cid,
+            resolvedMovie.currentQn,
+            false,
+            true
+          )
+        } catch (cliErr) {
+          if (cliErr instanceof CliConnectionError) {
+            console.warn('[MoviePushPanel] CLI 代理连接失败，回退到服务器端解析')
+          } else if (cliErr instanceof CliResolveError) {
+            message.warning(`${cliErr.message}，已回退到服务器端解析`)
+          }
+        }
+      }
+
+      if (!resolved) {
+        setResolveProgress(`正在通过服务器解析 P${page}...`)
         resolved = await resolveBilibiliWithOptions(
           url.trim(),
           resolvedMovie.currentQn,

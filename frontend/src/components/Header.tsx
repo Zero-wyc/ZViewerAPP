@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Capacitor } from '@capacitor/core'
 import {
   Palette,
@@ -78,6 +78,7 @@ import {
   resetSessionExpired,
 } from '@/lib/api'
 import { resetSocket, reconnectSocket } from '@/hooks/useSocket'
+import { useRoomExitGuard } from '@/hooks/useRoomExitGuard'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -95,6 +96,7 @@ import { PRESET_SEEDS } from '@/lib/themes'
 import { cn } from '@/lib/utils'
 
 export function Header() {
+  const { guardNavigate, confirmModal: exitGuardModal } = useRoomExitGuard()
   const { user, logout, isAuthenticated } = useAuthStore()
   const navigate = useNavigate()
   const {
@@ -317,7 +319,10 @@ export function Header() {
   return (
     <>
       <header className="glass fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3">
-        <Link to="/" className="relative z-50 flex items-center gap-2">
+        <button
+          onClick={() => guardNavigate('/')}
+          className="relative z-50 flex items-center gap-2 cursor-pointer"
+        >
           <img
             src="/favicon.jpg"
             alt="ZViewer"
@@ -326,7 +331,7 @@ export function Header() {
           <span className="font-semibold text-base text-[var(--md-sys-color-on-surface)]">
             ZViewer
           </span>
-        </Link>
+        </button>
 
         <div className="flex items-center gap-1.5">
           <a
@@ -800,22 +805,16 @@ export function Header() {
                       const itemStyle = {
                         '--item-delay': `${(idx + 1) * 50}ms`,
                       } as React.CSSProperties
-                      return item.to ? (
-                        <Link
-                          key={item.label}
-                          to={item.to}
-                          onClick={() => setUserOpen(false)}
-                          className={className}
-                          style={itemStyle}
-                        >
-                          {content}
-                        </Link>
-                      ) : (
+                      return (
                         <button
                           key={item.label}
                           onClick={() => {
                             setUserOpen(false)
-                            item.onClick?.()
+                            if (item.to) {
+                              guardNavigate(item.to)
+                            } else {
+                              item.onClick?.()
+                            }
                           }}
                           className={className}
                           style={itemStyle}
@@ -834,9 +833,11 @@ export function Header() {
                     />
 
                     {user.role === 'guest' ? (
-                      <Link
-                        to="/login"
-                        onClick={() => setUserOpen(false)}
+                      <button
+                        onClick={() => {
+                          setUserOpen(false)
+                          guardNavigate('/login')
+                        }}
                         className="zen-dropdown-item flex items-center gap-2.5 w-full px-2.5 py-2 rounded-[var(--md-sys-shape-corner)] text-sm text-[var(--md-sys-color-primary)] transition-all hover:bg-[var(--md-sys-color-primary-container)] hover:translate-x-0.5"
                         style={
                           {
@@ -846,7 +847,7 @@ export function Header() {
                       >
                         <LogIn className="w-4 h-4" />
                         登录
-                      </Link>
+                      </button>
                     ) : (
                       <button
                         onClick={handleLogout}
@@ -1059,6 +1060,9 @@ export function Header() {
           </div>
         </div>
       </Modal>
+
+      {/* 离开房间确认对话框 */}
+      {exitGuardModal}
     </>
   )
 }
