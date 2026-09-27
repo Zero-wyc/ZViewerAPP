@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#111417" />
+    <link rel="icon" href="/favicon.jpg" />
+    <title>ZViewer</title>
+    <style>
+      html, body { margin: 0; background: #111417; }
+      #startup {
+        box-sizing: border-box; min-height: 100vh; min-height: 100dvh;
+        padding: 32px 20px; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 20px;
+        color: #f2f4f5; font: 15px system-ui, sans-serif; text-align: center;
+      }
+      #startup img { width: 88px; height: 88px; border-radius: 8px; }
+      #startup h1 { margin: 0; font-size: 28px; letter-spacing: 0; }
+      #startup p { margin: 0; color: #b5bec8; line-height: 1.6; }
+      #startup .startup-spinner {
+        width: 22px; height: 22px; border: 2px solid #45505a;
+        border-top-color: #75d5b5; border-radius: 50%;
+        animation: startup-spin 1s linear infinite;
+      }
+      #startup button {
+        min-height: 44px; padding: 8px 24px; border: 1px solid #75d5b5;
+        border-radius: 6px; background: transparent; color: #75d5b5;
+        font: inherit; cursor: pointer;
+      }
+      #startup [hidden] { display: none; }
+      @keyframes startup-spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) {
+        #startup .startup-spinner { animation: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <main id="startup" aria-label="ZViewer">
+        <img src="/favicon.jpg" alt="" width="88" height="88" />
+        <h1>ZViewer</h1>
+        <div class="startup-spinner" aria-hidden="true"></div>
+        <p role="status">正在加载</p>
+        <button type="button" hidden>重新加载</button>
+        <noscript><p>请启用 JavaScript 后重新打开应用。</p></noscript>
+      </main>
+    </div>
+    <script>
+      (() => {
+        const startup = document.getElementById('startup');
+        const retry = startup.querySelector('button');
+        const fail = () => {
+          if (!startup.isConnected) return;
+          startup.querySelector('[role="status"]').textContent = '加载未完成，请重试';
+          startup.querySelector('.startup-spinner').hidden = true;
+          retry.hidden = false;
+        };
+        const onError = (event) => {
+          if (event.target instanceof HTMLScriptElement || event instanceof ErrorEvent) fail();
+        };
+        retry.addEventListener('click', () => location.reload());
+        window.addEventListener('error', onError, true);
+        const timeout = setTimeout(fail, 15000);
+        const observer = new MutationObserver(() => {
+          if (startup.isConnected) return;
+          clearTimeout(timeout);
+          window.removeEventListener('error', onError, true);
+          observer.disconnect();
+        });
+        observer.observe(document.getElementById('root'), { childList: true });
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

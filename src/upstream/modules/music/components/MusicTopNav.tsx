@@ -1,0 +1,1170 @@
+/**
+ * 顶部导航（Hydrogen Home.vue header 范式）。
+ *
+ * 结构：左搜索框（含联想下拉，外层定宽 224px 与右区对称） + 中导航链接组
+ * （flex-1 居中） + 右账户菜单（定宽 224px）
+ * - 搜索框（项目玻璃拟态语言）：glass 半透明底 + 主题模糊度 + 圆角描边，
+ *   聚焦加宽并高亮描边；聚焦空输入展示热搜榜（/search/hot/detail，单次
+ *   缓存），输入 220ms 防抖后并发三源建议合并去重（/search/suggest
+ *   mobile + /search/suggest/pc + web，条目数 = 设置「搜索下拉条目数量」）；
+ *   键盘 ↑↓ 循环高亮、Enter 选中高亮项或直接搜索，中文输入法组合态忽略；
+ *   点击建议 → 写入关键词并跳搜索页；回车 → page='search' 并存关键词
+ * - 导航链接：默认折叠态只有「网易云音乐」「哔哩哔哩」两按钮——网易云
+ *   四分区（首页/私人漫游/云盘/我的音乐）合并进「网易云音乐」按钮，点击
+ *   弹出分区选择面板（当前项实心方块指示，底部可展开完整导航），折叠态
+ *   无意图的初始页默认落「我的音乐」；面板底部或展开态末尾按钮可在两种
+ *   排版间切换（musicNavCollapsed 持久化）。当前页 on-surface、
+ *   其余 on-surface-variant/60，20px font-medium，间距 clamp(18px,3vw,40px)，
+ *   hover opacity-0.7；导航底部下划线（Hydrogen Home.vue .router-tracker
+ *   1:1 复刻：14×2px 短条，居中当前页按钮，left 0.3s ease 滑动，
+ *   搜索/设置页无对应按钮时淡出隐藏）
+ * - 账户菜单（全局 Header 用户菜单同语言）：glass-strong 底 + 主题模糊度
+ *   backdrop-filter + 圆角；账号信息头部（头像+昵称+描述）→ 分隔线 →
+ *   房间模式分组（一起看/投屏/一起听，当前项实心方块指示，房主可切换、
+ *   观众只读展示）→ 分隔线 → 设置 → 退出登录（错误色）/ 账号登录；
+ *   菜单项 zen-dropdown-item 交错入场 + hover 平移；房主未登录时底部
+ *   追加「登录网易云后全房间可播 VIP」辅助提示
+ */
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
+import {
+  ChevronDown,
+  FoldVertical,
+  LogIn,
+  LogOut,
+  Search,
+  Settings,
+  UnfoldVertical,
+  User,
+  X,
+} from 'lucide-react'
+import { apiGet, apiPost } from '@/lib/api'
+import { useMusicStore } from '../store'
+import { useMusicSettingsStore } from '../store-settings'
+import type { MusicPage } from '../store'
+import { useRoomStore, type RoomMode } from '@/store/roomStore'
+import {
+  MODE_LABELS,
+  MODE_ORDER,
+} from '@/modules/room/components/useRoomModeSwitch'
+import { useIsMobile } from '@/hooks/useMediaQuery'
+import { cn } from '@/lib/utils'
+import { ncmVipLabel } from '../hooks/useNcmLogin'
+
+/** 菜单内「房间模式」分组的注入状态（由 MusicAppShell 透传） */
+export interface RoomModeMenuState {
+  /** 房主可切换模式；观众只读展示当前模式 */
+  isHost: boolean
+  /** 模式切换回调（页面级 useRoomModeSwitch 提供） */
+  onSwitch?: (mode: RoomMode) => void
+  /** 切换进行中：模式选项禁用 */
+  isSwitching?: boolean
+}
+
+export interface MusicTopNavProps {
+  /** 是否为房主（房主侧菜单显示「登录网易云后全房间可播 VIP」提示） */
+  isHost: boolean
+  /** 房间模式切换分组（房间内提供；独立音乐页不传则隐藏该分组） */
+  roomModeMenu?: RoomModeMenuState
+}
+
+/** 菜单内房间模式项的实心方块指示尺寸（Hydrogen 选中标记语言） */
+const MODE_MARKER = 'h-1 w-1'
+
+/** 菜单项交错入场动画的基础时长偏移（与全局 Header 用户菜单一致，逐项 +40ms） */
+const ITEM_DELAY_STEP = 40
+
+/** 顶栏下划线宽度（Hydrogen Home.vue .router-tracker：14×2px 黑条，
+ *  绝对定位在导航底部、居中于当前页按钮，切页时 left 0.3s ease 滑动） */
+const TRACKER_WIDTH = 14
+
+/** 导航链接定义（顺序与 Hydrogen primary-nav + header-router-right 一致） */
+const NAV_ITEMS: Array<{ key: MusicPage; label: string }> = [
+  { key: 'home', label: '首页' },
+  { key: 'fm', label: '私人漫游' },
+  { key: 'cloud', label: '云盘' },
+  { key: 'mymusic', label: '我的音乐' },
+  { key: 'bilibili', label: '哔哩哔哩' },
+]
+
+/** 网易云分区（折叠态「网易云音乐」按钮的弹出面板项；不含 B站） */
+const NCM_NAV_ITEMS = NAV_ITEMS.filter((it) => it.key !== 'bilibili')
+
+/** 网易云分区 key 集合（折叠态「网易云音乐」按钮激活判定） */
+const NCM_NAV_KEYS = new Set(NCM_NAV_ITEMS.map((it) => it.key))
+
+/** 下拉面板四角框线（Hydrogen .assist-corner1~4：7px 见方、1px 边） */
+const PANEL_CORNERS = [
+  'left-[3px] top-[3px] border-l border-t',
+  'right-[3px] top-[3px] border-r border-t',
+  'right-[3px] bottom-[3px] border-r border-b',
+  'left-[3px] bottom-[3px] border-l border-b',
+] as const
+
+export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
+  const page = useMusicStore((s) => s.page)
+  const setPage = useMusicStore((s) => s.setPage)
+  const setSearchKeywords = useMusicStore((s) => s.setSearchKeywords)
+  const setBiliSearchKeyword = useMusicStore((s) => s.setBiliSearchKeyword)
+  const setLoginModalOpen = useMusicStore((s) => s.setLoginModalOpen)
+  const loginStatus = useMusicStore((s) => s.loginStatus)
+  /** 当前房间模式（菜单内「房间模式」分组展示/切换） */
+  const roomMode = useRoomStore((s) => s.mode)
+
+  /** 菜单内切换房间模式（房主；观众项只读） */
+  const handleMenuModeSwitch = (mode: RoomMode) => {
+    if (!roomModeMenu?.isHost || roomModeMenu.isSwitching) return
+    setMenuOpen(false)
+    if (mode === roomMode) return
+    roomModeMenu.onSwitch?.(mode)
+  }
+
+  /** 搜索框本地输入（回车才写入 store，避免每次击键切页） */
+  const [keyword, setKeyword] = useState('')
+  /** 账户菜单展开态 */
+  const [menuOpen, setMenuOpen] = useState(false)
+  /** 顶部导航折叠态（网易云四分区合并为单按钮；持久化设置） */
+  const navCollapsed = useMusicSettingsStore((s) => s.musicNavCollapsed)
+  const setMusicSettings = useMusicSettingsStore((s) => s.set)
+  /** 折叠态「网易云音乐」分区面板展开态 */
+  const [ncmMenuOpen, setNcmMenuOpen] = useState(false)
+  /** 搜索联想条数上限（设置「搜索下拉条目数量」；Hydrogen searchAssistLimit 同名配置） */
+  const searchAssistLimit = useMusicSettingsStore((s) => s.searchAssistLimit)
+  /** 聚焦态（驱动容器加宽动画，Hydrogen searchShow 同语义） */
+  const [focused, setFocused] = useState(false)
+  /** 悬停可见态：默认隐藏，鼠标移入左侧悬停区才显示搜索框 */
+  const [searchVisible, setSearchVisible] = useState(false)
+  /** 手机端搜索：触屏无 hover，点击搜索图标唤出全宽搜索层 */
+  const isMobile = useIsMobile()
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
+  /** 下拉条目（热榜/建议共用关键词列表） */
+  const [assistItems, setAssistItems] = useState<string[]>([])
+  /** 面板模式：空输入 = 热搜榜 / 有输入 = 建议（Hydrogen currentTitle 数据源） */
+  const [assistMode, setAssistMode] = useState<'hot' | 'suggest'>('hot')
+  const [assistLoading, setAssistLoading] = useState(false)
+  /** 键盘/鼠标共用的高亮条目下标（-1 无） */
+  const [activeIndex, setActiveIndex] = useState(-1)
+  /** 中文输入法组合态（期间忽略方向键/回车） */
+  const [isComposing, setIsComposing] = useState(false)
+  /** 热榜单次加载缓存（Hydrogen hotLoaded 同语义，不重复请求） */
+  const hotCacheRef = useRef<string[] | null>(null)
+  /** 建议请求竞态序号（过期响应丢弃） */
+  const requestSeqRef = useRef(0)
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
+  const assistBodyRef = useRef<HTMLDivElement | null>(null)
+
+  // 账户菜单打开时点击外部关闭（透明捕获层，同 Hydrogen app-option 交互）
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = () => setMenuOpen(false)
+    window.addEventListener('pointerdown', close)
+    return () => window.removeEventListener('pointerdown', close)
+  }, [menuOpen])
+
+  // 折叠态分区面板打开时点击外部关闭（同账户菜单交互）
+  useEffect(() => {
+    if (!ncmMenuOpen) return
+    const close = () => setNcmMenuOpen(false)
+    window.addEventListener('pointerdown', close)
+    return () => window.removeEventListener('pointerdown', close)
+  }, [ncmMenuOpen])
+
+  // 折叠模式下「网易云音乐」默认显示「我的音乐」：仅当当前页是无意图的
+  // 首页回退值（无持久化记录/非法值）时改写一次；用户明确停留的分区不动
+  const ncmDefaultAppliedRef = useRef(false)
+  useEffect(() => {
+    if (ncmDefaultAppliedRef.current) return
+    ncmDefaultAppliedRef.current = true
+    if (navCollapsed && page === 'home') setPage('mymusic')
+  }, [navCollapsed, page, setPage])
+
+  // ===== 顶栏下划线（Hydrogen Home.vue .router-tracker 1:1 复刻）：
+  //       14×2px on-surface 短条绝对定位在导航底部，居中于当前页按钮，
+  //       切页时 left 0.3s ease 滑动；搜索/设置页不在导航内 → 隐藏 =====
+  const navRef = useRef<HTMLElement | null>(null)
+  /** 折叠态「网易云音乐」「哔哩哔哩」按钮（下划线定位目标） */
+  const ncmButtonRef = useRef<HTMLButtonElement | null>(null)
+  const biliButtonRef = useRef<HTMLButtonElement | null>(null)
+  /** 展开态五按钮（下划线定位目标，按页面 key 索引） */
+  const navItemRefs = useRef<
+    Partial<Record<MusicPage, HTMLButtonElement | null>>
+  >({})
+  const [trackerLeft, setTrackerLeft] = useState(0)
+  const [trackerVisible, setTrackerVisible] = useState(false)
+  /** 最新一次渲染的位置计算函数（外部布局变化监听直调，避免状态中转） */
+  const computeTrackerRef = useRef<() => void>(() => {})
+
+  /** 当前页对应的顶栏按钮元素（无对应按钮时返回 null → 下划线隐藏） */
+  const resolveActiveNavEl = (): HTMLElement | null => {
+    if (navCollapsed) {
+      if (NCM_NAV_KEYS.has(page)) return ncmButtonRef.current
+      if (page === 'bilibili') return biliButtonRef.current
+      return null
+    }
+    return navItemRefs.current[page] ?? null
+  }
+
+  // 位置计算：每次渲染后同步执行 + 下一帧二次校准（Hydrogen updateTracker
+  // 同思路，修正字体加载/过渡造成的轻微偏移；rect 差值定位，导航无变换
+  // 场景下与 offsetLeft 等价且对 flex 居中布局更稳）
+  useLayoutEffect(() => {
+    const compute = () => {
+      const container = navRef.current
+      const el = resolveActiveNavEl()
+      if (
+        !container ||
+        !el ||
+        container.getClientRects().length === 0 ||
+        el.getClientRects().length === 0
+      ) {
+        setTrackerVisible(false)
+        return
+      }
+      const elRect = el.getBoundingClientRect()
+      const cRect = container.getBoundingClientRect()
+      const left = elRect.left - cRect.left + (elRect.width - TRACKER_WIDTH) / 2
+      setTrackerLeft(Math.max(0, Math.round(left)))
+      setTrackerVisible(true)
+    }
+    computeTrackerRef.current = compute
+    compute()
+    const raf = requestAnimationFrame(compute)
+    return () => cancelAnimationFrame(raf)
+  })
+
+  // 非渲染引起的外部布局变化（Hydrogen ResizeObserver + resize + fonts
+  // 校准同语义）：直调最新计算函数重新定位下划线
+  useEffect(() => {
+    const container = navRef.current
+    if (!container) return
+    const tick = () => computeTrackerRef.current()
+    const ro = new ResizeObserver(tick)
+    ro.observe(container)
+    window.addEventListener('resize', tick)
+    let cancelled = false
+    void document.fonts?.ready
+      .then(() => {
+        if (!cancelled) tick()
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+      ro.disconnect()
+      window.removeEventListener('resize', tick)
+    }
+  }, [])
+
+  /** 热搜榜拉取（Hydrogen fetchHotList：/search/hot/detail，单次缓存） */
+  const loadHotList = useCallback(async () => {
+    if (hotCacheRef.current) {
+      setAssistMode('hot')
+      setAssistItems(hotCacheRef.current.slice(0, searchAssistLimit))
+      setAssistLoading(false)
+      return
+    }
+    setAssistLoading(true)
+    try {
+      const { data } = await apiGet<{
+        data?: Array<{ searchWord?: string }>
+      }>(`/api/music/ncm/search/hot/detail?timestamp=${Date.now()}`)
+      const words = (Array.isArray(data?.data) ? data.data : [])
+        .map((item) =>
+          typeof item.searchWord === 'string' ? item.searchWord.trim() : ''
+        )
+        .filter(Boolean)
+      hotCacheRef.current = words
+      setAssistItems(words.slice(0, searchAssistLimit))
+      setAssistMode('hot')
+    } catch {
+      setAssistItems([])
+    } finally {
+      setAssistLoading(false)
+    }
+  }, [searchAssistLimit])
+
+  /** 建议三源并发合并（Hydrogen fetchSuggestList：mobile → pc → web 顺序去重） */
+  const loadSuggestList = useCallback(
+    async (kw: string) => {
+      const seq = ++requestSeqRef.current
+      setAssistLoading(true)
+      const encoded = encodeURIComponent(kw)
+      const [mobile, pc, web] = await Promise.allSettled([
+        apiGet<{ result?: { allMatch?: Array<{ keyword?: string }> } }>(
+          `/api/music/ncm/search/suggest?keywords=${encoded}&type=mobile&timestamp=${Date.now()}`
+        ),
+        apiGet<{ data?: { suggests?: Array<{ keyword?: string }> } }>(
+          `/api/music/ncm/search/suggest/pc?keyword=${encoded}&timestamp=${Date.now()}`
+        ),
+        apiGet<{ result?: { allMatch?: Array<{ keyword?: string }> } }>(
+          `/api/music/ncm/search/suggest?keywords=${encoded}&type=web&timestamp=${Date.now()}`
+        ),
+      ])
+      // 竞态保护：只接受最新一次请求的结果
+      if (seq !== requestSeqRef.current) return
+      const merged: string[] = []
+      const seen = new Set<string>()
+      const push = (item: { keyword?: string } | undefined) => {
+        const word = item?.keyword?.trim()
+        if (!word || merged.length >= searchAssistLimit) return
+        const key = word.toLowerCase()
+        if (seen.has(key)) return
+        seen.add(key)
+        merged.push(word)
+      }
+      if (mobile.status === 'fulfilled')
+        (mobile.value.data?.result?.allMatch ?? []).forEach(push)
+      if (pc.status === 'fulfilled')
+        (pc.value.data?.data?.suggests ?? []).forEach(push)
+      if (web.status === 'fulfilled')
+        (web.value.data?.result?.allMatch ?? []).forEach(push)
+      setAssistItems(merged)
+      setAssistMode('suggest')
+      setAssistLoading(false)
+    },
+    [searchAssistLimit]
+  )
+
+  // 建议防抖：输入 220ms 后拉建议；清空输入即取消在途请求（Hydrogen
+  // SUGGEST_DEBOUNCE_MS 同值；空输入回退热榜由 focus/onChange 处理）
+  useEffect(() => {
+    const kw = keyword.trim()
+    if (!kw) {
+      requestSeqRef.current++
+      return
+    }
+    const timer = setTimeout(() => {
+      void loadSuggestList(kw)
+    }, 220)
+    return () => clearTimeout(timer)
+  }, [keyword, loadSuggestList])
+
+  // 键盘高亮项滚动跟随（Hydrogen setActiveAssistIndex 的 scrollIntoView）
+  useEffect(() => {
+    if (activeIndex < 0) return
+    assistBodyRef.current
+      ?.querySelector<HTMLElement>(`[data-assist-index="${activeIndex}"]`)
+      ?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex])
+
+  /** 聚焦：展示面板；空输入拉热榜、有输入刷新建议。
+      哔哩哔哩页不展示联想面板（热榜/建议是网易云词，对 B站 搜索无意义） */
+  const handleSearchFocus = () => {
+    setFocused(true)
+    setActiveIndex(-1)
+    if (page === 'bilibili') return
+    const kw = keyword.trim()
+    if (kw) void loadSuggestList(kw)
+    else void loadHotList()
+  }
+
+  /** 失焦：收起面板与高亮；鼠标已划出悬停区则一并隐藏搜索框
+      （手机端搜索层保持打开——由关闭按钮控制，避免点建议/滚列表误关） */
+  const handleSearchBlur = () => {
+    setFocused(false)
+    setActiveIndex(-1)
+    if (!isMobile) setSearchVisible(false)
+  }
+
+  /** 执行搜索：写入关键词并跳搜索页（Hydrogen searchInfo 同语义）；
+      手机端搜索完成即收起搜索层。哔哩哔哩页例外：关键词写入
+      biliSearchKeyword 由该页内展示 B站 视频搜索结果，不跳网易云搜索页 */
+  const runSearch = (kw: string) => {
+    const value = kw.trim()
+    if (!value) return
+    setKeyword(value)
+    if (page === 'bilibili') {
+      setBiliSearchKeyword(value)
+      searchInputRef.current?.blur()
+      setMobileSearchOpen(false)
+      return
+    }
+    setSearchKeywords(value)
+    setPage('search')
+    searchInputRef.current?.blur()
+    setMobileSearchOpen(false)
+  }
+
+  /** 键盘导航：↑↓ 循环高亮，Enter 选中高亮项或直接搜索；输入法组合态忽略 */
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isComposing || e.nativeEvent.isComposing) return
+    const count = assistItems.length
+    if (e.key === 'ArrowDown' && count > 0) {
+      e.preventDefault()
+      setActiveIndex((i) => (i + 1) % count)
+    } else if (e.key === 'ArrowUp' && count > 0) {
+      e.preventDefault()
+      setActiveIndex((i) => (i - 1 + count) % count)
+    } else if (e.key === 'Enter') {
+      const target =
+        activeIndex >= 0 && activeIndex < count
+          ? assistItems[activeIndex]
+          : keyword
+      runSearch(target)
+    }
+  }
+
+  /** 搜索联想面板（Hydrogen .search-assist：热榜/建议）。桌面悬停搜索框与
+      手机全宽搜索层共用同一份内容，仅定位不同（手机端横铺满宽） */
+  const assistPanel = (
+    <div
+      className={cn(
+        'zen-dropdown-enter absolute z-[2001] px-3 pb-2 pt-[10px]',
+        isMobile
+          ? 'left-3 right-3 top-[54px] w-auto'
+          : 'left-0 top-[34px] w-[260px]'
+      )}
+      style={{
+        backgroundColor:
+          'color-mix(in srgb, var(--md-sys-color-surface-container) 82%, transparent)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border:
+          '1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 70%, transparent)',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
+      }}
+    >
+      {/* 面板四角框线（Hydrogen .assist-corner1~4） */}
+      {PANEL_CORNERS.map((pos) => (
+        <span
+          key={`panel-corner-${pos}`}
+          aria-hidden="true"
+          className={cn('pointer-events-none absolute h-[7px] w-[7px]', pos)}
+          style={{ borderColor: 'var(--md-sys-color-on-surface)' }}
+        />
+      ))}
+      {/* 头部：标题 + [数量] + 分隔线（Hydrogen .assist-header） */}
+      <div className="flex items-center gap-1">
+        <span
+          className="font-mono text-[11px] font-bold tracking-[1.2px]"
+          style={{ color: 'var(--md-sys-color-on-surface)' }}
+        >
+          {assistMode === 'hot' ? 'HOT SEARCH' : 'SUGGESTIONS'}
+        </span>
+        {assistItems.length > 0 && (
+          <span
+            className="font-mono text-[11px] tracking-[1px]"
+            style={{ color: 'var(--md-sys-color-on-surface-variant)' }}
+          >
+            [{assistItems.length}]
+          </span>
+        )}
+        <div
+          className="ml-1 h-px flex-1"
+          style={{
+            backgroundColor:
+              'color-mix(in srgb, var(--md-sys-color-on-surface) 70%, transparent)',
+          }}
+        />
+      </div>
+      {/* 条目区（Hydrogen .assist-body） */}
+      <div ref={assistBodyRef} className="mt-1 max-h-[300px] overflow-y-auto">
+        {assistLoading ? (
+          <div
+            className="py-2 font-mono text-[10px] tracking-[1px]"
+            style={{ color: 'var(--md-sys-color-on-surface-variant)' }}
+          >
+            LOADING...
+          </div>
+        ) : assistItems.length === 0 ? (
+          <div
+            className="py-2 font-mono text-[10px] tracking-[1px]"
+            style={{ color: 'var(--md-sys-color-on-surface-variant)' }}
+          >
+            {assistMode === 'hot' ? 'NO HOT SEARCH' : 'NO SUGGESTION'}
+          </div>
+        ) : (
+          assistItems.map((word, index) => {
+            const active = index === activeIndex
+            return (
+              <button
+                key={`${word}-${index}`}
+                type="button"
+                data-assist-index={index}
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseEnter={() => setActiveIndex(index)}
+                onClick={() => runSearch(word)}
+                className="grid w-full grid-cols-[34px_1fr] items-center bg-no-repeat text-left"
+                style={{
+                  minHeight: '32px',
+                  backgroundImage:
+                    'linear-gradient(90deg, color-mix(in srgb, var(--md-sys-color-on-surface) 92%, transparent) 0%, color-mix(in srgb, var(--md-sys-color-on-surface) 92%, transparent) 100%)',
+                  backgroundSize: active ? '100% 100%' : '0% 100%',
+                  transition:
+                    'background-size .68s cubic-bezier(0.08, 0.88, 0.18, 1), color .28s ease',
+                }}
+              >
+                <span
+                  className="px-2 text-right font-mono text-[10px] tracking-[1px]"
+                  style={{
+                    color: active
+                      ? 'var(--md-sys-color-surface)'
+                      : 'var(--md-sys-color-on-surface-variant)',
+                  }}
+                >
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                <span
+                  className="min-w-0 truncate pr-3 text-[13px] font-bold"
+                  style={{
+                    color: active
+                      ? 'var(--md-sys-color-surface)'
+                      : 'var(--md-sys-color-on-surface)',
+                  }}
+                >
+                  {word}
+                </span>
+              </button>
+            )
+          })
+        )}
+      </div>
+    </div>
+  )
+
+  return (
+    <header className="relative flex shrink-0 items-center gap-4 px-6 pt-4 pb-2 md:px-8 max-md:gap-2 max-md:px-3 max-md:pt-3 max-md:pb-1.5">
+      {/* ===== 左：搜索框（项目玻璃拟态语言）：glass 底 + 主题模糊度 +
+          圆角描边，聚焦 220→260px 加宽；居中输入。默认隐藏，鼠标移入
+          悬停区（w-56 定宽与右区对称，保证中间导航组真正水平居中）才
+          淡入显示。手机端不渲染（触屏无 hover 唤不出），改下方搜索
+          图标 + 全宽搜索层 ===== */}
+      {!isMobile && (
+        <div
+          className="group relative h-10 w-56 shrink-0"
+          onMouseEnter={() => setSearchVisible(true)}
+          onMouseLeave={() => {
+            // 未聚焦（或已失焦）时才收起，避免鼠标短暂划出打断输入
+            if (
+              !searchInputRef.current ||
+              document.activeElement !== searchInputRef.current
+            ) {
+              setSearchVisible(false)
+            }
+          }}
+        >
+          <div
+            className={cn(
+              'glass absolute left-0 top-1/2 flex h-9 -translate-y-1/2 items-center overflow-hidden transition-[width,border-color,opacity] duration-300 ease-[cubic-bezier(0.24,0.97,0.59,1)]',
+              focused ? 'w-[260px]' : 'w-[220px]',
+              !searchVisible && 'pointer-events-none opacity-0'
+            )}
+            style={{
+              borderRadius: 'calc(var(--md-sys-shape-corner) / 2)',
+              borderColor: focused
+                ? 'var(--md-sys-color-primary)'
+                : 'var(--glass-border)',
+            }}
+          >
+            <input
+              ref={searchInputRef}
+              value={keyword}
+              onChange={(e) => {
+                setKeyword(e.target.value)
+                // 清空输入时立即回退热榜（Hydrogen handleSearchInput 同语义）
+                if (!e.target.value.trim()) {
+                  requestSeqRef.current++
+                  if (focused) void loadHotList()
+                }
+              }}
+              onKeyDown={handleSearchKeyDown}
+              onFocus={handleSearchFocus}
+              onBlur={handleSearchBlur}
+              onCompositionStart={() => setIsComposing(true)}
+              onCompositionEnd={() => setIsComposing(false)}
+              placeholder={page === 'bilibili' ? 'SEARCH BILIBILI' : 'SEARCH'}
+              aria-label="搜索音乐"
+              spellCheck={false}
+              className="h-full w-full bg-transparent px-[10px] text-center text-[13px] font-bold outline-none placeholder:text-[11px] placeholder:font-normal placeholder:tracking-[2px]"
+              style={{
+                color: 'var(--md-sys-color-on-surface)',
+                caretColor: 'var(--md-sys-color-on-surface)',
+              }}
+            />
+          </div>
+
+          {/* 搜索辅助面板（共享 assistPanel：热榜/建议）；哔哩哔哩页不展示 */}
+          {focused && page !== 'bilibili' && assistPanel}
+        </div>
+      )}
+
+      {/* ===== 手机端：搜索图标（触屏无 hover，点击唤出全宽搜索层）；
+          与右区头像同为 36px 圆钮，保证导航组居中对称 ===== */}
+      {isMobile && (
+        <button
+          type="button"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-opacity active:scale-90"
+          style={{
+            border:
+              '1px solid color-mix(in srgb, var(--md-sys-color-on-surface) 40%, transparent)',
+          }}
+          onClick={() => setMobileSearchOpen(true)}
+          aria-label="搜索音乐"
+          title="搜索音乐"
+        >
+          <Search
+            className="h-5 w-5"
+            style={{ color: 'var(--md-sys-color-on-surface)' }}
+          />
+        </button>
+      )}
+
+      {/* ===== 手机端全宽搜索层：覆盖顶栏（毛玻璃底），输入框 + 关闭按钮 +
+          联想面板；聚焦空输入拉热榜、输入拉建议，搜索完成自动收起 ===== */}
+      {isMobile && mobileSearchOpen && (
+        <div
+          className="absolute inset-0 z-[2002] flex items-center gap-2 px-3 pb-2 pt-3"
+          style={{
+            backgroundColor:
+              'color-mix(in srgb, var(--md-sys-color-surface) 92%, transparent)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+          }}
+        >
+          <div
+            className="glass flex h-9 min-w-0 flex-1 items-center overflow-hidden"
+            style={{
+              borderRadius: 'calc(var(--md-sys-shape-corner) / 2)',
+              borderColor: focused
+                ? 'var(--md-sys-color-primary)'
+                : 'var(--glass-border)',
+            }}
+          >
+            <input
+              ref={searchInputRef}
+              autoFocus
+              value={keyword}
+              onChange={(e) => {
+                setKeyword(e.target.value)
+                if (!e.target.value.trim()) {
+                  requestSeqRef.current++
+                  if (focused) void loadHotList()
+                }
+              }}
+              onKeyDown={handleSearchKeyDown}
+              onFocus={handleSearchFocus}
+              onBlur={handleSearchBlur}
+              onCompositionStart={() => setIsComposing(true)}
+              onCompositionEnd={() => setIsComposing(false)}
+              enterKeyHint="search"
+              placeholder={
+                page === 'bilibili' ? '搜索B站视频' : '搜索歌曲、歌手'
+              }
+              aria-label="搜索音乐"
+              spellCheck={false}
+              className="h-full w-full bg-transparent px-3 text-left text-[14px] outline-none placeholder:font-normal"
+              style={{
+                color: 'var(--md-sys-color-on-surface)',
+                caretColor: 'var(--md-sys-color-on-surface)',
+              }}
+            />
+          </div>
+          <button
+            type="button"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-opacity active:scale-90"
+            style={{
+              backgroundColor:
+                'color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent)',
+            }}
+            onClick={() => {
+              setMobileSearchOpen(false)
+              setFocused(false)
+              setActiveIndex(-1)
+            }}
+            aria-label="关闭搜索"
+          >
+            <X
+              className="h-5 w-5"
+              style={{ color: 'var(--md-sys-color-on-surface)' }}
+            />
+          </button>
+          {focused && assistPanel}
+        </div>
+      )}
+
+      {/* ===== 中：导航链接组（手机端字号/间距收窄更优雅）。
+          折叠态（默认）：「网易云音乐」+「哔哩哔哩」两按钮，网易云四
+          分区收入弹出面板（当前项实心方块指示，底部可展开完整导航）；
+          展开态：完整五按钮 + 末尾折叠按钮，两种排版可互切（持久化） ===== */}
+      <nav
+        ref={navRef}
+        className="relative flex min-w-0 flex-1 items-center justify-center gap-[clamp(18px,3vw,40px)] max-md:gap-3"
+        aria-label="音乐页面导航"
+      >
+        {/* 下划线（Hydrogen .router-tracker）：14×2px 短条，跟随当前页
+            按钮居中滑动；无对应按钮（搜索/设置页）时淡出隐藏 */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute bottom-0 z-[2]"
+          style={{
+            left: trackerLeft,
+            width: TRACKER_WIDTH,
+            height: 2,
+            backgroundColor: 'var(--md-sys-color-on-surface)',
+            opacity: trackerVisible ? 1 : 0,
+            transition: 'left 0.3s ease, opacity 0.25s ease',
+          }}
+        />
+        {navCollapsed ? (
+          <>
+            {/* 网易云音乐合并按钮（四分区入口）：激活=当前页属网易云分区 */}
+            <div className="relative shrink-0">
+              <button
+                ref={ncmButtonRef}
+                type="button"
+                onClick={() => setNcmMenuOpen((v) => !v)}
+                // 阻断外点关闭捕获层：保证按钮本身可正常开/关面板
+                onPointerDown={(e) => e.stopPropagation()}
+                className={cn(
+                  'inline-flex items-center gap-1 md:text-xl shrink-0 font-medium transition-opacity hover:opacity-70 max-md:text-[14px]',
+                  NCM_NAV_KEYS.has(page) ? 'opacity-100' : 'opacity-60'
+                )}
+                style={{
+                  color: NCM_NAV_KEYS.has(page)
+                    ? 'var(--md-sys-color-on-surface)'
+                    : 'var(--md-sys-color-on-surface-variant)',
+                }}
+                aria-haspopup="menu"
+                aria-expanded={ncmMenuOpen}
+                aria-label="网易云音乐分区导航"
+              >
+                网易云音乐
+                <ChevronDown
+                  className={cn(
+                    'h-4 w-4 transition-transform duration-200',
+                    ncmMenuOpen && 'rotate-180'
+                  )}
+                  aria-hidden="true"
+                />
+              </button>
+
+              {/* 分区选择面板（账户菜单同语言：glass-strong + 四角框线 +
+                  zen-dropdown-item 交错入场） */}
+              {ncmMenuOpen && (
+                <div
+                  className="zen-dropdown-enter glass-strong absolute left-1/2 top-[calc(100%+10px)] z-[2001] ml-[-5.5rem] w-44 rounded-[var(--md-sys-shape-corner)] p-1.5 [transform-origin:top_center]"
+                  style={{
+                    boxShadow:
+                      '0 8px 24px -8px color-mix(in srgb, var(--md-sys-color-primary) 25%, transparent)',
+                  }}
+                  role="menu"
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  {PANEL_CORNERS.map((pos) => (
+                    <span
+                      key={`ncm-corner-${pos}`}
+                      aria-hidden="true"
+                      className={cn(
+                        'pointer-events-none absolute h-[7px] w-[7px]',
+                        pos
+                      )}
+                      style={{
+                        borderColor: 'var(--md-sys-color-on-surface)',
+                      }}
+                    />
+                  ))}
+                  {NCM_NAV_ITEMS.map((item, idx) => {
+                    const active = page === item.key
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={active}
+                        onClick={() => {
+                          setPage(item.key)
+                          setNcmMenuOpen(false)
+                        }}
+                        className="zen-dropdown-item flex w-full items-center gap-2.5 rounded-[var(--md-sys-shape-corner)] px-2.5 py-2 text-left text-sm transition-all hover:bg-[var(--md-sys-color-surface-container-highest)] hover:translate-x-0.5"
+                        style={
+                          {
+                            '--item-delay': `${idx * ITEM_DELAY_STEP}ms`,
+                            color: active
+                              ? 'var(--md-sys-color-on-surface)'
+                              : 'color-mix(in srgb, var(--md-sys-color-on-surface) 62%, transparent)',
+                          } as React.CSSProperties
+                        }
+                      >
+                        {/* 当前分区实心小方块指示（Hydrogen 选中标记语言） */}
+                        <span
+                          className={cn(MODE_MARKER, 'shrink-0')}
+                          style={{
+                            backgroundColor: active
+                              ? 'var(--md-sys-color-on-surface)'
+                              : 'transparent',
+                          }}
+                          aria-hidden="true"
+                        />
+                        <span className="flex-1 truncate">{item.label}</span>
+                      </button>
+                    )
+                  })}
+                  <div
+                    className="mx-1 my-1.5 h-px"
+                    style={{
+                      backgroundColor:
+                        'color-mix(in srgb, var(--md-sys-color-outline) 40%, transparent)',
+                    }}
+                  />
+                  {/* 展开完整导航（恢复五按钮排版，persist 到设置） */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMusicSettings({ musicNavCollapsed: false })
+                      setNcmMenuOpen(false)
+                    }}
+                    className="zen-dropdown-item flex w-full items-center gap-2.5 rounded-[var(--md-sys-shape-corner)] px-2.5 py-2 text-left text-sm text-[var(--md-sys-color-on-surface)] transition-all hover:bg-[var(--md-sys-color-surface-container-highest)] hover:translate-x-0.5"
+                    style={
+                      {
+                        '--item-delay': `${NCM_NAV_ITEMS.length * ITEM_DELAY_STEP}ms`,
+                      } as React.CSSProperties
+                    }
+                  >
+                    <UnfoldVertical className="h-4 w-4 text-[var(--md-sys-color-on-surface-variant)]" />
+                    展开完整导航
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 哔哩哔哩直达按钮 */}
+            <button
+              ref={biliButtonRef}
+              type="button"
+              onClick={() => setPage('bilibili')}
+              className={cn(
+                'md:text-xl shrink-0 font-medium transition-opacity hover:opacity-70 max-md:text-[14px]',
+                page === 'bilibili' ? 'opacity-100' : 'opacity-60'
+              )}
+              style={{
+                color:
+                  page === 'bilibili'
+                    ? 'var(--md-sys-color-on-surface)'
+                    : 'var(--md-sys-color-on-surface-variant)',
+              }}
+              aria-current={page === 'bilibili' ? 'page' : undefined}
+            >
+              哔哩哔哩
+            </button>
+          </>
+        ) : (
+          <>
+            {NAV_ITEMS.map((item) => {
+              const active = page === item.key
+              return (
+                <button
+                  key={item.key}
+                  ref={(el) => {
+                    navItemRefs.current[item.key] = el
+                  }}
+                  type="button"
+                  onClick={() => setPage(item.key)}
+                  className={cn(
+                    'md:text-xl shrink-0 font-medium transition-opacity hover:opacity-70 max-md:text-[14px]',
+                    active ? 'opacity-100' : 'opacity-60'
+                  )}
+                  style={{
+                    color: active
+                      ? 'var(--md-sys-color-on-surface)'
+                      : 'var(--md-sys-color-on-surface-variant)',
+                  }}
+                  aria-current={active ? 'page' : undefined}
+                >
+                  {item.label}
+                </button>
+              )
+            })}
+            {/* 折叠导航：网易云四分区合并为单按钮（persist 到设置） */}
+            <button
+              type="button"
+              onClick={() => setMusicSettings({ musicNavCollapsed: true })}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full opacity-50 transition-opacity hover:opacity-100 active:scale-90"
+              style={{ color: 'var(--md-sys-color-on-surface)' }}
+              title="折叠导航：网易云分区合并为「网易云音乐」按钮"
+              aria-label="折叠导航"
+            >
+              <FoldVertical className="h-4 w-4" />
+            </button>
+          </>
+        )}
+      </nav>
+
+      {/* ===== 右：账户菜单（房间模式切换已收入菜单内分组）；定宽 224px
+          与左区搜索框对称，头像靠右对齐，保证中间导航组真正水平居中；
+          手机端收窄为仅头像宽度（左侧搜索同宽对称） ===== */}
+      <div className="relative flex w-56 shrink-0 items-center justify-end max-md:w-9">
+        <button
+          type="button"
+          className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full transition-opacity hover:opacity-80"
+          style={{
+            border:
+              '1px solid color-mix(in srgb, var(--md-sys-color-on-surface) 40%, transparent)',
+          }}
+          onClick={() => setMenuOpen((prev) => !prev)}
+          aria-label={loginStatus.loggedIn ? '账号菜单' : '账号登录'}
+          title={loginStatus.loggedIn ? '账号菜单' : '账号登录'}
+        >
+          {loginStatus.loggedIn && loginStatus.avatarUrl ? (
+            <img
+              src={loginStatus.avatarUrl}
+              alt={loginStatus.nickname ?? '网易云账号'}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <User
+              className="h-5 w-5 translate-y-[1px]"
+              style={{ color: 'var(--md-sys-color-on-surface)' }}
+            />
+          )}
+        </button>
+
+        {/* 账户菜单（全局 Header 用户菜单同语言）：账号信息头部 →
+            房间模式分组 → 设置 → 退出登录/账号登录 */}
+        {menuOpen && (
+          <div
+            className="zen-dropdown-enter glass-strong absolute right-0 top-11 z-[2001] w-52 rounded-[var(--md-sys-shape-corner)] p-1.5"
+            style={{
+              boxShadow:
+                '0 8px 24px -8px color-mix(in srgb, var(--md-sys-color-primary) 25%, transparent)',
+            }}
+            role="menu"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {/* 账号信息头部（头像 + 昵称 + 描述，非操作项） */}
+            <div
+              className="zen-dropdown-item flex items-center gap-2 rounded-[var(--md-sys-shape-corner)] px-2.5 py-2"
+              style={
+                {
+                  backgroundColor: 'var(--glass-bg)',
+                  '--item-delay': '0ms',
+                } as React.CSSProperties
+              }
+              title={loginStatus.nickname ?? '未登录'}
+            >
+              {loginStatus.loggedIn && loginStatus.avatarUrl ? (
+                <img
+                  src={loginStatus.avatarUrl}
+                  alt={loginStatus.nickname ?? '网易云账号'}
+                  className="h-8 w-8 shrink-0 rounded-full object-cover"
+                />
+              ) : (
+                <span
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                  style={{
+                    backgroundColor:
+                      'color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent)',
+                  }}
+                >
+                  <User
+                    className="h-4 w-4"
+                    style={{ color: 'var(--md-sys-color-on-surface)' }}
+                  />
+                </span>
+              )}
+              <div className="min-w-0 flex-1">
+                <p
+                  className="truncate text-sm font-medium"
+                  style={{ color: 'var(--md-sys-color-on-surface)' }}
+                >
+                  {loginStatus.loggedIn
+                    ? (loginStatus.nickname ?? '已登录')
+                    : '未登录'}
+                </p>
+                <p
+                  className="text-xs"
+                  style={{ color: 'var(--md-sys-color-on-surface-variant)' }}
+                >
+                  {loginStatus.loggedIn
+                    ? ncmVipLabel(loginStatus.vipType, loginStatus.vipStatus)
+                      ? `网易云账号 · ${ncmVipLabel(
+                          loginStatus.vipType,
+                          loginStatus.vipStatus
+                        )}`
+                      : '网易云账号'
+                    : '尚未登录网易云'}
+                </p>
+              </div>
+            </div>
+
+            <div
+              className="mx-1 my-1.5 h-px"
+              style={{
+                backgroundColor:
+                  'color-mix(in srgb, var(--md-sys-color-outline) 40%, transparent)',
+              }}
+            />
+
+            {/* 房间模式分组（房间内提供 roomModeMenu 时渲染） */}
+            {roomModeMenu && (
+              <>
+                <div
+                  className="zen-dropdown-item px-2.5 pb-1 text-[10px] font-medium tracking-wide"
+                  style={
+                    {
+                      '--item-delay': `${ITEM_DELAY_STEP}ms`,
+                      color:
+                        'color-mix(in srgb, var(--md-sys-color-on-surface) 60%, transparent)',
+                    } as React.CSSProperties
+                  }
+                >
+                  房间模式
+                </div>
+                {(roomModeMenu.isHost ? MODE_ORDER : [roomMode]).map(
+                  (m, idx) => {
+                    const active = m === roomMode
+                    const interactive = roomModeMenu.isHost
+                    return interactive ? (
+                      <button
+                        key={m}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={active}
+                        disabled={roomModeMenu.isSwitching}
+                        onClick={() => handleMenuModeSwitch(m)}
+                        className={cn(
+                          'zen-dropdown-item flex w-full items-center gap-2.5 rounded-[var(--md-sys-shape-corner)] px-2.5 py-2 text-left text-sm transition-all hover:bg-[var(--md-sys-color-surface-container-highest)] hover:translate-x-0.5',
+                          roomModeMenu.isSwitching &&
+                            'cursor-not-allowed opacity-60'
+                        )}
+                        style={
+                          {
+                            '--item-delay': `${(idx + 2) * ITEM_DELAY_STEP}ms`,
+                            color: active
+                              ? 'var(--md-sys-color-on-surface)'
+                              : 'color-mix(in srgb, var(--md-sys-color-on-surface) 62%, transparent)',
+                          } as React.CSSProperties
+                        }
+                      >
+                        {/* 当前模式实心小方块指示（Hydrogen 选中标记语言） */}
+                        <span
+                          className={cn(MODE_MARKER, 'shrink-0')}
+                          style={{
+                            backgroundColor: active
+                              ? 'var(--md-sys-color-on-surface)'
+                              : 'transparent',
+                          }}
+                          aria-hidden="true"
+                        />
+                        <span className="flex-1 truncate">
+                          {MODE_LABELS[m]}
+                        </span>
+                      </button>
+                    ) : (
+                      <div
+                        key={m}
+                        className="zen-dropdown-item flex items-center gap-2.5 rounded-[var(--md-sys-shape-corner)] px-2.5 py-2 text-sm"
+                        style={
+                          {
+                            '--item-delay': `${(idx + 2) * ITEM_DELAY_STEP}ms`,
+                            color:
+                              'color-mix(in srgb, var(--md-sys-color-on-surface) 80%, transparent)',
+                          } as React.CSSProperties
+                        }
+                        title="由房主控制模式切换"
+                      >
+                        <span
+                          className={cn(MODE_MARKER, 'shrink-0')}
+                          style={{
+                            backgroundColor: 'var(--md-sys-color-on-surface)',
+                          }}
+                          aria-hidden="true"
+                        />
+                        <span className="flex-1 truncate">
+                          {MODE_LABELS[m]}
+                        </span>
+                      </div>
+                    )
+                  }
+                )}
+                <div
+                  className="mx-1 my-1.5 h-px"
+                  style={{
+                    backgroundColor:
+                      'color-mix(in srgb, var(--md-sys-color-outline) 40%, transparent)',
+                  }}
+                />
+              </>
+            )}
+
+            {/* 设置（与全局 Header 菜单项同语言：图标 + hover 平移） */}
+            <button
+              type="button"
+              className="zen-dropdown-item flex w-full items-center gap-2.5 rounded-[var(--md-sys-shape-corner)] px-2.5 py-2 text-left text-sm text-[var(--md-sys-color-on-surface)] transition-all hover:bg-[var(--md-sys-color-surface-container-highest)] hover:translate-x-0.5"
+              style={
+                {
+                  '--item-delay': `${(roomModeMenu ? MODE_ORDER.length + 2 : 2) * ITEM_DELAY_STEP}ms`,
+                } as React.CSSProperties
+              }
+              onClick={() => {
+                setMenuOpen(false)
+                setPage('settings')
+              }}
+            >
+              <Settings className="h-4 w-4 text-[var(--md-sys-color-on-surface-variant)]" />
+              设置
+            </button>
+            {/* 退出登录 / 账号登录 */}
+            {loginStatus.loggedIn ? (
+              <button
+                type="button"
+                className="zen-dropdown-item flex w-full items-center gap-2.5 rounded-[var(--md-sys-shape-corner)] px-2.5 py-2 text-left text-sm text-[var(--md-sys-color-error)] transition-all hover:bg-[var(--md-sys-color-error-container)] hover:translate-x-0.5"
+                style={
+                  {
+                    '--item-delay': `${(roomModeMenu ? MODE_ORDER.length + 3 : 3) * ITEM_DELAY_STEP}ms`,
+                  } as React.CSSProperties
+                }
+                onClick={() => {
+                  setMenuOpen(false)
+                  // 退出登录：删除后端持久化凭证并清空本地登录态
+                  void apiPost('/api/music/logout').catch(() => {
+                    // 网络失败也清空本地态（与 useNcmLogin.logout 行为一致）
+                  })
+                  useMusicStore.getState().setLoginStatus({ loggedIn: false })
+                }}
+              >
+                <LogOut className="h-4 w-4" />
+                退出登录
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="zen-dropdown-item flex w-full items-center gap-2.5 rounded-[var(--md-sys-shape-corner)] px-2.5 py-2 text-left text-sm text-[var(--md-sys-color-primary)] transition-all hover:bg-[var(--md-sys-color-primary-container)] hover:translate-x-0.5"
+                style={
+                  {
+                    '--item-delay': `${(roomModeMenu ? MODE_ORDER.length + 3 : 3) * ITEM_DELAY_STEP}ms`,
+                  } as React.CSSProperties
+                }
+                onClick={() => {
+                  setMenuOpen(false)
+                  setLoginModalOpen(true)
+                }}
+              >
+                <LogIn className="h-4 w-4" />
+                账号登录
+              </button>
+            )}
+            {/* 仅房主可见辅助提示 */}
+            {isHost && !loginStatus.loggedIn && (
+              <div
+                className="zen-dropdown-item px-2.5 pb-1 pt-1.5 text-[10px] leading-snug"
+                style={
+                  {
+                    '--item-delay': `${(roomModeMenu ? MODE_ORDER.length + 4 : 4) * ITEM_DELAY_STEP}ms`,
+                    color:
+                      'color-mix(in srgb, var(--md-sys-color-on-surface) 55%, transparent)',
+                  } as React.CSSProperties
+                }
+              >
+                登录网易云后全房间可播 VIP
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </header>
+  )
+}

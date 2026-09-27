@@ -1,0 +1,2091 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hydrogen 自定义字体注册（public/fonts；font-display swap 异步就绪，
+ * 供歌词页音质角标（Bender-Bold）与评论面板等按字族名直接引用） */
+@font-face {
+  font-family: 'Bender-Bold';
+  src: url('/fonts/Bender-Bold.woff') format('woff');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Gilroy-ExtraBold';
+  src: url('/fonts/Gilroy-ExtraBold.woff') format('woff');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'SourceHanSansCN-Bold';
+  src: url('/fonts/SourceHanSansCN-Bold.woff2') format('woff2');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 歌单搜索过滤框（Hydrogen SongFilterInput compact 1:1）：
+   纯 CSS 放大镜（圆环 + 45° 柄），随 hover/focus-within 变亮 */
+.song-search-box:hover .song-search-icon,
+.song-search-box:focus-within .song-search-icon {
+  border-color: var(--md-sys-color-on-surface);
+}
+.song-search-box:hover .song-search-icon::after,
+.song-search-box:focus-within .song-search-icon::after {
+  background-color: var(--md-sys-color-on-surface);
+}
+.song-search-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--md-sys-color-on-surface);
+  border-radius: 50%;
+  transform: translateY(-58%);
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.9;
+  transition: border-color 0.2s ease;
+}
+.song-search-icon::after {
+  content: '';
+  position: absolute;
+  right: -4px;
+  bottom: -2px;
+  width: 6px;
+  height: 1.5px;
+  background-color: var(--md-sys-color-on-surface);
+  transform: rotate(45deg);
+  transform-origin: center;
+  transition: background-color 0.2s ease;
+}
+/* SEARCH placeholder 与输入文字同为黑色；聚焦后隐藏（组件内 focus:placeholder 处理） */
+.song-search-box input::placeholder {
+  color: var(--md-sys-color-on-surface);
+  font-size: 12px;
+  letter-spacing: 0.6px;
+  font-weight: bold;
+}
+
+/* 控制卡片内容区统一滚动条样式：细轨道、圆角 thumb、悬停增强 */
+/* overscroll-behavior: contain 防止滚动到边界时事件冒泡到父级滚动容器 */
+.zen-scroll {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.zen-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.zen-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.zen-scroll::-webkit-scrollbar-thumb {
+  background-color: color-mix(
+    in srgb,
+    var(--md-sys-color-outline) 60%,
+    transparent
+  );
+  border-radius: 999px;
+}
+.zen-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: var(--md-sys-color-outline);
+}
+
+/* 不确定进度条动画：用于下载总大小未知或解压/启动阶段 */
+@keyframes zen-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+.zen-indeterminate-bar {
+  animation: zen-indeterminate 1.2s ease-in-out infinite;
+}
+
+/* 隐藏滚动条但保留滚动功能（房间页面） */
+.hide-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/Opera */
+}
+
+/* 影片列表滚动区：窄滚动条 + scrollbar-gutter 预留空间，
+   避免 B站解析设置展开后滚动条占用内容宽度导致视频卡片收缩。
+   注意：Chrome 121+ (Electron 39) 在 Windows 经典滚动条模式下
+   不支持 ::-webkit-scrollbar 自定义宽度，因此使用标准属性
+   scrollbar-width: thin 控制宽度，scrollbar-gutter: stable 预留空间。 */
+.movie-list-scroll {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(
+      in srgb,
+      var(--md-sys-color-outline) 60%,
+      transparent
+    )
+    transparent;
+  scrollbar-gutter: stable;
+}
+
+:root {
+  /* Material Design 3 形状与玻璃拟态默认值 */
+  --md-sys-shape-corner: 16px;
+  --md-sys-radius-none: 0px;
+  --md-sys-radius-small: 8px;
+  --md-sys-radius-medium: 16px;
+  --md-sys-radius-large: 28px;
+  --glass-strength: 0.6;
+  --glass-blur: 12px;
+  /* 静态兜底值：ThemeProvider 挂载前（或 JS 未就绪时）backdrop-filter 引用
+     --glass-blur-strong 也能立即生效，避免登录卡片首帧无模糊 */
+  --glass-blur-strong: 16px;
+
+  /* 动画曲线系统：统一管理，便于全局调整 */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-expo: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out-circ: cubic-bezier(0.85, 0, 0.15, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* 字体与排版基准 */
+  --md-sys-font-family:
+    'Bricolage Grotesque', ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--md-sys-font-family);
+  line-height: 1.5;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100vh;
+}
+
+body {
+  margin: 0;
+  background-color: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  transition:
+    background-color 400ms var(--ease-out-expo),
+    color 400ms var(--ease-out-expo);
+}
+
+/* 表单控件继承字体，避免不同浏览器默认字体错乱 */
+input,
+textarea,
+button,
+select {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* 主题过渡动画：仅对颜色相关属性做全局过渡，避免布局/变换属性被意外带动 */
+* {
+  transition-property: background-color, border-color, color, opacity;
+  transition-duration: 300ms;
+  transition-timing-function: var(--ease-out-expo);
+}
+
+/* 滚动条样式 - 跟随当前深浅模式 */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(
+      in srgb,
+      var(--md-sys-color-on-surface) 10%,
+      transparent
+    )
+    transparent;
+}
+
+html.dark {
+  scrollbar-color: color-mix(
+      in srgb,
+      var(--md-sys-color-on-surface) 10%,
+      transparent
+    )
+    transparent;
+}
+
+/* 禁用视频元素的过渡效果 */
+video {
+  transition: none;
+}
+
+/* 自定义滚动条样式 - WebKit */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(
+    in srgb,
+    var(--md-sys-color-on-surface) 10%,
+    transparent
+  );
+  border-radius: 3px;
+  transition: background 200ms ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--md-sys-color-primary) 35%, transparent);
+}
+
+/* 玻璃拟态工具类：模糊度统一由 ThemeProvider 设置的 CSS 变量控制，
+   不再在组件中自行 calc，确保所有卡片的模糊度跟随主题设置自由调节 */
+@layer components {
+  .glass {
+    background-color: var(--glass-bg);
+    /* 注意：-webkit- 前缀版必须放在标准属性之前。
+       lightningcss（rolldown-vite CSS 压缩）对相邻等价声明去重时保留最后一条，
+       若标准属性在前会被前缀版覆盖而丢失，导致 Chrome 中 backdrop-filter 为 none */
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+  }
+
+  .glass-strong {
+    background-color: var(--glass-bg);
+    -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+    backdrop-filter: blur(var(--glass-blur-strong));
+    border: 1px solid var(--glass-border);
+  }
+
+  .glass-card {
+    background-color: var(--glass-bg);
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: var(--md-sys-shape-corner);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  }
+
+  /* 玻璃背景色（无模糊）：用于需要与 glass 卡片视觉层次一致但不需要 backdrop-filter 的内部元素 */
+  .glass-bg {
+    background-color: var(--glass-bg);
+  }
+}
+
+/* 音乐侧边工具坞（MusicSideDock）内嵌面板：坞体本身已是毛玻璃
+   （55% 透明底 + backdrop 模糊），内嵌的 glass-card 再叠一层近白底
+   会变成死白板——此处去模糊/去投影，改为一层极浅的 on-surface 着色
+   （深浅色主题自适应）+ 更明确的分隔描边。仅作用于坞内（floating
+   模式的语音/流量/房间状态面板保持原样） */
+.side-dock-body {
+  /* 内部按钮/胶囊/行底适配：glass-bg 与 surface-container 三档在坞内
+     改为 on-surface 半透明着色——原令牌在浅色主题近纯白，与玻璃坞体
+     不搭；半透明深浅自适应且仍保留 hover 层级差 */
+  --glass-bg: color-mix(
+    in srgb,
+    var(--md-sys-color-on-surface) 6%,
+    transparent
+  );
+  --md-sys-color-surface-container: color-mix(
+    in srgb,
+    var(--md-sys-color-on-surface) 5%,
+    transparent
+  );
+  --md-sys-color-surface-container-high: color-mix(
+    in srgb,
+    var(--md-sys-color-on-surface) 8%,
+    transparent
+  );
+  --md-sys-color-surface-container-highest: color-mix(
+    in srgb,
+    var(--md-sys-color-on-surface) 12%,
+    transparent
+  );
+}
+.side-dock-body .glass-card {
+  background-color: color-mix(
+    in srgb,
+    var(--md-sys-color-on-surface) 3.5%,
+    transparent
+  );
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border-color: color-mix(
+    in srgb,
+    var(--md-sys-color-outline-variant) 75%,
+    transparent
+  );
+  box-shadow: none;
+}
+
+/* 哔哩哔哩页右下角悬浮工具组的液态玻璃按钮（Apple Liquid Glass 风格）：
+   半透明玻璃底 + 顶部受光渐变 + 边缘高光/底部厚度内阴影 + backdrop
+   saturate 折射感；颜色走主题玻璃变量，深浅色自适应。
+   交互态（上浮/按压/禁用）只挂在 button 上——同类的跳页输入框仅取材质。
+   注意 transition 会整体覆盖全局 * 的颜色过渡规则（本类优先级更高） */
+.bili-liquid-btn {
+  /* 玻璃作用域文字色：按钮背板是主题玻璃面（--glass-bg），图标/文字用按
+     「含玻璃层背景」判定的 scheme 文字色（ThemeProvider 注入 --lt-glass-*），
+     不跟随壁纸级切换（音乐壳根引用 --lt-raw-*，深色模式亮壁纸下切深字
+     会让深色玻璃按钮上深图标不可见；玻璃判定下深色模式恒为白） */
+  --md-sys-color-on-surface: var(--lt-glass-on-surface);
+  --md-sys-color-on-surface-variant: var(--lt-glass-on-surface-variant);
+  --md-sys-color-outline: var(--lt-glass-outline);
+  --md-sys-color-outline-variant: var(--lt-glass-outline-variant);
+  background-color: var(--glass-bg);
+  background-image: linear-gradient(
+    155deg,
+    rgba(255, 255, 255, 0.25),
+    rgba(255, 255, 255, 0.05) 45%,
+    rgba(255, 255, 255, 0) 72%
+  );
+  /* -webkit- 前缀版必须在标准属性之前（lightningcss 去重保留最后一条） */
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(1.7);
+  backdrop-filter: blur(var(--glass-blur-strong)) saturate(1.7);
+  border: 1px solid var(--glass-border);
+  color: var(--md-sys-color-on-surface);
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.38),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.08),
+    0 2px 6px rgba(0, 0, 0, 0.08),
+    0 10px 28px rgba(0, 0, 0, 0.16);
+  transition:
+    transform 300ms var(--ease-spring),
+    box-shadow 300ms var(--ease-soft),
+    opacity 200ms var(--ease-soft);
+}
+button.bili-liquid-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.5),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.08),
+    0 4px 10px rgba(0, 0, 0, 0.1),
+    0 14px 34px rgba(0, 0, 0, 0.2);
+}
+button.bili-liquid-btn:active:not(:disabled) {
+  transform: scale(0.9);
+}
+.bili-liquid-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+/* 开关态（随机排序等 toggle 按钮）：primary 色调背板 + 描边，与普通态区分 */
+.bili-liquid-btn-active {
+  background-color: color-mix(
+    in srgb,
+    var(--md-sys-color-primary) 26%,
+    var(--glass-bg)
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--md-sys-color-primary) 65%,
+    transparent
+  );
+  color: var(--md-sys-color-on-surface);
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.38),
+    0 2px 10px color-mix(in srgb, var(--md-sys-color-primary) 35%, transparent),
+    0 10px 28px rgba(0, 0, 0, 0.16);
+}
+
+/* 文字平衡换行：Firefox 124+ 才原生支持 text-wrap: balance，提供优雅降级 */
+.text-balance {
+  text-wrap: balance;
+}
+
+@supports not (text-wrap: balance) {
+  .text-balance {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+}
+
+/* 同心圆装饰 */
+.zen-rings {
+  position: absolute;
+  border-radius: 9999px;
+  border: 1px solid
+    color-mix(in srgb, var(--md-sys-color-outline) 20%, transparent);
+  pointer-events: none;
+}
+
+/* =====================================================
+   ZViewer 动画系统 v3 (精简版)
+   设计原则：
+   - 优先使用 opacity + 轻量 transform，避免 filter blur
+   - 不使用 3D perspective / rotateX / rotateY / rotate
+   - 持续时间控制在 200~400ms，节奏明快
+   - 支持 [data-reduced-motion="true"] 进一步压缩
+   ===================================================== */
+
+/* ---------- 页面路由过渡 ---------- */
+/* 仅用 opacity 淡入，避免 transform 与子元素 stagger 动画叠加导致"偏移后回正" */
+@keyframes zen-page-enter {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes zen-page-exit {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.zen-page-enter {
+  animation: zen-page-enter 0.35s var(--ease-out-expo) both;
+}
+
+.zen-page-exit {
+  animation: zen-page-exit 0.2s var(--ease-in-expo) forwards;
+}
+
+/* ---------- 通用容器/卡片交错入场 ---------- */
+@keyframes zen-stagger-fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.zen-stagger-fade-up {
+  /* backwards：delay 期间应用 0% 帧（隐藏），动画结束后恢复自然状态
+     （opacity 1 / transform none）。不能用 both/forwards——fill 保持的
+     transform 动画值会让元素永久成为 Backdrop Root，导致后代玻璃元素的
+     backdrop-filter 采样不到元素外的背景而失效 */
+  animation: zen-stagger-fade-up 0.4s var(--ease-out-expo) backwards;
+  animation-delay: var(--stagger-delay, 0ms);
+}
+
+/* ---------- 主题编辑器色板动效 ---------- */
+/* 色板圆点弹入：scale 0.4 → 1.12 → 1（弹簧感），逐个 stagger 依次入场。
+   同样必须 backwards（终帧与自然状态一致，见 zen-stagger-fade-up 注释） */
+@keyframes theme-swatch-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.theme-swatch-pop {
+  animation: theme-swatch-pop 0.5s var(--ease-out-expo) backwards;
+  animation-delay: var(--swatch-delay, 0ms);
+}
+
+/* 选中勾选图标弹入：scale 0 → 1.3 → 1，切换选中色时的轻量反馈 */
+@keyframes theme-check-pop {
+  0% {
+    transform: scale(0);
+  }
+  65% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.theme-check-pop {
+  animation: theme-check-pop 0.28s var(--ease-out-expo) backwards;
+}
+
+/* 顶部通知条入场：从上方滑落（translateY 负位移 → 0），与 stagger-fade-up
+   同参数同 fill 约定；供页面顶缘的提示条使用（从上向下滑入更符合物理直觉） */
+@keyframes zen-notice-drop-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.zen-notice-drop-in {
+  animation: zen-notice-drop-in 0.4s var(--ease-out-expo) backwards;
+  animation-delay: var(--stagger-delay, 0ms);
+}
+
+/* 左上角提示条黑底玻璃卡（解析进度/审批/房主离线）：黑底高斯模糊 +
+   白字，深色画面/浅色 UI 上都清晰。背景 alpha 跟随歌词页 UI 透明度
+   （--lt-ui-alpha 由 ListenTogetherPanel 根容器注入，其他挂载点回退 1） */
+.zen-notice-bar {
+  background-color: rgba(8, 8, 8, calc(0.72 * var(--lt-ui-alpha, 1)));
+  /* -webkit- 前缀版必须在标准属性之前（lightningcss 去重保留最后一条） */
+  -webkit-backdrop-filter: blur(28px);
+  backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+
+/* 提示条退出动画：内容清除后延迟卸载期间播放（上飘淡出，与入场对称） */
+@keyframes zen-notice-slide-out {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+}
+.zen-notice-leave {
+  animation: zen-notice-slide-out 0.3s ease-in forwards;
+}
+
+/* ---------- 列表项进入/退出 ---------- */
+@keyframes zen-item-enter {
+  0% {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes zen-item-exit {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.94) translateX(-12px);
+  }
+}
+
+.zen-item-enter {
+  animation: zen-item-enter 0.32s var(--ease-out-expo) backwards;
+  animation-delay: var(--item-delay, 0ms);
+}
+
+.zen-item-exit {
+  animation: zen-item-exit 0.28s var(--ease-in-expo) forwards;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+/* ---------- 卡片删除动画 ---------- */
+@keyframes zen-card-delete {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.9) translateY(4px);
+  }
+}
+
+.zen-card-delete {
+  animation: zen-card-delete 0.32s var(--ease-in-expo) forwards;
+  pointer-events: none;
+}
+
+/* ---------- 按钮微交互 ---------- */
+@keyframes zen-btn-glow-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 color-mix(in srgb, var(--md-sys-color-primary) 20%, transparent),
+      0 4px 12px -4px
+        color-mix(in srgb, var(--md-sys-color-primary) 28%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 16px 2px
+        color-mix(in srgb, var(--md-sys-color-primary) 14%, transparent),
+      0 6px 16px -4px
+        color-mix(in srgb, var(--md-sys-color-primary) 32%, transparent);
+  }
+}
+
+@keyframes zen-ripple {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.6);
+    opacity: 0;
+  }
+}
+
+.zen-btn {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 0.18s var(--ease-soft),
+    box-shadow 0.22s var(--ease-out-expo),
+    background-color 0.22s ease,
+    border-color 0.22s ease,
+    color 0.22s ease;
+  will-change: transform;
+}
+
+/* 鼠标位置感知的高光层 */
+.zen-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at var(--mx, 50%) var(--my, 50%),
+    color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent) 0%,
+    transparent 50%
+  );
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+.zen-btn:hover::before {
+  opacity: 1;
+}
+
+.zen-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px -4px
+    color-mix(in srgb, var(--md-sys-color-primary) 28%, transparent);
+}
+
+.zen-btn:active {
+  transform: translateY(0) scale(0.98);
+  transition-duration: 0.08s;
+}
+
+.zen-btn-primary:hover {
+  animation: zen-btn-glow-pulse 2.4s ease-in-out infinite;
+}
+
+.zen-ripple-effect {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.45) 0%,
+    rgba(255, 255, 255, 0.18) 50%,
+    transparent 80%
+  );
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0);
+  animation: zen-ripple 0.6s var(--ease-out-expo) forwards;
+}
+
+/* ---------- 卡片轻量 hover + spotlight ---------- */
+.zen-card {
+  position: relative;
+  transition:
+    transform 0.28s var(--ease-out-expo),
+    box-shadow 0.28s var(--ease-out-expo),
+    border-color 0.22s ease;
+}
+
+/* spotlight 鼠标位置感知光晕（需要 JS 设置 --mx/--my） */
+.zen-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at var(--mx, 50%) var(--my, 50%),
+    color-mix(in srgb, var(--md-sys-color-primary) 10%, transparent) 0%,
+    transparent 40%
+  );
+  opacity: 0;
+  transition: opacity 0.28s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.zen-card:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 12px 28px -12px
+      color-mix(in srgb, var(--md-sys-color-shadow) 26%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--md-sys-color-primary) 18%, transparent);
+}
+
+.zen-card:hover::after {
+  opacity: 1;
+}
+
+/* ---------- 流光边框（用于强调元素） ---------- */
+@keyframes zen-border-flow {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.zen-border-flow {
+  position: relative;
+}
+
+.zen-border-flow::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    120deg,
+    var(--md-sys-color-primary),
+    var(--md-sys-color-tertiary),
+    var(--md-sys-color-secondary),
+    var(--md-sys-color-primary)
+  );
+  background-size: 300% 100%;
+  animation: zen-border-flow 4s ease-in-out infinite;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ---------- Modal 进入/退出 ---------- */
+@keyframes zen-modal-backdrop-enter {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes zen-modal-backdrop-exit {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes zen-modal-content-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes zen-modal-content-exit {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+.zen-modal-backdrop-enter {
+  animation: zen-modal-backdrop-enter 0.22s var(--ease-out-expo) forwards;
+}
+
+.zen-modal-backdrop-exit {
+  animation: zen-modal-backdrop-exit 0.18s var(--ease-soft) forwards;
+}
+
+.zen-modal-content-enter {
+  animation: zen-modal-content-enter 0.3s var(--ease-out-expo) backwards;
+  contain: layout paint;
+  will-change: transform, opacity;
+}
+
+.zen-modal-content-exit {
+  animation: zen-modal-content-exit 0.18s var(--ease-soft) forwards;
+  contain: layout paint;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+/* ---------- Toast / Message 动画 ---------- */
+@keyframes zen-toast-enter {
+  0% {
+    opacity: 0;
+    transform: translateX(100vw) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes zen-toast-progress {
+  0% {
+    width: 100%;
+  }
+  100% {
+    width: 0%;
+  }
+}
+
+.zen-toast-enter {
+  /* backwards 而非 both：toast 元素自身带 inline backdrop-filter，
+     fill 保持的 transform 会使其自身成为 Backdrop Root、模糊失效 */
+  animation: zen-toast-enter 0.32s var(--ease-out-expo) backwards;
+}
+
+/* exit 使用 transition 而非 keyframes。高度恒定不收缩（内容不会被压扁），
+   通过负 margin-bottom 过渡收起占位空间，让下方消息平滑上移填补空隙。 */
+.zen-toast-exit {
+  transition:
+    opacity 0.28s var(--ease-in-expo),
+    transform 0.28s var(--ease-in-expo),
+    margin-bottom 0.28s var(--ease-in-expo);
+  will-change: transform, opacity, margin-bottom;
+}
+
+.zen-toast-progress {
+  animation: zen-toast-progress linear forwards;
+  animation-duration: var(--toast-duration, 3000ms);
+}
+
+/* ---------- 下拉菜单 / Popover 动画 ---------- */
+@keyframes zen-dropdown-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes zen-dropdown-exit {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+}
+
+.zen-dropdown-enter {
+  /* backwards 而非 both：主题面板等下拉容器内有 glass 面板，
+     fill 保持的 transform + will-change 会把容器变成 Backdrop Root，
+     内层面板的 backdrop-filter 采样不到容器外的背景图而失效 */
+  animation: zen-dropdown-enter 0.24s var(--ease-out-expo) backwards;
+  transform-origin: top right;
+}
+
+.zen-dropdown-exit {
+  animation: zen-dropdown-exit 0.16s var(--ease-in-expo) forwards;
+  transform-origin: top right;
+  will-change: transform, opacity;
+}
+
+/* ---------- 覆盖层淡入（中央卡片，无全屏遮罩） ----------
+   用于 MSE reload / 解析等加载指示：避免 backdrop-blur 在主线程繁忙时
+   占用 GPU 合成线程导致 Spinner 丢帧。 */
+@keyframes zen-overlay-fade-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.zen-overlay-fade-in {
+  animation: zen-overlay-fade-in 0.22s var(--ease-out-expo) backwards;
+}
+
+/* 从左侧弹出的面板动画（用于自定义背景二级面板） */
+@keyframes zen-panel-enter-left {
+  0% {
+    opacity: 0;
+    transform: translateX(12px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes zen-panel-exit-left {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(8px) scale(0.97);
+  }
+}
+
+.zen-panel-enter-left {
+  animation: zen-panel-enter-left 0.24s var(--ease-out-expo) backwards;
+  transform-origin: top right;
+}
+
+.zen-panel-exit-left {
+  animation: zen-panel-exit-left 0.16s var(--ease-in-expo) forwards;
+  transform-origin: top right;
+  will-change: transform, opacity;
+}
+
+/* 下拉菜单内部子项交错入场 */
+@keyframes zen-dropdown-item-enter {
+  0% {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.zen-dropdown-item {
+  animation: zen-dropdown-item-enter 0.24s var(--ease-out-expo) backwards;
+  animation-delay: var(--item-delay, 0ms);
+}
+
+/* ---------- 输入框 focus 光晕（流光边框） ---------- */
+@keyframes zen-input-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.zen-input-glow {
+  transition:
+    border-color 0.22s ease,
+    box-shadow 0.22s ease;
+  position: relative;
+}
+
+.zen-input-glow:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--md-sys-color-primary) 16%, transparent);
+}
+
+/* ---------- Spinner ---------- */
+@keyframes zen-spinner-orbit {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes zen-spinner-orbit-reverse {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(-360deg);
+  }
+}
+
+@keyframes zen-spinner-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes zen-spinner-ring-expand {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+}
+
+.zen-spinner-orbit {
+  animation: zen-spinner-orbit 1.4s linear infinite;
+}
+
+.zen-spinner-orbit-reverse {
+  animation: zen-spinner-orbit-reverse 2s linear infinite;
+}
+
+.zen-spinner-pulse {
+  animation: zen-spinner-pulse 1.6s ease-in-out infinite;
+}
+
+.zen-spinner-ring-expand {
+  animation: zen-spinner-ring-expand 1.8s var(--ease-out-expo) infinite;
+}
+
+/* ---------- SegmentedToggle / Switch 滑动 ---------- */
+@keyframes zen-switch-knob-on {
+  0% {
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    transform: translateX(var(--switch-travel, 16px)) scale(1);
+  }
+}
+
+@keyframes zen-switch-knob-off {
+  0% {
+    transform: translateX(var(--switch-travel, 16px)) scale(1);
+  }
+  100% {
+    transform: translateX(0) scale(1);
+  }
+}
+
+.zen-switch-knob-on {
+  animation: zen-switch-knob-on 0.26s var(--ease-out-expo) forwards;
+}
+
+.zen-switch-knob-off {
+  animation: zen-switch-knob-off 0.26s var(--ease-out-expo) forwards;
+}
+
+/* ---------- 脉冲与呼吸效果 ---------- */
+@keyframes zen-pulse-ring {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+.zen-pulse-ring::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  border: 2px solid currentColor;
+  animation: zen-pulse-ring 1.6s var(--ease-out-expo) infinite;
+  opacity: 0;
+}
+
+/* ---------- 骨架屏 shimmer ---------- */
+@keyframes zen-skeleton-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.zen-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(
+    in srgb,
+    var(--md-sys-color-on-surface) 6%,
+    transparent
+  );
+}
+
+.zen-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--md-sys-color-on-surface) 10%, transparent),
+    transparent
+  );
+  transform: translateX(-100%);
+  animation: zen-skeleton-shimmer 1.6s infinite;
+}
+
+/* ---------- 文字高亮入场 ---------- */
+@keyframes zen-text-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.zen-text-reveal {
+  animation: zen-text-reveal 0.35s var(--ease-out-expo) backwards;
+  animation-delay: var(--text-delay, 0ms);
+}
+
+/* ---------- 文字流光（用于强调标题） ---------- */
+@keyframes zen-text-shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+.zen-text-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--md-sys-color-on-surface) 0%,
+    var(--md-sys-color-primary) 50%,
+    var(--md-sys-color-on-surface) 100%
+  );
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: zen-text-shimmer 4s linear infinite;
+}
+
+/* ---------- 滚动触发通用类 ---------- */
+.zen-on-scroll {
+  opacity: 0;
+  transform: translateY(12px);
+  transition:
+    opacity 0.4s var(--ease-out-expo),
+    transform 0.4s var(--ease-out-expo);
+}
+
+.zen-on-scroll.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ---------- 几何背景装饰动画 ---------- */
+@keyframes zen-geo-rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes zen-geo-rotate-reverse {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(-360deg);
+  }
+}
+
+@keyframes zen-geo-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 0.85;
+  }
+}
+
+@keyframes zen-geo-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-16px) rotate(3deg);
+  }
+}
+
+.zen-geo-rotate-slow {
+  animation: zen-geo-rotate 60s linear infinite;
+}
+
+.zen-geo-rotate-slow-reverse {
+  animation: zen-geo-rotate-reverse 80s linear infinite;
+}
+
+.zen-geo-breathe {
+  animation: zen-geo-breathe 8s ease-in-out infinite;
+}
+
+.zen-geo-float {
+  animation: zen-geo-float 10s ease-in-out infinite;
+}
+
+/* ---------- 评论项进入动画 ---------- */
+@keyframes zen-comment-enter {
+  0% {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.zen-comment-enter {
+  animation: zen-comment-enter 0.32s var(--ease-out-expo) backwards;
+  animation-delay: var(--item-delay, 0ms);
+}
+
+/* ---------- 数值变化高亮（用于在线人数等数字更新） ---------- */
+@keyframes zen-value-flash {
+  0% {
+    color: var(--md-sys-color-on-surface);
+    transform: scale(1);
+  }
+  30% {
+    color: var(--md-sys-color-primary);
+    transform: scale(1.1);
+  }
+  100% {
+    color: var(--md-sys-color-on-surface);
+    transform: scale(1);
+  }
+}
+
+.zen-value-flash {
+  animation: zen-value-flash 0.5s var(--ease-out-expo);
+  display: inline-block;
+}
+
+/* ---------- 通知卡片滑入 ---------- */
+@keyframes zen-notification-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(-24px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes zen-notification-exit {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+}
+
+.zen-notification-enter {
+  animation: zen-notification-enter 0.34s var(--ease-out-expo) backwards;
+}
+
+.zen-notification-exit {
+  animation: zen-notification-exit 0.26s var(--ease-in-expo) forwards;
+  will-change: transform, opacity;
+}
+
+/* ---------- 标签 hover 微动画 ---------- */
+.zen-tag-hover {
+  transition:
+    transform 0.2s var(--ease-out-expo),
+    box-shadow 0.2s var(--ease-out-expo);
+}
+
+.zen-tag-hover:hover {
+  transform: translateY(-1px);
+}
+
+/* ---------- Avatar hover 微动画 ---------- */
+.zen-avatar-hover {
+  transition:
+    transform 0.24s var(--ease-out-expo),
+    box-shadow 0.24s var(--ease-out-expo);
+}
+
+.zen-avatar-hover:hover {
+  transform: scale(1.06);
+  box-shadow: 0 4px 12px -3px
+    color-mix(in srgb, var(--md-sys-color-primary) 26%, transparent);
+}
+
+/* ---------- 3D 倾斜工具类（配合 useTilt hook 使用） ---------- */
+.zen-tilt {
+  transition: transform 0.2s var(--ease-out-expo);
+  will-change: transform;
+}
+
+.zen-tilt-inner {
+  transition: transform 0.2s var(--ease-out-expo);
+}
+
+/* =====================================================
+   精简动画模式：[data-reduced-motion="true"] 时启用
+   - 去除 stagger 延时（--item-delay / --stagger-delay 归零）
+   - 压缩动画持续时间为 150ms
+   - 去除 hover scale / translateY
+   - 去除装饰层（::before / ::after）
+   - 仅保留基础 opacity 淡入
+   ===================================================== */
+[data-reduced-motion='true'] .zen-stagger-fade-up,
+[data-reduced-motion='true'] .zen-notice-drop-in,
+[data-reduced-motion='true'] .zen-notice-leave,
+[data-reduced-motion='true'] .zen-item-enter,
+[data-reduced-motion='true'] .zen-dropdown-item,
+[data-reduced-motion='true'] .zen-comment-enter,
+[data-reduced-motion='true'] .theme-swatch-pop,
+[data-reduced-motion='true'] .theme-check-pop,
+[data-reduced-motion='true'] .zen-text-reveal {
+  animation-delay: 0ms !important;
+  animation-duration: 0.18s !important;
+}
+
+[data-reduced-motion='true'] .zen-page-enter,
+[data-reduced-motion='true'] .zen-page-exit,
+[data-reduced-motion='true'] .zen-modal-content-enter,
+[data-reduced-motion='true'] .zen-modal-content-exit,
+[data-reduced-motion='true'] .zen-modal-backdrop-enter,
+[data-reduced-motion='true'] .zen-modal-backdrop-exit,
+[data-reduced-motion='true'] .zen-toast-enter,
+[data-reduced-motion='true'] .zen-toast-exit,
+[data-reduced-motion='true'] .zen-dropdown-enter,
+[data-reduced-motion='true'] .zen-dropdown-exit,
+[data-reduced-motion='true'] .zen-notification-enter,
+[data-reduced-motion='true'] .zen-notification-exit,
+[data-reduced-motion='true'] .zen-overlay-fade-in,
+[data-reduced-motion='true'] .zen-card-delete {
+  animation-duration: 0.18s !important;
+  transition-duration: 0.18s !important;
+}
+
+/* 精简模式：去除 hover transform / 装饰层 */
+[data-reduced-motion='true'] .zen-card:hover,
+[data-reduced-motion='true'] .zen-btn:hover,
+[data-reduced-motion='true'] .zen-tag-hover:hover,
+[data-reduced-motion='true'] .zen-avatar-hover:hover {
+  transform: none !important;
+}
+
+[data-reduced-motion='true'] .zen-card::after,
+[data-reduced-motion='true'] .zen-btn::before,
+[data-reduced-motion='true'] .zen-border-flow::before {
+  display: none !important;
+}
+
+/* 精简模式：去除 primary 按钮的脉冲呼吸光晕 */
+[data-reduced-motion='true'] .zen-btn-primary:hover {
+  animation: none !important;
+}
+
+/* 精简模式：减弱 input focus 光环 */
+[data-reduced-motion='true'] .zen-input-glow:focus {
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--md-sys-color-primary) 14%, transparent) !important;
+}
+
+/* 精简模式：去除背景图呼吸动画 */
+[data-reduced-motion='true'] .zen-geo-breathe,
+[data-reduced-motion='true'] .zen-geo-float,
+[data-reduced-motion='true'] .zen-geo-rotate-slow,
+[data-reduced-motion='true'] .zen-geo-rotate-slow-reverse {
+  animation: none !important;
+}
+
+/* ---------- 一起听：歌曲行 EQ 均衡动画（Hydrogen playing-eq 范式） ----------
+   4 根竖条以不同周期/延迟交错 scaleY 跳动，模拟频谱；
+   .zen-eq-paused 时 animation-play-state: paused 冻结当前帧 */
+@keyframes zen-eq-bar {
+  0% {
+    transform: scaleY(0.28);
+  }
+  35% {
+    transform: scaleY(1);
+  }
+  70% {
+    transform: scaleY(0.45);
+  }
+  100% {
+    transform: scaleY(0.28);
+  }
+}
+
+.zen-eq-bar {
+  width: 3px;
+  border-radius: 1px;
+  background-color: currentColor;
+  transform-origin: bottom;
+  animation: zen-eq-bar 1s ease-in-out infinite;
+}
+
+.zen-eq-bar:nth-child(1) {
+  animation-duration: 0.9s;
+  animation-delay: 0.05s;
+}
+
+.zen-eq-bar:nth-child(2) {
+  animation-duration: 1.15s;
+  animation-delay: 0.12s;
+}
+
+.zen-eq-bar:nth-child(3) {
+  animation-duration: 0.95s;
+  animation-delay: 0s;
+}
+
+.zen-eq-bar:nth-child(4) {
+  animation-duration: 1.25s;
+  animation-delay: 0.18s;
+}
+
+.zen-eq-paused .zen-eq-bar {
+  animation-play-state: paused;
+}
+
+/* 减少动效偏好：EQ 竖条完全静止 */
+@media (prefers-reduced-motion: reduce) {
+  .zen-eq-bar {
+    animation: none !important;
+    transform: scaleY(0.6);
+  }
+}
+
+/* ---------- 一起听：封面背景淡入（切歌时 backdrop 过渡） ---------- */
+@keyframes zen-cover-fade {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.zen-cover-fade {
+  animation: zen-cover-fade 0.35s ease;
+}
+
+/* 背景封面切换溶解（切歌时上一首封面快照层淡出，与新封面
+   zen-cover-fade 淡入交叠形成交叉溶解；时长长于淡入让过渡更从容） */
+@keyframes zen-cover-fade-out {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.zen-cover-fade-out {
+  animation: zen-cover-fade-out 0.9s ease both;
+}
+
+/* ---------- 减少动效偏好支持 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* =====================================================
+   禁用全局 hover 位移：[data-no-hover-transform="true"] 时启用
+   - 属性挂在 document.body 上，portal（下拉/弹窗）元素同样是
+     body 的后代，因此全局生效
+   - 仅禁用 hover 时的 translate / scale 变换
+   - 不影响其他动画、玻璃效果、透明度等设置
+   - 与精简动画模式独立，可单独使用
+   ===================================================== */
+body[data-no-hover-transform='true'] *:hover {
+  /* Tailwind v3 的 hover:translate-* / hover:scale-* 通过 CSS 变量
+     控制 transform，覆盖这些变量即可精准禁用位移/缩放，
+     不影响 transform 的其他用途（如居中定位 translate(-50%,-50%)） */
+  --tw-translate-x: 0 !important;
+  --tw-translate-y: 0 !important;
+  --tw-translate-z: 0 !important;
+  --tw-scale-x: 1 !important;
+  --tw-scale-y: 1 !important;
+}
+
+/* 以下通用组件的 hover 直接写 transform（非 Tailwind 变量），需单独禁用位移/缩放 */
+body[data-no-hover-transform='true'] .zen-card:hover,
+body[data-no-hover-transform='true'] .zen-btn:hover,
+body[data-no-hover-transform='true'] .zen-tag-hover:hover,
+body[data-no-hover-transform='true'] .zen-avatar-hover:hover {
+  transform: none !important;
+}
+
+/* =====================================================
+   一起听完整播放器（Hydrogen MusicPlayer/Player/Lyric 复刻动画）
+   ===================================================== */
+
+/* 覆盖层整页滑入/滑出（App.vue .player 过渡：0.5s 从视口底滑入） */
+@keyframes player-slide-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes player-slide-out {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+.player-slide-in {
+  animation: player-slide-in 0.5s cubic-bezier(0.14, 0.91, 0.58, 1) both;
+}
+.player-slide-out {
+  animation: player-slide-out 0.5s cubic-bezier(0.14, 0.91, 0.58, 1) both;
+}
+
+/* 播放卡入场（Player.vue .player-in）：先展开宽度（35% 处达到目标宽），
+   再纵向展开至满高并淡入；0.7s 延迟 0.2s。
+   目标宽用 --lt-card-w 变量（组件容器上定义 clamp(280px,42vh,480px)）：
+   桌面端 42vh 落在 clamp 区间内观感不变，横屏矮窗口（手机横屏 vh≈4px）
+   不会把卡片压成一条细线，超高桌面则封顶 480px */
+@keyframes player-card-in {
+  0% {
+    width: 0;
+    height: 0;
+    opacity: 0;
+  }
+  35% {
+    width: var(--lt-card-w, 42vh);
+    height: 0;
+  }
+  100% {
+    width: var(--lt-card-w, 42vh);
+    height: 100%;
+    opacity: 1;
+  }
+}
+.player-card-in {
+  /* backwards：delay 期间应用 0% 帧（卡片隐藏），动画结束后恢复自然状态。
+     不能用 both/forwards——手机竖屏的 player-card-in-mobile 关键帧含
+     transform（translateY），fill 保持的 transform 动画值会让卡片永久成为
+     Backdrop Root，内部冰霜层的 backdrop-filter 采样不到卡片外的封面/视频
+     背景 → 手机端封面页毛玻璃直接丢失（桌面关键帧仅宽高/透明度，无此问题，
+     但终态与自然状态一致，统一 backwards 无副作用） */
+  animation: player-card-in 0.7s 0.2s cubic-bezier(0.4, 0, 0.12, 1) backwards;
+}
+
+/* 封面四角括号贴合动画（Player.vue .c-border1/.c-border2/.c-border3/.c-border4
+   复刻：各角独立 keyframe，从 1vh 内缩位置回到贴合角，延迟 0.65s；
+   用 transform 而非 inset，避免 inset 覆盖定位导致角标被拉伸成长边框） */
+@keyframes c-border-in-tl {
+  from {
+    transform: translate(1vh, 1vh);
+  }
+  to {
+    transform: translate(0, 0);
+  }
+}
+@keyframes c-border-in-tr {
+  from {
+    transform: translate(-1vh, 1vh);
+  }
+  to {
+    transform: translate(0, 0);
+  }
+}
+@keyframes c-border-in-br {
+  from {
+    transform: translate(-1vh, -1vh);
+  }
+  to {
+    transform: translate(0, 0);
+  }
+}
+@keyframes c-border-in-bl {
+  from {
+    transform: translate(1vh, -1vh);
+  }
+  to {
+    transform: translate(0, 0);
+  }
+}
+.c-border-in-tl {
+  animation: c-border-in-tl 0.3s 0.65s cubic-bezier(0.4, 0, 0.12, 1) both;
+}
+.c-border-in-tr {
+  animation: c-border-in-tr 0.2s 0.65s cubic-bezier(0.4, 0, 0.12, 1) both;
+}
+.c-border-in-br {
+  animation: c-border-in-br 0.3s 0.65s cubic-bezier(0.4, 0, 0.12, 1) both;
+}
+.c-border-in-bl {
+  animation: c-border-in-bl 0.3s 0.65s cubic-bezier(0.4, 0, 0.12, 1) both;
+}
+
+/* =====================================================
+   一起听模块：移动端 / 触屏适配
+   ===================================================== */
+
+/* 触控滑条：进度条 / 音量条拖动时禁止触发页面滚动与文本选择
+   （pointer 拖拽监听在 window 上，touch-action 缺失会导致手机上
+   边拖边滚）；桌面端 touch-action: none 无副作用，统一常挂 */
+.touch-slider {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 手机竖屏：播放卡入场动画改为淡入上移（原 keyframe 硬编码 42vh
+   宽度展开，竖屏单列下卡片是全宽，宽度动画会先收窄再弹开，观感破碎） */
+@keyframes player-card-in-mobile {
+  0% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (max-width: 767.98px) and (orientation: portrait) {
+  .player-card-in {
+    animation-name: player-card-in-mobile;
+    animation-duration: 0.5s;
+    animation-delay: 0.1s;
+  }
+}
+
+/* 毛玻璃封面背景（歌词页）：模糊半径经 --cover-blur 注入（可调，
+   默认 50px；毛玻璃关闭时组件侧置 0 → 显示未模糊封面背景） */
+.lt-cover-backdrop img {
+  filter: blur(var(--cover-blur, 50px)) saturate(140%) brightness(1.08);
+}
+
+/* 触屏设备：hover 才显形的控件改为常显（覆盖层收起按钮等） */
+@media (pointer: coarse) {
+  .lt-touch-visible {
+    opacity: 1 !important;
+  }
+}
+
+/* ===== 歌词面板两段式入场（2026-09-24）：面板先「张开」、歌词再「浮现」 =====
+   旧版问题：面板挂载即渲染（四角方块 + 空灰白底先出现），滚动区仅
+   visibility:hidden 等歌词，动画 0.45s 早已演完、面板就一直以「半展开
+   空壳」僵在原地，歌词到手后突然整块弹出，非常突兀。
+   现改为以 lyricRevealed 为闸门：整块面板 visibility 先隐藏，歌词就绪后
+   ①冰霜层 lt-lyric-panel-in 淡入（玻璃面张开）②内容层延迟 0.25s
+   lt-lyric-content-in 淡入（歌词浮现）。
+   注意：动画只做 opacity，且各层各自独立，**绝不能给面板容器加
+   opacity/transform**——那会让容器成为 Backdrop Root，后代冰霜层的
+   backdrop-filter 采样失效（本项目已踩三次的陷阱）。 */
+@keyframes lt-lyric-panel-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.lt-lyric-panel-in {
+  animation: lt-lyric-panel-in 0.3s ease-out backwards;
+}
+@keyframes lt-lyric-content-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.lt-lyric-content-in {
+  animation: lt-lyric-content-in 0.4s cubic-bezier(0.3, 0, 0.12, 1) 0.25s
+    backwards;
+}
+/* 无动画偏好：两段式退化为立即显示 */
+@media (prefers-reduced-motion: reduce) {
+  .lt-lyric-panel-in,
+  .lt-lyric-content-in {
+    animation: none;
+  }
+}
+
+/* ===== cloud-add-in 系弹窗遮罩渐进压暗（2026-09-24） =====
+   旧版问题：弹窗挂载时遮罩（黑半透明压暗层）瞬间出现，背景「啪」一下
+   变暗；关闭时整块卸载同样瞬消。改为打开时淡入（backwards，入场约定）、
+   关闭时淡出（forwards 保持终态消失，退出动画约定）。
+   安全性：遮罩是独立层级（无 backdrop-filter 后代），opacity 动画不会
+   制造 Backdrop Root；对「蒙层包裹面板」结构（AddToPlaylistModal /
+   NcmSearchModal）动画只挂独立背景子层，蒙层容器本身不做 opacity 动画，
+   避免容器成为 Backdrop Root 使面板玻璃模糊失效。 */
+@keyframes lt-modal-dim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.lt-modal-dim-in {
+  animation: lt-modal-dim-in 0.35s cubic-bezier(0.3, 0, 0.12, 1) backwards;
+}
+@keyframes lt-modal-dim-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.lt-modal-dim-out {
+  animation: lt-modal-dim-out 0.3s ease-in forwards;
+}
+/* 无动画偏好：遮罩立即显示/立即消失（退出卸载由 hook 的 450ms 兜底保证） */
+@media (prefers-reduced-motion: reduce) {
+  .lt-modal-dim-in,
+  .lt-modal-dim-out {
+    animation: none;
+  }
+}
+
+/* 歌词播放页工具图标浅阴影（一起听桌面 song-control 悬浮栏 + 手机竖屏
+   工具行）：轻柔暗影提升图标在封面/视频背景上的轮廓分离度。
+   阴影恒为半透明黑，亮/暗主题与任意背景亮度通用，无需随图标色反转。
+   关键：filter 必须**分发到子按钮**而不是写在容器上——filter 非 none
+   的元素会成为 Backdrop Root，其整个子树的 backdrop-filter 只能采样
+   该子树内部，播放队列弹窗（MusicQueuePopup，glass-card 毛玻璃）挂
+   在容器内，采样不到工具栏外的歌词面板/背景视频，模糊直接丢失。
+   按钮是弹窗的兄弟层级，filter 放在按钮上不再隔离弹窗的采样链 */
+.lt-icon-outline > button,
+.lt-icon-outline > div > button {
+  filter:
+    drop-shadow(0 1px 1px rgba(0, 0, 0, 0.28))
+    drop-shadow(0 0 2px rgba(0, 0, 0, 0.16));
+}
+
+/* 云盘：上传框斜条纹滚动（Hydrogen .upload-animation，
+   -45deg 条纹周期 20px → 水平循环位移 20/√2 ≈ 28.28px） */
+@keyframes cloud-upload-stripes {
+  to {
+    background-position: 28.28px 0;
+  }
+}
+
+/* 云盘：分类六宫格选中四角框显形（Hydrogen .type-selected） */
+@keyframes cloud-corner-in {
+  from {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 添加到歌单弹窗：宽→高依次展开（Hydrogen .add-fade；
+   容器 left:50% + translateX(-50%) 定位，动画需保留平移） */
+/* 「添加到我的歌单」面板展开（Hydrogen ContextMenu .playlist-container-in
+   1:1 复刻：0.3s 延迟后先横向展开（宽 0→面板宽，0.3s），再纵向展开
+   （高 0→面板高，0.3s）；面板宽/高经 --add-panel-w/--add-panel-h 注入
+   keyframes（默认 300×500，网易云搜索弹窗/收藏夹弹窗各自注入） */
+@keyframes cloud-add-in {
+  0% {
+    width: 0;
+    height: 0;
+  }
+  50% {
+    width: var(--add-panel-w, 300px);
+    height: 0;
+  }
+  100% {
+    width: var(--add-panel-w, 300px);
+    height: var(--add-panel-h, 500px);
+  }
+}
+
+/* cloud-add-in 的镜像退出：先纵向收起（高 →0，0→50%）再横向收起
+   （宽 →0，50%→100%）；起点与展开终态相同（宽高全开）实现无缝衔接，
+   终态 0×0 由 forwards 保持至卸载（退出动画约定）。 */
+@keyframes cloud-add-out {
+  0% {
+    width: var(--add-panel-w, 300px);
+    height: var(--add-panel-h, 500px);
+  }
+  50% {
+    width: var(--add-panel-w, 300px);
+    height: 0;
+  }
+  100% {
+    width: 0;
+    height: 0;
+  }
+}
+
+/* 面板四角装饰块（Hydrogen .add-style-in 1:1：0.4s 内高频闪烁后常显，
+   一次性；与面板展开并行播放——展开前 0.3s 延迟期内即开始闪烁） */
+@keyframes cloud-add-flash {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  20% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  40% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 0;
+  }
+  70% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 0;
+  }
+  90% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* 面板标题淡入（Hydrogen .add-title-in：0.5s 延迟——纵向展开后半程开始） */
+@keyframes cloud-add-title-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* ADD 水印淡入（Hydrogen .add-style5-in：0.6s 延迟——完全展开后浮现） */
+@keyframes cloud-add-watermark-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* 添加到歌单弹窗：边缘白色装饰块闪烁（Hydrogen .add-style） */
+/* 悬浮工具栏「信号灯」显形（.song-control：0.3s 内快速闪三下后常显） */
+@keyframes song-control-in {
+  0%,
+  10% {
+    opacity: 0;
+  }
+  20%,
+  30% {
+    opacity: 1;
+  }
+  40%,
+  50% {
+    opacity: 0;
+  }
+  60%,
+  70% {
+    opacity: 1;
+  }
+  80%,
+  90% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.song-control-in {
+  animation: song-control-in 0.3s both;
+}
+
+/* 无歌词占位（Lyric.vue .lyric-nodata）：对角线从中心展开至 38%
+   （缓动与 Hydrogen 一致 cubic-bezier(0.32,0.81,0.56,0.98)） */
+@keyframes lyric-nodata-grow {
+  from {
+    width: 0;
+    height: 0;
+  }
+  to {
+    width: 38%;
+    height: 38%;
+  }
+}
+.lyric-nodata-grow {
+  animation: lyric-nodata-grow 0.8s 0.5s cubic-bezier(0.32, 0.81, 0.56, 0.98) both;
+}
+
+/* 无歌词占位文字（"Lyric-Area"）：0.1s 内闪烁三下后常显（Hydrogen
+   nodata-open2：10% 粒度的开关帧 + 1.3s 延迟入场） */
+@keyframes lyric-nodata-tip {
+  0%,
+  10% {
+    opacity: 0;
+  }
+  20%,
+  30% {
+    opacity: 1;
+  }
+  40%,
+  50% {
+    opacity: 0;
+  }
+  60%,
+  70% {
+    opacity: 1;
+  }
+  80%,
+  90% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.lyric-nodata-tip {
+  animation: lyric-nodata-tip 0.1s 1.3s both;
+}
+
+/* 间奏等待块的旋转菱形装饰（Hydrogen diamond-rotate：45°→135° 转 90°，
+   1.6s 延迟 0.6s 循环，cubic-bezier(0.3,0,0.12,1)） */
+@keyframes interlude-diamond-rotate {
+  0% {
+    transform: rotate(45deg);
+  }
+  50% {
+    transform: rotate(135deg);
+  }
+  100% {
+    transform: rotate(135deg);
+  }
+}
+.interlude-diamond {
+  animation: interlude-diamond-rotate 1.6s 0.6s cubic-bezier(0.3, 0, 0.12, 1)
+    infinite;
+}
+
+/* 歌词行外层（Hydrogen .lyric-line）：间奏块高度变化时行高平滑过渡 */
+.lyric-row-transition {
+  transition: 0.58s cubic-bezier(0.4, 0, 0.12, 1);
+}
+
+/* 歌词内容层（Hydrogen .lyric-content）：WAAPI 补偿动画载体 */
+.lyric-content {
+  width: 100%;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+/* 歌词动态留白（Hydrogen .lyric-spacer）：随当前行高/容器尺寸自适应 */
+.lyric-spacer {
+  width: 100%;
+  flex: none;
+  pointer-events: none;
+  transition: height 0.3s;
+}
+
+/* 歌词行文本（Hydrogen .line 内 original/trans/roma）：
+   失焦过渡 0.5s，高亮过渡 0.4s（双时长，cubic-bezier(0.3,0,0.12,1)） */
+.lyric-text {
+  transition: transform 0.5s cubic-bezier(0.3, 0, 0.12, 1),
+    color 0.5s cubic-bezier(0.3, 0, 0.12, 1);
+}
+.lyric-text-active {
+  transition-duration: 0.4s;
+}
+
+/* 歌词行按下交互（Hydrogen .line:active）：整行 scale(0.9) + 模糊清零 */
+.lyric-line-active:active {
+  transform: scale(0.9);
+  filter: blur(0) !important;
+}
+
+/* 间奏等待块（Hydrogen .music-interlude）：收起态（高度 0 + 缩放 0 +
+   透明 0，弹性收起曲线 cubic-bezier(1,-0.49,0.61,0.36)）；
+   .open 展开态 80px（0.8s cubic-bezier(0.3,0,0.12,1)） */
+.lyric-interlude-block {
+  width: 240px;
+  height: 0;
+  padding-left: 25px;
+  opacity: 0;
+  transform: scale(0);
+  overflow: hidden;
+  transition: 0.8s cubic-bezier(1, -0.49, 0.61, 0.36);
+}
+.lyric-interlude-block.open {
+  padding-top: 10px;
+  height: 80px;
+  opacity: 1;
+  transform: scale(1);
+  transition: 0.8s cubic-bezier(0.3, 0, 0.12, 1);
+}

@@ -1,0 +1,1614 @@
+/**
+ * 我的音乐页（Hydrogen MyMusic + LibraryDetail 1:1 复刻）。
+ *
+ * 布局架构（Hydrogen 同款「页面不滚、分区内部滚动」——左栏抖动根修）：
+ * 页面根 h-full 填满 main 可用高度（main 自带 pb-[118px] 底部让位），
+ * 左栏与右区各自 flex-1 min-h-0 内部滚动。旧版「整页滚动 + 左栏 sticky
+ * 追随」会因 sticky 阈值（top-16）与初始位置（pt-6=24px）不匹配，滚动
+ * 经过阈值瞬间左栏从流内位置跳到吸附位置产生抖动；内滚架构下页面永不
+ * 滚动，左栏完全静态。
+ *
+ * 左侧栏（Hydrogen LibraryType/LibraryList 复刻）：
+ * - 双层 Tab（高 50px）：一级 4 项「歌单 / 收藏 / 下载管理 / 本地管理」，
+ *   16px 加粗字，激活变黑 + 文字下方 3px 黑色条（width 展开动画），
+ *   底部 0.5px 细分隔线；二级子 Tab 12px 随一级切换
+ * - 列表条目：50px 方图（0.5px 边框）+ 15px 名称 + 11px 副信息，
+ *   padding 8px；hover/选中为「背景层从左滑入」动画
+ *   （translateX(-100%)→0，1s cubic-bezier(0.22,0.61,0.36,1)，hover 延迟
+ *   0.2s；背景层 will-change 合成层化，避免大面积重绘卡顿）
+ * - 数据：歌单 = /user/playlist（按 /user/subcount 的创建/收藏数量切两段）；
+ *   收藏 = /album/sublist、/artist/sublist、/mv/sublist、/dj/sublist；
+ *   下载管理 / 本地管理为 Web 环境空态提示
+ * - 默认详情：登录且无跨页跳转目标时自动打开「我喜欢的音乐」歌单（红心
+ *   数量经 /likelist 覆盖 trackCount），左栏首批数据就绪即在 effect 内触发
+ *
+ * 右侧内容区（Hydrogen LibraryDetail 1:1）：
+ * - 前进/后退双箭头（32px，实心 chevron，无历史 opacity-45）
+ * - 歌单头：150px 大封面（0.5px 边框 + 弥散阴影）+ 右侧信息列
+ *   （名称 22px 加粗两行截断 / 创建者 12px / 「共N首」11px）
+ * - 右上角列（130px）：创建时间描边框（10px）+ 「查看详情」黑底白字按钮
+ *   （点击弹出 700×400 毛玻璃描述面板，metro 先宽后高展开动画 + 四角
+ *   白点闪烁）+ SEARCH 歌曲过滤框
+ * - 「播放全部」分隔行：描边三角 + 12px 文字 + 0.5px 延伸线 + PLAYALL 小字
+ * - 歌曲列表：SongRow（歌名前 40px 封面缩略图，与搜索/每日推荐/云盘页
+ *   一致传 cover，网易云 CDN 80x80 裁剪），双击行 = 插入当前队列并立即播放
+ *   （queue-upsert + playSong，与 FM 页同范式），歌单详情缓加载：首屏
+ *   PLAYLIST_PAGE_SIZE（100）首，滚动到底再追加下一页——「我喜欢的音乐」
+ *   走 likelist 红心 id 片段 + song/detail 分批（红心回退路径），普通歌单
+ *   走 offset 分页，不做后台并发水合；容器 scrollbar-gutter stable 保持宽度稳定
+ */
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Loader2, ListMusic } from 'lucide-react'
+import type { Socket } from 'socket.io-client'
+import { apiGet } from '@/lib/api'
+import { message } from '@/components/ui/message'
+import { useMusicStore } from '../store'
+import { songToUpsertItem, useQueueAdd } from '../hooks/useQueueAdd'
+import { useMusicPlayer } from '../hooks/useMusicPlayer'
+import { useIsMobile } from '@/hooks/useMediaQuery'
+import type { NcmSong } from '../types'
+import { SongRow } from '../components/SongRow'
+import { cn } from '@/lib/utils'
+import { MusicLoginGate, PageBlockHeader } from './MusicLoginGate'
+import { MusicDailyPanel } from './MusicDailyPage'
+
+export interface MusicMyPageProps {
+  socket: Socket | null
+  roomId?: string
+  /** 队列管理权限（房主/房管）才能添加歌曲 */
+  canManage: boolean
+}
+
+/** 一级 Tab（Hydrogen type-one） */
+const TYPE_ONE = ['歌单', '收藏', '下载管理', '本地管理'] as const
+
+/** 二级子 Tab（Hydrogen type-two，随一级切换） */
+const TYPE_TWO: Record<number, string[]> = {
+  0: ['我创建的', '我收藏的'],
+  1: ['专辑', '歌手', 'MV', '电台'],
+  2: ['正在下载', '下载完成'],
+  3: ['全部', '专辑', '歌手'],
+}
+
+/** 详情弹窗 metro 展开动画 + 四角白点闪烁（Hydrogen introduce-detail 同款） */
+const INTRODUCE_STYLE = `
+@keyframes zen-introduce-in {
+  0% { width: 0; height: 0; padding: 0; }
+  50% { width: 700px; height: 0; padding: 0 60px; }
+  100% { width: 700px; height: 400px; padding: 30px 60px; }
+}
+@keyframes zen-introduce-corner {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  20% { opacity: 0; }
+  30% { opacity: 1; }
+  40% { opacity: 0; }
+  50% { opacity: 1; }
+  60% { opacity: 0; }
+  70% { opacity: 1; }
+  80% { opacity: 0; }
+  90% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes zen-introduce-close {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+`
+
+/** 网易云 CDN 图片：http 升级 https + 尺寸参数 */
+function cdnImg(url: string | undefined, size = 128): string {
+  if (!url) return ''
+  const https = url.replace('http://', 'https://')
+  return `${https}?param=${size}y${size}`
+}
+
+/** 毫秒时间戳 → YYYY-MM-DD */
+function formatDate(ts: number | undefined): string {
+  if (!Number.isFinite(ts) || !ts) return ''
+  const d = new Date(ts)
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${mm}-${dd}`
+}
+
+/** /user/playlist 条目 */
+interface UserPlaylistItem {
+  id: number
+  name: string
+  coverImgUrl?: string
+  trackCount?: number
+  specialType?: number
+  creator?: { nickname?: string }
+}
+
+/** 收藏专辑条目（/album/sublist） */
+interface SubAlbumItem {
+  id: number
+  name: string
+  picUrl?: string
+  artists?: Array<{ name?: string }>
+}
+
+/** 收藏歌手条目（/artist/sublist） */
+interface SubArtistItem {
+  id: number
+  name: string
+  img1v1Url?: string
+  picUrl?: string
+  size?: number
+  alias?: string[]
+}
+
+/** 收藏 MV 条目（/mv/sublist） */
+interface SubMvItem {
+  id: number
+  name: string
+  coverUrl?: string
+  picUrl?: string
+  durationMs?: number
+  artists?: Array<{ name?: string }>
+  creator?: Array<{ userName?: string }>
+}
+
+/** 收藏电台条目（/dj/sublist） */
+interface SubRadioItem {
+  id: number
+  name: string
+  picUrl?: string
+  programCount?: number
+  dj?: { nickname?: string }
+}
+
+/** 歌单详情单页大小（Hydrogen PLAYLIST_PAGE_SIZE 同名同值：100） */
+const PLAYLIST_PAGE_SIZE = 100
+
+/** /playlist/track/all、/album、/artists 的歌曲条目（cloudsearch 同构） */
+interface PlaylistTrackItem {
+  id: number
+  name: string
+  ar?: Array<{ name?: string }>
+  al?: { name?: string; picUrl?: string }
+  dt?: number
+  fee?: number
+}
+
+/**
+ * 歌曲时长格式化（对齐 Hydrogen songTime）：
+ * 毫秒 → mm:ss，超过 1 小时 → HH:mm:ss，无数据 → '--:--'
+ */
+function formatDurationMs(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return '--:--'
+  const totalSec = Math.floor(ms / 1000)
+  const h = Math.floor(totalSec / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  const mmss = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  return h > 0 ? `${String(h).padStart(2, '0')}:${mmss}` : mmss
+}
+
+/** 网易云歌曲 → NcmSong（PlaylistTrackItem 形态） */
+/** 按给定 id 顺序重排 song/detail 响应（批内返回顺序不保证与请求一致） */
+function orderByIds(
+  ids: number[],
+  songs: PlaylistTrackItem[]
+): PlaylistTrackItem[] {
+  const byId = new Map(songs.map((s) => [s.id, s]))
+  const ordered = ids
+    .map((id) => byId.get(id))
+    .filter((s): s is PlaylistTrackItem => s != null)
+  return ordered
+}
+
+/** PlaylistTrackItem → NcmSong */
+function mapTrack(song: PlaylistTrackItem): NcmSong {
+  return {
+    songId: song.id,
+    name: song.name,
+    artist: (song.ar ?? [])
+      .map((a) => a.name)
+      .filter(Boolean)
+      .join(' / '),
+    album: song.al?.name ?? '',
+    cover: song.al?.picUrl ?? '',
+    durationMs: song.dt ?? 0,
+    vip: song.fee === 1 || song.fee === 4,
+  }
+}
+
+/** 右侧详情状态（歌单 / 专辑 / 歌手 / 每日推荐） */
+interface DetailState {
+  kind: 'playlist' | 'album' | 'artist' | 'rec'
+  id: number
+  name: string
+  cover?: string
+  /** 副信息（如「N 首」或歌手别名） */
+  info?: string
+}
+
+/** 详情元信息（歌单 /album/artist 响应中的附加展示数据） */
+interface DetailMeta {
+  /** 右上时间标签（「创建时间 2020-08-12」/「发行时间 …」） */
+  timeLabel?: string
+  /** 数量行覆盖文本（歌手页「N首歌 · M张专辑 · K个MV」） */
+  numText?: string
+  /** 创建者 / 歌手别名行 */
+  creator?: string
+  /** 查看详情弹窗的描述文本 */
+  description?: string
+}
+
+export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
+  const loginStatus = useMusicStore((s) => s.loginStatus)
+  // 手机端：双栏改「库列表 ↔ 详情」两视图切换（左栏 262px + 详情在
+  // 393px 视口下必然互相挤压溢出）
+  const isMobile = useIsMobile()
+
+  // ===== 左侧栏状态机（Hydrogen listType1/listType2） =====
+  const [listType1, setListType1] = useState(0)
+  const [listType2, setListType2] = useState(0)
+
+  // ===== 歌单数据（登录后拉取；按创建/收藏数量切两段） =====
+  const [createdPlaylists, setCreatedPlaylists] = useState<UserPlaylistItem[]>(
+    []
+  )
+  const [subscribedPlaylists, setSubscribedPlaylists] = useState<
+    UserPlaylistItem[]
+  >([])
+  const [playlistsLoading, setPlaylistsLoading] = useState(false)
+  /** 登录后待默认打开的「我喜欢的音乐」歌单（由数据 effect 写入、详情区消费打开） */
+  const [favoritePlaylist, setFavoritePlaylist] =
+    useState<UserPlaylistItem | null>(null)
+  /** 挂载时是否存在跨页跳转目标（存在则默认详情让位给跳转目标，只判定挂载时刻） */
+  const hasPendingOnMountRef = useRef(
+    !!useMusicStore.getState().pendingMyDetail ||
+      !!useMusicStore.getState().pendingAlbumDetail
+  )
+
+  // ===== 收藏数据（切到收藏 Tab 时按需拉取并缓存） =====
+  const [subAlbums, setSubAlbums] = useState<SubAlbumItem[]>([])
+  const [subArtists, setSubArtists] = useState<SubArtistItem[]>([])
+  const [subMvs, setSubMvs] = useState<SubMvItem[]>([])
+  const [subRadios, setSubRadios] = useState<SubRadioItem[]>([])
+  const [subLoading, setSubLoading] = useState(false)
+  const subLoadedRef = useRef(false)
+
+  // ===== 右侧详情 =====
+  const [detail, setDetail] = useState<DetailState | null>(null)
+  const [detailMeta, setDetailMeta] = useState<DetailMeta | null>(null)
+  const [detailSongs, setDetailSongs] = useState<NcmSong[]>([])
+  const [detailLoading, setDetailLoading] = useState(false)
+  // ===== 歌单详情分页与后台水合（Hydrogen playlistHydration 等价：
+  //       首屏 PLAYLIST_PAGE_SIZE=100，其余分页 4 并发后台补齐全量） =====
+  /** 是否还有更多分页（歌单详情用） */
+  const [detailHasMore, setDetailHasMore] = useState(false)
+  /** 追加分页加载中 */
+  const [detailLoadingMore, setDetailLoadingMore] = useState(false)
+  /** 追加加载防重入（IntersectionObserver 可能多次触发） */
+  const loadingMoreRef = useRef(false)
+  /** 歌单详情水合进度（Hydrogen playlistHydration 同名语义） */
+  const [detailHydration, setDetailHydration] = useState<{
+    total: number
+    loaded: number
+    status: 'idle' | 'loading' | 'completed' | 'failed'
+  }>({ total: 0, loaded: 0, status: 'idle' })
+  /** 详情代际令牌（切换详情时作废旧水合 worker，Hydrogen playlistHydrationToken 等价） */
+  const detailTokenRef = useRef(0)
+  /** 「我喜欢的音乐」红心 id 全量缓存（缓加载：滚动到底取下一批 song/detail） */
+  const likedIdsRef = useRef<{ id: number; ids: number[] } | null>(null)
+  /** 滚动到底部的哨兵元素（进入视口即触发下一页） */
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  /** 右侧歌曲列表滚动容器（切详情时归零） */
+  const listScrollRef = useRef<HTMLDivElement>(null)
+
+  // ===== 详情历史导航（Hydrogen view-control 前进/后退） =====
+  const [history, setHistory] = useState<{
+    list: DetailState[]
+    index: number
+  }>({ list: [], index: -1 })
+
+  // ===== 歌曲过滤（Hydrogen SongFilterInput SEARCH 框） =====
+  const [filterKeyword, setFilterKeyword] = useState('')
+
+  // ===== 查看详情弹窗 =====
+  const [introOpen, setIntroOpen] = useState(false)
+
+  const { add } = useQueueAdd(socket, roomId, canManage)
+  const { playSong } = useMusicPlayer()
+
+  /** 序号按钮「立即播放」：queue-upsert 入队 → playSong 立即播放
+   *  （与 FM 页播放同范式；无控制权/未连房间时静默降级） */
+  const handlePlayNow = (song: NcmSong) => {
+    if (song.vip && !loginStatus.loggedIn) return
+    if (!roomId) {
+      message.error('未连接房间')
+      return
+    }
+    add(songToUpsertItem(song))
+    playSong({
+      id: -1,
+      roomId,
+      songId: song.songId,
+      name: song.name,
+      artist: song.artist,
+      album: song.album,
+      cover: song.cover,
+      durationMs: song.durationMs,
+      vip: song.vip,
+      order: 0,
+      addedBy: '',
+    })
+  }
+
+  // 登录后：/user/account 拿 uid → /user/playlist + /user/subcount + /likelist
+  /** 网易云 uid 缓存（「我喜欢的音乐」红心回退路径复用） */
+  const userUidRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (!loginStatus.loggedIn) return
+    let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 登录态驱动的外部数据请求，loading 置位与请求同步发起
+    setPlaylistsLoading(true)
+    void (async () => {
+      try {
+        const acc = await apiGet<{
+          profile?: { userId?: number; nickname?: string }
+        }>('/api/music/ncm/user/account')
+        const uid = acc.data?.profile?.userId
+        if (!uid) throw new Error('获取网易云账号失败')
+        if (!cancelled) userUidRef.current = uid
+        const [pl, sub, like] = await Promise.all([
+          apiGet<{ playlist?: UserPlaylistItem[] }>(
+            `/api/music/ncm/user/playlist?uid=${uid}`
+          ),
+          apiGet<{
+            createdPlaylistCount?: number
+            subPlaylistCount?: number
+          }>('/api/music/ncm/user/subcount'),
+          apiGet<{ ids?: number[] }>(
+            `/api/music/ncm/likelist?uid=${uid}`
+          ).catch(() => ({ data: undefined })),
+        ])
+        if (cancelled) return
+        const all = Array.isArray(pl.data?.playlist) ? pl.data.playlist : []
+        // 按顺序切「我创建的 / 我收藏的」两段（Hydrogen libraryStore 同策略）
+        const createdCount = sub.data?.createdPlaylistCount ?? all.length
+        const created = all.slice(0, createdCount)
+        const subscribed = all.slice(createdCount)
+        // 「我喜欢的音乐」（specialType===5 或同名）：trackCount 用红心列表长度覆盖
+        const likeCount = Array.isArray(like.data?.ids)
+          ? like.data.ids.length
+          : null
+        const markFavorite = (list: UserPlaylistItem[]) =>
+          list.map((item) =>
+            likeCount != null &&
+            (item.specialType === 5 || item.name === '我喜欢的音乐')
+              ? { ...item, trackCount: likeCount }
+              : item
+          )
+        setCreatedPlaylists(markFavorite(created))
+        setSubscribedPlaylists(markFavorite(subscribed))
+        // 默认打开「我喜欢的音乐」歌单详情（跨页跳转目标存在时让位，
+        //仅在尚无详情时打开，避免覆盖用户当前浏览的详情）
+        const favorite =
+          markFavorite(created).find(
+            (p) => p.specialType === 5 || p.name === '我喜欢的音乐'
+          ) ??
+          markFavorite(subscribed).find(
+            (p) => p.specialType === 5 || p.name === '我喜欢的音乐'
+          )
+        if (favorite && !hasPendingOnMountRef.current) {
+          setFavoritePlaylist(favorite)
+        }
+      } catch (err) {
+        console.error('[MusicMyPage] 我的音乐获取失败:', err)
+        if (!cancelled) {
+          message.error('我的音乐获取失败，请稍后重试')
+        }
+      } finally {
+        if (!cancelled) setPlaylistsLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [loginStatus.loggedIn])
+
+  /** 切一级 Tab：重置二级并按需加载收藏数据（Hydrogen changeTracker） */
+  const handleType1 = useCallback((type: number) => {
+    setListType1(type)
+    setListType2(0)
+    if (type === 1 && !subLoadedRef.current) {
+      subLoadedRef.current = true
+      setSubLoading(true)
+      void (async () => {
+        try {
+          const [albums, artists, mvs, radios] = await Promise.all([
+            apiGet<{ data?: { data?: SubAlbumItem[] } }>(
+              '/api/music/ncm/album/sublist?limit=100'
+            ).catch(() => ({ data: undefined })),
+            apiGet<{ data?: SubArtistItem[] }>(
+              '/api/music/ncm/artist/sublist'
+            ).catch(() => ({ data: undefined })),
+            apiGet<{ data?: SubMvItem[] }>('/api/music/ncm/mv/sublist').catch(
+              () => ({ data: undefined })
+            ),
+            apiGet<{ djRadios?: SubRadioItem[] }>(
+              '/api/music/ncm/dj/sublist?limit=50'
+            ).catch(() => ({ data: undefined })),
+          ])
+          setSubAlbums(
+            Array.isArray(albums.data?.data?.data) ? albums.data.data.data : []
+          )
+          setSubArtists(
+            Array.isArray(artists.data?.data) ? artists.data.data : []
+          )
+          setSubMvs(Array.isArray(mvs.data?.data) ? mvs.data.data : [])
+          setSubRadios(
+            Array.isArray(radios.data?.djRadios) ? radios.data.djRadios : []
+          )
+        } catch (err) {
+          console.error('[MusicMyPage] 收藏列表获取失败:', err)
+        } finally {
+          setSubLoading(false)
+        }
+      })()
+    }
+  }, [])
+
+  /** 加载详情（歌曲列表 + 元信息）；歌单首屏 PLAYLIST_PAGE_SIZE，
+   *  其余分页由后台水合并发补齐（Hydrogen hydratePlaylistRemaining 等价） */
+  const loadDetail = useCallback(
+    (d: DetailState) => {
+      // 代际令牌推进：作废上一详情仍在跑的后台水合（Hydrogen token 同语义）
+      const token = ++detailTokenRef.current
+      setDetail(d)
+      setDetailMeta(null)
+      setDetailSongs([])
+      setDetailHasMore(false)
+      setDetailHydration({ total: 0, loaded: 0, status: 'idle' })
+      setFilterKeyword('')
+      setIntroOpen(false)
+      if (d.kind === 'rec') {
+        // 每日推荐：数据由 MusicDailyPanel 组件自行拉取加载
+        return
+      }
+      setDetailLoading(true)
+      setDetailLoadingMore(false)
+      loadingMoreRef.current = false
+      void (async () => {
+        try {
+          if (d.kind === 'playlist') {
+            const [trackRes, infoRes] = await Promise.all([
+              apiGet<{
+                songs?: PlaylistTrackItem[]
+                total?: number
+              }>(
+                `/api/music/ncm/playlist/track/all?id=${d.id}&limit=${PLAYLIST_PAGE_SIZE}&offset=0`
+              ),
+              apiGet<{
+                playlist?: {
+                  trackCount?: number
+                  createTime?: number
+                  creator?: { nickname?: string }
+                  description?: string
+                  coverImgUrl?: string
+                }
+              }>(`/api/music/ncm/playlist/detail?id=${d.id}`).catch(() => ({
+                data: undefined,
+              })),
+            ])
+            if (!Array.isArray(trackRes.data?.songs))
+              throw new Error('歌单详情获取失败')
+            if (token !== detailTokenRef.current) return
+            const songs = trackRes.data.songs
+              .map(mapTrack)
+              .filter((s) => s.songId > 0)
+            setDetailSongs(songs)
+            // total 取自并行请求的 /playlist/detail 的 trackCount
+            //（/playlist/track/all 底层是 song/detail 响应，没有 total 字段）
+            const total = Number.isFinite(infoRes.data?.playlist?.trackCount)
+              ? (infoRes.data?.playlist?.trackCount ?? 0)
+              : Number.isFinite(trackRes.data?.total)
+                ? (trackRes.data?.total ?? 0)
+                : 0
+            const pl = infoRes.data?.playlist
+            setDetailMeta({
+              timeLabel: pl?.createTime ? formatDate(pl.createTime) : undefined,
+              creator: pl?.creator?.nickname,
+              description: pl?.description,
+            })
+            // 封面兜底：跨页跳转（主页推荐卡片等）可能未携带封面——用
+            // /playlist/detail 的 coverImgUrl 回填详情头 150px 大封面
+            const plCover = pl?.coverImgUrl
+            if (plCover) {
+              setDetail((prev) =>
+                prev && !prev.cover
+                  ? { ...prev, cover: cdnImg(plCover, 300) }
+                  : prev
+              )
+            }
+            // ===== 「我喜欢的音乐」红心回退（Hydrogen usePlaylistSync 同源）：
+            //       v6/playlist/detail 对 specialType=5 主歌单被网易限制
+            //       （trackIds/tracks 为空），offset 分页拿不到任何后续页；
+            //       改用 likelist 红心 id 全量 → song/detail 分批（100/批）组装。
+            //       注意：/playlist/track/all 响应没有 total 字段，不能用
+            //       total<=songs.length 判断提前完成，必须先判红心歌单。
+            const knownMeta = [
+              ...createdPlaylists,
+              ...subscribedPlaylists,
+            ].find((p) => p.id === d.id)
+            const isLikedList =
+              knownMeta?.specialType === 5 ||
+              knownMeta?.name === '我喜欢的音乐' ||
+              songs.length === 0
+            if (isLikedList) {
+              // uid：优先登录数据流缓存的 uid；缺失时兜底再取一次
+              let uid = userUidRef.current
+              if (!uid) {
+                const acc = await apiGet<{
+                  profile?: { userId?: number; nickname?: string }
+                }>('/api/music/ncm/user/account').catch(() => ({ data: null }))
+                uid = acc.data?.profile?.userId ?? null
+              }
+              const likeRes = uid
+                ? await apiGet<{ ids?: number[] }>(
+                    `/api/music/ncm/likelist?uid=${uid}`
+                  ).catch(() => ({ data: undefined }))
+                : { data: undefined }
+              const likeIds = Array.isArray(likeRes.data?.ids)
+                ? likeRes.data.ids
+                : []
+              // 原生顺序优先：track/all 首屏就是歌单原生排序（首屏 100 首
+              // 与网易客户端展示一致，第一首为最早红心的歌曲）。likelist
+              // 红心 id 全量缓存进 ref，仅当原生 offset 分页给不出后续页
+              // （v6 对主歌单受限）时，在滚动追加处用它补齐剩余歌曲。
+              if (likeIds.length === 0) {
+                // 红心列表也拿不到：交由滚动哨兵兜底（保持旧行为）
+                setDetailHydration({
+                  total: total || songs.length,
+                  loaded: songs.length,
+                  status: 'failed',
+                })
+                setDetailHasMore(true)
+                return
+              }
+              likedIdsRef.current = { id: d.id, ids: likeIds }
+              setDetailHasMore(likeIds.length > songs.length)
+              setDetailHydration({
+                total: likeIds.length || total,
+                loaded: songs.length,
+                status: songs.length > 0 ? 'completed' : 'failed',
+              })
+              return
+            }
+
+            // ===== 普通歌单：首屏 PLAYLIST_PAGE_SIZE，滚动到底由哨兵
+            //       （loadMoreDetail）追加下一页，不做后台并发水合 =====
+            setDetailHasMore(total > songs.length && songs.length > 0)
+            setDetailHydration({
+              total: total || songs.length,
+              loaded: songs.length,
+              status: 'completed',
+            })
+          } else if (d.kind === 'album') {
+            // 走后端补齐端点：网易云在部分登录态下会把 /album 的 songs 截断
+            //（如仅 50 首），后端检测 songs.length < album.size 时用匿名
+            // 上下文补齐全量（Hydrogen 歌单 hydration 的等价思路）
+            const { data } = await apiGet<{
+              album?: {
+                name?: string
+                picUrl?: string
+                publishTime?: number
+                description?: string
+                artists?: Array<{ name?: string }>
+              }
+              songs?: PlaylistTrackItem[]
+            }>(`/api/music/album/full?id=${d.id}`)
+            if (!Array.isArray(data?.songs)) throw new Error('专辑详情获取失败')
+            setDetailSongs(data.songs.map(mapTrack).filter((s) => s.songId > 0))
+            const alb = data?.album
+            setDetailMeta({
+              timeLabel: alb?.publishTime
+                ? formatDate(alb.publishTime)
+                : undefined,
+              creator: (alb?.artists ?? [])
+                .map((a) => a.name)
+                .filter(Boolean)
+                .join(' / '),
+              description: alb?.description,
+            })
+          } else {
+            const { data } = await apiGet<{
+              artist?: {
+                name?: string
+                img1v1Url?: string
+                alias?: string[]
+                musicSize?: number
+                albumSize?: number
+                mvSize?: number
+                briefDesc?: string
+              }
+              hotSongs?: PlaylistTrackItem[]
+            }>(`/api/music/ncm/artists?id=${d.id}`)
+            if (!Array.isArray(data?.hotSongs))
+              throw new Error('歌手热门单曲获取失败')
+            setDetailSongs(
+              data.hotSongs.map(mapTrack).filter((s) => s.songId > 0)
+            )
+            const art = data?.artist
+            setDetailMeta({
+              creator: (art?.alias ?? []).filter(Boolean).join(' · '),
+              numText:
+                art != null
+                  ? `${art.musicSize ?? 0}首歌 · ${art.albumSize ?? 0}张专辑 · ${art.mvSize ?? 0}个MV`
+                  : undefined,
+              description: art?.briefDesc,
+            })
+          }
+        } catch (err) {
+          console.error('[MusicMyPage] 详情获取失败:', err)
+          message.error('详情获取失败，请稍后重试')
+        } finally {
+          setDetailLoading(false)
+        }
+      })()
+      // 「我喜欢的音乐」回退需要按 id 匹配歌单元数据（specialType/name）
+    },
+    [createdPlaylists, subscribedPlaylists]
+  )
+
+  /** 用户点击左栏条目打开详情：截断前进分支并压入历史栈 */
+  const openDetail = useCallback(
+    (d: DetailState) => {
+      setHistory((prev) => {
+        const list = prev.list.slice(0, prev.index + 1)
+        list.push(d)
+        return { list, index: list.length - 1 }
+      })
+      loadDetail(d)
+    },
+    [loadDetail]
+  )
+
+  // 播放条「查看专辑」跨页跳转：消费待打开的专辑详情
+  //（Hydrogen toAlbum 路由跳转的等价实现：WidgetBar 写入 store 并切页，
+  // 本页挂载后消费打开，先清空防重复打开）
+  const pendingAlbumDetail = useMusicStore((s) => s.pendingAlbumDetail)
+  const setPendingAlbumDetail = useMusicStore((s) => s.setPendingAlbumDetail)
+  // 主页卡片（歌单/专辑/歌手/每日推荐）跨页打开目标（Hydrogen 路由跳转等价实现）
+  const pendingMyDetail = useMusicStore((s) => s.pendingMyDetail)
+  const setPendingMyDetail = useMusicStore((s) => s.setPendingMyDetail)
+  useEffect(() => {
+    if (!pendingAlbumDetail) return
+    const target = pendingAlbumDetail
+    setPendingAlbumDetail(null)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 外部跳转目标消费，打开详情触发数据加载
+    openDetail({
+      kind: 'album',
+      id: target.id,
+      name: target.name,
+      cover: target.cover,
+    })
+  }, [pendingAlbumDetail, setPendingAlbumDetail, openDetail])
+  useEffect(() => {
+    if (!pendingMyDetail) return
+    const target = pendingMyDetail
+    setPendingMyDetail(null)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 外部跳转目标消费，打开详情触发数据加载
+    openDetail(target)
+  }, [pendingMyDetail, setPendingMyDetail, openDetail])
+
+  // 登录后默认打开「我喜欢的音乐」歌单详情（一次性消费，跨页跳转已让位）
+  useEffect(() => {
+    if (!favoritePlaylist) return
+    const target = favoritePlaylist
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 默认目标消费，打开详情触发数据加载
+    setFavoritePlaylist(null)
+    openDetail({
+      kind: 'playlist',
+      id: target.id,
+      name: target.name,
+      cover: cdnImg(target.coverImgUrl, 300),
+      info: `${target.trackCount ?? 0} 首`,
+    })
+  }, [favoritePlaylist, openDetail])
+
+  /** 后退（view-control 左箭头）：加载历史上一条，不压栈 */
+  const goBack = useCallback(() => {
+    if (history.index <= 0) return
+    const index = history.index - 1
+    setHistory({ ...history, index })
+    loadDetail(history.list[index])
+  }, [history, loadDetail])
+
+  /** 前进（view-control 右箭头）：加载历史下一条，不压栈 */
+  const goForward = useCallback(() => {
+    if (history.index >= history.list.length - 1) return
+    const index = history.index + 1
+    setHistory({ ...history, index })
+    loadDetail(history.list[index])
+  }, [history, loadDetail])
+
+  /** 缓加载：滚动到列表底部追加下一页（每批 PLAYLIST_PAGE_SIZE；红心歌单
+   *  走 likedIdsRef 缓存的 id 片段 + song/detail，普通歌单走 offset 分页） */
+  const loadMoreDetail = useCallback(async () => {
+    const d = detail
+    if (!d || d.kind !== 'playlist' || !detailHasMore || loadingMoreRef.current)
+      return
+    loadingMoreRef.current = true
+    setDetailLoadingMore(true)
+    try {
+      const offset = detailSongs.length
+      let next: NcmSong[] = []
+      // 「我喜欢的音乐」：优先走原生 offset 分页（顺序正确）；
+      // 原生接口对主歌单受限（后续页为空）时，才用红心 id 补齐剩余歌曲。
+      if (likedIdsRef.current && likedIdsRef.current.id === d.id) {
+        const likeIds = likedIdsRef.current.ids
+        const native = await apiGet<{
+          songs?: PlaylistTrackItem[]
+          total?: number
+        }>(
+          `/api/music/ncm/playlist/track/all?id=${d.id}&limit=${PLAYLIST_PAGE_SIZE}&offset=${offset}`
+        ).catch(() => ({ data: undefined }))
+        if (Array.isArray(native.data?.songs) && native.data.songs.length > 0) {
+          // 原生分页可用：直接沿用歌单原生顺序追加
+          next = native.data.songs.map(mapTrack).filter((s) => s.songId > 0)
+          setDetailHasMore(
+            offset + next.length < likeIds.length && next.length > 0
+          )
+          setDetailHydration((prev) => ({
+            ...prev,
+            loaded: offset + next.length,
+            status: 'completed',
+          }))
+        } else {
+          // 原生分页受限：以红心 id 为准补齐「尚未加载」的剩余歌曲
+          //（likelist 顺序为红心时间线，官方排序回退到该顺序）
+          const loadedIds = new Set(detailSongs.map((s) => s.songId))
+          const remaining = likeIds.filter((id) => !loadedIds.has(id))
+          if (remaining.length === 0) {
+            setDetailHasMore(false)
+            setDetailHydration((prev) => ({ ...prev, status: 'completed' }))
+            return
+          }
+          const batchIds = remaining.slice(0, PLAYLIST_PAGE_SIZE)
+          const { data } = await apiGet<{
+            songs?: PlaylistTrackItem[]
+          }>(`/api/music/ncm/song/detail?ids=${batchIds.join(',')}`)
+          if (!Array.isArray(data?.songs))
+            throw new Error('歌单详情追加加载失败')
+          next = orderByIds(batchIds, data.songs).map(mapTrack)
+          setDetailHasMore(remaining.length > PLAYLIST_PAGE_SIZE)
+          setDetailHydration((prev) => ({
+            ...prev,
+            loaded: likeIds.length - remaining.length + next.length,
+            status: 'completed',
+          }))
+        }
+      } else {
+        const { data } = await apiGet<{
+          songs?: PlaylistTrackItem[]
+          total?: number
+        }>(
+          `/api/music/ncm/playlist/track/all?id=${d.id}&limit=${PLAYLIST_PAGE_SIZE}&offset=${offset}`
+        )
+        if (!Array.isArray(data?.songs)) throw new Error('歌单详情追加加载失败')
+        next = data.songs.map(mapTrack).filter((s) => s.songId > 0)
+        const total = detailHydration.total
+        // 已加载达到 total（trackCount）或本页为空时停止
+        setDetailHasMore(offset + next.length < total && next.length > 0)
+        setDetailHydration((prev) => ({
+          ...prev,
+          loaded: offset + next.length,
+          status: 'completed',
+        }))
+      }
+      setDetailSongs((prev) => [...prev, ...next])
+    } catch (err) {
+      console.error('[MusicMyPage] 歌单追加加载失败:', err)
+      message.error('加载更多歌曲失败，请稍后重试')
+    } finally {
+      loadingMoreRef.current = false
+      setDetailLoadingMore(false)
+    }
+  }, [detail, detailHasMore, detailSongs, detailHydration.total])
+
+  // 哨兵进入视口（接近列表底部）→ 追加下一页
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el || !detailHasMore) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) void loadMoreDetail()
+      },
+      { rootMargin: '400px' }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [detailHasMore, loadMoreDetail])
+
+  // 切详情时右侧歌曲列表归零（Hydrogen RESET_TOP 滚动策略）
+  useEffect(() => {
+    const el = listScrollRef.current
+    if (el) el.scrollTop = 0
+  }, [detail?.id])
+
+  /** 全部加入队列（Hydrogen 播放全部的 ZViewer 语义） */
+  const handlePlayAll = useCallback(() => {
+    if (!canManage) {
+      message.info('仅房主 / 房管可添加队列')
+      return
+    }
+    if (detailSongs.length === 0) return
+    detailSongs.forEach((s) => add(songToUpsertItem(s)))
+    message.success(`已加入 ${detailSongs.length} 首到队列`)
+  }, [canManage, detailSongs, add])
+
+  if (!loginStatus.loggedIn) {
+    return (
+      <div className="flex min-h-full flex-col px-6 pb-32 pt-6 md:px-8 max-md:px-4 max-md:pb-28 max-md:pt-4">
+        <PageBlockHeader titleEN="MY MUSIC" titleCN="我的音乐" />
+        <MusicLoginGate hint="登录后查看我的歌单" />
+      </div>
+    )
+  }
+
+  // ===== 歌曲过滤（名称 / 歌手包含关键词；已加载范围内过滤） =====
+  const kw = filterKeyword.trim().toLowerCase()
+  const filteredSongs =
+    kw === ''
+      ? detailSongs
+      : detailSongs.filter(
+          (s) =>
+            s.name.toLowerCase().includes(kw) ||
+            s.artist.toLowerCase().includes(kw)
+        )
+  /** 数量行（歌手页用 meta.numText，其余「共N首」） */
+  const numText =
+    detail?.kind === 'artist'
+      ? (detailMeta?.numText ?? detail.info ?? '')
+      : `共${detail?.info ?? `${detailSongs.length} 首`}`
+
+  // ===== 详情视图（右侧内容区，Hydrogen LibraryDetail 1:1） =====
+  // 每日推荐：整区替换为日推面板（Hydrogen /mymusic/playlist/rec 同款展示）
+  const detailView =
+    detail?.kind === 'rec' ? (
+      <MusicDailyPanel socket={socket} roomId={roomId} canManage={canManage} />
+    ) : detail ? (
+      <div className="flex min-h-0 flex-1 flex-col">
+        {/* ===== view-control：后退 / 前进双箭头（实心 chevron 32px）；
+            手机端追加「返回列表」——两视图切换模式下回到库列表，
+            不受详情历史栈限制 ===== */}
+        <div className="ml-[-8px] flex h-8 shrink-0 items-center">
+          <button
+            type="button"
+            onClick={goBack}
+            disabled={history.index <= 0}
+            className="mr-5 flex h-8 w-8 items-center justify-center p-2 text-[var(--md-sys-color-on-surface)] transition-opacity hover:opacity-70 active:scale-90 disabled:opacity-45 disabled:hover:opacity-45 disabled:active:scale-100"
+            title="后退"
+            aria-label="后退"
+          >
+            <svg viewBox="0 0 1024 1024" className="h-4 w-4" aria-hidden="true">
+              <path
+                d="M716.608 1010.112L218.88 512.384 717.376 13.888l45.248 45.248-453.248 453.248 452.48 452.48z"
+                fill="currentColor"
+              />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={goForward}
+            disabled={history.index >= history.list.length - 1}
+            className="flex h-8 w-8 items-center justify-center p-2 text-[var(--md-sys-color-on-surface)] transition-opacity hover:opacity-70 active:scale-90 disabled:opacity-45 disabled:hover:opacity-45 disabled:active:scale-100"
+            title="前进"
+            aria-label="前进"
+          >
+            <svg viewBox="0 0 1024 1024" className="h-4 w-4" aria-hidden="true">
+              <path
+                d="M264.896 1010.112l497.728-497.728L264.128 13.888 218.88 59.136l453.248 453.248-452.48 452.48z"
+                fill="currentColor"
+              />
+            </svg>
+          </button>
+          {isMobile && (
+            <button
+              type="button"
+              onClick={() => setDetail(null)}
+              className="ml-3 flex items-center gap-1 text-xs font-bold text-[var(--md-sys-color-on-surface)] transition-opacity active:opacity-60"
+              title="返回歌单列表"
+            >
+              <svg
+                viewBox="0 0 1024 1024"
+                className="h-3 w-3"
+                aria-hidden="true"
+              >
+                <path
+                  d="M716.608 1010.112L218.88 512.384 717.376 13.888l45.248 45.248-453.248 453.248 452.48 452.48z"
+                  fill="currentColor"
+                />
+              </svg>
+              返回列表
+            </button>
+          )}
+        </div>
+
+        {/* ===== library-introduce：大封面 + 信息列 + 右上角列。
+            手机端：右上 130px 列（创建时间/查看详情/SEARCH 过滤）隐藏，
+            信息列占满全宽，封面缩至 96px ===== */}
+        <div className="flex w-full shrink-0 justify-between">
+          <div className="flex w-[calc(100%-130px)] min-w-0 items-start max-md:w-full">
+            {/* 大封面（150px，0.5px 边框 + 弥散阴影） */}
+            <div
+              className="mr-2.5 h-[150px] w-[150px] shrink-0 overflow-hidden max-md:h-24 max-md:w-24"
+              style={{
+                border:
+                  '0.5px solid color-mix(in srgb, var(--md-sys-color-on-surface) 18%, transparent)',
+                boxShadow: '0 0 6px 1px rgba(0, 0, 0, 0.03)',
+              }}
+            >
+              {detail.cover && (
+                <img
+                  src={detail.cover}
+                  alt={detail.name}
+                  className="h-full w-full object-cover"
+                  draggable={false}
+                />
+              )}
+            </div>
+            {/* 信息列（名称 22px 两行 / 创建者 12px / 数量行 11px / 操作行占位） */}
+            <div className="flex min-w-0 flex-1 flex-col items-start justify-around self-stretch py-1">
+              <h2
+                className="line-clamp-2 w-[90%] break-all text-[22px] font-bold leading-tight text-[var(--md-sys-color-on-surface)]"
+                title={detail.name}
+              >
+                {detail.name}
+              </h2>
+              <div className="w-full min-w-0">
+                {detailMeta?.creator && (
+                  <div className="truncate text-xs text-[var(--md-sys-color-on-surface)]">
+                    {detailMeta.creator}
+                  </div>
+                )}
+                <div className="truncate text-[11px] font-bold text-[var(--md-sys-color-on-surface-variant)]">
+                  {numText}
+                </div>
+                {/* 操作行占位（Hydrogen 收藏/下载行；ZViewer 仅保留 SEARCH） */}
+                <div className="mt-2.5 min-h-[34px] w-full" />
+              </div>
+            </div>
+          </div>
+
+          {/* 右上角列（130px）：创建时间框 + 查看详情 + SEARCH 过滤框；
+              手机端隐藏（130px 在小屏会挤碎信息列） */}
+          <div className="flex w-[130px] shrink-0 flex-col items-stretch max-md:hidden">
+            {(detail.kind !== 'artist' || detailMeta?.timeLabel) && (
+              <div
+                className="flex h-6 items-center justify-center whitespace-nowrap border px-1 text-[10px] font-bold text-[var(--md-sys-color-on-surface)]"
+                style={{
+                  borderColor: 'var(--md-sys-color-on-surface)',
+                }}
+                title={detail.kind === 'album' ? '发行时间' : '创建时间'}
+              >
+                {detail.kind === 'album' ? '发行时间' : '创建时间'}{' '}
+                {detailMeta?.timeLabel ?? '—'}
+              </div>
+            )}
+            <button
+              type="button"
+              className="mt-1.5 h-6 bg-[var(--md-sys-color-on-surface)] text-[10px] font-bold text-[var(--md-sys-color-surface)] transition-colors hover:bg-[color-mix(in_srgb,var(--md-sys-color-on-surface)_80%,transparent)]"
+              onClick={() => setIntroOpen(true)}
+              title="查看详情"
+            >
+              查看详情
+            </button>
+            {/* 歌曲过滤（Hydrogen SongFilterInput compact 1:1：
+                右上/左下 6px 缺角 + 1px 细边框 + 纯 CSS 放大镜，
+                hover/focus-within 边框与图标变亮，聚焦时 placeholder 隐藏） */}
+            <div
+              className="song-search-box mt-2 flex h-6 w-full items-center border px-2.5 transition-colors duration-200 hover:border-[var(--md-sys-color-on-surface)] focus-within:border-[var(--md-sys-color-on-surface)]"
+              style={{
+                borderColor: 'var(--md-sys-color-on-surface)',
+                clipPath:
+                  'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px))',
+              }}
+            >
+              <span className="song-search-icon" aria-hidden="true" />
+              <input
+                value={filterKeyword}
+                onChange={(e) => setFilterKeyword(e.target.value)}
+                placeholder="SEARCH"
+                aria-label="过滤歌曲"
+                className="min-w-0 flex-1 bg-transparent pl-[10px] text-xs tracking-[0.3px] outline-none focus:placeholder:text-transparent"
+                style={{
+                  color: 'var(--md-sys-color-on-surface)',
+                  fontSize: 12,
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ===== library-option：播放全部分隔行 ===== */}
+        <div className="shrink-0 px-1 pt-[15px]">
+          <div className="my-2.5 flex items-center">
+            <button
+              type="button"
+              className="flex shrink-0 items-center transition-opacity hover:opacity-60"
+              onClick={handlePlayAll}
+              title="播放全部（加入队列）"
+            >
+              {/* 描边三角播放图标（17px，Hydrogen playall 同款） */}
+              <svg
+                viewBox="0 0 200 200"
+                className="h-[17px] w-[17px]"
+                aria-hidden="true"
+              >
+                <path
+                  d="M11.79,132L164.21,132L88,0L11.79,132Z "
+                  transform="translate(0 12) rotate(90 88 88)"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={8}
+                  style={{ color: 'var(--md-sys-color-on-surface)' }}
+                />
+              </svg>
+              <span className="mx-[5px] whitespace-nowrap text-xs font-bold text-[var(--md-sys-color-on-surface)]">
+                播放全部
+              </span>
+            </button>
+            <div
+              className="h-px min-w-4 flex-1"
+              style={{
+                backgroundColor:
+                  'color-mix(in srgb, var(--md-sys-color-on-surface) 35%, transparent)',
+              }}
+            />
+            <span className="ml-1 text-[8px] font-bold tracking-widest text-[var(--md-sys-color-on-surface-variant)]">
+              PLAYALL
+            </span>
+          </div>
+        </div>
+
+        {/* ===== 歌曲列表（内滚，scrollbar-gutter stable 防宽度抖动） ===== */}
+        <div
+          ref={listScrollRef}
+          className="zen-scroll min-h-0 flex-1 overflow-y-auto pt-3"
+          style={{ scrollbarGutter: 'stable' }}
+        >
+          {detailLoading && (
+            <div className="flex items-center gap-2 px-2 py-3 text-sm text-[var(--md-sys-color-on-surface-variant)]">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              正在获取歌曲…
+            </div>
+          )}
+          {!detailLoading && filteredSongs.length === 0 && (
+            <div className="flex flex-1 items-center justify-center py-10 text-sm text-[var(--md-sys-color-on-surface-variant)]">
+              {kw !== '' ? '未找到相关歌曲' : '暂无歌曲'}
+            </div>
+          )}
+          {filteredSongs.map((song, idx) => {
+            return (
+              <SongRow
+                key={song.songId}
+                index={idx + 1}
+                name={song.name}
+                artist={song.artist}
+                cover={song.cover}
+                duration={formatDurationMs(song.durationMs)}
+                vip={song.vip}
+                disabled={song.vip && !loginStatus.loggedIn}
+                onPlayNow={() => handlePlayNow(song)}
+                onRowDoubleClick={() =>
+                  add(songToUpsertItem(song), {
+                    afterCurrent: true,
+                    notify: true,
+                  })
+                }
+                rowTitle="双击添加到队列，hover 序号点击立即播放"
+              />
+            )
+          })}
+          {/* 追加批次失败提示（缓加载改为滚动驱动，加载中状态由哨兵行承担） */}
+          {detailHydration.status === 'failed' && detailHydration.total > 0 && (
+            <div className="flex h-12 items-center justify-center gap-2 text-sm text-[var(--md-sys-color-error)]">
+              部分歌曲加载失败，请稍后重试
+            </div>
+          )}
+          {/* 分页缓加载哨兵：滚动到底部（接近 400px 内）自动追加下一页 */}
+          {detailHasMore && (
+            <div
+              ref={sentinelRef}
+              className="flex h-12 items-center justify-center gap-2 text-sm text-[var(--md-sys-color-on-surface-variant)]"
+            >
+              {detailLoadingMore ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  正在加载更多歌曲…
+                </>
+              ) : (
+                <span>继续下滑加载更多</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ===== 查看详情弹窗（Hydrogen introduce-detail：700×400 毛玻璃，
+          metro 先宽后高展开 + 四角白点闪烁 + 右上 X 延迟浮现） ===== */}
+        <style>{INTRODUCE_STYLE}</style>
+        {introOpen && (
+          <div
+            className="fixed left-1/2 top-1/2 z-[998] flex -translate-x-1/2 -translate-y-1/2 overflow-hidden"
+            style={{
+              backgroundColor: 'rgba(0, 0, 0, 0.66)',
+              backdropFilter: 'blur(18px) saturate(120%)',
+              WebkitBackdropFilter: 'blur(18px) saturate(120%)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              boxShadow: '0 10px 30px rgba(0, 0, 0, 0.45)',
+              width: 0,
+              height: 0,
+              padding: 0,
+              animation:
+                'zen-introduce-in 0.6s 0.3s cubic-bezier(0.3, 0.79, 0.55, 0.99) forwards',
+            }}
+            role="dialog"
+            aria-label="详情描述"
+          >
+            <div className="h-full w-full overflow-y-auto">
+              <p className="text-sm font-semibold leading-relaxed text-white/90 [text-indent:2em]">
+                {detailMeta?.description || '暂无描述'}
+              </p>
+            </div>
+            {/* 四角白点（9px，闪烁后常显） */}
+            <span
+              className="absolute -left-1 -top-1 h-[9px] w-[9px] bg-white/90 opacity-0"
+              style={{ animation: 'zen-introduce-corner 0.4s forwards' }}
+              aria-hidden="true"
+            />
+            <span
+              className="absolute -right-1 -top-1 h-[9px] w-[9px] bg-white/90 opacity-0"
+              style={{ animation: 'zen-introduce-corner 0.4s forwards' }}
+              aria-hidden="true"
+            />
+            <span
+              className="absolute -bottom-1 -right-1 h-[9px] w-[9px] bg-white/90 opacity-0"
+              style={{ animation: 'zen-introduce-corner 0.4s forwards' }}
+              aria-hidden="true"
+            />
+            <span
+              className="absolute -bottom-1 -left-1 h-[9px] w-[9px] bg-white/90 opacity-0"
+              style={{ animation: 'zen-introduce-corner 0.4s forwards' }}
+              aria-hidden="true"
+            />
+            <button
+              type="button"
+              className="absolute right-[15px] top-[15px] h-6 w-6 opacity-0 transition-opacity hover:opacity-80"
+              style={{ animation: 'zen-introduce-close 0.1s 0.6s forwards' }}
+              onClick={() => setIntroOpen(false)}
+              title="关闭"
+              aria-label="关闭详情"
+            >
+              <svg
+                viewBox="0 0 1024 1024"
+                className="h-full w-full"
+                aria-hidden="true"
+              >
+                <path
+                  d="M576 512l277.333333 277.333333-64 64-277.333333-277.333333L234.666667 853.333333 170.666667 789.333333l277.333333-277.333333L170.666667 234.666667 234.666667 170.666667l277.333333 277.333333L789.333333 170.666667 853.333333 234.666667 576 512z"
+                  fill="#ffffff"
+                />
+              </svg>
+            </button>
+          </div>
+        )}
+      </div>
+    ) : (
+      /* ===== 默认空态（Hydrogen NONE：对角线 + 闪烁文字 + 四角方块） ===== */
+      <MyMusicEmpty />
+    )
+
+  // ===== 页面骨架（Hydrogen 内滚架构：页面不滚，左栏 / 右区各自内滚）。
+  //      手机端两视图切换：无详情只显示库列表全宽，有详情只显示详情全宽 =====
+  return (
+    <div className="flex h-full min-h-0 px-6 pt-6 md:px-8 max-md:px-3 max-md:pt-3">
+      {/* ===== 左侧栏（Hydrogen .music-library：宽 262px，静态布局无 sticky；
+          手机端全宽，打开详情时隐藏让位） ===== */}
+      <div
+        className={cn(
+          'flex w-[262px] min-h-0 shrink-0 flex-col max-md:w-full',
+          isMobile && detail && 'hidden'
+        )}
+      >
+        {/* 双层 Tab（Hydrogen LibraryType：一级 16px 加粗 + 3px 黑色激活条 +
+            0.5px 细分隔线；二级 12px 随一级切换） */}
+        <div className="shrink-0 pt-2.5">
+          <div className="flex items-end gap-5 px-1 pb-1 text-base font-bold leading-none">
+            {TYPE_ONE.map((label, i) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => handleType1(i)}
+                className={cn(
+                  'relative whitespace-nowrap pb-1.5 transition-colors duration-200',
+                  listType1 === i
+                    ? 'text-[var(--md-sys-color-on-surface)]'
+                    : 'text-[var(--md-sys-color-on-surface-variant)]'
+                )}
+              >
+                {label}
+                {/* 激活黑色条（3px，width 展开动画，贴分隔线上方） */}
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'absolute inset-x-0 bottom-0 h-[3px] transition-all duration-300',
+                    listType1 === i ? 'w-full opacity-100' : 'w-0 opacity-0'
+                  )}
+                  style={{ backgroundColor: 'var(--md-sys-color-on-surface)' }}
+                />
+              </button>
+            ))}
+          </div>
+          {/* 0.5px 细分隔线（Hydrogen tracker-line） */}
+          <div
+            className="h-px w-full"
+            style={{
+              backgroundColor:
+                'color-mix(in srgb, var(--md-sys-color-on-surface) 35%, transparent)',
+            }}
+          />
+          {/* 二级子 Tab */}
+          <div className="mt-1 flex items-center gap-2.5 px-1 text-xs font-bold">
+            {(TYPE_TWO[listType1] ?? []).map((label, i) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => setListType2(i)}
+                className={cn(
+                  'whitespace-nowrap transition-colors duration-200',
+                  listType2 === i
+                    ? 'text-[var(--md-sys-color-on-surface)]'
+                    : 'text-[var(--md-sys-color-on-surface-variant)]'
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 列表区（Hydrogen .library-list：flex-1 内滚；scrollbar-gutter
+            stable 固定滚动条占位，杜绝数据加载后滚动条出现引起的宽度抖动） */}
+        <div
+          className="zen-scroll mt-1 min-h-0 flex-1 overflow-y-auto pb-[15px] pt-1"
+          style={{ scrollbarGutter: 'stable' }}
+        >
+          {/* ===== 歌单（我创建的 / 我收藏的） ===== */}
+          {listType1 === 0 &&
+            (playlistsLoading ? (
+              <div className="flex items-center gap-2 px-2 py-3 text-sm text-[var(--md-sys-color-on-surface-variant)]">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                正在获取…
+              </div>
+            ) : (listType2 === 0 ? createdPlaylists : subscribedPlaylists)
+                .length === 0 ? (
+              <LibraryEmptyHint
+                text={listType2 === 0 ? '暂无创建的歌单' : '暂无收藏的歌单'}
+              />
+            ) : (
+              (listType2 === 0 ? createdPlaylists : subscribedPlaylists).map(
+                (pl) => (
+                  <LibraryItem
+                    key={pl.id}
+                    selected={
+                      detail?.kind === 'playlist' && detail.id === pl.id
+                    }
+                    img={cdnImg(pl.coverImgUrl)}
+                    name={pl.name}
+                    info={`${pl.trackCount ?? 0} 首`}
+                    onClick={() =>
+                      openDetail({
+                        kind: 'playlist',
+                        id: pl.id,
+                        name: pl.name,
+                        cover: cdnImg(pl.coverImgUrl, 300),
+                        info: `${pl.trackCount ?? 0} 首`,
+                      })
+                    }
+                  />
+                )
+              )
+            ))}
+
+          {/* ===== 收藏（专辑 / 歌手 / MV / 电台） ===== */}
+          {listType1 === 1 &&
+            (subLoading ? (
+              <div className="flex items-center gap-2 px-2 py-3 text-sm text-[var(--md-sys-color-on-surface-variant)]">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                正在获取…
+              </div>
+            ) : listType2 === 0 ? (
+              subAlbums.length === 0 ? (
+                <LibraryEmptyHint text="暂无收藏的专辑" />
+              ) : (
+                subAlbums.map((a) => (
+                  <LibraryItem
+                    key={a.id}
+                    selected={detail?.kind === 'album' && detail.id === a.id}
+                    img={cdnImg(a.picUrl)}
+                    name={a.name}
+                    info={(a.artists ?? [])
+                      .map((x) => x.name)
+                      .filter(Boolean)
+                      .join(' / ')}
+                    onClick={() =>
+                      openDetail({
+                        kind: 'album',
+                        id: a.id,
+                        name: a.name,
+                        cover: cdnImg(a.picUrl, 300),
+                      })
+                    }
+                  />
+                ))
+              )
+            ) : listType2 === 1 ? (
+              subArtists.length === 0 ? (
+                <LibraryEmptyHint text="暂无收藏的歌手" />
+              ) : (
+                subArtists.map((a) => (
+                  <LibraryItem
+                    key={a.id}
+                    selected={detail?.kind === 'artist' && detail.id === a.id}
+                    img={cdnImg(a.img1v1Url ?? a.picUrl)}
+                    name={a.name}
+                    info={
+                      a.alias?.filter(Boolean).join(' / ') ||
+                      `${a.size ?? 0} 首`
+                    }
+                    onClick={() =>
+                      openDetail({
+                        kind: 'artist',
+                        id: a.id,
+                        name: a.name,
+                        cover: cdnImg(a.img1v1Url ?? a.picUrl, 300),
+                      })
+                    }
+                  />
+                ))
+              )
+            ) : listType2 === 2 ? (
+              subMvs.length === 0 ? (
+                <LibraryEmptyHint text="暂无收藏的 MV" />
+              ) : (
+                subMvs.map((m) => (
+                  <LibraryItem
+                    key={m.id}
+                    selected={false}
+                    img={cdnImg(m.coverUrl ?? m.picUrl)}
+                    name={m.name}
+                    info={
+                      (
+                        (m.artists ?? m.creator ?? []) as Array<{
+                          name?: string
+                          userName?: string
+                        }>
+                      )
+                        .map((x) => x.name ?? x.userName)
+                        .filter(Boolean)
+                        .join(' / ') || 'MV'
+                    }
+                    onClick={() => {
+                      // Web 环境暂不支持 MV 播放
+                      message.info('ZViewer 暂不支持播放 MV')
+                    }}
+                  />
+                ))
+              )
+            ) : subRadios.length === 0 ? (
+              <LibraryEmptyHint text="暂无收藏的电台" />
+            ) : (
+              subRadios.map((r) => (
+                <LibraryItem
+                  key={r.id}
+                  selected={false}
+                  img={cdnImg(r.picUrl)}
+                  name={r.name}
+                  info={
+                    [
+                      r.dj?.nickname,
+                      r.programCount != null ? `${r.programCount} 期` : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || '电台'
+                  }
+                  onClick={() => {
+                    // 电台详情暂未接入
+                    message.info('电台详情暂未接入')
+                  }}
+                />
+              ))
+            ))}
+
+          {/* ===== 下载管理（Web 环境不支持 Electron 下载队列） ===== */}
+          {listType1 === 2 && <MyMusicUnsupported type2={listType2} />}
+
+          {/* ===== 本地管理（Web 环境不支持本地目录扫描） ===== */}
+          {listType1 === 3 && <MyMusicUnsupported type2={listType2} />}
+        </div>
+      </div>
+
+      {/* ===== 右侧内容区（Hydrogen .library-view：margin-left 50px；
+          手机端全宽，无详情时隐藏——库列表视图独占） ===== */}
+      <div
+        className={cn(
+          'ml-[50px] flex min-h-0 min-w-0 flex-1 flex-col max-md:ml-0',
+          isMobile && !detail && 'hidden'
+        )}
+      >
+        {detailView}
+      </div>
+    </div>
+  )
+}
+
+/** 左侧栏空提示（歌单/收藏无数据时） */
+function LibraryEmptyHint({ text }: { text: string }) {
+  return (
+    <div className="px-2 py-6 text-center text-xs text-[var(--md-sys-color-on-surface-variant)]">
+      {text}
+    </div>
+  )
+}
+
+/** 左侧栏列表条目（Hydrogen LibraryList .list-item 复刻）：
+ * 50px 方图 + 名称 + 副信息；hover/选中为「背景从左滑入」动画
+ * （背景层 will-change-transform 合成层化，避免 1s 长动画反复重绘卡顿） */
+function LibraryItem({
+  img,
+  name,
+  info,
+  selected,
+  onClick,
+}: {
+  img: string
+  name: string
+  info?: string
+  selected: boolean
+  onClick: () => void
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick()
+        }
+      }}
+      className="group relative flex cursor-pointer items-center overflow-hidden p-2"
+      aria-selected={selected}
+    >
+      {/* 滑入背景层（hover 延迟 0.2s，1s cubic-bezier(0.22,0.61,0.36,1)；选中常驻） */}
+      <span
+        aria-hidden="true"
+        className={cn(
+          'absolute inset-0 -translate-x-full bg-[color-mix(in_srgb,var(--md-sys-color-on-surface)_5%,transparent)] will-change-transform transition-transform duration-1000 ease-[cubic-bezier(0.22,0.61,0.36,1)] group-hover:translate-x-0 group-hover:delay-200',
+          selected && 'translate-x-0'
+        )}
+      />
+      {img ? (
+        <img
+          src={img}
+          alt=""
+          className="relative mr-2.5 h-[50px] w-[50px] shrink-0 object-cover"
+          style={{
+            border:
+              '0.5px solid color-mix(in srgb, var(--md-sys-color-on-surface) 10%, transparent)',
+          }}
+          draggable={false}
+          loading="lazy"
+        />
+      ) : (
+        <div
+          className="relative mr-2.5 flex h-[50px] w-[50px] shrink-0 items-center justify-center"
+          style={{
+            backgroundColor:
+              'color-mix(in srgb, var(--md-sys-color-on-surface) 6%, transparent)',
+            border:
+              '0.5px solid color-mix(in srgb, var(--md-sys-color-on-surface) 10%, transparent)',
+          }}
+        >
+          <ListMusic
+            className="h-5 w-5 opacity-40"
+            style={{ color: 'var(--md-sys-color-on-surface-variant)' }}
+          />
+        </div>
+      )}
+      <div className="relative min-w-0 flex-1">
+        <p className="truncate text-[15px] font-bold leading-snug text-[var(--md-sys-color-on-surface)]">
+          {name}
+        </p>
+        {info && (
+          <p className="truncate text-[11px] font-bold leading-snug text-[var(--md-sys-color-on-surface-variant)]">
+            {info}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** 右侧默认空态（Hydrogen MyMusic .library-container 空态：
+ * 四角方形边框 + 对角线展开 + "NONE" 闪烁文字） */
+function MyMusicEmpty() {
+  return (
+    <div className="flex min-h-[320px] flex-1 flex-col items-center justify-center gap-4">
+      <div
+        className="relative flex h-44 w-80 items-center justify-center"
+        style={{
+          border:
+            '1px solid color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent)',
+        }}
+      >
+        {/* 四角小方块（Hydrogen .no-corner：9px 实心） */}
+        <span
+          className="absolute -left-[4.5px] -top-[4.5px] h-[9px] w-[9px]"
+          style={{ backgroundColor: 'var(--md-sys-color-on-surface)' }}
+          aria-hidden="true"
+        />
+        <span
+          className="absolute -right-[4.5px] -top-[4.5px] h-[9px] w-[9px]"
+          style={{ backgroundColor: 'var(--md-sys-color-on-surface)' }}
+          aria-hidden="true"
+        />
+        <span
+          className="absolute -bottom-[4.5px] -right-[4.5px] h-[9px] w-[9px]"
+          style={{ backgroundColor: 'var(--md-sys-color-on-surface)' }}
+          aria-hidden="true"
+        />
+        <span
+          className="absolute -bottom-[4.5px] -left-[4.5px] h-[9px] w-[9px]"
+          style={{ backgroundColor: 'var(--md-sys-color-on-surface)' }}
+          aria-hidden="true"
+        />
+        {/* 对角线展开（复用 Lyric-Area keyframes） */}
+        <div
+          className="lyric-nodata-grow absolute inset-8"
+          style={{
+            background:
+              'linear-gradient(to top right, transparent calc(50% - 0.6px), var(--md-sys-color-on-surface), transparent calc(50% + 0.6px))',
+          }}
+          aria-hidden="true"
+        />
+        <span
+          className="lyric-nodata-tip relative text-base font-bold tracking-widest text-[var(--md-sys-color-on-surface)]"
+          style={{ color: 'var(--md-sys-color-on-surface)' }}
+        >
+          NONE
+        </span>
+      </div>
+      <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+        从左侧选择歌单 / 专辑 / 歌手查看详情
+      </p>
+    </div>
+  )
+}
+
+/** 下载管理 / 本地管理空态（Hydrogen 依赖 Electron IPC，Web 环境提示） */
+function MyMusicUnsupported({ type2 }: { type2: number }) {
+  const isDownload = type2 === 0
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center">
+      <ListMusic
+        className="h-6 w-6 opacity-40"
+        style={{ color: 'var(--md-sys-color-on-surface-variant)' }}
+      />
+      <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+        {isDownload
+          ? '下载管理依赖桌面端下载队列，ZViewer Web 环境暂不支持'
+          : '本地音乐管理依赖桌面端目录扫描，ZViewer Web 环境暂不支持'}
+      </p>
+    </div>
+  )
+}

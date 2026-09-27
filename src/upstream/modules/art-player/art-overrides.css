@@ -1,0 +1,240 @@
+/**
+ * ArtPlayer 项目级样式覆盖。
+ *
+ * 命名约定：.zart-stage 为播放器外壳（WatchTogetherPanel / LiveArtPlayer 根节点），
+ * 所有覆盖均限定在其内部，避免污染其他 ArtPlayer 实例与全局样式。
+ */
+
+.zart-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  overflow: hidden;
+}
+
+.zart-stage .art-video-player {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* 与原播放器一致的 object-fit: contain（ArtPlayer 默认不设置，视频会拉伸铺满） */
+.zart-stage .art-video {
+  object-fit: contain !important;
+}
+
+/* 全屏样式：对 .zart-stage 容器调用 requestFullscreen 后，
+   容器进入 top layer，整条 ArtPlayer 模板链需显式撑满屏幕，
+   否则 video 实际尺寸为 0，显示黑屏。
+   使用 !important 确保覆盖 ArtPlayer 动态注入的默认样式。 */
+.zart-stage:fullscreen,
+.zart-stage:-webkit-full-screen,
+.zart-stage:-moz-full-screen,
+.zart-stage:-ms-fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  max-height: none !important;
+  background-color: #000 !important;
+}
+/* 视频容器：非全屏时已通过 h-full w-full 填满 .zart-stage，
+   全屏时通过 absolute inset-0 强制撑满整个全屏容器。
+   使用 !important 防止被 ArtPlayer 或 Tailwind 的任意类覆盖。 */
+.zart-stage:fullscreen .zart-video-container,
+.zart-stage:-webkit-full-screen .zart-video-container,
+.zart-stage:-moz-full-screen .zart-video-container,
+.zart-stage:-ms-fullscreen .zart-video-container {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+/* 全屏下 ArtPlayer 容器与 video 强制撑满，避免黑屏。
+   不直接对 .zart-stage > * 设置 100% 宽高，以免绝对定位的
+   PlayerControlBar 等 UI 被拉伸覆盖整个屏幕。 */
+.zart-stage:fullscreen .art-video-player,
+.zart-stage:-webkit-full-screen .art-video-player,
+.zart-stage:-moz-full-screen .art-video-player,
+.zart-stage:-ms-fullscreen .art-video-player {
+  width: 100% !important;
+  height: 100% !important;
+}
+.zart-stage:fullscreen .art-video,
+.zart-stage:-webkit-full-screen .art-video,
+.zart-stage:-moz-full-screen .art-video,
+.zart-stage:-ms-fullscreen .art-video {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+}
+
+/* 网页全屏：必须用 !important 强制 position:fixed。
+   原因：.zart-stage 基础样式中的 position:relative（第 9 行）与 Tailwind
+   的 .fixed 类特异性相同 (0,1,0)，而 art-overrides.css 在 Tailwind utilities
+   之后加载，因此 position:relative 会覆盖 .fixed，导致 .zart-stage 留在文档流中。
+   父级视频容器（aspect-ratio + overflow:hidden）会裁剪 stage 的底部，
+   使控制栏被截断、视频因容器约束而缩小。
+   使用 !important 确保 fixed 生效，使 stage 脱离文档流铺满整个视口。 */
+.zart-stage.zart-web-fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100dvw !important;
+  height: 100dvh !important;
+  z-index: 100 !important;
+  overflow: hidden !important;
+}
+
+/* 网页全屏：视频容器与视频元素定位规则，与原生全屏一致，
+   确保 video 使用 absolute inset:0 而非文档流布局。 */
+.zart-stage.zart-web-fullscreen .zart-video-container {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+.zart-stage.zart-web-fullscreen .art-video-player {
+  width: 100% !important;
+  height: 100% !important;
+}
+.zart-stage.zart-web-fullscreen .art-video {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+}
+
+/* 原生控制栏已完全由 PlayerControlBar 替代，强制隐藏避免与自定义栏重叠 */
+.zart-stage .art-controls,
+.zart-stage .art-control,
+.zart-stage .art-controls-left,
+.zart-stage .art-controls-right,
+.zart-stage .art-controls-center,
+.zart-stage .art-progress,
+.zart-stage .art-volume,
+.zart-stage .art-playAndPause,
+.zart-stage .art-setting,
+.zart-stage .art-playback-rate {
+  display: none !important;
+}
+/* 全屏按钮单独处理：ArtPlayer 会给 .art-video-player 容器也加上 art-fullscreen 类，
+   必须限定在控制栏内部，否则会误把整个播放器容器隐藏掉导致黑屏。 */
+.zart-stage .art-controls .art-fullscreen,
+.zart-stage .art-control.art-fullscreen {
+  display: none !important;
+}
+
+/* 弹幕图层根：铺满图层容器、禁止指针事件（弹幕本身不需要交互） */
+.zart-danmaku-root {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* 覆盖层根（加载动画 / 空源占位）：铺满且不拦截交互 */
+.zart-overlay-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* overlay layer（字幕渲染层 / 加载动画的宿主）必须常显。
+   实测该 layer 会在特定时序下被写入 inline display: none
+   （来源未定位，非项目代码与 ArtPlayer 显式调用），
+   导致已提取的内嵌字幕 DOM 存在但不可见。
+   !important 优先级高于 inline 的非 important 声明，确保兜底可见。 */
+.zart-stage .art-layer-overlay {
+  display: block !important;
+}
+
+/* 浮动面板根（设置面板挂载点，append 到 $player） */
+.zart-panel-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 70;
+}
+.zart-panel-root > * {
+  pointer-events: auto;
+}
+
+/* 观众端进度条只读提示：鼠标样式保持默认（交互由守卫拦截转为申请跳转） */
+.zart-stage.zart-viewer .art-progress {
+  cursor: pointer;
+}
+
+/* 隐藏 ArtPlayer 底部黑色渐变遮罩 / 阴影层，避免与自定义玻璃控制栏冲突 */
+.zart-stage .art-bottom,
+.zart-stage .art-layer-bottom,
+.zart-stage .art-mask,
+.zart-stage .art-layer-mask {
+  display: none !important;
+}
+
+/* 隐藏 ArtPlayer 的 poster 黑底（空源时由我们的占位图覆盖层负责展示） */
+.zart-stage .art-poster {
+  display: none;
+}
+
+/* 隐藏 ArtPlayer 自带 loading 指示器（解析中 / 缓冲 / seek 均会触发），
+   改用自研 Spinner（通过 WatchTogetherCore 的 overlay portal 渲染），
+   避免两套加载动画重叠 */
+.zart-stage .art-loading {
+  display: none !important;
+}
+
+/* =====================================================
+   自定义控制栏显隐动画
+   设计原则（与 Header 下拉菜单一致）：
+   - backdrop-filter 和 transform 动画必须在同一个元素上。
+     若分开（外层 transform + 内层 backdrop-filter），外层会变成
+     Backdrop Root，内层 backdrop-filter 采样不到外部背景导致模糊丢失。
+   - 同一元素上，backdrop-filter 先采样元素背后的内容，transform 只
+     移动合成后的结果，因此过渡期间模糊不会丢失。
+   - enter 使用 backwards：动画结束后 transform 回到 none，元素不再是
+     Backdrop Root，backdrop-filter 始终正常工作。
+   - exit 使用 forwards：动画结束后保持隐藏状态（opacity:0），此时
+     不可见，是否为 Backdrop Root 无影响。
+   ===================================================== */
+
+.zart-controlbar-enter {
+  animation: zart-controlbar-enter 0.28s var(--ease-out-expo) backwards;
+}
+
+.zart-controlbar-exit {
+  animation: zart-controlbar-exit 0.22s var(--ease-in-expo) forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes zart-controlbar-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes zart-controlbar-exit {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* 精简动画：缩短时长 */
+[data-reduced-motion='true'] .zart-controlbar-enter,
+[data-reduced-motion='true'] .zart-controlbar-exit {
+  animation-duration: 0.18s !important;
+}

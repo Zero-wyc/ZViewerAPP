@@ -1,0 +1,248 @@
+/**
+ * 搜索页（Hydrogen SearchResult view-control 范式）。
+ *
+ * - 顶部区块头 + 大标题「搜索内容：xxx」（关键词来自顶部导航写入的 store）
+ * - 关键词变化自动触发搜索：GET /api/music/ncm/cloudsearch?keywords=&limit=30
+ *   （新结构主端点，含封面/时长；老端点 /search 兜底，映射器双结构兼容）
+ * - SongRow 裸列表：双击行「添加到队列」，hover 序号列播放按钮「立即播放」
+ */
+import { useEffect, useState } from 'react'
+import { Loader2, Music, SearchX } from 'lucide-react'
+import type { Socket } from 'socket.io-client'
+import { apiGet } from '@/lib/api'
+import { message } from '@/components/ui/message'
+import { useMusicStore } from '../store'
+import { useMusicPlayer } from '../hooks/useMusicPlayer'
+import { songToUpsertItem, useQueueAdd } from '../hooks/useQueueAdd'
+import type { NcmSong } from '../types'
+import { SongRow } from '../components/SongRow'
+import { PageBlockHeader } from './MusicLoginGate'
+
+export interface MusicSearchPageProps {
+  socket: Socket | null
+  roomId?: string
+  /** 队列管理权限（房主/房管）才能添加歌曲 */
+  canManage: boolean
+}
+
+/** 网易云搜索结果条目（cloudsearch 新结构 + 老版 /search 旧结构兼容） */
+interface CloudsearchSong {
+  id: number
+  name: string
+  /** cloudsearch：歌手/专辑/时长毫秒 */
+  ar?: Array<{ name?: string }>
+  al?: { name?: string; picUrl?: string }
+  dt?: number
+  /** 老版 /search：artists/album/duration（同名前身字段，兜底兼容） */
+  artists?: Array<{ name?: string }>
+  album?: { name?: string; picUrl?: string }
+  duration?: number
+  /** 0 免费 / 1 VIP / 4 购买专辑 / 8 低音质免费 */
+  fee?: number
+}
+
+interface NcmCloudsearchResponse {
+  code?: number
+  result?: {
+    songs?: CloudsearchSong[]
+  }
+}
+
+/** 搜索结果条数上限 */
+const SEARCH_LIMIT = 30
+
+/**
+ * 搜索条目 → NcmSong（双结构兼容）：
+ * cloudsearch 的 ar/al/dt 优先，缺失时回退老 /search 的 artists/album/duration
+ */
+function mapSong(song: CloudsearchSong): NcmSong {
+  return {
+    songId: song.id,
+    name: song.name,
+    artist: (song.ar ?? song.artists ?? [])
+      .map((a) => a.name)
+      .filter(Boolean)
+      .join(' / '),
+    album: song.al?.name ?? song.album?.name ?? '',
+    cover: song.al?.picUrl ?? song.album?.picUrl ?? '',
+    durationMs: song.dt ?? song.duration ?? 0,
+    // fee=1（VIP 曲目）与 fee=4（购买专辑）未登录时不可播
+    vip: song.fee === 1 || song.fee === 4,
+  }
+}
+
+/**
+ * 歌曲时长格式化（对齐 Hydrogen songTime）：
+ * 毫秒 → mm:ss，超过 1 小时 → HH:mm:ss，无数据 → '--:--'
+ */
+function formatDurationMs(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return '--:--'
+  const totalSec = Math.floor(ms / 1000)
+  const h = Math.floor(totalSec / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  const mmss = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  return h > 0 ? `${String(h).padStart(2, '0')}:${mmss}` : mmss
+}
+
+export function MusicSearchPage({
+  socket,
+  roomId,
+  canManage,
+}: MusicSearchPageProps) {
+  const keywords = useMusicStore((s) => s.searchKeywords)
+  const loginStatus = useMusicStore((s) => s.loginStatus)
+
+  const [results, setResults] = useState<NcmSong[]>([])
+  const [searching, setSearching] = useState(false)
+  /** 是否已发起过搜索（区分初始空态与无结果空态） */
+  const [searched, setSearched] = useState(false)
+
+  const { add } = useQueueAdd(socket, roomId, canManage)
+  const { playSong } = useMusicPlayer()
+
+  /** 序号按钮「立即播放」：queue-upsert 入队 → playSong 立即播放
+   *  （与我的音乐页同范式；VIP 未登录/未连房间时提示并忽略） */
+  const handlePlayNow = (song: NcmSong) => {
+    if (song.vip && !loginStatus.loggedIn) {
+      message.info('VIP 歌曲需登录后播放')
+      return
+    }
+    if (!roomId) {
+      message.error('未连接房间')
+      return
+    }
+    add(songToUpsertItem(song))
+    playSong({
+      id: -1,
+      roomId,
+      songId: song.songId,
+      name: song.name,
+      artist: song.artist,
+      album: song.album,
+      cover: song.cover,
+      durationMs: song.durationMs,
+      vip: song.vip,
+      order: 0,
+      addedBy: '',
+    })
+  }
+
+  // 关键词变化自动搜索（顶部导航回车写入 store；/search 失败时 /cloudsearch 兜底）
+  useEffect(() => {
+    const kw = keywords.trim()
+    if (!kw) return
+    let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 关键词驱动的外部搜索请求，loading 置位与请求同步发起
+    setSearching(true)
+    void (async () => {
+      try {
+        // 主端点：/cloudsearch（新结构，含 al.picUrl 封面 / dt 时长毫秒）。
+        // 老版 /search 端点返回旧结构（artists/album/duration），按新结构
+        // 解析会丢封面/时长/歌手 → 入队歌曲数据残缺（无封面/无进度/歌词
+        // 异常），故仅作兜底（mapSong 已双结构兼容）
+        const { data, ok } = await apiGet<NcmCloudsearchResponse>(
+          `/api/music/ncm/cloudsearch?keywords=${encodeURIComponent(kw)}&limit=${SEARCH_LIMIT}`
+        )
+        let songs = data?.result?.songs
+        if (!ok || !Array.isArray(songs)) {
+          // 兜底：老端点 /search（旧结构）
+          const fb = await apiGet<NcmCloudsearchResponse>(
+            `/api/music/ncm/search?keywords=${encodeURIComponent(kw)}&limit=${SEARCH_LIMIT}`
+          )
+          songs = fb.data?.result?.songs
+        }
+        if (cancelled) return
+        if (!Array.isArray(songs)) {
+          throw new Error('搜索失败，请稍后重试')
+        }
+        setResults(songs.map(mapSong))
+        setSearched(true)
+      } catch (err) {
+        console.error('[MusicSearchPage] 搜索失败:', err)
+        if (!cancelled) {
+          message.error(
+            err instanceof Error ? err.message : '搜索失败，请稍后重试'
+          )
+          setResults([])
+          setSearched(true)
+        }
+      } finally {
+        if (!cancelled) setSearching(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [keywords])
+
+  return (
+    <div className="flex min-h-full flex-col px-6 pb-32 pt-6 md:px-8 max-md:px-4 max-md:pb-28 max-md:pt-4">
+      {/* 顶部：view-control 范式标题 */}
+      <PageBlockHeader
+        titleEN="SEARCH RESULT"
+        titleCN={`搜索内容：${keywords || '—'}`}
+      />
+
+      {/* 结果区：SongRow 裸列表（无卡片行包裹，靠行 hover 背景区分） */}
+      <div className="mt-4 flex min-h-[240px] flex-1 flex-col">
+        {searching && (
+          <div className="flex items-center gap-2 px-2 py-3 text-xs text-[var(--md-sys-color-on-surface-variant)]">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            正在搜索…
+          </div>
+        )}
+        {!searching && results.length === 0 && (
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 py-12 text-center">
+            <div
+              className="flex h-10 w-10 items-center justify-center rounded-full"
+              style={{
+                backgroundColor:
+                  'color-mix(in srgb, var(--md-sys-color-on-surface) 6%, transparent)',
+              }}
+            >
+              {searched ? (
+                <SearchX
+                  className="h-5 w-5 opacity-40"
+                  style={{ color: 'var(--md-sys-color-on-surface-variant)' }}
+                />
+              ) : (
+                <Music
+                  className="h-5 w-5 opacity-40"
+                  style={{ color: 'var(--md-sys-color-on-surface-variant)' }}
+                />
+              )}
+            </div>
+            <span className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
+              {searched
+                ? '未找到相关歌曲，换个关键词试试'
+                : '在顶部搜索框输入关键词搜索网易云歌曲'}
+            </span>
+          </div>
+        )}
+        {results.map((song, idx) => {
+          return (
+            <SongRow
+              key={song.songId}
+              index={idx + 1}
+              cover={song.cover}
+              name={song.name}
+              artist={song.artist}
+              duration={formatDurationMs(song.durationMs)}
+              vip={song.vip}
+              disabled={song.vip && !loginStatus.loggedIn}
+              onPlayNow={() => handlePlayNow(song)}
+              onRowDoubleClick={() =>
+                add(songToUpsertItem(song), {
+                  afterCurrent: true,
+                  notify: true,
+                })
+              }
+              rowTitle="双击添加到队列，hover 序号点击立即播放"
+            />
+          )
+        })}
+      </div>
+    </div>
+  )
+}
