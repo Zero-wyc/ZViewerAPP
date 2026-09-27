@@ -32,6 +32,8 @@ type CaptureCapableMedia = HTMLMediaElement & {
 
 interface AnalyserRig {
   ctx: AudioContext
+  source: MediaStreamAudioSourceNode
+  stream: MediaStream
   analyser: AnalyserNode
   data: Uint8Array<ArrayBuffer>
 }
@@ -76,8 +78,14 @@ export function AudioVisualizer({
     let lastReattachAt = 0
     let latestLevels: number[] = createFlatLevels()
 
-    /** 断开当前 rig（ analyser/element；AudioContext 停用后复用） */
+    /** 重连前释放旧捕获流与上下文，避免后台遗留音频会话。 */
     const resetRig = () => {
+      if (rig) {
+        rig.source.disconnect()
+        rig.analyser.disconnect()
+        rig.stream.getTracks().forEach(track => track.stop())
+        void rig.ctx.close().catch(() => {})
+      }
       rig = null
       attachedElement = null
       emptyFrames = 0
@@ -122,13 +130,15 @@ export function AudioVisualizer({
         (window as unknown as { webkitAudioContext?: typeof AudioContext })
           .webkitAudioContext
       if (!stream || tracks.length === 0 || !Ctor) {
+        stream?.getTracks().forEach(track => track.stop())
         scheduleRetryAttach()
         return
       }
       resumeCtx()
       if (!rig) {
+        let ctx: AudioContext | null = null
         try {
-          const ctx = new Ctor()
+          ctx = new Ctor()
           const analyser = ctx.createAnalyser()
           analyser.fftSize = ANALYSER_FFT_SIZE
           analyser.smoothingTimeConstant = ANALYSER_SMOOTHING
@@ -136,12 +146,16 @@ export function AudioVisualizer({
           source.connect(analyser)
           rig = {
             ctx,
+            source,
+            stream,
             analyser,
             data: new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount)),
           }
           // 新建后同样唤醒（无手势上下文创建时会挂起，静音数据主因）
           resumeCtx()
         } catch {
+          stream.getTracks().forEach(track => track.stop())
+          void ctx?.close().catch(() => {})
           scheduleRetryAttach()
           return
         }
@@ -252,9 +266,7 @@ export function AudioVisualizer({
         attachTimer = null
       }
       ro.disconnect()
-      rig?.ctx.close().catch(() => {})
-      rig = null
-      attachedElement = null
+      resetRig()
     }
   }, [])
 

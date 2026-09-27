@@ -31,6 +31,7 @@ interface VoiceChatPanelProps {
    *  展开态面板并填满父容器，收起按钮隐藏（显隐由工具坞 Tab 控制） */
   embedded?: boolean
   onConnectionChange?: (joined: boolean) => void
+  onAudioSessionChange?: (active: boolean) => void
 }
 
 export function VoiceChatPanel({
@@ -40,6 +41,7 @@ export function VoiceChatPanel({
   canManageVoice = false,
   embedded = false,
   onConnectionChange,
+  onAudioSessionChange,
 }: VoiceChatPanelProps) {
   const [expanded, setExpanded] = useState(false)
   const [editingPeer, setEditingPeer] = useState<string | null>(null)
@@ -67,6 +69,8 @@ export function VoiceChatPanel({
   } = useVoiceChat({ socket, roomId, username })
 
   useEffect(() => { onConnectionChange?.(joined) }, [joined, onConnectionChange])
+  useEffect(() => { onAudioSessionChange?.(joining || joined) }, [joining, joined, onAudioSessionChange])
+  useEffect(() => () => { onAudioSessionChange?.(false) }, [onAudioSessionChange])
 
   if (!roomId) return null
 

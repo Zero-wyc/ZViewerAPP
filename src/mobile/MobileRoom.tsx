@@ -25,6 +25,7 @@ import { message } from '@/components/ui/message'
 import { Modal } from '@/components/ui/Modal'
 import { restoreDisplay, ScreenOrientationButton } from './PlayerDisplayControls'
 import { VoiceChatPanel } from '@/modules/voice-chat/components/VoiceChatPanel'
+import { useMusicAudioRouting } from './useMusicAudioRouting'
 
 type Tab = 'chat' | 'movies' | 'room'
 
@@ -51,6 +52,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [voiceOpen, setVoiceOpen] = useState(false)
   const [voiceJoined, setVoiceJoined] = useState(false)
+  const [voiceAudioActive, setVoiceAudioActive] = useState(false)
   const [voiceAvailable, setVoiceAvailable] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
   const [requests, setRequests] = useState<{ viewerSocketId: string; username: string }[]>([])
@@ -59,6 +61,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
   const canAdd = canRoomViewerPerform(matrix, 'addMovie', permissions)
   const canManage = canRoomViewerPerform(matrix, 'manageMovie', permissions)
   const canQueue = canRoomViewerPerform(matrix, 'musicQueue', permissions)
+  useMusicAudioRouting(mode === 'listen-together' && room.phase === 'ready', voiceAudioActive)
   useEffect(() => () => { void restoreDisplay().catch(() => {}) }, [])
   useEffect(() => { setTab('chat'); setFullscreen(false); setAddOpen(false) }, [mode])
   useEffect(() => {
@@ -193,7 +196,8 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
       {voiceAvailable && <section className="mobile-voice-panel" hidden={!voiceOpen || !ready} aria-label="语音面板">
         <div className="mobile-voice-heading"><strong>房间语音</strong><button className="icon-button" aria-label="收起语音面板" title="收起语音面板" onClick={() => setVoiceOpen(false)}><X size={20} /></button></div>
         <VoiceChatPanel embedded socket={socket} roomId={roomId} username={user?.username}
-          canManageVoice={room.isHost || permissions.isModerator} onConnectionChange={setVoiceJoined} />
+          canManageVoice={room.isHost || permissions.isModerator} onConnectionChange={setVoiceJoined}
+          onAudioSessionChange={setVoiceAudioActive} />
       </section>}
       <Modal open={addOpen} title="添加影片" onClose={() => setAddOpen(false)} footer={null}><MoviePushPanel isHost={canAdd} /></Modal>
       <Modal open={settingsOpen} title="房间" onClose={() => setSettingsOpen(false)} footer={null}><RoomInfoPanel roomId={roomId} isHost={room.isHost} /></Modal>

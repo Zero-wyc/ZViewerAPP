@@ -15,6 +15,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(PlayerDisplayPlugin.class);
+        registerPlugin(AudioRoutingPlugin.class);
         // Drop the launch theme before AppCompat creates native popup contexts.
         setTheme(R.style.AppTheme_NoActionBar);
         super.onCreate(savedInstanceState);
