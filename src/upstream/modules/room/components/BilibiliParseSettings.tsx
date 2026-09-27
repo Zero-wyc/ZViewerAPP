@@ -34,6 +34,8 @@ import { useAuthStore } from '@/store/authStore'
 import { getApiUrl } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useSystemSettingsStore } from '@/store/systemSettingsStore'
+import { isEmbeddedAndroid } from '../../../../platform/bilibiliProxy'
+import { BilibiliAccount } from '../../../../mobile/BilibiliAccount'
 
 export interface BilibiliParseSettingsProps {
   /** 影片 ID，配置按此 key 独立存储 */
@@ -195,6 +197,7 @@ export function BilibiliParseSettings({
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleOpenCliSetup = useCallback(() => {
+    if (isEmbeddedAndroid()) return
     const url = new URL('http://127.0.0.1:9333/')
     url.searchParams.set('server', getApiUrl())
     const username = useAuthStore.getState().user?.username
@@ -249,6 +252,7 @@ export function BilibiliParseSettings({
 
   return (
     <div className="w-full">
+      {isEmbeddedAndroid() && <BilibiliAccount />}
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
@@ -393,6 +397,7 @@ export function BilibiliParseSettings({
             <button
               type="button"
               onClick={handleOpenCliSetup}
+              hidden={isEmbeddedAndroid()}
               className="mt-1.5 flex w-full items-center justify-center gap-1 rounded-md bg-[var(--md-sys-color-surface-container)] px-2 py-1 text-[10px] font-semibold text-[var(--md-sys-color-on-surface-variant)] transition-all hover:bg-[var(--md-sys-color-surface-container-highest)]"
               style={{
                 border: '1px solid var(--md-sys-color-outline)',

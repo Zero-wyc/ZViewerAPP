@@ -27,6 +27,9 @@ import {
 } from '@/modules/bilibili/parseOptions'
 import { useCliAgentStore } from '@/store/cliAgentStore'
 import { cn } from '@/lib/utils'
+import { isEmbeddedAndroid } from '../../../../platform/bilibiliProxy'
+import { NativeQualitySelect } from '@/modules/bilibili/NativeQualitySelect'
+import { getNativeQualityPolicy } from '@/modules/bilibili/nativeQualityPolicy'
 
 interface MovieListPanelProps {
   isHost: boolean
@@ -451,8 +454,7 @@ export function MovieListPanel({
                       )}
                     </div>
                     {movie.sourceType === 'bilibili' &&
-                      movie.acceptQuality &&
-                      movie.acceptQuality.length > 0 && (
+                      (isEmbeddedAndroid() || (movie.acceptQuality && movie.acceptQuality.length > 0)) && (
                         <BilibiliQualitySelect
                           movie={movie}
                           isHost={isHost}
@@ -641,6 +643,8 @@ function BilibiliQualitySelect({
 
   const canChangeQuality =
     isHost || (parsePrefs.cliEnabled && cliAgentAvailable)
+
+  if (isEmbeddedAndroid()) return <NativeQualitySelect movieId={movie.id} isHost={isHost} disabled={isScreenShare || qualityLoadingId === movie.id || effectivePreferMp4} />
 
   return (
     <Select

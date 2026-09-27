@@ -112,6 +112,8 @@ export interface PlayerSource {
    * 各客户端独立启用，无需房主协调，SwarmCloud tracker 自动发现房间内 peer。
    */
   p2pEnabled?: boolean
+  /** DASH attachment budget, including preload and metadata. */
+  attachTimeoutMs?: number
   /**
    * MKV 快速路径：编解码为浏览器原生友好组合（AAC/MP3/Opus 音轨等）时，
    * 跳过 playsvideo 重封装管线，直接用 <video> 原生播放。

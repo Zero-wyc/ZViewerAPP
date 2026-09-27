@@ -1,11 +1,14 @@
 {
-  "name": "zviewer-for-android",
-  "version": "1.1.1",
+  "name": "zviewer-client",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "test:e2e": "playwright test",
+    "test:native": "go -C native/bilicore test ./...",
+    "native:android": "node scripts/build-bilicore.mjs",
+    "test:android:bilibili": "node scripts/android-bilibili-smoke.mjs",
     "dev": "vite",
     "build": "tsc --noEmit -p tsconfig.app.json && vite build",
     "preview": "vite preview",

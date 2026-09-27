@@ -1,0 +1,32 @@
+name: Validate client
+on:
+  push:
+  pull_request:
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.8
+          cache-dependency-path: native/bilicore/go.sum
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;30.0.16248370'
+      - run: echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/30.0.16248370" >> "$GITHUB_ENV"
+      - run: npm ci
+      - run: npm test && npm run test:native
+      - run: npm run android:sync
+      - run: chmod +x ZV-Android/gradlew && ZV-Android/gradlew -p ZV-Android assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ZViewer-Android-debug
+          path: ZV-Android/app/build/outputs/apk/debug/app-debug.apk

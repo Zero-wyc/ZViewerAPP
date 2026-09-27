@@ -16,6 +16,7 @@ import {
 } from '@/store/roomStore'
 import { type QualityOption } from './resolveSource'
 import { useBilibiliQuality } from '@/modules/bilibili/useBilibiliQuality'
+import { isEmbeddedAndroid } from '../../../../platform/bilibiliProxy'
 import { getBilibiliParseOptions } from '@/modules/bilibili/parseOptions'
 import {
   useHostSync,
@@ -1220,6 +1221,7 @@ export function useWatchTogether({
     if (state.sourceType !== 'bilibili') return
 
     const MAX_AUTO_RELOADS = 3
+    if (isEmbeddedAndroid()) return // Native recovery has its own finite budget.
     const BASE_COOLDOWN_MS = 10000
     const MAX_COOLDOWN_MS = 60000
 

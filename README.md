@@ -1,18 +1,20 @@
-# ZViewer for Android
+# ZViewer Mobile Client
 
 <img src="public/favicon.jpg" alt="ZViewer" width="88" height="88" />
 
-面向手机和平板的 ZViewer Android 客户端，使用 React、TypeScript 和 Capacitor 构建。播放、同步、音乐与语音模块基于 [Zero-wyc/ZViewer](https://github.com/Zero-wyc/ZViewer) 4.1.7 的前端代码适配。
+面向手机和平板的 ZViewer 共享客户端工程，使用 React、TypeScript 和 Capacitor 构建。当前已包含 Android 原生宿主，并为 iOS 和 HarmonyOS 保留独立宿主目录。播放、同步、音乐与语音模块基于 [Zero-wyc/ZViewer](https://github.com/Zero-wyc/ZViewer) 4.1.7 的前端代码适配。
 
-本仓库是 **Android 客户端源码**，不是服务端，也不是直接加载远程网页的地址壳。应用界面与播放器随 APK 打包，通过你填写的服务器地址连接 ZViewer 服务。
+本仓库是 **移动客户端共享源码与原生宿主**，不是服务端，也不是直接加载远程网页的地址壳。应用界面与播放器随安装包打包，通过你填写的服务器地址连接 ZViewer 服务。
+
+共享前端已经按多平台边界整理：业务代码不直接依赖 Android 或 Capacitor，原生能力统一通过 `src/platform/` 调用。后续 iOS 可实现同名 Swift Capacitor 插件，HarmonyOS 可用 ArkWeb `JavaScriptProxy` 实现相同契约，详见 [移植指南](PORTING.md)。
 
 [下载安装包](https://github.com/Zero-wyc/ZViewerAPP/releases) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md)
 
-## 当前版本：1.1.1
+## 当前开发版本：1.2.0
 
-修复一起听在未加入房间语音时仍使用电话声道的问题，增加纯音乐播放时的 Android 媒体模式恢复，并完整释放频谱分析使用的捕获流及音频上下文。申请麦克风或连接语音期间不会强制恢复媒体模式，也不强制外放或改变系统选择的耳机路由。
+Android 内置 B 站登录与 Go 播放代理，无需另外安装 CLI。扫码登录后，默认选择账号有权限、视频有实际轨道、设备支持的最高普通画质，自动排除 HDR 和杜比视界。最高画质播放失败时，有限恢复后优先回退 720p；没有 720p 则使用真实可用的更低档位。
 
-音频测试版已由用户在手机上确认通过。正式版与 v1.1.0、1.1.1-audio-test 使用同一签名，versionCode 提升至 112，可直接覆盖升级并保留本地数据。具体改动和验证范围见 [更新记录](CHANGELOG.md)。
+手动选择按影片保留，房主与观众独立选择本机画质；Cookie 在 Android Keystore 加密后保存在不可备份目录。当前交付为调试包，包名 `com.zviewer.mobile.debug`，可与正式版并存。自动化与模拟器验收范围见 [验收报告](docs/android-bilibili-acceptance.md)，真实账号、会员内容和物理设备仍需实测。
 
 ## 安装与连接
 
@@ -31,6 +33,7 @@ Android 工程最低版本为 Android 7.0 / API 24。请保持 Android System We
 
 - 自定义服务端、账号或游客登录、会话恢复、房间列表与权限检查。
 - 同步观影、片单、聊天、弹幕、字幕与播放控制。
+- Android 内置 B 站扫码登录、自动最高画质、真实档位展示与有限播放回退。
 - 一起听音乐，设置页适配窄屏，平板保留多列布局。
 - 观看桌面端发起的屏幕共享；手机端不提供屏幕采集或发起共享。
 - 房间语音：申请麦克风权限、加入与退出、静音和成员状态。折叠面板、切换标签或房间模式不主动结束通话。
@@ -42,7 +45,7 @@ Android 工程最低版本为 Android 7.0 / API 24。请保持 Android System We
 
 ## 本地开发
 
-推荐使用 Node.js 24 LTS、npm、JDK 21，以及包含 Android SDK Platform 36 / Build Tools 36 的 Android Studio。Gradle Wrapper 已包含在仓库内。工程的 Gradle daemon 配置使用 JetBrains JDK 21。
+推荐使用 Node.js 24、npm、Go 1.26.8、JDK 21、Android SDK Platform 36 / Build Tools 36 和 NDK r30。Gradle Wrapper 已包含在仓库内。详细环境配置见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ```sh
 npm ci
@@ -53,15 +56,27 @@ npm run dev -- --host 127.0.0.1
 
 ```sh
 npm test
+npm run test:native
 npm run test:e2e
 npm run build
 ```
 
 端到端测试使用本机 Google Chrome，测试端口为 5187 和 3347。首次运行前请安装 Chrome。测试包含手机/平板布局、启动加载与重试、房间流程、屏幕共享接收、模拟麦克风语音链路及 16/24 位 FLAC 的实际 MSE 播放。
 
+## 跨平台边界
+
+- `src/platform/contracts.ts` 是 Android、iOS 和 HarmonyOS 共用的原生能力契约。
+- 显示、生命周期、音频路由和麦克风权限均通过 `src/platform/` 适配器访问。
+- Android 继续使用现有 Java Capacitor 插件；插件名与方法保持兼容。
+- iOS 使用同名 Swift 插件，不需要修改业务组件。
+- HarmonyOS 在 ArkWeb 中注入 `zviewerNative`，不在 React 业务层引入 ArkTS 分支。
+- `tests/platform-boundary.test.ts` 会阻止业务代码直接导入 Capacitor。
+
+新平台适配、桥接方法和维护流程见 [PORTING.md](PORTING.md)。
+
 ## Android 构建
 
-先配置 `JAVA_HOME`、Android SDK（`ANDROID_HOME` 或本机 `android/local.properties`），再同步前端资源：
+先配置 `JAVA_HOME`、Android SDK（`ANDROID_HOME` 或本机 `ZV-Android/local.properties`）和 `ANDROID_NDK_HOME`，确保 Go 与 Node 在 PATH，再同步前端资源：
 
 ```sh
 npm ci
@@ -72,11 +87,11 @@ npm run android:open
 Windows PowerShell 调试包：
 
 ```powershell
-cd android
+cd ZV-Android
 .\gradlew.bat assembleDebug
 ```
 
-输出：`android/app/build/outputs/apk/debug/app-debug.apk`。macOS / Linux 使用 `sh gradlew assembleDebug`。
+Gradle 自动从 `native/bilicore/` 构建 AAR，不需要手动复制预编译文件。当前 APK 包含 ARM64 和 x86_64 原生库，要求 64 位 Android。输出：`ZV-Android/app/build/outputs/apk/debug/app-debug.apk`。macOS / Linux 使用 `sh gradlew assembleDebug`。
 
 ### 正式签名包
 
@@ -93,11 +108,11 @@ cd android
 
 ```powershell
 npm run android:sync
-cd android
+cd ZV-Android
 .\gradlew.bat assembleRelease
 ```
 
-输出：`android/app/build/outputs/apk/release/app-release.apk`。缺少签名配置时 release 构建会失败，不会把未签名包当正式包发布。发布前使用 Android SDK 的 `apksigner verify --verbose --print-certs` 检查 APK，并记录 SHA-256。
+输出：`ZV-Android/app/build/outputs/apk/release/app-release.apk`。缺少签名配置时 release 构建会失败，不会把未签名包当正式包发布。发布前使用 Android SDK 的 `apksigner verify --verbose --print-certs` 检查 APK，并记录 SHA-256。
 
 维护者应安全备份密钥与密码，后续版本继续使用同一签名。不要提交密钥、密码、SDK 本地路径或登录令牌。仓库不包含现有发布密钥，自行构建的签名包不保证能覆盖安装官方发布包。
 
@@ -106,9 +121,14 @@ cd android
 | 路径 | 用途 |
 | --- | --- |
 | `src/App.tsx` | 连接服务端、登录和房间大厅 |
-| `src/mobile/` | 移动端房间布局与原生显示控制 |
+| `src/mobile/` | 移动端房间布局与平台无关的 React Hook |
+| `src/platform/` | 原生能力契约及 Android/iOS/HarmonyOS 适配边界 |
 | `src/upstream/` | 从 ZViewer 导入并适配的业务模块 |
-| `android/` | Capacitor Android 工程与原生插件 |
+| `ZV-Android/` | Capacitor Android 工程、Gradle 配置与 Java 原生插件 |
+| `native/bilicore/` | 从 ZViewerCLI 4.1.2 提取的 Go 核心、移动代理与测试 |
+| `docs/` | 实施方案与验收报告 |
+| `ZV-iOS/` | iOS Xcode/Swift 原生宿主（待创建） |
+| `ZV-HarmonyOS/` | HarmonyOS ArkTS/ArkWeb 原生宿主（待创建） |
 | `public/` | 图标、字体及音频工作线程资源 |
 | `vendor/mediabunny/` | 媒体库本地副本及 DTS / FLAC 补丁 |
 | `tests/` | 单元测试、浏览器回归及模拟服务器 |

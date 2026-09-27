@@ -3,7 +3,9 @@ node_modules/
 /test-results/
 /playwright-report/
 /.idea/
-/android/.idea/
+/ZV-Android/.idea/
+/ZV-iOS/.idea/
+/ZV-HarmonyOS/.idea/
 *.log
 *.tsbuildinfo
 .DS_Store
@@ -19,3 +21,6 @@ signing-credential.xml
 *signing*.properties
 /android-live-test.png
 /release/
+/ZV-Android/app/libs/
+/native/bilicore/*.exe
+/coverage/

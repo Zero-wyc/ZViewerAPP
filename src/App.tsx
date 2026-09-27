@@ -26,7 +26,9 @@ import { useAuthStore } from '@/store/authStore'
 import { useSocket, resetSocket } from '@/hooks/useSocket'
 import { useSystemSettingsStore } from '@/store/systemSettingsStore'
 import { normalizeServerUrl } from './mobile/serverUrl'
-import { useAndroidBack } from './mobile/useAndroidBack'
+import { useNativeBack } from './mobile/useNativeBack'
+import { BilibiliAccount } from './mobile/BilibiliAccount'
+import { startEmbeddedProxy } from './platform/bilibiliProxy'
 
 const MobileRoom = lazy(() => import('./mobile/MobileRoom'))
 
@@ -89,6 +91,7 @@ function statusMessage(error: unknown): string {
 }
 
 export default function App() {
+  useEffect(() => { void startEmbeddedProxy() }, [])
   const navigate = useNavigate()
   const location = useLocation()
   const { socket, connected } = useSocket()
@@ -119,7 +122,7 @@ export default function App() {
   const [error, setError] = useState('')
   const restoreStarted = useRef(false)
   const activeRoomId = location.pathname.startsWith('/room/') ? decodeURIComponent(location.pathname.slice(6)) : null
-  useAndroidBack(() => {
+  useNativeBack(() => {
     if (activeRoomId) {
       window.dispatchEvent(new Event('mobile-room-back'))
     } else if (createOpen) setCreateOpen(false)
@@ -409,6 +412,7 @@ export default function App() {
   return (
     <main className="app-shell">
       <header className="brand-bar">
+        <BilibiliAccount />
         <div className="brand-mark">Z</div>
         <div>
           <div className="brand-name">ZViewer</div>

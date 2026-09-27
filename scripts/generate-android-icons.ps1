@@ -1,7 +1,7 @@
 Add-Type -AssemblyName System.Drawing
 $root = Split-Path $PSScriptRoot -Parent
 $source = [System.Drawing.Image]::FromFile((Join-Path $root 'public/favicon.jpg'))
-$res = Join-Path $root 'android/app/src/main/res'
+$res = Join-Path $root 'ZV-Android/app/src/main/res'
 
 function Export-Icon([string]$Path, [int]$Size, [int]$Inset = 0, [bool]$Round = $false) {
     $bitmap = [System.Drawing.Bitmap]::new($Size, $Size)

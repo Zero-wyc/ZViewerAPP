@@ -68,6 +68,7 @@ export interface DashPlayerOptions {
    * 各客户端独立启用，SwarmCloud tracker 通过 channelId（取自 videoUrl）匹配 peer。
    */
   p2pEnabled?: boolean
+  attachTimeoutMs?: number
 }
 
 type PlayerState = 'idle' | 'attaching' | 'attached' | 'seeking' | 'disposed'
@@ -116,6 +117,7 @@ export class DashPlayer implements PlayerController {
   private readonly audioBlob?: Blob
   /** P2P 传输开关（仅在流模式生效，缓冲模式忽略） */
   private readonly p2pEnabled: boolean
+  private readonly attachTimeoutMs?: number
 
   private dashPlayer: MediaPlayerClass | null = null
   private mpdBlobUrl: string | null = null
@@ -154,6 +156,7 @@ export class DashPlayer implements PlayerController {
     this.videoBlob = options.videoBlob
     this.audioBlob = options.audioBlob
     this.p2pEnabled = options.p2pEnabled === true
+    this.attachTimeoutMs = options.attachTimeoutMs
   }
 
   /** 是否启用缓冲模式（传入 Blob 数据时为 true） */
@@ -177,6 +180,20 @@ export class DashPlayer implements PlayerController {
    * @returns MPD 的 Blob URL（供调用方在切换时 revokeObjectURL）
    */
   async attach(startTime?: number): Promise<string> {
+    if (!this.attachTimeoutMs) return this.attachWithinBudget(startTime)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await Promise.race([
+        this.attachWithinBudget(startTime),
+        new Promise<never>((_, reject) => { timer = setTimeout(() => {
+          this.cleanup()
+          reject(new Error('DASH 加载超时'))
+        }, this.attachTimeoutMs) }),
+      ])
+    } finally { clearTimeout(timer) }
+  }
+
+  private async attachWithinBudget(startTime?: number): Promise<string> {
     if (this.state !== 'idle') {
       throw new Error(`DashPlayer 状态不允许 attach: ${this.state}`)
     }
@@ -284,6 +301,9 @@ export class DashPlayer implements PlayerController {
           raw: event,
         }
         console.warn('[DashPlayer] dash.js ERROR 事件:', e.error ?? event)
+        if ([11, 15, 17, 20, 23, 25, 26, 27, 28, 35].includes(Number(e.error?.code))) {
+          this.video.dispatchEvent(new CustomEvent('zviewer-dash-failure', { detail: { message: 'DASH 流加载或解码失败' } }))
+        }
       })
 
       // 6.2 P2P 引擎集成（仅在流模式 + p2pEnabled 时启用）
@@ -620,6 +640,7 @@ export class DashPlayer implements PlayerController {
       })
 
       if (!response.ok && response.status !== 206) {
+        if (this.attachTimeoutMs) throw new Error(`DASH 媒体加载失败（HTTP ${response.status}）`)
         console.warn(
           `[DashPlayer] 预下载 init segment 失败: status=${response.status}`
         )
@@ -722,6 +743,7 @@ export class DashPlayer implements PlayerController {
 
       return info
     } catch (err) {
+      if (this.attachTimeoutMs) throw err
       console.warn('[DashPlayer] 预下载 init segment 异常:', err)
       return info
     }

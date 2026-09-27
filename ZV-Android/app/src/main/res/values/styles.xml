@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Base application theme. -->
+    <style name="AppThemeBase" parent="Theme.AppCompat.Light.DarkActionBar">
+        <!-- Customize your theme here. -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+        <item name="android:windowBackground">#111417</item>
+        <item name="android:statusBarColor">#111417</item>
+        <item name="android:navigationBarColor">#111417</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+    <style name="AppTheme" parent="AppThemeBase" />
+
+    <style name="AppThemeNoActionBarBase" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:background">@null</item>
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowBackground">#111417</item>
+        <item name="android:statusBarColor">#111417</item>
+        <item name="android:navigationBarColor">#111417</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+    <style name="AppTheme.NoActionBar" parent="AppThemeNoActionBarBase" />
+
+
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <!-- A generic background also paints WebView selection toolbar children. -->
+        <item name="android:windowBackground">@drawable/launch_screen</item>
+        <item name="windowSplashScreenBackground">@color/launch_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+    </style>
+</resources>

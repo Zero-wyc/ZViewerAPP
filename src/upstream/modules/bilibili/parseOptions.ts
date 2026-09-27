@@ -1,5 +1,6 @@
 import { useSyncExternalStore, useMemo } from 'react'
 import type { BilibiliParseOptions } from './types'
+import { getEmbeddedProxyStatus, subscribeEmbeddedProxy } from '../../../platform/bilibiliProxy'
 
 /** localStorage 持久化 key */
 const STORAGE_KEY = 'zcontrol:bilibili-parse-options'
@@ -72,15 +73,17 @@ function writeAllOptions(map: ParseOptionsMap): void {
 function normalizeOptions(
   opts: BilibiliParseOptions | undefined
 ): NormalizedParseOptions {
+  const proxy = getEmbeddedProxyStatus()
+  const nativeDefault = proxy.supported && proxy.ready && proxy.loggedIn && opts?.preferMp4 !== true
   // 未配置的字段使用 DEFAULT_PARSE_OPTIONS 的默认值，
   // 确保与 useBilibiliParsePreferences 的 fallback 行为一致。
   // 注意：必须用 ?? 而非 === true，否则 undefined 会被当作 false，
   // 导致未配置的影片 preferMp4=false（DASH），与默认 MP4 模式不一致。
   return {
-    preferMp4: opts?.preferMp4 ?? DEFAULT_PARSE_OPTIONS.preferMp4,
+    preferMp4: opts?.preferMp4 ?? !nativeDefault,
     bufferMode: opts?.bufferMode ?? DEFAULT_PARSE_OPTIONS.bufferMode,
     p2pEnabled: opts?.p2pEnabled ?? DEFAULT_PARSE_OPTIONS.p2pEnabled,
-    cliEnabled: opts?.cliEnabled ?? DEFAULT_PARSE_OPTIONS.cliEnabled,
+    cliEnabled: opts?.cliEnabled ?? nativeDefault,
     cliPrevPreferMp4: opts?.cliPrevPreferMp4,
   }
 }
@@ -158,7 +161,12 @@ export function useBilibiliParsePreferences(
     getPreferenceSnapshot
   )
   return useMemo(
-    () => all[String(movieId)] ?? DEFAULT_PARSE_OPTIONS,
+    () => all[String(movieId)] ?? normalizeOptions(undefined),
     [all, movieId]
   )
 }
+
+subscribeEmbeddedProxy(() => {
+  cachedSnapshot = getFullSnapshot()
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(OPTIONS_CHANGE_EVENT))
+})

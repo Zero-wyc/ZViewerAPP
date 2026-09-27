@@ -44,6 +44,7 @@ export const dashEngine: PlayerEngine = {
       audioBlob: source.audioBlob,
       // P2P 传输：仅在流模式启用，DashPlayer 内部会检查 isBufferMode
       p2pEnabled: source.p2pEnabled,
+      attachTimeoutMs: source.attachTimeoutMs,
     })
     try {
       const blobUrl = await dashPlayer.attach(source.startTime)

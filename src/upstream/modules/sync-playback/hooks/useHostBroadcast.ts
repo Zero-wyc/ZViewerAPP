@@ -3,6 +3,7 @@ import type { RefObject } from 'react'
 import { useSocket } from '@/hooks/useSocket'
 import { useRoomStore } from '@/store/roomStore'
 import { getBilibiliParseOptions } from '@/modules/bilibili/parseOptions'
+import { unwrapCliProxyUrl } from '@/modules/bilibili/cliApi'
 import type { WatchTogetherState, ControlAction } from '../types'
 import { SOCKET_EVENT } from '../constants'
 import {
@@ -56,6 +57,8 @@ export function useHostBroadcast({
       const movieId = useRoomStore.getState().currentMovieId
       const stateWithCli: WatchTogetherState = {
         ...state,
+        sourceUrl: unwrapCliProxyUrl(state.sourceUrl),
+        audioUrl: state.audioUrl ? unwrapCliProxyUrl(state.audioUrl) : undefined,
         hostCliEnabled:
           movieId != null
             ? getBilibiliParseOptions(movieId).cliEnabled
@@ -90,6 +93,8 @@ export function useHostBroadcast({
     const video = videoRef.current
     const storeState = useRoomStore.getState().watchTogether
     const newState = buildStateFromVideo(video, storeState)
+    newState.sourceUrl = unwrapCliProxyUrl(newState.sourceUrl)
+    if (newState.audioUrl) newState.audioUrl = unwrapCliProxyUrl(newState.audioUrl)
     // 注入房主 CLI 标记（与 broadcastState 一致）
     const movieId = useRoomStore.getState().currentMovieId
     if (movieId != null) {

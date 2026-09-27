@@ -1,18 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Capacitor, registerPlugin } from '@capacitor/core'
 import { Maximize, Minimize, Smartphone, RectangleHorizontal } from 'lucide-react'
 import { message } from '@/components/ui/message'
-
-const Display = registerPlugin<{
-  toggleOrientation(): Promise<void>
-  setImmersive(options: { enabled: boolean }): Promise<void>
-  unlockOrientation(): Promise<void>
-}>('PlayerDisplay')
+import { playerDisplay, restorePlayerDisplay } from '../platform/playerDisplay'
 
 export async function restoreDisplay() {
-  if (!Capacitor.isNativePlatform()) return
-  await Display.setImmersive({ enabled: false })
-  await Display.unlockOrientation()
+  await restorePlayerDisplay()
 }
 
 export function ScreenOrientationButton({ className = 'player-tool' }: { className?: string }) {
@@ -26,12 +18,7 @@ export function ScreenOrientationButton({ className = 'player-tool' }: { classNa
   const rotate = async () => {
     setBusy(true)
     try {
-      if (Capacitor.isNativePlatform()) await Display.toggleOrientation()
-      else {
-        const orientation = screen.orientation as ScreenOrientation & { lock?: (value: string) => Promise<void> }
-        if (!orientation.lock) throw new Error('unsupported')
-        await orientation.lock(landscape ? 'portrait' : 'landscape')
-      }
+      await playerDisplay.toggleOrientation(landscape)
     } catch {
       message.info('当前设备不支持锁定屏幕方向')
     } finally {
@@ -57,12 +44,10 @@ export function PlayerDisplayControls({ fullscreen = false, onFullscreen }: {
     return () => document.removeEventListener('fullscreenchange', changed)
   }, [])
   useEffect(() => {
-    if (Capacitor.isNativePlatform()) {
-      void Display.setImmersive({ enabled: active }).catch(() => message.error('无法切换系统栏'))
-    }
+    void playerDisplay.setImmersive(active).catch(() => message.error('无法切换系统栏'))
   }, [active])
   useEffect(() => () => {
-    if (Capacitor.isNativePlatform()) void Display.setImmersive({ enabled: false }).catch(() => {})
+    void playerDisplay.setImmersive(false).catch(() => {})
   }, [])
   return <div className="player-display-controls" data-fullscreen={active}>
     {active && <ScreenOrientationButton />}

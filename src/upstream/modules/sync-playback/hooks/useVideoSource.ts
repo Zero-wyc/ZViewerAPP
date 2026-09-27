@@ -8,8 +8,7 @@
  * 2. 组件挂载时的源恢复（依赖 roomStore，仅观众端或无待加载影片时执行）
  * 3. seek 到未缓冲区域时的 MSE seek / 失败重载
  *
- * 观众端不再独立解析 B站 视频，所有源类型统一使用房主广播的
- * sourceUrl/audioUrl 进行 MSE attach，避免凭证不一致与 CDN 限流。
+ * Android 的 B站观众按本机账号和设备独立解析，其余平台保留原有偏好逻辑。
  * restoredRef 保证每个挂载周期只恢复一次源，避免与 handleLoad / handleState 重复加载。
  *
  * 房主端在挂载时若 roomStore 中存在 currentMovieId，跳过恢复 effect，
@@ -37,11 +36,14 @@ import type { ResolvedSource } from '@/modules/bilibili/types'
 import { safePlay } from '../safePlay'
 import { executeSeek } from '../services'
 import type { SeekToResult } from '../services'
+import { getEmbeddedProxyStatus, isEmbeddedAndroid, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
+import { fallbackNativeQuality, getNativeQualityPolicy, getQualitySelectionRevision, recordNativeQuality, restoreNativeQuality, type NativeQualityPolicy } from '@/modules/bilibili/nativeQualityPolicy'
 
 interface ViewerLocalOverride {
   movieId: number
   resolved: ResolvedSource
 }
+interface NativeRecoverySnapshot { time: number; playing: boolean; rate: number }
 
 /**
  * 确保观众端按本地解析偏好获得独立的 B站 源。
@@ -66,7 +68,7 @@ async function ensureViewerLocalOverride(
     return null
   }
   const movie = storeState.movies.find((m) => m.id === movieId)
-  if (!movie?.url || !movie.cid) {
+  if (!movie?.url || (!movie.cid && !isEmbeddedAndroid())) {
     return null
   }
 
@@ -82,7 +84,7 @@ async function ensureViewerLocalOverride(
   const adjustedPreferMp4 = forceViewerMp4 || effectivePreferMp4
 
   // 本地偏好与房主一致且房主源不是 CLI 代理地址：直接使用房主广播源
-  if (adjustedPreferMp4 === hostIsMp4 && !isCliProxyUrl(state.sourceUrl)) {
+  if (!isEmbeddedAndroid() && adjustedPreferMp4 === hostIsMp4 && !isCliProxyUrl(state.sourceUrl)) {
     if (existing?.movieId === movieId) {
       storeState.setViewerCliResolvedSource(null)
     }
@@ -90,7 +92,7 @@ async function ensureViewerLocalOverride(
   }
 
   // 已有匹配的本地覆盖时直接复用，避免重复解析
-  if (existing?.movieId === movieId && existingIsMp4 === adjustedPreferMp4) {
+  if (existing?.movieId === movieId && existing.resolved.cid === movie.cid && existingIsMp4 === adjustedPreferMp4) {
     return existing
   }
 
@@ -118,6 +120,7 @@ async function ensureViewerLocalOverride(
     storeState.setViewerCliResolvedSource(override)
     return override
   } catch (err) {
+    if (isEmbeddedAndroid()) throw err
     console.error('[useVideoSource] 观众本地解析失败:', err)
     // 失败后清除旧覆盖，回退到房主源（可能无法播放，由上层提示）
     if (existing?.movieId === movieId) {
@@ -240,6 +243,7 @@ function toPlayerSource(
       source.p2pEnabled = true
     }
   }
+  if (isEmbeddedAndroid() && state.sourceType === 'bilibili' && cliProxyActive) source.attachTimeoutMs = 30000
   return source
 }
 
@@ -299,12 +303,20 @@ export function useVideoSource({
   watchTogether,
   isHostRef,
 }: UseVideoSourceOptions): UseVideoSourceReturn {
+  const nativeRecoveryRef = useRef<(error: Error) => Promise<void>>(async () => {})
+  const nativeRecoveryRunning = useRef<Promise<void> | null>(null)
+  const nativeAttachmentDepth = useRef(0)
+  const nativeRecoveryAttempts = useRef(new Map<string, number>())
+  const lastNativeSource = useRef<{ movieId: number; cid?: number; sessionVersion: number; state: WatchTogetherState; policy: NativeQualityPolicy } | null>(null)
   // 播放期错误提示（usePlayerSource 统一判定后回调）：
   // B站源由 useWatchTogether 的 stalled/error 自动重载链路负责，此处过滤
   const handlePlaybackError = useCallback(
     (err: Error) => {
       const state = useRoomStore.getState().watchTogether
-      if (state.sourceType === 'bilibili') return
+      if (state.sourceType === 'bilibili') {
+        if (isEmbeddedAndroid() && !suppressEventsRef.current && nativeAttachmentDepth.current === 0) void nativeRecoveryRef.current(err).catch(error => message.error(error.message))
+        return
+      }
       if (suppressEventsRef.current) return
       message.error(err.message)
     },
@@ -318,6 +330,63 @@ export function useVideoSource({
   const restoredRef = useRef(false)
 
   const cleanupMedia = cleanup
+
+  const recoverNative = useCallback(async (error: Error, original?: NativeRecoverySnapshot) => {
+    if (nativeRecoveryRunning.current) return nativeRecoveryRunning.current
+    const store = useRoomStore.getState()
+    const movie = store.movies.find(item => item.id === store.currentMovieId)
+    if (!movie || !getBilibiliParseOptions(movie.id).cliEnabled || !getActiveCliProxyUrl() || getNativeQualityPolicy(movie.id).mode !== 'autoMax') throw error
+    const video = videoRef.current
+    if (!video) throw error
+    const key = `${getEmbeddedProxyStatus().sessionVersion}|${movie.id}|${movie.cid}|${getQualitySelectionRevision(movie.id)}`
+    const sessionVersion = getEmbeddedProxyStatus().sessionVersion
+    const selectionRevision = getQualitySelectionRevision(movie.id)
+    const stillCurrent = () => useRoomStore.getState().currentMovieId === movie.id && useRoomStore.getState().movies.find(item => item.id === movie.id)?.cid === movie.cid && getEmbeddedProxyStatus().sessionVersion === sessionVersion && getQualitySelectionRevision(movie.id) === selectionRevision
+    const deadline = Date.now() + 60000
+    const snapshot = original ?? { time: video.currentTime, playing: store.watchTogether.isPlaying && !wasUserPaused(video), rate: video.playbackRate }
+    const task = (async () => {
+      suppressEventsRef.current = true
+      try {
+        let lastError = error
+        let lastQn = getNativeQualityPolicy(movie.id).fallbackQn ?? 80
+        while ((nativeRecoveryAttempts.current.get(key) ?? 0) < 4) {
+          if (!stillCurrent()) return
+          const attempt = (nativeRecoveryAttempts.current.get(key) ?? 0) + 1
+          nativeRecoveryAttempts.current.set(key, attempt)
+          if (attempt === 2) fallbackNativeQuality(movie.id)
+          if (attempt >= 3) {
+            if (lastQn <= 16) break
+            fallbackNativeQuality(movie.id, lastQn <= 32 ? 16 : 32)
+          }
+          try {
+            const remaining = deadline - Date.now()
+            if (remaining < 1000) throw new Error('自动恢复超时，请手动重试')
+            const resolved = await resolveBilibiliOnline(movie, undefined, { forceRefresh: true, timeoutMs: Math.min(remaining, 45000) })
+            if (resolved.currentQn) lastQn = resolved.currentQn
+            if (!stillCurrent()) return
+            const next = { ...store.watchTogether, sourceUrl: resolved.sourceUrl, audioUrl: resolved.audioUrl, format: resolved.format, videoCodec: resolved.videoCodec, audioCodec: resolved.audioCodec, currentQn: resolved.currentQn, acceptQuality: resolved.acceptQuality, currentTime: snapshot.time, playbackRate: snapshot.rate, isPlaying: snapshot.playing, cid: resolved.cid }
+            if (isHostRef.current) store.setWatchTogether(next)
+            else store.setViewerCliResolvedSource({ movieId: movie.id, resolved: { ...resolved, videoUrl: resolved.sourceUrl, format: resolved.format ?? 'dash' } })
+            const source = toPlayerSource(next, snapshot.time)
+            source.attachTimeoutMs = Math.max(1, Math.min(30000, deadline - Date.now()))
+            await forceReload(video, source)
+            if (!stillCurrent()) { cleanup(); return }
+            video.currentTime = snapshot.time
+            video.playbackRate = snapshot.rate
+            if (snapshot.playing) await safePlay(video)
+            lastNativeSource.current = { movieId: movie.id, cid: movie.cid, sessionVersion, state: next, policy: { ...getNativeQualityPolicy(movie.id) } }
+            if (resolved.currentQn) recordNativeQuality(movie.id, resolved.currentQn, resolved.acceptQuality ?? [])
+            if (attempt >= 2) message.info(`高画质播放失败，已切换至 ${resolved.acceptQuality?.find(q => q.id === resolved.currentQn)?.label ?? '可用画质'}`)
+            return
+          } catch (nextError) { lastError = nextError instanceof Error ? nextError : new Error(String(nextError)) }
+        }
+        throw lastError
+      } finally { suppressEventsRef.current = false }
+    })()
+    nativeRecoveryRunning.current = task
+    try { await task } finally { nativeRecoveryRunning.current = null }
+  }, [forceReload, cleanup, isHostRef, suppressEventsRef, videoRef])
+  nativeRecoveryRef.current = recoverNative
 
   // 将指定状态中的视频源应用到 video 元素（含 MSE DASH 处理）。
   // 供房主加载、观众同步以及组件重新挂载时恢复使用。
@@ -345,8 +414,9 @@ export function useVideoSource({
         // 无匹配覆盖时按本地偏好独立解析（ensureViewerLocalOverride
         // 内部同样会复用满足格式条件的既有覆盖）
         const existing = storeState.viewerCliResolvedSource
+        const currentMovie = storeState.movies.find(movie => movie.id === currentMovieId)
         const override =
-          existing && existing.movieId === currentMovieId
+          existing && existing.movieId === currentMovieId && existing.resolved.cid === currentMovie?.cid
             ? existing
             : await ensureViewerLocalOverride(state)
         if (override && override.movieId === currentMovieId) {
@@ -354,13 +424,61 @@ export function useVideoSource({
         }
       }
 
-      await attachSource(
-        video,
-        toPlayerSource(effectiveState, startTime, blobs)
-      )
+      const original = { time: startTime ?? video.currentTime ?? effectiveState.currentTime, playing: effectiveState.isPlaying && !wasUserPaused(video), rate: effectiveState.playbackRate }
+      nativeAttachmentDepth.current++
+      try {
+        await attachSource(video, toPlayerSource(effectiveState, startTime, blobs))
+        const movieId = useRoomStore.getState().currentMovieId
+        if (isEmbeddedAndroid() && movieId != null && effectiveState.currentQn) recordNativeQuality(movieId, effectiveState.currentQn, effectiveState.acceptQuality ?? [])
+        if (isEmbeddedAndroid() && movieId != null && effectiveState.sourceType === 'bilibili') lastNativeSource.current = { movieId, cid: useRoomStore.getState().movies.find(movie => movie.id === movieId)?.cid, sessionVersion: getEmbeddedProxyStatus().sessionVersion, state: effectiveState, policy: { ...getNativeQualityPolicy(movieId) } }
+      } catch (err) {
+        if (!isEmbeddedAndroid() || effectiveState.sourceType !== 'bilibili' || blobs) throw err
+        const store = useRoomStore.getState()
+        const previous = lastNativeSource.current
+        if (store.currentMovieId != null && getNativeQualityPolicy(store.currentMovieId).mode === 'manual' && previous?.movieId === store.currentMovieId && previous.cid === store.movies.find(movie => movie.id === store.currentMovieId)?.cid && previous.sessionVersion === getEmbeddedProxyStatus().sessionVersion) {
+          restoreNativeQuality(store.currentMovieId, previous.policy)
+          cleanup()
+          await attachSource(video, toPlayerSource(previous.state, original.time))
+          video.currentTime = original.time
+          video.playbackRate = original.rate
+          if (original.playing && !wasUserPaused(video)) await safePlay(video)
+          if (previous.state.currentQn) recordNativeQuality(previous.movieId, previous.state.currentQn, previous.state.acceptQuality ?? [])
+          if (isHostRef.current) store.setWatchTogether({ ...previous.state, currentTime: original.time, playbackRate: original.rate, isPlaying: original.playing })
+          else store.setViewerCliResolvedSource({ movieId: previous.movieId, resolved: { videoUrl: previous.state.sourceUrl, audioUrl: previous.state.audioUrl, format: previous.state.format ?? 'dash', currentQn: previous.state.currentQn, acceptQuality: previous.state.acceptQuality, videoCodec: previous.state.videoCodec, audioCodec: previous.state.audioCodec } })
+          throw err
+        }
+        await recoverNative(err instanceof Error ? err : new Error(String(err)), original)
+      } finally { nativeAttachmentDepth.current-- }
     },
-    [attachSource, isHostRef]
+    [attachSource, cleanup, isHostRef, recoverNative]
   )
+
+  useEffect(() => {
+    let previous = `${getEmbeddedProxyStatus().sessionVersion}:${getEmbeddedProxyStatus().loggedIn}`
+    return subscribeEmbeddedProxy(() => {
+      const proxy = getEmbeddedProxyStatus()
+      const next = `${proxy.sessionVersion}:${proxy.loggedIn}`
+      if (previous === next) return
+      previous = next
+      const store = useRoomStore.getState()
+      if (store.watchTogether.sourceType !== 'bilibili' || store.currentMovieId == null) return
+      if (getNativeQualityPolicy(store.currentMovieId).mode === 'manual' && proxy.loggedIn) return
+      nativeRecoveryAttempts.current.clear()
+      store.setViewerCliResolvedSource(null)
+      if (isHostRef.current) store.triggerReloadBilibili()
+      else store.triggerViewerSourceReload()
+    })
+  }, [isHostRef])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !isEmbeddedAndroid()) return
+    const failed = () => {
+      if (!suppressEventsRef.current && nativeAttachmentDepth.current === 0) void nativeRecoveryRef.current(new Error('DASH 流加载或解码失败')).catch(err => message.error(err.message))
+    }
+    video.addEventListener('zviewer-dash-failure', failed)
+    return () => video.removeEventListener('zviewer-dash-failure', failed)
+  }, [videoRef, suppressEventsRef])
 
   // 组件重新挂载（或 videoRef 首次可用）时，从 roomStore 恢复视频源。
   // 通过 restoredRef 保证每个挂载周期只恢复一次，避免与 handleLoad / handleState 重复加载。

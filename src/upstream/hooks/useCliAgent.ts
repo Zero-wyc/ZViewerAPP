@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { useSocket } from './useSocket'
 import { useAuthStore } from '@/store/authStore'
 import { useCliAgentStore } from '@/store/cliAgentStore'
+import { isEmbeddedAndroid, useEmbeddedProxyStatus } from '../../platform/bilibiliProxy'
 
 /** 本地 CLI 默认端口 */
 export const CLI_DEFAULT_PORT = 9333
@@ -61,6 +62,7 @@ interface CliAgentsPayload {
  * - 健康检查：轮询 127.0.0.1:9333/health，同时监听 socket 事件获取服务端广播的代理列表
  */
 export function useCliAgent() {
+  const nativeProxy = useEmbeddedProxyStatus()
   const { socket, connected } = useSocket()
   const username = useAuthStore((s) => s.user?.username)
   const {
@@ -133,7 +135,7 @@ export function useCliAgent() {
   // 1. 本地健康检查轮询（仅浏览器本地页面；远程访问时 127.0.0.1 指向
   //    访问者自己的设备，轮询必然失败且刷屏报错，直接跳过）
   useEffect(() => {
-    if (!isLocalPage()) {
+    if (isEmbeddedAndroid() || !isLocalPage()) {
       setLocalOnline(false, null)
       return
     }
@@ -231,12 +233,14 @@ export function useCliAgent() {
   // 房间内有已注册的 CLI 代理即视为可用（全局注册后与房间无关）。
   // 不再强制要求 localOnline：健康检查可能因 CORS/浏览器策略暂时失败，
   // 但 CLI HTTP 服务实际可用。实际不可用时 fetch 会自然报错。
-  const selectedAgent = agents[0] ?? null
-  const available = agents.length > 0
+  const selectedAgent = isEmbeddedAndroid()
+    ? nativeProxy.ready && nativeProxy.loggedIn ? { socketId: 'embedded', proxyUrl: nativeProxy.proxyUrl, version: '内置', agent: 'android' } : null
+    : agents[0] ?? null
+  const available = isEmbeddedAndroid() ? selectedAgent !== null : agents.length > 0
 
   return {
     /** 本地 CLI 是否在线 */
-    localOnline,
+    localOnline: isEmbeddedAndroid() ? nativeProxy.ready : localOnline,
     /** 服务器上是否有归属可用的 CLI 代理 */
     hasAgent: agents.length > 0,
     /** 有归属可用的代理即可投入使用（不再强制要求本地健康检查通过） */

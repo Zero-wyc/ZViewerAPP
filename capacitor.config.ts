@@ -12,7 +12,11 @@ const config: CapacitorConfig = {
     },
   },
   android: {
+    path: 'ZV-Android',
     allowMixedContent: true,
+  },
+  ios: {
+    path: 'ZV-iOS',
   },
 }
 

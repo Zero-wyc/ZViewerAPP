@@ -1,4 +1,6 @@
 import type { ResolvedSource } from './types'
+import { embeddedBilibiliProxy, getEmbeddedProxyStatus, isEmbeddedAndroid } from '../../../platform/bilibiliProxy'
+import { getWebViewCapabilities } from './nativeQualityPolicy'
 
 const BV_REGEX = /BV[0-9A-Za-z]{10}/
 
@@ -26,6 +28,15 @@ export function buildCliProxyUrl(proxyUrl: string, targetUrl: string): string {
   return `${proxyPrefix}${encodeURIComponent(targetUrl)}`
 }
 
+/** Remove device-local credentials before storing or broadcasting media URLs. */
+export function unwrapCliProxyUrl(raw: string): string {
+  try {
+    const url = new URL(raw)
+    if ((url.hostname === '127.0.0.1' || url.hostname === 'localhost') && url.pathname.endsWith('/proxy')) return url.searchParams.get('url') || raw
+  } catch { /* upstream URL may be relative */ }
+  return raw
+}
+
 /**
  * 将解析结果中的 B站 CDN URL 全部重写为 CLI 代理 URL。
  *
@@ -50,6 +61,8 @@ export function wrapResolvedSourceWithCliProxy(
 interface CliResolveResponse {
   success?: boolean
   message?: string
+  error?: string
+  fallbackReason?: string
   title?: string
   duration?: number
   cid?: number
@@ -113,12 +126,20 @@ export async function resolveBilibiliViaCli(
   cid?: number,
   qn?: number,
   preferMp4?: boolean,
-  forceDash?: boolean
+  forceDash?: boolean,
+  nativeOptions?: { qualityMode?: 'autoMax' | 'manual'; fallbackQn?: number; timeoutMs?: number }
 ): Promise<ResolvedSource> {
   const base = proxyUrl.replace(/\/$/, '')
   const params = new URLSearchParams({
     bvid,
   })
+  const embedded = isEmbeddedAndroid() && proxyUrl === getEmbeddedProxyStatus().proxyUrl
+  if (embedded) {
+    params.set('qualityMode', nativeOptions?.qualityMode ?? 'autoMax')
+    if (nativeOptions?.fallbackQn) params.set('fallbackQn', String(nativeOptions.fallbackQn))
+    if (nativeOptions?.timeoutMs) params.set('timeoutMs', String(nativeOptions.timeoutMs))
+    params.set('capabilities', JSON.stringify(await getWebViewCapabilities()))
+  }
   if (cid != null && Number.isFinite(cid)) {
     params.set('cid', String(cid))
   }
@@ -136,11 +157,12 @@ export async function resolveBilibiliViaCli(
   try {
     res = await fetch(`${base}/resolve?${params.toString()}`, {
       method: 'GET',
+      signal: AbortSignal.timeout(nativeOptions?.timeoutMs ?? 50000),
     })
   } catch {
     // fetch 抛出 TypeError：网络不可达、CORS 被拦截、进程未启动等
     throw new CliConnectionError(
-      'CLI 代理连接失败，请确认本地 zcontrol-cli 已启动'
+      embedded ? '内置 B 站代理连接失败，请重试或重新打开客户端' : 'CLI 代理连接失败，请确认本地 zcontrol-cli 已启动'
     )
   }
 
@@ -152,8 +174,9 @@ export async function resolveBilibiliViaCli(
   }
 
   if (!res.ok || data.success === false || !data.videoUrl) {
+    if (embedded && res.status === 401) await embeddedBilibiliProxy.logout()
     throw new CliResolveError(
-      data.message || `CLI 解析 B站 视频失败（HTTP ${res.status}）`
+      data.message || data.error || `CLI 解析 B站 视频失败（HTTP ${res.status}）`
     )
   }
 
@@ -175,5 +198,7 @@ export async function resolveBilibiliViaCli(
   }
 
   // CLI /resolve 已返回代理 URL，但本地包装可确保旧版 CLI 与兜底场景也走代理。
-  return wrapResolvedSourceWithCliProxy(proxyUrl, resolved)
+  // Native media URLs are wrapped only during attachment. Room state keeps
+  // upstream URLs so a localhost token can never leak to other participants.
+  return embedded ? resolved : wrapResolvedSourceWithCliProxy(proxyUrl, resolved)
 }

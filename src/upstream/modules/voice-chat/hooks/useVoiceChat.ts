@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Socket } from 'socket.io-client'
 import { message } from '@/components/ui/message'
 import { ROOM_MEDIA_TEARDOWN_EVENT, type RoomMediaTeardownDetail } from '@/lib/mediaTeardown'
+import { permissions } from '../../../../platform/permissions'
 
 // ============================================================
 // 语音聊天 — 服务器中转架构 + Opus 编码（128kbps）
@@ -938,7 +939,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatResult {
     setJoining(true)
     try {
       // 1. 获取麦克风
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const stream = await permissions.requestMicrophoneStream({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
@@ -1303,7 +1304,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatResult {
       if (attempt !== joinAttemptRef.current) return
       console.error('[voice] join error:', err)
       // 按具体原因提示，避免把所有失败都归为"权限问题"
-      if (!navigator.mediaDevices?.getUserMedia) {
+      if (!permissions.supportsMicrophoneCapture()) {
         // HTTP 非安全上下文（局域网 IP 直连）或 iframe 未授权
         message.error(
           '当前环境不支持麦克风采集，请通过 HTTPS 或 localhost 访问'
