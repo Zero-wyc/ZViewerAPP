@@ -6,6 +6,14 @@ node_modules/
 /ZV-Android/.idea/
 /ZV-iOS/.idea/
 /ZV-HarmonyOS/.idea/
+/ZV-HarmonyOS/.hvigor/
+/ZV-HarmonyOS/oh_modules/
+/ZV-HarmonyOS/build/
+/ZV-HarmonyOS/entry/build/
+/ZV-HarmonyOS/entry/src/main/resources/rawfile/web/
+*.p7b
+*.cer
+*.hap
 *.log
 *.tsbuildinfo
 .DS_Store

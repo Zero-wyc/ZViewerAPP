@@ -1,0 +1,6 @@
+{
+  "string": [
+    { "name": "module_desc", "value": "ZViewer HarmonyOS host" },
+    { "name": "EntryAbility_desc", "value": "ZViewer" }
+  ]
+}

@@ -11,6 +11,7 @@
     "test:android:bilibili": "node scripts/android-bilibili-smoke.mjs",
     "dev": "vite",
     "build": "tsc --noEmit -p tsconfig.app.json && vite build",
+    "harmony:web": "npm run build -- --base=./ && node ZV-HarmonyOS/scripts/sync-web.mjs",
     "preview": "vite preview",
     "android:sync": "npm run build && cap sync android",
     "android:open": "cap open android"
