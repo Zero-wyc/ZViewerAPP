@@ -18,7 +18,7 @@ export function ScreenOrientationButton({ className = 'player-tool' }: { classNa
   const rotate = async () => {
     setBusy(true)
     try {
-      await playerDisplay.toggleOrientation(landscape)
+      await playerDisplay.toggleOrientation(!landscape)
     } catch {
       message.info('当前设备不支持锁定屏幕方向')
     } finally {

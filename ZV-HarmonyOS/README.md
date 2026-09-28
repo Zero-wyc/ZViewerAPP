@@ -1,9 +1,10 @@
 # ZViewer HarmonyOS
 
-This is the Stage/ArkWeb host for the shared React client. Current milestone:
-H0 scaffold, local page packaging, a host handshake, and native back dispatch.
-Room features and media capabilities still need emulator and physical-device
-validation. No Bilibili account or local proxy implementation is present.
+This is the Stage/ArkWeb host for the shared React client. H1 covers the
+connection, login, lobby, room, chat and playlist flow through the shared Web
+client. The host supplies a platform handshake, native back dispatch, screen
+orientation and immersive window requests. No Bilibili account or local proxy
+implementation is present.
 
 ## Toolchain
 
@@ -43,10 +44,19 @@ The local API 26 emulators accept it for development, but it is not a
 signed real-device test package. Keep signing keys, profiles and credentials
 outside the repository.
 
+## Delivery test device rule
+
+Use the Pura 90 Pro phone emulator as the primary device for each development
+and acceptance iteration. A passing emulator test counts as acceptance for
+that iteration. Do not repeat the same acceptance run on a tablet each time;
+the user will test tablet adaptation at project close. Record any untested
+tablet behavior in the release note rather than inferring a tablet result from
+the phone test.
+
 ## Current bridge and limits
 
-ArkWeb receives a minimal `zviewerHost` proxy with a platform handshake and
-background action. Only the local virtual origin is allowed to navigate inside
-the component. Rotation, immersive display, microphone, background media, and
-Bilibili methods are pending native implementation. See
-`docs/harmonyos-development-plan.md` for the milestones and test matrix.
+ArkWeb receives a `zviewerHost` proxy with a platform handshake, background
+action and request/response methods for orientation and immersive display.
+Only the local virtual origin is allowed to navigate inside the component.
+Native microphone, background media and Bilibili methods are pending. See
+`docs/harmonyos-development-plan.md` for the milestone scope.

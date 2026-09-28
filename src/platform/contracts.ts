@@ -37,7 +37,7 @@ export interface PermissionsPort {
 
 export interface HarmonyNativeBridge {
   platform?: 'harmony'
-  toggleOrientation?(): void | Promise<void>
+  toggleOrientation?(isLandscape: boolean): void | Promise<void>
   setImmersive?(enabled: boolean): void | Promise<void>
   unlockOrientation?(): void | Promise<void>
   setMediaPlaybackPreferred?(enabled: boolean): void | Promise<void>

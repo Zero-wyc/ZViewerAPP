@@ -24,7 +24,7 @@ export const playerDisplay: PlayerDisplayPort = {
     if (platform === 'harmony') {
       const toggle = getHarmonyBridge()?.toggleOrientation
       if (!toggle) throw new Error('Harmony orientation bridge is unavailable')
-      await toggle.call(getHarmonyBridge())
+      await toggle.call(getHarmonyBridge(), isLandscape)
       return
     }
     if (platform === 'android' || platform === 'ios') {
@@ -37,7 +37,9 @@ export const playerDisplay: PlayerDisplayPort = {
   async setImmersive(enabled) {
     const platform = getRuntimePlatform()
     if (platform === 'harmony') {
-      await getHarmonyBridge()?.setImmersive?.(enabled)
+      const setImmersive = getHarmonyBridge()?.setImmersive
+      if (!setImmersive) throw new Error('Harmony immersive bridge is unavailable')
+      await setImmersive.call(getHarmonyBridge(), enabled)
     } else if (platform === 'android' || platform === 'ios') {
       await capacitorDisplay.setImmersive({ enabled })
     }
@@ -46,7 +48,9 @@ export const playerDisplay: PlayerDisplayPort = {
   async unlockOrientation() {
     const platform = getRuntimePlatform()
     if (platform === 'harmony') {
-      await getHarmonyBridge()?.unlockOrientation?.()
+      const unlock = getHarmonyBridge()?.unlockOrientation
+      if (!unlock) throw new Error('Harmony orientation bridge is unavailable')
+      await unlock.call(getHarmonyBridge())
     } else if (platform === 'android' || platform === 'ios') {
       await capacitorDisplay.unlockOrientation()
     } else {

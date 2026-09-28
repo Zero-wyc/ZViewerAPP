@@ -1,5 +1,6 @@
 import { common } from '@kit.AbilityKit';
 import { webview } from '@kit.ArkWeb';
+import { window } from '@kit.ArkUI';
 
 const LOCAL_ORIGIN = 'https://zviewer.local';
 const LOCAL_PAGE = `${LOCAL_ORIGIN}/index.html`;
@@ -21,9 +22,12 @@ function mimeType(path: string): string {
 
 class HarmonyHost {
   private context: common.UIAbilityContext;
+  private controller: webview.WebviewController;
+  private initialOrientation: window.Orientation | null = null;
 
-  constructor(context: common.UIAbilityContext) {
+  constructor(context: common.UIAbilityContext, controller: webview.WebviewController) {
     this.context = context;
+    this.controller = controller;
   }
 
   getPlatform(): string {
@@ -35,13 +39,47 @@ class HarmonyHost {
       console.error('Unable to move ZViewer to background');
     });
   }
+
+  request(id: number, action: string, argument: string): void {
+    if (!Number.isSafeInteger(id) || id < 1 || id > 2147483647 || argument.length > 1024) return;
+    this.perform(action, argument).then(() => this.respond(id, null))
+      .catch((error: Error) => this.respond(id, error.message || 'Native operation failed'));
+  }
+
+  private async perform(action: string, argument: string): Promise<void> {
+    const mainWindow = await window.getLastWindow(this.context);
+    if (action === 'toggleOrientation') {
+      if (argument !== 'true' && argument !== 'false') throw new Error('Invalid orientation argument');
+      if (this.initialOrientation === null) this.initialOrientation = mainWindow.getPreferredOrientation();
+      await mainWindow.setPreferredOrientation(argument === 'true' ? window.Orientation.LANDSCAPE : window.Orientation.PORTRAIT);
+      return;
+    }
+    if (action === 'unlockOrientation') {
+      await mainWindow.setPreferredOrientation(this.initialOrientation ?? window.Orientation.UNSPECIFIED);
+      return;
+    }
+    if (action === 'setImmersive') {
+      if (argument !== 'true' && argument !== 'false') throw new Error('Invalid immersive argument');
+      const enabled = argument === 'true';
+      await mainWindow.setWindowLayoutFullScreen(enabled);
+      await mainWindow.setSpecificSystemBarEnabled('status', !enabled);
+      await mainWindow.setSpecificSystemBarEnabled('navigation', !enabled);
+      return;
+    }
+    throw new Error('Unsupported native action');
+  }
+
+  private respond(id: number, error: string | null): void {
+    this.controller.runJavaScript(`window.__zvHarmonyResponse?.(${id}, ${JSON.stringify(error)})`)
+      .catch(() => console.error('Unable to deliver native response'));
+  }
 }
 
 @Entry
 @Component
 struct Index {
   private controller: webview.WebviewController = new webview.WebviewController();
-  private host: HarmonyHost = new HarmonyHost(getContext(this) as common.UIAbilityContext);
+  private host: HarmonyHost = new HarmonyHost(getContext(this) as common.UIAbilityContext, this.controller);
 
   private localResource(url: string): WebResourceResponse | null {
     if (!url.startsWith(`${LOCAL_ORIGIN}/`)) return null;
@@ -84,7 +122,7 @@ struct Index {
         .javaScriptProxy({
           object: this.host,
           name: 'zviewerHost',
-          methodList: ['getPlatform', 'minimizeApp'],
+          methodList: ['getPlatform', 'minimizeApp', 'request'],
           controller: this.controller
         })
         .onLoadIntercept((event) => {
@@ -100,6 +138,8 @@ struct Index {
         });
     }
     .width('100%')
-    .height('100%');
+    .height('100%')
+    .backgroundColor('#111417')
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM]);
   }
 }

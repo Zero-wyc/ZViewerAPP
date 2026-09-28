@@ -13,7 +13,16 @@ export default class EntryAbility extends UIAbility {
     windowStage.loadContent('pages/Index', (error) => {
       if (error.code) {
         hilog.error(DOMAIN, 'ZViewer', 'Failed to load main page: %{public}d', error.code);
+        return;
       }
+      // Keep the system safe areas aligned with the Web surface on phones and tablets.
+      const mainWindow = windowStage.getMainWindowSync();
+      mainWindow.setWindowSystemBarProperties({
+        statusBarColor: '#111417',
+        navigationBarColor: '#111417',
+        statusBarContentColor: '#FFFFFF',
+        navigationBarContentColor: '#FFFFFF'
+      }).catch(() => hilog.error(DOMAIN, 'ZViewer', 'Failed to style system bars'));
     });
   }
 }
