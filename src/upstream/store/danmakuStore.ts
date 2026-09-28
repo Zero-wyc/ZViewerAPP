@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { apiFetch, safeJson } from '@/lib/api'
+import { isNativeRuntime } from '../../platform/runtime'
 import type { DanmakuItem, DanmakuSource } from '@/modules/danmaku/types'
 
 export interface DanmakuTrack {
@@ -44,9 +45,8 @@ export const DEFAULT_DANMAKU_STYLE: DanmakuStyleState = {
     color: true,
     advanced: true,
   },
-  // 默认不随屏幕缩放：弹幕字号固定为用户设置的 fontSize，
-  // 不根据视频容器尺寸自动放大，避免不同分辨率下字号不可预测
-  scaleWithScreen: false,
+  // 手机原生客户端默认随屏幕缩放；桌面网页维持原来的固定字号。
+  scaleWithScreen: isNativeRuntime(),
   displayArea: 0.75,
   opacity: 1,
   fontSize: 25,
@@ -571,16 +571,16 @@ export const useDanmakuStore = create<DanmakuState>()(
     }),
     {
       name: 'danmaku-storage',
-      version: 1,
+      version: 2,
       partialize: (state) => ({ style: state.style }),
-      migrate: (persisted: unknown): Partial<DanmakuState> => {
+      migrate: (persisted: unknown, version: number): Partial<DanmakuState> => {
         const data = (persisted ?? {}) as Partial<DanmakuState>
         const style = { ...(data.style ?? {}) } as Record<string, unknown>
-        // v0 -> v1: 清除已删除的 avoidSubtitle 字段，
-        // 并重置 scaleWithScreen 让其回退到新默认值 false
+        // v0/v1 无法区分「沿用默认关闭」与手动关闭：原生端升级时
+        // 应用一次新默认值；v2 起保留用户明确选择的开关状态。
         delete style.avoidSubtitle
-        delete style.scaleWithScreen
-        return { ...data, style: style as unknown as DanmakuStyleState }
+        if (version < 2 && isNativeRuntime()) style.scaleWithScreen = true
+        return { ...data, style: { ...DEFAULT_DANMAKU_STYLE, ...style } as DanmakuStyleState }
       },
     }
   )

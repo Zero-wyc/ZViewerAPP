@@ -10,11 +10,13 @@
 
 [下载安装包](https://github.com/Zero-wyc/ZViewerAPP/releases) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md)
 
-## 当前开发版本：1.2.0
+## 当前版本：1.2.1
 
 Android 内置 B 站登录与 Go 播放代理，无需另外安装 CLI。扫码登录后，默认选择账号有权限、视频有实际轨道、设备支持的最高普通画质，自动排除 HDR 和杜比视界。最高画质播放失败时，有限恢复后优先回退 720p；没有 720p 则使用真实可用的更低档位。
 
-手动选择按影片保留，房主与观众独立选择本机画质；Cookie 在 Android Keystore 加密后保存在不可备份目录。当前交付为调试包，包名 `com.zviewer.mobile.debug`，可与正式版并存。自动化与模拟器验收范围见 [验收报告](docs/android-bilibili-acceptance.md)，真实账号、会员内容和物理设备仍需实测。
+手机端弹幕默认开启“随屏幕缩放”，让字号随播放区域变化；可以在弹幕设置中关闭，关闭后的选择会保留。桌面网页的默认值不变。
+
+手动选择按影片保留，房主与观众独立选择本机画质；Cookie 在 Android Keystore 加密后保存在不可备份目录。正式版包名 `com.zviewer.mobile`；调试包使用独立包名 `com.zviewer.mobile.debug`。自动化与模拟器验收范围见 [验收报告](docs/android-bilibili-acceptance.md)。
 
 ## 安装与连接
 
