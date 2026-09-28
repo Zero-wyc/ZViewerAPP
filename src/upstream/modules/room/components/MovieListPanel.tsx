@@ -72,7 +72,6 @@ export function MovieListPanel({
   const { socket } = useSocket()
   const movies = useRoomStore((state) => state.movies)
   const currentMovieId = useRoomStore((state) => state.currentMovieId)
-  const setCurrentMovieId = useRoomStore((state) => state.setCurrentMovieId)
   const roomId = useRoomStore((state) => state.roomId)
   const removeMovie = useRoomStore((state) => state.removeMovie)
   const updateMovie = useRoomStore((state) => state.updateMovie)
@@ -91,6 +90,7 @@ export function MovieListPanel({
   const mode = useRoomStore((state) => state.mode)
   const [search, setSearch] = useState('')
   const [removingId, setRemovingId] = useState<number | null>(null)
+  const [switchingId, setSwitchingId] = useState<number | null>(null)
   const [qualityLoadingId, setQualityLoadingId] = useState<number | null>(null)
   const [pageLoadingId, setPageLoadingId] = useState<number | null>(null)
   const [bilibiliVip, setBilibiliVip] = useState(false)
@@ -127,12 +127,37 @@ export function MovieListPanel({
       message.info('没有影片管理权限')
       return
     }
-    if (!socket) {
+    if (!socket?.connected) {
       message.error('未连接房间')
       return
     }
-    socket.emit('play-movie', { roomId, movieId })
-    setCurrentMovieId(movieId)
+    if (switchingId !== null) return
+    const previousSourceUrl = useRoomStore.getState().watchTogether.sourceUrl
+    const isNewMovie = currentMovieId !== movieId
+    setSwitchingId(movieId)
+    socket.timeout(8000).emit(
+      'play-movie',
+      { roomId, movieId },
+      (error: Error | null, ack?: { success?: boolean; message?: string }) => {
+        setSwitchingId(null)
+        if (error || !ack?.success) {
+          message.error(ack?.message || '切换影片失败，请重试')
+        } else if (!isHost && isNewMovie && previousSourceUrl) {
+          // 服务端确认的是片单选择；实际片源仍由分享端加载并广播。
+          // 旧版分享端可能忽略切片事件，此时明确提示而不把高亮当成播放成功。
+          window.setTimeout(() => {
+            const state = useRoomStore.getState()
+            if (
+              state.roomId === roomId &&
+              state.currentMovieId === movieId &&
+              state.watchTogether.sourceUrl === previousSourceUrl
+            ) {
+              message.error('分享端未切换，请刷新后重试')
+            }
+          }, 12000)
+        }
+      }
+    )
   }
 
   const handleRemove = async (movieId: number) => {
@@ -501,7 +526,8 @@ export function MovieListPanel({
                       className="h-7 flex-shrink-0 px-2"
                       icon={<Play className="h-3.5 w-3.5" />}
                       onClick={() => handlePlay(movie.id)}
-                      disabled={(!isHost && !canManage) || isScreenShare}
+                      loading={switchingId === movie.id}
+                      disabled={(!isHost && !canManage) || isScreenShare || switchingId !== null}
                       title={
                         isScreenShare
                           ? '远程共享模式下不可播放'

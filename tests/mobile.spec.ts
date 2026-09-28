@@ -50,6 +50,42 @@ test('local lobby, room, chat, return and re-entry', async ({ page }) => {
   expect(errors).toEqual([])
 })
 
+test('a permitted viewer can switch the host to another movie', async ({ page: host, context, request }) => {
+  await login(host)
+  await host.getByRole('button', { name: '创建', exact: true }).click()
+  await host.getByLabel('房间名称').fill('影片切换测试')
+  await host.getByRole('button', { name: '创建并进入房间' }).click()
+  await expect(host.getByText('房主 · 同步观影')).toBeVisible()
+  const roomId = decodeURIComponent(new URL(host.url()).hash.split('/').at(-1)!)
+
+  const viewer = await context.newPage()
+  await viewer.goto('/')
+  await expect(viewer.getByText('已连接', { exact: true })).toBeVisible()
+  await open(viewer, '影片切换测试')
+  await expect(viewer.getByText('观众 · 同步观影')).toBeVisible()
+  const movies = [480, 720].map((quality, index) => ({
+    id: index + 1,
+    roomId,
+    url: `/api/test-media/${quality}.mp4`,
+    title: `第 ${index + 1} 部影片`,
+    source: 'mp4',
+    format: 'mp4',
+    duration: 2,
+    order: index,
+  }))
+  await host.getByRole('button', { name: '片单', exact: true }).click()
+  await viewer.getByRole('button', { name: '片单', exact: true }).click()
+  await request.post('http://127.0.0.1:3347/test/event', { data: { roomId, event: 'movie-list', data: { movies } } })
+  await expect(host.getByText('第 1 部影片')).toBeVisible()
+  await expect(viewer.getByText('第 2 部影片')).toBeVisible()
+  await request.post('http://127.0.0.1:3347/test/event', { data: { roomId, event: 'current-movie', data: { movieId: 1 } } })
+  await expect.poll(() => host.locator('video').first().evaluate((video: HTMLVideoElement) => video.currentSrc)).toContain('/api/test-media/480.mp4')
+
+  await viewer.locator('.movie-list-scroll .zen-item-enter').filter({ hasText: '第 2 部影片' }).getByTitle('播放').click()
+  await expect.poll(() => host.locator('video').first().evaluate((video: HTMLVideoElement) => video.currentSrc)).toContain('/api/test-media/720.mp4')
+  await viewer.close()
+})
+
 for (const width of [320, 360, 390, 430, 600, 768, 1024]) {
   test(`music settings fit ${width}px without horizontal scrolling`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })

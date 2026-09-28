@@ -357,11 +357,13 @@ export function useWatchTogether({
     }
 
     const handleCurrentMovie = (payload: { movieId: number | null }) => {
-      // 房主刷新恢复期间，recovery 已通过 register-host 回调写入 currentMovieId，
-      // 不接受后端 current-movie 事件的覆盖（后端 roomStateService 可能因状态丢失
-      // 或预览模式残留返回 null，导致 recovery 被清空）。
-      // 仅在 store 中无 currentMovieId 时才接受事件值（如观众端首次加入房间）。
-      if (isHostRef.current && useRoomStore.getState().currentMovieId) return
+      // 房主恢复时忽略后端残留的空值，但必须接受其他有权限成员发起的
+      // 非空切片事件；否则服务器已切换 currentMovieId，房主仍持续广播旧片源。
+      if (
+        isHostRef.current &&
+        useRoomStore.getState().currentMovieId &&
+        payload.movieId === null
+      ) return
       setCurrentMovieId(payload.movieId)
     }
 
