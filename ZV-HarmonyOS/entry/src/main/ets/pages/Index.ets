@@ -1,4 +1,4 @@
-import { common } from '@kit.AbilityKit';
+import { abilityAccessCtrl, common } from '@kit.AbilityKit';
 import { webview } from '@kit.ArkWeb';
 import { window } from '@kit.ArkUI';
 
@@ -43,7 +43,10 @@ class HarmonyHost {
   request(id: number, action: string, argument: string): void {
     if (!Number.isSafeInteger(id) || id < 1 || id > 2147483647 || argument.length > 1024) return;
     this.perform(action, argument).then(() => this.respond(id, null))
-      .catch((error: Error) => this.respond(id, error.message || 'Native operation failed'));
+      .catch((error: Error) => {
+        console.error(`ZViewer native ${action} failed: ${error.message}`);
+        this.respond(id, error.message || 'Native operation failed');
+      });
   }
 
   private async perform(action: string, argument: string): Promise<void> {
@@ -64,6 +67,12 @@ class HarmonyHost {
       await mainWindow.setWindowLayoutFullScreen(enabled);
       await mainWindow.setSpecificSystemBarEnabled('status', !enabled);
       await mainWindow.setSpecificSystemBarEnabled('navigation', !enabled);
+      return;
+    }
+    if (action === 'requestMicrophonePermission') {
+      const result = await abilityAccessCtrl.createAtManager()
+        .requestPermissionsFromUser(this.context, ['ohos.permission.MICROPHONE']);
+      if (result.authResults[0] !== 0) throw new Error('Microphone permission denied');
       return;
     }
     throw new Error('Unsupported native action');
@@ -130,6 +139,20 @@ struct Index {
         })
         .onInterceptRequest((event) => {
           return this.localResource(event.request.getRequestUrl());
+        })
+        .onPermissionRequest((event) => {
+          const request = event.request;
+          const resources = request.getAccessibleResource();
+          const origin = request.getOrigin();
+          if (
+            (origin !== LOCAL_ORIGIN && origin !== `${LOCAL_ORIGIN}/`) ||
+            resources.length !== 1 ||
+            resources[0] !== 'TYPE_AUDIO_CAPTURE'
+          ) {
+            request.deny();
+            return;
+          }
+          request.grant(resources);
         })
         .onPageEnd(() => {
           this.controller.runJavaScript("window.zviewerNative?.platform || 'missing'")

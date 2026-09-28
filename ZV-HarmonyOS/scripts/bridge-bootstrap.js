@@ -38,5 +38,6 @@
     toggleOrientation: (isLandscape) => request('toggleOrientation', isLandscape),
     unlockOrientation: () => request('unlockOrientation', null),
     setImmersive: (enabled) => request('setImmersive', enabled),
+    requestMicrophonePermission: () => request('requestMicrophonePermission', null).then(() => true, () => false),
   };
 })();

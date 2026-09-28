@@ -58,5 +58,6 @@ the phone test.
 ArkWeb receives a `zviewerHost` proxy with a platform handshake, background
 action and request/response methods for orientation and immersive display.
 Only the local virtual origin is allowed to navigate inside the component.
-Native microphone, background media and Bilibili methods are pending. See
+Microphone capture requests both the system permission and ArkWeb media access
+for the local origin. Background media and Bilibili methods are pending. See
 `docs/harmonyos-development-plan.md` for the milestone scope.

@@ -53,6 +53,11 @@ const server = http.createServer(async (req, res) => {
     res.end(fs.readFileSync(new URL(`./fixtures/bilibili/video-${url.pathname.endsWith('480.mp4') ? '480' : '720'}.mp4`, import.meta.url)))
     return
   }
+  else if (url.pathname === '/api/test-media/480.flv') {
+    res.setHeader('Content-Type', 'video/x-flv')
+    res.end(fs.readFileSync(new URL('./fixtures/video-480.flv', import.meta.url)))
+    return
+  }
   else if (url.pathname.startsWith('/api/stream/') || url.pathname.startsWith('/live/')) {
     mediaRequests.push(req.url)
     res.writeHead(404)

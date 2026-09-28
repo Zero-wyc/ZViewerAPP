@@ -1,6 +1,7 @@
 {
   "string": [
     { "name": "module_desc", "value": "ZViewer HarmonyOS host" },
-    { "name": "EntryAbility_desc", "value": "ZViewer" }
+    { "name": "EntryAbility_desc", "value": "ZViewer" },
+    { "name": "microphone_permission_reason", "value": "加入房间语音时使用麦克风" }
   ]
 }
