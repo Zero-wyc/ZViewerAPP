@@ -19,7 +19,8 @@ import { useSystemSettingsStore } from '@/store/systemSettingsStore'
 import type { QualityOption } from './resolveSource'
 import { buildServerFileProxyUrl } from '@/modules/server-files/serverFilesApi'
 import { resolveMovieDirectUrl } from '@/modules/direct-link/directLinkApi'
-import { getEmbeddedProxyStatus, isEmbeddedAndroid, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
+import { getEmbeddedProxyStatus, isEmbeddedBilibiliHost, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
+import { getRuntimePlatform } from '../../../../platform/runtime'
 import { getNativeQualityPolicy, getWebViewCapabilities, nativeQualityCacheKey, recordNativeQuality } from '@/modules/bilibili/nativeQualityPolicy'
 import {
   resolveAniSubsEpisode,
@@ -119,9 +120,9 @@ function normalizeLocalCliProxyUrl(proxyUrl: string): string {
  * 会失败并报错。
  */
 export function getActiveCliProxyUrl(): string | null {
-  if (isEmbeddedAndroid()) {
+  if (isEmbeddedBilibiliHost()) {
     const local = getEmbeddedProxyStatus()
-    return local.ready && local.loggedIn ? local.proxyUrl : null
+    return local.ready && (local.loggedIn || getRuntimePlatform() === 'harmony') ? local.proxyUrl : null
   }
   const { agents } = useCliAgentStore.getState()
   if (agents.length === 0) return null
@@ -233,26 +234,26 @@ export async function resolveBilibiliOnline(
 ): Promise<ResolvedMovieSource> {
   const parsePrefs = getBilibiliParseOptions(movie.id)
   const policy = getNativeQualityPolicy(movie.id)
-  const qn = isEmbeddedAndroid() ? policy.qn : movie.currentQn
+  const qn = isEmbeddedBilibiliHost() ? policy.qn : movie.currentQn
   const proxyUrl = parsePrefs.cliEnabled ? getActiveCliProxyUrl() : null
   // CLI 已启用时强制使用 DASH 代理，不再降级 MP4；未连接时直接报错，避免回退
   const effectivePreferMp4 =
     options?.preferMp4 ?? getEffectivePreferMp4(movie.id)
   const forceDash = parsePrefs.cliEnabled && !!proxyUrl
 
-  if (parsePrefs.cliEnabled && !proxyUrl && !isEmbeddedAndroid()) {
+  if (parsePrefs.cliEnabled && !proxyUrl && !isEmbeddedBilibiliHost()) {
     throw new Error('CLI 代理未连接，请先启动本地 zcontrol-cli')
   }
 
   const forceRefresh = options?.forceRefresh === true
   const nativeSession = getEmbeddedProxyStatus().sessionVersion
-  const capabilityKey = isEmbeddedAndroid() && proxyUrl ? JSON.stringify(await getWebViewCapabilities()) : ''
+  const capabilityKey = isEmbeddedBilibiliHost() && proxyUrl ? JSON.stringify(await getWebViewCapabilities()) : ''
   const cacheKey = buildBilibiliResolveCacheKey(
     movie.id,
     qn,
     effectivePreferMp4,
     proxyUrl
-  ) + `|${movie.url}|${movie.cid ?? ''}|${isEmbeddedAndroid() ? nativeQualityCacheKey(movie.id) : ''}|${capabilityKey}`
+  ) + `|${movie.url}|${movie.cid ?? ''}|${isEmbeddedBilibiliHost() ? nativeQualityCacheKey(movie.id) : ''}|${capabilityKey}`
   if (!forceRefresh) {
     const cached = bilibiliResolveCache.get(cacheKey)
     if (cached && cached.expiresAt > Date.now()) {
@@ -265,7 +266,7 @@ export async function resolveBilibiliOnline(
   let resolvedSource: ResolvedMovieSource
   if (proxyUrl) {
     const bvid = extractBvid(movie.url)
-    if (bvid && (movie.cid || isEmbeddedAndroid())) {
+    if (bvid && (movie.cid || isEmbeddedBilibiliHost())) {
       const resolved = await resolveBilibiliViaCli(
         proxyUrl,
         bvid,
@@ -273,7 +274,7 @@ export async function resolveBilibiliOnline(
         qn,
         effectivePreferMp4,
         forceDash,
-        isEmbeddedAndroid() ? { qualityMode: policy.mode, fallbackQn: policy.fallbackQn, timeoutMs: options?.timeoutMs } : undefined
+        isEmbeddedBilibiliHost() ? { qualityMode: policy.mode, fallbackQn: policy.fallbackQn, timeoutMs: options?.timeoutMs } : undefined
       )
       resolvedSource = mapResolvedSourceToMovieSource(resolved, movie)
     } else {
@@ -288,19 +289,19 @@ export async function resolveBilibiliOnline(
   } else {
     const resolved = await resolveBilibiliWithOptions(
       movie.url,
-      isEmbeddedAndroid() ? qn ?? 64 : movie.currentQn,
+      isEmbeddedBilibiliHost() ? qn ?? 64 : movie.currentQn,
       onProgress,
       { preferMp4: effectivePreferMp4 }
     )
     resolvedSource = mapResolvedSourceToMovieSource(resolved, movie)
   }
 
-  if (isEmbeddedAndroid() && nativeSession !== getEmbeddedProxyStatus().sessionVersion) throw new Error('账号已切换，请重新解析')
+  if (isEmbeddedBilibiliHost() && nativeSession !== getEmbeddedProxyStatus().sessionVersion) throw new Error('账号已切换，请重新解析')
   bilibiliResolveCache.set(cacheKey, {
     resolved: resolvedSource,
     expiresAt: Date.now() + BILIBILI_RESOLVE_CACHE_TTL_MS,
   })
-  if (isEmbeddedAndroid() && resolvedSource.currentQn) recordNativeQuality(movie.id, resolvedSource.currentQn, resolvedSource.acceptQuality ?? [])
+  if (isEmbeddedBilibiliHost() && resolvedSource.currentQn) recordNativeQuality(movie.id, resolvedSource.currentQn, resolvedSource.acceptQuality ?? [])
   return resolvedSource
 }
 
@@ -396,7 +397,7 @@ export async function resolveMovieSource({
 }: ResolveMovieSourceOptions): Promise<ResolvedMovieSource> {
   if (sourceType === 'bilibili') {
     // 恢复场景且旧 URL 可用：直接复用，跳过在线解析
-    if (recovery?.sourceUrl && !isEmbeddedAndroid()) {
+    if (recovery?.sourceUrl && !isEmbeddedBilibiliHost()) {
       // B站 源的防盗链由服务器代理（m4s）或直连（MP4）处理，不需要前端 headers。
       // recovery.headers 可能来自旧的非 B站 源（如 anime），复用时必须清除，
       // 否则 resolveProxyUrl 会因 hasHeaders=true 将 MP4 直链包装为服务器代理 URL。

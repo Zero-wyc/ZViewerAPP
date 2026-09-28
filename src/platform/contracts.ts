@@ -15,6 +15,11 @@ export interface BilibiliQrSession {
   qrDataUrl: string
 }
 
+export interface HarmonyBilibiliQrSession {
+  qrcodeKey: string
+  qrUrl: string
+}
+
 export interface PlayerDisplayPort {
   toggleOrientation(isLandscape: boolean): Promise<void>
   setImmersive(enabled: boolean): Promise<void>
@@ -43,6 +48,12 @@ export interface HarmonyNativeBridge {
   setMediaPlaybackPreferred?(enabled: boolean): void | Promise<void>
   minimizeApp?(): void | Promise<void>
   requestMicrophonePermission?(): boolean | Promise<boolean>
+  bilibiliStart?(): Promise<BilibiliProxyStatus>
+  bilibiliStatus?(): Promise<BilibiliProxyStatus>
+  bilibiliCreateQr?(): Promise<HarmonyBilibiliQrSession>
+  bilibiliPollQr?(key: string): Promise<{ status: number; message?: string; loggedIn?: boolean; proxyStatus?: BilibiliProxyStatus }>
+  bilibiliCancelQr?(): Promise<void>
+  bilibiliLogout?(): Promise<BilibiliProxyStatus>
 }
 
 declare global {

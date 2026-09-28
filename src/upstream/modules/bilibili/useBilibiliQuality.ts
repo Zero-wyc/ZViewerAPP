@@ -9,7 +9,7 @@ import { safePlay } from '@/modules/sync-playback/safePlay'
 import { getBilibiliParseOptions } from './parseOptions'
 import { extractBvid, resolveBilibiliViaCli } from './cliApi'
 import { getActiveCliProxyUrl } from '@/modules/room/watch-together/movie-source-resolver'
-import { isEmbeddedAndroid } from '../../../platform/bilibiliProxy'
+import { isEmbeddedBilibiliHost } from '../../../platform/bilibiliProxy'
 import { getNativeQualityPolicy, selectNativeQuality, recordNativeQuality } from './nativeQualityPolicy'
 
 function qualitiesEqual(a: QualityOption[], b: QualityOption[]): boolean {
@@ -112,7 +112,7 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
       const shouldPlay = !video.paused
 
       try {
-        if (isEmbeddedAndroid() && !preResolved) selectNativeQuality(movie.id, qn)
+        if (isEmbeddedBilibiliHost() && !preResolved) selectNativeQuality(movie.id, qn)
         let resolved: ResolvedSource
         if (preResolved) {
           resolved = preResolved
@@ -129,7 +129,7 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
                 qn,
                 false,
                 true,
-                isEmbeddedAndroid() ? { qualityMode: getNativeQualityPolicy(movie.id).mode } : undefined
+                isEmbeddedBilibiliHost() ? { qualityMode: getNativeQualityPolicy(movie.id).mode } : undefined
               )
             } else {
               throw new Error('无法提取 BV 号或 cid，无法使用 CLI 代理')
@@ -142,7 +142,7 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
         if (!resolved.videoUrl) {
           throw new Error('未获取到对应清晰度的播放地址')
         }
-        if (isEmbeddedAndroid() && resolved.currentQn) recordNativeQuality(movie.id, resolved.currentQn, resolved.acceptQuality ?? [])
+        if (isEmbeddedBilibiliHost() && resolved.currentQn) recordNativeQuality(movie.id, resolved.currentQn, resolved.acceptQuality ?? [])
 
         const newState: WatchTogetherState = {
           ...state,

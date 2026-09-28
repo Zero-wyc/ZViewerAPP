@@ -36,7 +36,7 @@ import type { ResolvedSource } from '@/modules/bilibili/types'
 import { safePlay } from '../safePlay'
 import { executeSeek } from '../services'
 import type { SeekToResult } from '../services'
-import { getEmbeddedProxyStatus, isEmbeddedAndroid, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
+import { getEmbeddedProxyStatus, isEmbeddedBilibiliHost, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
 import { fallbackNativeQuality, getNativeQualityPolicy, getQualitySelectionRevision, recordNativeQuality, restoreNativeQuality, type NativeQualityPolicy } from '@/modules/bilibili/nativeQualityPolicy'
 
 interface ViewerLocalOverride {
@@ -68,7 +68,7 @@ async function ensureViewerLocalOverride(
     return null
   }
   const movie = storeState.movies.find((m) => m.id === movieId)
-  if (!movie?.url || (!movie.cid && !isEmbeddedAndroid())) {
+  if (!movie?.url || (!movie.cid && !isEmbeddedBilibiliHost())) {
     return null
   }
 
@@ -84,7 +84,7 @@ async function ensureViewerLocalOverride(
   const adjustedPreferMp4 = forceViewerMp4 || effectivePreferMp4
 
   // 本地偏好与房主一致且房主源不是 CLI 代理地址：直接使用房主广播源
-  if (!isEmbeddedAndroid() && adjustedPreferMp4 === hostIsMp4 && !isCliProxyUrl(state.sourceUrl)) {
+  if (!isEmbeddedBilibiliHost() && adjustedPreferMp4 === hostIsMp4 && !isCliProxyUrl(state.sourceUrl)) {
     if (existing?.movieId === movieId) {
       storeState.setViewerCliResolvedSource(null)
     }
@@ -120,7 +120,7 @@ async function ensureViewerLocalOverride(
     storeState.setViewerCliResolvedSource(override)
     return override
   } catch (err) {
-    if (isEmbeddedAndroid()) throw err
+    if (isEmbeddedBilibiliHost()) throw err
     console.error('[useVideoSource] 观众本地解析失败:', err)
     // 失败后清除旧覆盖，回退到房主源（可能无法播放，由上层提示）
     if (existing?.movieId === movieId) {
@@ -243,7 +243,7 @@ function toPlayerSource(
       source.p2pEnabled = true
     }
   }
-  if (isEmbeddedAndroid() && state.sourceType === 'bilibili' && cliProxyActive) source.attachTimeoutMs = 30000
+  if (isEmbeddedBilibiliHost() && state.sourceType === 'bilibili' && cliProxyActive) source.attachTimeoutMs = 30000
   return source
 }
 
@@ -314,7 +314,7 @@ export function useVideoSource({
     (err: Error) => {
       const state = useRoomStore.getState().watchTogether
       if (state.sourceType === 'bilibili') {
-        if (isEmbeddedAndroid() && !suppressEventsRef.current && nativeAttachmentDepth.current === 0) void nativeRecoveryRef.current(err).catch(error => message.error(error.message))
+        if (isEmbeddedBilibiliHost() && !suppressEventsRef.current && nativeAttachmentDepth.current === 0) void nativeRecoveryRef.current(err).catch(error => message.error(error.message))
         return
       }
       if (suppressEventsRef.current) return
@@ -429,10 +429,10 @@ export function useVideoSource({
       try {
         await attachSource(video, toPlayerSource(effectiveState, startTime, blobs))
         const movieId = useRoomStore.getState().currentMovieId
-        if (isEmbeddedAndroid() && movieId != null && effectiveState.currentQn) recordNativeQuality(movieId, effectiveState.currentQn, effectiveState.acceptQuality ?? [])
-        if (isEmbeddedAndroid() && movieId != null && effectiveState.sourceType === 'bilibili') lastNativeSource.current = { movieId, cid: useRoomStore.getState().movies.find(movie => movie.id === movieId)?.cid, sessionVersion: getEmbeddedProxyStatus().sessionVersion, state: effectiveState, policy: { ...getNativeQualityPolicy(movieId) } }
+        if (isEmbeddedBilibiliHost() && movieId != null && effectiveState.currentQn) recordNativeQuality(movieId, effectiveState.currentQn, effectiveState.acceptQuality ?? [])
+        if (isEmbeddedBilibiliHost() && movieId != null && effectiveState.sourceType === 'bilibili') lastNativeSource.current = { movieId, cid: useRoomStore.getState().movies.find(movie => movie.id === movieId)?.cid, sessionVersion: getEmbeddedProxyStatus().sessionVersion, state: effectiveState, policy: { ...getNativeQualityPolicy(movieId) } }
       } catch (err) {
-        if (!isEmbeddedAndroid() || effectiveState.sourceType !== 'bilibili' || blobs) throw err
+        if (!isEmbeddedBilibiliHost() || effectiveState.sourceType !== 'bilibili' || blobs) throw err
         const store = useRoomStore.getState()
         const previous = lastNativeSource.current
         if (store.currentMovieId != null && getNativeQualityPolicy(store.currentMovieId).mode === 'manual' && previous?.movieId === store.currentMovieId && previous.cid === store.movies.find(movie => movie.id === store.currentMovieId)?.cid && previous.sessionVersion === getEmbeddedProxyStatus().sessionVersion) {
@@ -472,7 +472,7 @@ export function useVideoSource({
 
   useEffect(() => {
     const video = videoRef.current
-    if (!video || !isEmbeddedAndroid()) return
+    if (!video || !isEmbeddedBilibiliHost()) return
     const failed = () => {
       if (!suppressEventsRef.current && nativeAttachmentDepth.current === 0) void nativeRecoveryRef.current(new Error('DASH 流加载或解码失败')).catch(err => message.error(err.message))
     }

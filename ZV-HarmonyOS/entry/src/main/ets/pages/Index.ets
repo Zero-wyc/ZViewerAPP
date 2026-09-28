@@ -1,9 +1,13 @@
 import { abilityAccessCtrl, common } from '@kit.AbilityKit';
 import { webview } from '@kit.ArkWeb';
 import { window } from '@kit.ArkUI';
+import { BilibiliLocalProxy } from '../services/BilibiliLocalProxy';
 
 const LOCAL_ORIGIN = 'https://zviewer.local';
 const LOCAL_PAGE = `${LOCAL_ORIGIN}/index.html`;
+
+interface PollQrArgument { key: string; }
+const bilibiliProxy = new BilibiliLocalProxy();
 
 function mimeType(path: string): string {
   if (path.endsWith('.html')) return 'text/html';
@@ -42,24 +46,37 @@ class HarmonyHost {
 
   request(id: number, action: string, argument: string): void {
     if (!Number.isSafeInteger(id) || id < 1 || id > 2147483647 || argument.length > 1024) return;
-    this.perform(action, argument).then(() => this.respond(id, null))
+    this.perform(action, argument).then((result: string | null) => this.respond(id, null, result))
       .catch((error: Error) => {
         console.error(`ZViewer native ${action} failed: ${error.message}`);
-        this.respond(id, error.message || 'Native operation failed');
+        this.respond(id, error.message || 'Native operation failed', null);
       });
   }
 
-  private async perform(action: string, argument: string): Promise<void> {
+  private async perform(action: string, argument: string): Promise<string | null> {
+    if (action === 'bilibiliStart') {
+      await bilibiliProxy.start();
+      return JSON.stringify(bilibiliProxy.status());
+    }
+    if (action === 'bilibiliStatus') return JSON.stringify(bilibiliProxy.status());
+    if (action === 'bilibiliCreateQr') return JSON.stringify(await bilibiliProxy.createQr());
+    if (action === 'bilibiliPollQr') {
+      const options = JSON.parse(argument) as PollQrArgument;
+      if (!options.key || options.key.length > 128) throw new Error('Invalid QR session');
+      return JSON.stringify(await bilibiliProxy.pollQr(options.key));
+    }
+    if (action === 'bilibiliCancelQr') { bilibiliProxy.cancelQr(); return null; }
+    if (action === 'bilibiliLogout') return JSON.stringify(await bilibiliProxy.logout());
     const mainWindow = await window.getLastWindow(this.context);
     if (action === 'toggleOrientation') {
       if (argument !== 'true' && argument !== 'false') throw new Error('Invalid orientation argument');
       if (this.initialOrientation === null) this.initialOrientation = mainWindow.getPreferredOrientation();
       await mainWindow.setPreferredOrientation(argument === 'true' ? window.Orientation.LANDSCAPE : window.Orientation.PORTRAIT);
-      return;
+      return null;
     }
     if (action === 'unlockOrientation') {
       await mainWindow.setPreferredOrientation(this.initialOrientation ?? window.Orientation.UNSPECIFIED);
-      return;
+      return null;
     }
     if (action === 'setImmersive') {
       if (argument !== 'true' && argument !== 'false') throw new Error('Invalid immersive argument');
@@ -67,19 +84,19 @@ class HarmonyHost {
       await mainWindow.setWindowLayoutFullScreen(enabled);
       await mainWindow.setSpecificSystemBarEnabled('status', !enabled);
       await mainWindow.setSpecificSystemBarEnabled('navigation', !enabled);
-      return;
+      return null;
     }
     if (action === 'requestMicrophonePermission') {
       const result = await abilityAccessCtrl.createAtManager()
         .requestPermissionsFromUser(this.context, ['ohos.permission.MICROPHONE']);
       if (result.authResults[0] !== 0) throw new Error('Microphone permission denied');
-      return;
+      return null;
     }
     throw new Error('Unsupported native action');
   }
 
-  private respond(id: number, error: string | null): void {
-    this.controller.runJavaScript(`window.__zvHarmonyResponse?.(${id}, ${JSON.stringify(error)})`)
+  private respond(id: number, error: string | null, result: string | null): void {
+    this.controller.runJavaScript(`window.__zvHarmonyResponse?.(${id}, ${JSON.stringify(error)}, ${JSON.stringify(result)})`)
       .catch(() => console.error('Unable to deliver native response'));
   }
 }

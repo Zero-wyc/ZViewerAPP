@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { message } from '@/components/ui/message'
-import { embeddedBilibiliProxy, isEmbeddedAndroid, startEmbeddedProxy, useEmbeddedProxyStatus } from '../platform/bilibiliProxy'
+import { embeddedBilibiliProxy, isEmbeddedBilibiliHost, startEmbeddedProxy, useEmbeddedProxyStatus } from '../platform/bilibiliProxy'
 import type { BilibiliQrSession } from '../platform/contracts'
+import { getRuntimePlatform } from '../platform/runtime'
 
 export function BilibiliAccount() {
   const proxy = useEmbeddedProxyStatus()
@@ -47,23 +48,24 @@ export function BilibiliAccount() {
     } catch (err) { if (seq === generation.current) setError(err instanceof Error ? err.message : '获取二维码失败') }
     finally { if (seq === generation.current) setBusy(false) }
   }
-  if (!isEmbeddedAndroid()) return null
+  if (!isEmbeddedBilibiliHost()) return null
   return <>
     <button className="mobile-text-button" type="button" onClick={() => setOpen(true)}>B 站账号{proxy.loggedIn ? ' · 已登录' : ''}</button>
     <Modal open={open} title="B 站账号" onClose={close} footer={null}>
       {proxy.loggedIn ? <div className="bili-account-panel">
         <p>{proxy.user?.name || 'B 站用户'} · {proxy.user?.vipStatus ? '大会员' : '普通账号'}</p>
         <p>默认自动选择本机可播放的最高普通画质；高画质不可用时优先 720p。自动模式排除 HDR 和杜比视界。</p>
+        <button className="mobile-text-button" disabled={busy} onClick={() => void login()}>{busy ? '正在获取二维码' : '切换 B 站账号'}</button>
         <button className="mobile-text-button" onClick={() => void embeddedBilibiliProxy.logout().catch(err => setError(String(err)))}>退出 B 站登录</button>
       </div> : <div className="bili-account-panel">
         <p>登录后默认自动最高画质。登录凭据加密保存在本机，不发送给 ZViewer 服务器。</p>
         <button className="mobile-text-button" disabled={busy} onClick={() => void login()}>{busy ? '正在获取二维码' : qr ? '重新获取二维码' : '获取登录二维码'}</button>
-        {qr && <>
-          <img src={qr.qrDataUrl} alt="B站登录二维码" style={{ width: 220, maxWidth: '100%', display: 'block', margin: '16px auto' }} />
-          <p>{status}</p>
-          <button className="mobile-text-button" onClick={() => void embeddedBilibiliProxy.saveQr().then(() => message.success('二维码已保存或已打开分享入口')).catch(err => setError(String(err)))}>保存二维码</button>
-          <p>同一手机可保存二维码后，在 B 站“扫一扫”中从相册识别；也可使用另一设备扫码。</p>
-        </>}
+      </div>}
+      {qr && <div className="bili-account-panel">
+        <img src={qr.qrDataUrl} alt="B站登录二维码" style={{ width: 220, maxWidth: '100%', display: 'block', margin: '16px auto' }} />
+        <p>{status}</p>
+        {getRuntimePlatform() === 'android' && <button className="mobile-text-button" onClick={() => void embeddedBilibiliProxy.saveQr().then(() => message.success('二维码已保存或已打开分享入口')).catch(err => setError(String(err)))}>保存二维码</button>}
+        <p>{getRuntimePlatform() === 'harmony' ? '可用另一设备扫码；同一手机请截图后在 B 站“扫一扫”中从相册识别。' : '同一手机可保存二维码后，在 B 站“扫一扫”中从相册识别；也可使用另一设备扫码。'}</p>
       </div>}
       {(error || proxy.error) && <p role="alert">{error || proxy.error}</p>}
     </Modal>

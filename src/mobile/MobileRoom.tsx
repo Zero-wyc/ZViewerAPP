@@ -135,7 +135,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
         <div className="mobile-room-title"><strong>{name || roomId}</strong><span>{room.isHost ? '房主' : '观众'} · {music ? '一起听' : mode === 'screen-share' ? '屏幕共享' : '同步观影'}</span></div>
         {ready && <ScreenOrientationButton className="icon-button mobile-orientation-button" />}
         {ready && <button className={`icon-button mobile-voice-trigger ${voiceJoined ? 'is-connected' : ''}`} title={voiceJoined ? '语音已连接' : '语音聊天'} aria-label="语音聊天" aria-expanded={voiceOpen} onClick={() => setVoiceOpen(value => !value)}><Headphones size={20} /></button>}
-        <button className="icon-button" title="房间设置" aria-label="房间设置" onClick={() => music ? setSettingsOpen(true) : setTab('room')}><UsersRound size={20} /></button>
+        <button className="icon-button" title="房间设置" aria-label="房间设置" onClick={() => setSettingsOpen(true)}><UsersRound size={20} /></button>
       </header>
       {!connected && <div className="mobile-status" role="status"><WifiOff size={15} />连接已断开，正在重连</div>}
       {!ready ? (

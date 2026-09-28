@@ -27,7 +27,7 @@ import {
 } from '@/modules/bilibili/parseOptions'
 import { useCliAgentStore } from '@/store/cliAgentStore'
 import { cn } from '@/lib/utils'
-import { isEmbeddedAndroid } from '../../../../platform/bilibiliProxy'
+import { isEmbeddedBilibiliHost } from '../../../../platform/bilibiliProxy'
 import { NativeQualitySelect } from '@/modules/bilibili/NativeQualitySelect'
 import { getNativeQualityPolicy } from '@/modules/bilibili/nativeQualityPolicy'
 
@@ -135,10 +135,22 @@ export function MovieListPanel({
     const previousSourceUrl = useRoomStore.getState().watchTogether.sourceUrl
     const isNewMovie = currentMovieId !== movieId
     setSwitchingId(movieId)
-    socket.timeout(8000).emit(
-      'play-movie',
-      { roomId, movieId },
-      (error: Error | null, ack?: { success?: boolean; message?: string }) => {
+    const complete = (error: Error | null, ack?: { success?: boolean; message?: string }, retried = false) => {
+        if (!retried && isHost && !error && ack?.message === '影片不存在') {
+          // The server can retain the DB playlist while losing its in-memory room
+          // movie list. Registering the host refreshes that list before retrying.
+          socket.timeout(8000).emit('register-host', { roomId },
+            (registerError: Error | null, registerAck?: { success?: boolean }) => {
+              if (registerError || !registerAck?.success) {
+                setSwitchingId(null)
+                message.error('片单同步失败，请重新进入房间')
+                return
+              }
+              socket.timeout(8000).emit('play-movie', { roomId, movieId },
+                (retryError: Error | null, retryAck?: { success?: boolean; message?: string }) => complete(retryError, retryAck, true))
+            })
+          return
+        }
         setSwitchingId(null)
         if (error || !ack?.success) {
           message.error(ack?.message || '切换影片失败，请重试')
@@ -156,8 +168,8 @@ export function MovieListPanel({
             }
           }, 12000)
         }
-      }
-    )
+    }
+    socket.timeout(8000).emit('play-movie', { roomId, movieId }, complete)
   }
 
   const handleRemove = async (movieId: number) => {
@@ -479,7 +491,7 @@ export function MovieListPanel({
                       )}
                     </div>
                     {movie.sourceType === 'bilibili' &&
-                      (isEmbeddedAndroid() || (movie.acceptQuality && movie.acceptQuality.length > 0)) && (
+                      (isEmbeddedBilibiliHost() || (movie.acceptQuality && movie.acceptQuality.length > 0)) && (
                         <BilibiliQualitySelect
                           movie={movie}
                           isHost={isHost}
@@ -670,7 +682,7 @@ function BilibiliQualitySelect({
   const canChangeQuality =
     isHost || (parsePrefs.cliEnabled && cliAgentAvailable)
 
-  if (isEmbeddedAndroid()) return <NativeQualitySelect movieId={movie.id} isHost={isHost} disabled={isScreenShare || qualityLoadingId === movie.id || effectivePreferMp4} />
+  if (isEmbeddedBilibiliHost()) return <NativeQualitySelect movieId={movie.id} isHost={isHost} disabled={isScreenShare || qualityLoadingId === movie.id || effectivePreferMp4} />
 
   return (
     <Select

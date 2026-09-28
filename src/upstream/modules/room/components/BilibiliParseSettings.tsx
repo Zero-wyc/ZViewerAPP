@@ -34,7 +34,7 @@ import { useAuthStore } from '@/store/authStore'
 import { getApiUrl } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useSystemSettingsStore } from '@/store/systemSettingsStore'
-import { isEmbeddedAndroid } from '../../../../platform/bilibiliProxy'
+import { isEmbeddedBilibiliHost } from '../../../../platform/bilibiliProxy'
 import { BilibiliAccount } from '../../../../mobile/BilibiliAccount'
 
 export interface BilibiliParseSettingsProps {
@@ -197,7 +197,7 @@ export function BilibiliParseSettings({
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleOpenCliSetup = useCallback(() => {
-    if (isEmbeddedAndroid()) return
+    if (isEmbeddedBilibiliHost()) return
     const url = new URL('http://127.0.0.1:9333/')
     url.searchParams.set('server', getApiUrl())
     const username = useAuthStore.getState().user?.username
@@ -252,7 +252,7 @@ export function BilibiliParseSettings({
 
   return (
     <div className="w-full">
-      {isEmbeddedAndroid() && <BilibiliAccount />}
+      {isEmbeddedBilibiliHost() && <BilibiliAccount />}
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
@@ -307,13 +307,13 @@ export function BilibiliParseSettings({
                   className="text-[10px] font-bold leading-tight"
                   style={{ color: 'var(--md-sys-color-on-surface)' }}
                 >
-                  CLI 高画质代理
+                  {isEmbeddedBilibiliHost() ? '本机 B 站解析' : 'CLI 高画质代理'}
                 </span>
                 <span
                   className="text-[8px] font-medium uppercase tracking-wide"
                   style={{ color: 'var(--md-sys-color-on-surface-variant)' }}
                 >
-                  LOCAL PROXY
+                  {isEmbeddedBilibiliHost() ? 'DEVICE PROXY' : 'LOCAL PROXY'}
                 </span>
               </div>
               <div className="flex items-center gap-1">
@@ -386,18 +386,17 @@ export function BilibiliParseSettings({
               }
             >
               {displayP2pEnabled
-                ? 'P2P 与 CLI 代理互斥，请关闭 P2P 后再启用 CLI'
+                ? `P2P 与${isEmbeddedBilibiliHost() ? '本机解析' : 'CLI 代理'}互斥，请先关闭 P2P`
                 : displayCliEnabled
                   ? cliAgent.available
-                    ? `已连接本地代理 ${cliAgent.agentInfo?.version ?? ''}`
-                    : '已启用但未检测到本地 CLI，请先启动本地代理以播放 DASH 高画质'
-                  : '使用本地 zcontrol-cli 获取大会员等高画质'}
+                    ? isEmbeddedBilibiliHost() ? '使用本机代理解析和播放 B 站影片' : `已连接本地代理 ${cliAgent.agentInfo?.version ?? ''}`
+                    : isEmbeddedBilibiliHost() ? '本机解析暂不可用，请重开客户端' : '已启用但未检测到本地 CLI，请先启动本地代理以播放 DASH 高画质'
+                  : isEmbeddedBilibiliHost() ? '公开影片可直接解析；登录 B 站后可使用账号支持的画质' : '使用本地 zcontrol-cli 获取大会员等高画质'}
             </div>
 
-            <button
+            {!isEmbeddedBilibiliHost() && <button
               type="button"
               onClick={handleOpenCliSetup}
-              hidden={isEmbeddedAndroid()}
               className="mt-1.5 flex w-full items-center justify-center gap-1 rounded-md bg-[var(--md-sys-color-surface-container)] px-2 py-1 text-[10px] font-semibold text-[var(--md-sys-color-on-surface-variant)] transition-all hover:bg-[var(--md-sys-color-surface-container-highest)]"
               style={{
                 border: '1px solid var(--md-sys-color-outline)',
@@ -405,7 +404,7 @@ export function BilibiliParseSettings({
             >
               <ExternalLink className="h-3 w-3" />
               打开 CLI 配置页
-            </button>
+            </button>}
           </div>
 
           {/* 播放模式 */}
@@ -432,8 +431,8 @@ export function BilibiliParseSettings({
                 ? '服务器已禁用 DASH 模式，当前强制 MP4 播放'
                 : cliEnabled
                   ? cliAgent.available
-                    ? 'CLI 代理已启用，当前使用本地 DASH 高画质解析（不再自动降级 MP4）'
-                    : '已启用 CLI 但未连接本地代理，请先启动本地 zcontrol-cli 以播放 DASH 高画质'
+                    ? isEmbeddedBilibiliHost() ? '使用本机 DASH 画质解析' : 'CLI 代理已启用，当前使用本地 DASH 高画质解析（不再自动降级 MP4）'
+                    : isEmbeddedBilibiliHost() ? '本机解析暂不可用，请重开客户端' : '已启用 CLI 但未连接本地代理，请先启动本地 zcontrol-cli 以播放 DASH 高画质'
                   : displayPreferMp4
                     ? 'MP4 直链，seek 流畅，清晰度通常 480P/720P'
                     : 'DASH 分离流，支持 1080P/4K，seek 需缓冲'}
@@ -513,7 +512,7 @@ export function BilibiliParseSettings({
                   : effectivePreferMp4
                     ? 'MP4 模式不支持 P2P，请切换到 DASH'
                     : displayCliEnabled
-                      ? 'CLI 代理与 P2P 互斥，请关闭 CLI 后再启用 P2P'
+                      ? `${isEmbeddedBilibiliHost() ? '本机解析' : 'CLI 代理'}与 P2P 互斥，请先关闭本机解析`
                       : displayBufferMode
                         ? '缓冲模式下视频已本地缓存，无需 P2P'
                         : displayP2pEnabled

@@ -1,5 +1,5 @@
 import type { ResolvedSource } from './types'
-import { embeddedBilibiliProxy, getEmbeddedProxyStatus, isEmbeddedAndroid } from '../../../platform/bilibiliProxy'
+import { embeddedBilibiliProxy, getEmbeddedProxyStatus, isEmbeddedBilibiliHost } from '../../../platform/bilibiliProxy'
 import { getWebViewCapabilities } from './nativeQualityPolicy'
 
 const BV_REGEX = /BV[0-9A-Za-z]{10}/
@@ -133,7 +133,7 @@ export async function resolveBilibiliViaCli(
   const params = new URLSearchParams({
     bvid,
   })
-  const embedded = isEmbeddedAndroid() && proxyUrl === getEmbeddedProxyStatus().proxyUrl
+  const embedded = isEmbeddedBilibiliHost() && proxyUrl === getEmbeddedProxyStatus().proxyUrl
   if (embedded) {
     params.set('qualityMode', nativeOptions?.qualityMode ?? 'autoMax')
     if (nativeOptions?.fallbackQn) params.set('fallbackQn', String(nativeOptions.fallbackQn))
