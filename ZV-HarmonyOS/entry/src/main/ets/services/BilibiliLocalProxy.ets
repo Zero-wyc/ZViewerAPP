@@ -119,9 +119,18 @@ function allowedCdn(raw: string): boolean {
 function trustedMediaCandidates(primary: string, backups: string[]): string[] {
   const result: string[] = [];
   for (const url of [primary, ...backups]) {
-    if (allowedCdn(url) && !result.includes(url)) result.push(url);
+    if (!allowedCdn(url)) continue;
+    const cleaned = removeNbsParameter(url);
+    if (!result.includes(cleaned)) result.push(cleaned);
   }
   return result;
+}
+
+function removeNbsParameter(url: string): string {
+  const question = url.indexOf('?');
+  if (question < 0) return url;
+  const query = url.slice(question + 1).split('&').filter((part: string) => part.split('=')[0].toLowerCase() !== 'nbs');
+  return query.length > 0 ? `${url.slice(0, question)}?${query.join('&')}` : url.slice(0, question);
 }
 
 function allowedBilibiliSso(raw: string): boolean {
@@ -364,10 +373,26 @@ export class BilibiliLocalProxy {
       let sentHeaders = false;
       let rejected = false;
       let queuedBytes = 0;
+      let receivedBytes = 0;
+      let expectedBytes = 0;
+      let pendingBeforeHeaders: ArrayBuffer[] = [];
       let chain: Promise<void> = Promise.resolve();
+      const forwardChunk = (chunk: ArrayBuffer): void => {
+        queuedBytes += chunk.byteLength;
+        if (queuedBytes > 16 * 1024 * 1024) {
+          rejected = true;
+          request.destroy();
+          return;
+        }
+        chain = chain.then(async () => {
+          if (method !== 'HEAD') await connection.send({ data: chunk });
+          queuedBytes -= chunk.byteLength;
+        });
+      };
       try {
         request.on('headersReceive', (rawHeaders: Object) => {
           const headers = rawHeaders as Record<string, string>;
+          const denyReason = headerValue(headers, 'deny-reason');
           const statusLine = headerValue(headers, 'status-line');
           const match = statusLine.match(/\s(\d{3})(?:\s|$)/);
           const status = match ? Number(match[1]) : range !== '' ? 206 : 200;
@@ -378,27 +403,33 @@ export class BilibiliLocalProxy {
           const contentType = headerValue(headers, 'content-type') || 'application/octet-stream';
           const contentLength = headerValue(headers, 'content-length');
           const contentRange = headerValue(headers, 'content-range');
+          expectedBytes = Number(contentLength) || 0;
+          if (denyReason !== '' || (range !== '' && method !== 'HEAD' && contentRange === '') ||
+            contentType.startsWith('text/') || contentType.includes('xml')) {
+            rejected = true;
+            return;
+          }
           const transfer = contentLength !== '' ? `Content-Length: ${contentLength}\r\n` : '';
           const cors = origin === TRUSTED_ORIGIN ? `Access-Control-Allow-Origin: ${TRUSTED_ORIGIN}\r\nVary: Origin\r\n` : '';
           const header = `HTTP/1.1 ${status} OK\r\nContent-Type: ${contentType}\r\n${transfer}${contentRange ? `Content-Range: ${contentRange}\r\n` : ''}Accept-Ranges: bytes\r\nAccess-Control-Expose-Headers: Content-Range, Accept-Ranges, Content-Length\r\nConnection: close\r\n${cors}\r\n`;
           sentHeaders = true;
           chain = chain.then(() => connection.send({ data: header }));
+          for (const chunk of pendingBeforeHeaders) forwardChunk(chunk);
+          pendingBeforeHeaders = [];
         });
         request.on('dataReceive', (data: ArrayBuffer) => {
-          if (rejected || !sentHeaders) return;
-          queuedBytes += data.byteLength;
-          if (queuedBytes > 16 * 1024 * 1024) {
-            rejected = true;
-            request.destroy();
+          if (rejected) return;
+          receivedBytes += data.byteLength;
+          if (!sentHeaders) {
+            if (receivedBytes > 16 * 1024 * 1024) {
+              rejected = true;
+              request.destroy();
+              return;
+            }
+            pendingBeforeHeaders.push(data);
             return;
           }
-          const chunk = data;
-          chain = chain.then(async () => {
-            if (method !== 'HEAD') {
-              await connection.send({ data: chunk });
-            }
-            queuedBytes -= chunk.byteLength;
-          });
+          forwardChunk(data);
         });
         const header: Record<string, string> = {
           'User-Agent': BILIBILI_USER_AGENT,
@@ -415,6 +446,7 @@ export class BilibiliLocalProxy {
           readTimeout: 30000,
         });
         await chain;
+        if (!rejected && expectedBytes > 0 && receivedBytes !== expectedBytes) throw new Error('Incomplete CDN stream');
         if (rejected || status === 403 || status >= 500 || status >= 300 && status < 400) continue;
         if (!sentHeaders) throw new Error('CDN response missing headers');
         await connection.close();

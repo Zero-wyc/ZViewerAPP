@@ -1,10 +1,11 @@
 # ZViewer HarmonyOS
 
-This is the Stage/ArkWeb host for the shared React client. H1 covers the
-connection, login, lobby, room, chat and playlist flow through the shared Web
-client. The host supplies a platform handshake, native back dispatch, screen
-orientation and immersive window requests. No Bilibili account or local proxy
-implementation is present.
+This is the Stage/ArkWeb host for the shared React client. The current H5
+release candidate covers connection, login, lobby, room, chat, playlist,
+MP4/MKV playback, subtitles, danmaku, realtime audio, and native Bilibili
+login with local DASH proxying and manual quality selection. The host also
+supplies native back dispatch, screen orientation, immersive window requests,
+microphone permission handling, and secure local credential storage.
 
 ## Toolchain
 
@@ -40,9 +41,9 @@ the parent directory of the installed `default/` SDK, then run:
 ```
 
 Without a signing configuration this produces `entry-default-unsigned.hap`.
-The local API 26 emulators accept it for development, but it is not a
-signed real-device test package. Keep signing keys, profiles and credentials
-outside the repository.
+The local API 26 emulator accepts it for development. Release signing and
+store publication remain an external finalization step; keep signing keys,
+profiles and credentials outside the repository.
 
 ## Delivery test device rule
 
@@ -56,8 +57,9 @@ the phone test.
 ## Current bridge and limits
 
 ArkWeb receives a `zviewerHost` proxy with a platform handshake, background
-action and request/response methods for orientation and immersive display.
-Only the local virtual origin is allowed to navigate inside the component.
-Microphone capture requests both the system permission and ArkWeb media access
-for the local origin. Background media and Bilibili methods are pending. See
-`docs/harmonyos-development-plan.md` for the milestone scope.
+action and request/response methods for orientation, immersive display,
+microphone permission, and Bilibili account operations. Only the local virtual
+origin is allowed to navigate inside the component. Bilibili media is resolved
+by the ArkTS host and proxied only from allowlisted CDN domains; credentials
+are not exposed to the Web client. See `docs/harmonyos-development-plan.md`
+for the milestone scope and `docs/releases/` for device evidence.
