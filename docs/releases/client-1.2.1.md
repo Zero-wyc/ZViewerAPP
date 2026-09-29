@@ -6,7 +6,7 @@
 
 - Android：`ZViewer-Android-1.2.1-release.apk`，沿用已发布的 Android 1.2.1 正式包，SHA-256 与原 Release 一致。
 - HarmonyOS：版本 1.2.1，versionCode 121，包名 `com.zviewer.mobile`，目标与最低兼容 API 26。
-- `ZViewer-HarmonyOS-1.2.1-release.app`：Release 签名应用包，用于鸿蒙发布流程。
+- `ZViewer-HarmonyOS-1.2.1-release.app.zip`：解压后获得 Release 签名 APP，用于鸿蒙发布流程；GitHub 不允许直接上传 `.app` 扩展名。
 - `ZViewer-HarmonyOS-1.2.1-release.hap`：Release 签名模块包，用于支持相应签名分发方式的设备安装。GitHub 下载不等于应用市场上架，安装仍受设备与签名分发策略限制。
 - `SHA256SUMS.txt`：附件完整性校验。
 
