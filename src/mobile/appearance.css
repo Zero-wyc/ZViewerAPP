@@ -1,0 +1,172 @@
+.app-shell {
+  --appearance-text: #f3f7fa;
+  --appearance-muted: #b8c5cd;
+  --appearance-line: rgba(235, 245, 255, .25);
+  --appearance-field: rgba(13, 20, 29, .68);
+  --appearance-accent: #9cdbff;
+  --appearance-accent-text: #102638;
+  isolation: isolate;
+  max-width: none;
+  color: var(--appearance-text);
+  background: #101a25;
+}
+.app-shell[data-appearance="light"] {
+  --appearance-text: #1c293a;
+  --appearance-muted: #43566b;
+  --appearance-line: rgba(50, 67, 91, .25);
+  --appearance-field: rgba(246, 249, 255, .66);
+  --appearance-accent: #1463b6;
+  --appearance-accent-text: #fff;
+  background: #dce7f5;
+}
+.appearance-wallpaper, .appearance-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.appearance-wallpaper {
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+.app-shell .brand-bar,
+.app-shell .connect-view,
+.app-shell .rooms-view { max-width: 640px; }
+.app-shell .brand-bar,
+.app-shell .rooms-toolbar,
+.app-shell .rooms-heading {
+  padding: 14px;
+  border: 1px solid var(--appearance-line);
+  border-radius: var(--appearance-radius);
+  background: var(--appearance-glass);
+  -webkit-backdrop-filter: blur(var(--appearance-blur));
+  backdrop-filter: blur(var(--appearance-blur));
+}
+.app-shell .rooms-toolbar { margin-top: 25px; }
+.app-shell .rooms-heading { margin-top: 14px; padding: 18px 14px; }
+.app-shell .eyebrow { color: var(--appearance-accent); }
+.app-shell .brand-mark {
+  background: var(--appearance-accent);
+  color: var(--appearance-accent-text);
+  border-radius: var(--appearance-radius);
+}
+.app-shell .brand-subtitle,
+.app-shell .server-summary small,
+.app-shell .room-meta,
+.app-shell .security-note,
+.app-shell .intro-copy p { color: var(--appearance-muted); }
+.app-shell .connection-pill,
+.app-shell .login-panel,
+.app-shell .room-row,
+.app-shell .empty-state,
+.app-shell .back-button,
+.app-shell .refresh-button,
+.app-shell .create-sheet,
+.app-shell .room-count {
+  border: 1px solid var(--appearance-line);
+  border-radius: var(--appearance-radius);
+  background: var(--appearance-glass);
+  color: var(--appearance-text);
+  -webkit-backdrop-filter: blur(var(--appearance-blur));
+  backdrop-filter: blur(var(--appearance-blur));
+  box-shadow: 0 10px 36px rgba(15, 29, 49, .12);
+}
+.app-shell .login-panel { padding: 22px; }
+.app-shell .field-label,
+.app-shell .room-title-line strong,
+.app-shell .empty-state strong { color: var(--appearance-text); }
+.app-shell .input-shell,
+.app-shell .mode-switch,
+.app-shell .room-mode-grid button,
+.app-shell .approval-row {
+  border-color: var(--appearance-line);
+  border-radius: var(--appearance-radius);
+  background: var(--appearance-field);
+  color: var(--appearance-muted);
+}
+.app-shell .input-shell input { color: var(--appearance-text); }
+.app-shell .input-shell input::placeholder { color: var(--appearance-muted); opacity: .7; }
+.app-shell .mode-switch button.active,
+.app-shell .room-mode-grid button.active { background: var(--appearance-accent); color: var(--appearance-accent-text); }
+.app-shell .primary-button,
+.app-shell .create-room-button { border-radius: var(--appearance-radius); background: var(--appearance-accent); color: var(--appearance-accent-text); }
+.app-shell .guest-note,
+.app-shell .permission-note { border-radius: var(--appearance-radius); background: var(--appearance-glass); color: var(--appearance-text); }
+.app-shell .room-status { border-radius: var(--appearance-radius); }
+.app-shell .room-status.online { color: #68db9d; }
+.app-shell .rooms-toolbar { border-color: var(--appearance-line); }
+.app-shell .sheet-backdrop { background: rgba(8, 15, 25, .58); }
+.app-shell .create-sheet { border-radius: var(--appearance-radius) var(--appearance-radius) 0 0; }
+.app-shell .approval-row strong { color: var(--appearance-text); }
+.app-shell .approval-row small { color: var(--appearance-muted); }
+
+.appearance-trigger {
+  position: fixed;
+  z-index: 10;
+  right: 20px;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border: 1px solid var(--appearance-line);
+  border-radius: 18px;
+  background: var(--appearance-glass);
+  color: var(--appearance-text);
+  -webkit-backdrop-filter: blur(var(--appearance-blur));
+  backdrop-filter: blur(var(--appearance-blur));
+  box-shadow: 0 12px 30px rgba(0,0,0,.18);
+}
+.appearance-backdrop {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(7, 17, 30, .55);
+}
+.appearance-sheet {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 640px);
+  max-height: min(88dvh, 900px);
+  border: 1px solid var(--appearance-line);
+  border-radius: 28px 28px 0 0;
+  background: var(--appearance-glass);
+  color: var(--appearance-text);
+  -webkit-backdrop-filter: blur(28px);
+  backdrop-filter: blur(28px);
+  box-shadow: 0 -15px 60px rgba(0, 0, 0, .25);
+}
+.appearance-sheet header { display: flex; justify-content: space-between; align-items: center; padding: 24px 22px 12px; }
+.appearance-kicker { color: var(--appearance-accent); font-size: 10px; font-weight: 800; letter-spacing: .14em !important; }
+.appearance-sheet h2 { margin: 5px 0 0; font-size: 24px; }
+.appearance-close { display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid var(--appearance-line); border-radius: 50%; background: var(--appearance-field); color: var(--appearance-text); }
+.appearance-scroll { overflow-y: auto; padding: 0 22px max(26px, env(safe-area-inset-bottom)); }
+.appearance-group { padding-top: 17px; }
+.appearance-group + .appearance-group { margin-top: 18px; border-top: 1px solid var(--appearance-line); }
+.appearance-group h3 { margin: 0 0 14px; font-size: 13px; color: var(--appearance-muted); }
+.appearance-segments { display: flex; gap: 7px; margin-bottom: 13px; }
+.appearance-segments button { flex: 1; min-height: 40px; border: 1px solid var(--appearance-line); border-radius: var(--appearance-radius); background: var(--appearance-field); color: var(--appearance-text); }
+.appearance-segments button.active { border-color: var(--appearance-accent); background: var(--appearance-accent); color: var(--appearance-accent-text); font-weight: 700; }
+.appearance-range { display: block; margin: 14px 0; }
+.appearance-range > span { display: flex; justify-content: space-between; margin-bottom: 7px; font-size: 13px; }
+.appearance-range strong { font-weight: 600; }
+.appearance-range input { width: 100%; accent-color: var(--appearance-accent); }
+.appearance-range input:disabled { opacity: .4; }
+.appearance-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0; border-top: 1px solid var(--appearance-line); font-size: 14px; }
+.appearance-toggle span { display: grid; gap: 3px; }
+.appearance-toggle small { color: var(--appearance-muted); font-size: 11px; }
+.appearance-toggle input { width: 21px; height: 21px; accent-color: var(--appearance-accent); }
+.appearance-preview { height: 112px; border: 1px solid var(--appearance-line); border-radius: var(--appearance-radius); background-position: center; background-size: cover; }
+.appearance-url { display: flex; gap: 8px; margin: 12px 0; }
+.appearance-url input { min-width: 0; flex: 1; padding: 10px 12px; border: 1px solid var(--appearance-line); border-radius: var(--appearance-radius); background: var(--appearance-field); color: var(--appearance-text); }
+.appearance-url button, .appearance-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 0 13px; border: 1px solid var(--appearance-line); border-radius: var(--appearance-radius); background: var(--appearance-field); color: var(--appearance-text); }
+.appearance-file { display: none; }
+.appearance-actions { display: flex; gap: 8px; }
+.appearance-error { margin: 8px 0; color: #ff8d8d; font-size: 12px; }
+.app-shell[data-reduced-motion="true"] *,
+.app-shell[data-reduced-motion="true"] *::before,
+.app-shell[data-reduced-motion="true"] *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }

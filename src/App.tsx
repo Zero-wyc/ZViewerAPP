@@ -28,6 +28,7 @@ import { useSystemSettingsStore } from '@/store/systemSettingsStore'
 import { normalizeServerUrl } from './mobile/serverUrl'
 import { useNativeBack } from './mobile/useNativeBack'
 import { BilibiliAccount } from './mobile/BilibiliAccount'
+import { MobileAppearance } from './mobile/MobileAppearance'
 import { startEmbeddedProxy } from './platform/bilibiliProxy'
 
 const MobileRoom = lazy(() => import('./mobile/MobileRoom'))
@@ -410,7 +411,7 @@ export default function App() {
   )
 
   return (
-    <main className="app-shell">
+    <MobileAppearance>
       <header className="brand-bar">
         <BilibiliAccount />
         <div className="brand-mark">Z</div>
@@ -665,6 +666,6 @@ export default function App() {
           )}
         </section>
       )}
-    </main>
+    </MobileAppearance>
   )
 }
