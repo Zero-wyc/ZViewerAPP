@@ -226,31 +226,104 @@ button:focus-visible, input:focus-visible { outline: 2px solid #65d59b; outline-
   .player-display-controls .player-tool { flex: 1; }
 }
 
+/* 移动壳统一使用 top-layer 弹层，手机、平板和全屏不再切换定位参照物。 */
+.player-settings-dialog {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: env(safe-area-inset-top) 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  overflow: hidden;
+}
+.player-settings-dialog[open] { display: grid; place-items: end center; }
+.player-settings-dialog::backdrop { background: #0005; }
+.player-settings-dialog .player-settings-dialog-card svg { fill: none; flex-shrink: 0; }
+.player-settings-dialog-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: min(var(--settings-sheet-height, 70dvh), 100%);
+  min-height: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 18px 18px 0 0;
+  background: var(--md-sys-color-surface);
+  box-shadow: 0 12px 40px #0006;
+}
+.player-settings-dialog-grip { display: grid; place-items: center; flex-shrink: 0; height: 20px; touch-action: none; }
+.player-settings-dialog-grip span { width: 32px; height: 4px; border-radius: 4px; background: var(--md-sys-color-outline); opacity: .55; }
+.player-settings-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  min-height: 52px;
+  padding: 0 8px 8px 20px;
+}
+.player-settings-dialog-header h2 { flex: 1; min-width: 0; margin: 0; font-size: 16px; font-weight: 600; outline: none; }
+.player-settings-dialog-header button { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: 8px; }
+.player-settings-dialog-header button:active { background: var(--md-sys-color-surface-container-highest); }
+.player-settings-dialog-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 20px max(20px, env(safe-area-inset-bottom)); }
+.player-settings-dialog .player-settings-panel { position: static; width: 100%; margin: 0; }
+.player-settings-dialog .player-settings-main,
+.player-settings-dialog .player-settings-side {
+  position: static !important;
+  width: 100% !important;
+  max-height: none !important;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none !important;
+  overflow: visible;
+  transform: none !important;
+  transition: none !important;
+  will-change: auto !important;
+}
+.player-settings-dialog .player-settings-main[hidden],
+.player-settings-dialog .player-settings-side[data-open="false"] { display: none; }
+.player-settings-dialog .player-settings-side > div { width: 100% !important; max-height: none !important; padding: 0; overflow: visible; }
+.player-settings-dialog .player-settings-panel button { min-height: 44px; }
+.player-settings-dialog .text-xs { font-size: 14px; line-height: 20px; }
+.player-settings-dialog .flex-col.gap-2 { gap: 14px; }
+.player-settings-dialog .player-settings-main > .grid { margin-bottom: 20px; }
+.player-settings-dialog .relative:has(> input[type="range"]) { height: 28px; }
+.player-settings-dialog label:has(input[type="checkbox"]) { min-height: 44px; padding-inline: 4px; }
+.mobile-settings-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; }
+.mobile-settings-section-heading h3 { margin: 0; font-size: 16px; font-weight: 500; }
+.mobile-settings-section-heading > span,
+.mobile-settings-section-heading button { font-size: 12px; color: var(--md-sys-color-on-surface-variant); }
+.mobile-settings-section-heading button { display: inline-flex; align-items: center; gap: 4px; }
+.mobile-settings-group { padding: 0 16px; border-radius: 14px; background: var(--md-sys-color-surface-container-high); }
+.mobile-settings-group > * + * { border-top: 1px solid var(--md-sys-color-outline-variant); }
+.mobile-setting-slider { display: grid; grid-template-columns: 72px minmax(0, 1fr) 40px; align-items: center; gap: 10px; min-height: 62px; }
+.mobile-setting-slider > div:first-child { display: contents; }
+.mobile-setting-slider > div:first-child > span:first-child { grid-column: 1; grid-row: 1; font-size: 14px; color: var(--md-sys-color-on-surface); }
+.mobile-setting-slider > div:first-child > span:last-child { grid-column: 3; grid-row: 1; text-align: right; font-size: 12px; }
+.mobile-setting-slider > div:last-child { grid-column: 2; grid-row: 1; }
+.mobile-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 58px; font-size: 14px; }
+.mobile-setting-font > span:nth-child(2) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; color: var(--md-sys-color-on-surface-variant); }
+.mobile-danmaku-types { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 18px 12px; }
+.mobile-danmaku-types button { display: flex; flex-direction: column; align-items: center; gap: 10px; border: 0; font-size: 13px; color: var(--md-sys-color-on-surface-variant); }
+.mobile-danmaku-type-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 12px; background: var(--md-sys-color-surface-container-highest); }
+.mobile-danmaku-types button[aria-pressed="true"] { color: var(--md-sys-color-primary); }
+.mobile-danmaku-types button[aria-pressed="true"] .mobile-danmaku-type-icon { background: var(--md-sys-color-primary-container); }
+.mobile-settings-reset { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 16px; color: var(--md-sys-color-on-surface-variant); font-size: 13px; }
+@media (orientation: landscape) {
+  .player-settings-dialog { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) 0; }
+  .player-settings-dialog[open] { place-items: center end; }
+  .player-settings-dialog-card { width: min(400px, 48vw); height: 100%; border-radius: 18px 0 0 18px; }
+  .player-settings-dialog-grip { display: none; }
+  .player-settings-dialog-header { padding-top: 8px; min-height: 60px; }
+}
+
 @media (max-width: 760px), (max-height: 540px) {
-  .player-settings-panel {
-    position: fixed !important;
-    right: max(12px, env(safe-area-inset-right));
-    bottom: max(110px, env(safe-area-inset-bottom));
-    width: min(320px, calc(100vw - 24px));
-    max-height: calc(100dvh - 140px);
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column-reverse;
-    gap: 8px;
-    overscroll-behavior: contain;
-  }
-  .player-settings-main { flex-shrink: 0; width: 100% !important; max-height: none !important; border-radius: 8px; }
-  .player-settings-side[data-open="false"] { display: none; }
-  .player-settings-side[data-open="true"] {
-    flex-shrink: 0;
-    position: relative !important;
-    right: auto !important;
-    width: 100% !important;
-    max-height: none !important;
-    transform: none !important;
-  }
-  .player-settings-side > div { width: 100% !important; max-height: none !important; }
-  .player-settings-panel button { min-height: 40px; }
   .mobile-room .player-controlbar { padding: 4px; }
   .mobile-room .player-controlbar > .glass-strong { padding: 4px; gap: 4px; }
 }
@@ -260,6 +333,16 @@ button:focus-visible, input:focus-visible { outline: 2px solid #65d59b; outline-
   .mobile-player { align-self: start; margin-top: 24px; }
   .mobile-room-details { border-left: 1px solid #343d41; height: calc(100dvh - 64px); }
   .mobile-tab-panel { height: auto; }
+}
+/* 平板横屏的非全屏布局：播放器在左侧可用区域内居中，避免贴着顶部后下方留下大块空白。 */
+@media (min-width: 1000px) and (orientation: landscape) {
+  .mobile-watch-layout:not(:has(.zart-web-fullscreen)) {
+    align-items: center;
+  }
+  .mobile-watch-layout:not(:has(.zart-web-fullscreen)) .mobile-player {
+    align-self: center;
+    margin-top: 0;
+  }
 }
 @media (orientation: landscape) and (max-height: 540px) {
   .mobile-room:not(.mobile-room-music) .mobile-room-header { min-height: 48px; padding-block: 2px; }

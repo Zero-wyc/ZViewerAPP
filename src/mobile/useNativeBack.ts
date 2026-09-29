@@ -9,6 +9,12 @@ export function useNativeBack(handler: () => void, intercept: boolean) {
     let disposed = false
     let remove = () => {}
     void appLifecycle.addBackListener(() => {
+      // 设置弹层优先处理返回：先返回上一级，再关闭，不退出全屏或房间。
+      const settingsDialog = document.querySelector<HTMLDialogElement>('dialog[data-player-settings][open]')
+      if (settingsDialog) {
+        settingsDialog.dispatchEvent(new Event('cancel', { cancelable: true }))
+        return
+      }
       if (document.fullscreenElement) {
         void document.exitFullscreen()
       } else if (latest.current.intercept) {

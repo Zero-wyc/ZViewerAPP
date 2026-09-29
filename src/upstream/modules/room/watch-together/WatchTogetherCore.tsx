@@ -1837,6 +1837,8 @@ export function WatchTogetherCore({
           {settingsOpen && (
             <SettingsPanel
               isHost={isHost}
+              mobile={!!stageRef.current?.closest('.mobile-room')}
+              onClose={() => setSettingsOpen(false)}
               danmakuStyle={style}
               subtitleEnabled={subtitles.subtitleEnabled}
               subtitleTracks={subtitles.subtitleTracks}
