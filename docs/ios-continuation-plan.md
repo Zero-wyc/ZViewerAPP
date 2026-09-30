@@ -1,14 +1,14 @@
 # iOS 继续开发与验收文档
 
-更新日期：2026-09-28。适用目录：`ZV-iOS/`。产品基准：Android 1.2.1（根 package.json 与 CHANGELOG，Git HEAD `f815daf`）。
-本文件依据本次代码检查和用户最新安排编写；标记为“已实现”不等于“真机已通过”。本轮只编写文档，不恢复 iOS 功能开发。
+更新日期：2026-09-30。适用目录：`ZV-iOS/`。产品基准：Android 1.2.1（根 package.json 与 CHANGELOG，Git HEAD `f815daf`）。
+本文件依据本次代码检查和用户最新安排编写；标记为“已实现”不等于“真机已通过”。2026-09-30 按用户最新决策切换为单一 VLCKit，保留统一适配接口，服务端保持现有行为。原生模拟器编译与本地桌面/网页验证通过，尚未通过真机验收。详见 [单内核记录](releases/ios-1.2.1-2-vlc.md)。
 
 当前 Expo 源码和历史验收文档大部分仍为未跟踪文件，另有根 README/PORTING/Capacitor 配置未提交改动；上述进度来自本地工作区，并非都已包含在 f815daf 中。本次文档提交不包含这些既有开发改动；恢复开发前须审查并单独保存 iOS checkpoint，避免误以为只检出 Android 标签就能恢复 Expo 现状。
 
 ## 1. 当前决策与必读材料
 
 - iOS 采用独立 Expo / React Native 工程，在 Windows 开发，使用 EAS 的 macOS 云构建完成 iOS 原生编译；不再采用 Capacitor iOS 壳。
-- 按用户要求，当前等待上游开发者发布包含媒体截断修复的新版本，再恢复 iOS 播放验收和后续功能开发。未确认具体发布版本、部署版本和复测结果前，阻塞保持未解除。
+- iOS 仅使用 VLCKit，不保留 AVPlayer 或按后缀选内核。客户端主动适配 v4.2.0 现有 Range 分片；不要求通用代理取消 8 MiB 上限，不新增服务端转码/HLS。当前只在用户授权的本地服务端及本地视频测试，不访问 NAS。
 - 界面与操作以 Android 为基准：同名入口、同序控制、同权限规则、同返回/退出语义；RN 采用原生组件实现，用户无需学习一套新流程。
 - 开始每次开发前读取 [Expo 工程规范](../ZV-iOS/AGENTS.md)、[原改进方案](../../ios-app-improvement-plan.md)、[历史手册](ios-development-handbook.md)、[Windows 验收记录](ios-windows-acceptance.md)、本文及 [Android 更新记录](../CHANGELOG.md)。
 - 历史手册中“iOS 仅是模板、未连接 API、模板图标、app.json 版本 1.0.0”等描述已过时；以本文件、当前代码和新的真机记录为准。历史验收记录不能证明今天的安装包已通过。
@@ -19,44 +19,45 @@
 | 范围 | 当前实际状态 | 证据/限制 |
 | --- | --- | --- |
 | Android 基线 | 用户确认当前阶段开发完善；1.2.1 已包含内置 B 站代理、账号及自适应弹幕 | [CHANGELOG](../CHANGELOG.md)，后续共享修改仍需 Android 回归 |
-| Expo 工程 | Expo ~57.0.25、RN 0.86.3、React 19.2.3、expo-video ~57.0.5、Expo Router | [package.json](../ZV-iOS/package.json)，与根 React 18 工程独立安装、独立锁文件 |
-| 应用标识 | app.json 版本 1.2.1，iOS buildNumber 1，Bundle ID com.zviewer.mobile，已设置 ZViewer 图标和 iPad 支持 | [app.json](../ZV-iOS/app.json)；package.json 仍为 1.0.0，下一版本需统一版本管理含义 |
+| Expo 工程 | Expo ~57.0.26、RN 0.86.3、React 19.2.3、expo-libvlc-player 57.0.54、Expo Router | [package.json](../ZV-iOS/package.json)，与根 React 18 工程独立安装、独立锁文件；VLCKit pod 为 4.0.0a24 |
+| 应用标识 | app.json 版本 1.2.1，iOS buildNumber 2，Bundle ID com.zviewer.mobile，已设置 ZViewer 图标和 iPad 支持 | [app.json](../ZV-iOS/app.json)；package.json 已统一为 1.2.1，build 2 尚未验收 |
 | 连接/账号 | 服务地址、账号/游客登录、会话恢复、令牌刷新已实现；设备侧 SecureStore，Web 预览仅内存会话 | [首页](../ZV-iOS/src/app/index.tsx)、[会话](../ZV-iOS/src/state/session.tsx)、[服务协议](../ZV-iOS/src/lib/server.ts) |
 | 房间 | 列表、创建、密码/审批、进入/离开、关闭、聊天、片单、Socket 重连已有实现 | [房间页](../ZV-iOS/src/app/room/[roomId].tsx)、[Socket](../ZV-iOS/src/lib/socket.ts)；完整角色/断线场景仍需真机对测 |
-| 基础播放 | expo-video、单轨源、播放/暂停/跳转、房间状态/心跳、重试和脱敏 HEAD 诊断已接入 | [媒体转换](../ZV-iOS/src/lib/media.ts)、[诊断](../ZV-iOS/src/lib/mediaDiagnostics.ts)；仍受截断阻塞，不能认定播放可用 |
+| 基础播放 | 单一 VLCKit、统一媒体适配、单轨源、播放/暂停/跳转、房间状态/心跳、重试及脱敏 Range 诊断 | [VLC 控制器](../ZV-iOS/src/lib/vlcPlayer.ts)、[视图](../ZV-iOS/src/components/VlcVideo.tsx)、[诊断](../ZV-iOS/src/lib/mediaDiagnostics.ts)；原生编译通过，真机播放待验收 |
 | 布局 | 宽度 ≥900 且横屏时双列，左列约 60% 且最大 760；窄屏单列，聊天/片单/房间页签和全屏入口已有代码 | 布局只是第一版，旋转入口、控制栏等尚未全面对齐；需不同 iPad/iPhone 截图验收 |
 | 构建/测试 | eas.json 已定义 development、ios-simulator、preview、production；现有 server/media/diagnostics 单测 | [EAS 配置](../ZV-iOS/eas.json)、[测试目录](../ZV-iOS/tests)；历史记录有 lint/类型/Doctor/JS 导出通过，无可据此认定验收的 IPA |
-| 鸿蒙 | 仅有占位 README，尚无原生工程 | 见 [鸿蒙开发文档](harmonyos-development-plan.md) |
+| 鸿蒙 | ArkWeb/HAP 客户端已完成并有发布记录 | 见 [鸿蒙维护架构](harmonyos-maintenance-architecture.md) |
 
-历史 Windows 记录为 9/9 单测、Doctor 21/21；后续又增加了 Range 场景，不沿用旧数字作为当前结果。本文的代码核对不是新一轮真机验收。
+历史 Windows/AVPlayer 记录不可沿用。单内核测试 21/21、Doctor 21/21、lint/类型/iOS JS 导出通过；EAS iOS 模拟器原生构建成功。签名真机构建仍缺凭据，无本轮真机通过证据，见版本记录。
 
-## 3. 首要阻塞：上游截断修复与恢复条件
+## 3. 首要验收：客户端适配现有分片与真机播放
 
-用户当前明确要求等待上游新版修复截断问题。已知故障案例为 iPad 的 Test/S01E01.mp4 加载失败。现代码已：
-1. 去除片单携带的固定 Range，请求范围交给 AVPlayer。
-2. 仅为自己的服务端 API 添加当前会话 Authorization，不把其他用户的令牌或 Cookie 带入媒体请求。
-3. 对 /api/server-files/proxy 添加 `rangeMode=avplayer`；保留原 path 和反向代理前缀。
-4. 提供脱敏 HEAD 诊断、失败分类和重新播放入口。
+此前 AVPlayer 复测发现 Jellyfin 大/开放 Range 返回 8 MiB 分片。该历史结果仍保留，但不再据此要求服务端修改。现代码已：
+1. 移除 expo-video/AVPlayer，所有单轨源统一使用 VLCKit，播放器自行管理 Range。
+2. 仅对自己的服务端 API 使用当前会话鉴权；VLCKit URL 接口通过既有 `?token=` 鉴权，私有播放地址不写回房间、不广播、不记录完整 URL。
+3. 移除 `rangeMode=avplayer`；保留原 path、反向代理前缀及现有服务端分片行为。
+4. 诊断接受总长/偏移/长度正确的短 206，并核对下一分片；提供失败分类和重新播放。
+5. 统一适配接口串行切源、令牌更新保留进度、过期原生回调隔离；扩大播放器时仍使用同一个原生视图。
 
-本地相邻 `ZViewer-nas-range-fix/backend/src/routes/serverFiles.ts` 与 `services/proxy/range-stream.ts` 有识别该参数的候选服务端实现，区分默认 8 MiB 分片和 AVPlayer 请求范围。本地候选代码存在不代表上游已合入、正式发布或用户服务器已部署；不从客户端单方面宣布修复完成。额外字幕/MJPEG 轨、容器、ATS 和鉴权也不能在无证据时排除。
+服务端实验已移出正式源码；本轮验证使用未修改的 v4.2.0 本地服务端。桌面 libVLC 3.0.23 能跨分片续读两个测试文件，但与 iOS 的 VLCKit 4.0.0a24 不同，不能据此宣布真机全部编码/字幕可用。
 
 恢复前必须完成：
-- 记录上游修复发布版本/提交、实际部署版本与日期，确认反向代理后参数仍到达处理路由。
+- 记录实际服务端版本、代理路径及部署环境；不将取消分片上限作为恢复条件。
 - 在 iPad 实际请求链核对 HEAD、起始/中间/末尾及开放范围 Range、206/Content-Range/Content-Length、416、取消和重连；HEAD 200 或一次短 Range 成功不算通过。
 - Test/S01E01.mp4 连续播放至少 10 分钟、三个时间点拖动、暂停恢复、离房重进；另测原 MKV，按容器/编码结果明确支持或降级，不能仅因后缀认定可播放。
 - 标准 H.264/AAC MP4、HLS 对照测试；房主/观众（含 Android）同步恢复后偏差目标约 2 秒，记录测量方式。
 - 记录设备/iPadOS、Expo 宿主和应用构建号、服务端版本、脱敏日志。若仍失败，在 development build 采集原生播放器错误，继续定位，不继续堆叠后续媒体功能。
 
-解除字段：修复发布版本【待填】；部署版本【待填】；真机证据【待填】；结论【阻塞中】。
+解除字段：上游 v4.2.0 标签 commit【cbc19ef8ad99371601d8282e58acfdf2fef2fae3】；本地范围【用户指定源码及视频，未连接 NAS】；原生构建【EAS 模拟器成功】；真机证据【未提供】；结论【单内核候选完成，P0 真机验收待完成】。证据见 [VLCKit 记录](releases/ios-1.2.1-2-vlc.md)。
 
 ## 4. 与 Android 的功能差异及实施顺序
 
 | 能力 | iOS 尚需完善 | 实现及完成标准 |
 | --- | --- | --- |
 | 登录/大厅/房间 | 已有基础链路，缺完整等效验收 | 覆盖换服务器、过期刷新、游客限制、满员、密码、审批、踢出/房主变更、关闭、重连，服务端仍是权限最终依据 |
-| 片单与媒体来源 | 现源转换仅接收 mp4/url/server-files 且拒绝 audioUrl；已有片单不等于完整选源 | 对照 Android 添加/删除/排序/选片/分 P 与 B 站、Emby/Jellyfin、WebDAV/FTP/OpenList、挂载/服务器文件、番剧等入口逐一盘点，复用协议、RN 重写浏览器 UI |
-| MP4/HLS 与同步 | 播放阻塞；复杂源与稳定状态同步未验收 | P0 通过后拆出 MediaAdapter（load/play/pause/seek/rate/tracks/status/error/dispose），覆盖鉴权刷新、seek、音轨、失败恢复 |
-| 分离音视频/MKV/FLV/FLAC | Android 的 DASH/MSE、WASM 和媒体补丁不可直接搬到 RN | 真机验证本机无损封装 HLS/fMP4或受维护原生播放器；不默认实时转码大文件；不支持时提示并提供已验证回退 |
+| 片单与媒体来源 | 现源转换已接受单轨 mp4/url/server-files/Jellyfin/Emby/WebDAV/FTP/OpenList/SMB URL，拒绝 audioUrl；已有片单不等于完整选源 | 对照 Android 添加/删除/排序/选片/分 P 与 B 站、Emby/Jellyfin、WebDAV/FTP/OpenList、挂载/服务器文件、番剧等入口逐一盘点，复用协议、RN 重写浏览器 UI |
+| MP4/HLS 与同步 | 已有单一 VLCKit + MediaAdapter，真机同步未验收 | 保留统一接口，覆盖鉴权刷新、seek、音轨、失败恢复；HLS 子分片鉴权须独立实测 |
+| 分离音视频/MKV/FLV/FLAC | MKV 已接入 VLCKit；其余能力与编码需分别验证 | 继续使用同一内核，原生适配特殊源；不新增备用播放器或默认实时转码大文件 |
 | 字幕/弹幕 | 未移植完整渲染、轨道选择和样式设置 | 共享解析/时间轴/默认规则，RN 叠加层实现；手机/平板字号按等效视觉验证，弹幕随屏缩放默认开且手动设置持久保存 |
 | 一起听 | 入口/模式存在，播放器仍占位 | 独立音频适配器、队列、搜索/账号/歌单/歌词和设置对照 Android；统一音频会话，测试切歌/拖动/后台与耳机 |
 | 房间语音 | 未实现 | Android 现协议是 Socket.IO 中转 Opus/PCM，原生采集/编码/解码需兼容相同帧与信令；不能只在 iOS 换成 WebRTC。收起不挂断、离房释放 |
@@ -64,9 +65,9 @@
 | 内置 B 站 CLI | 扫码/安全存储/本机代理/自动画质未接入 | Go 核心→Mac 工具链 XCFramework→Swift Expo Module；Cookie 留在 Keychain/原生，自动最高有权普通画质、排除 HDR/杜比、有限重试和优先 720p 回退 |
 | 本机代理地址 | 当前 media.ts 拒绝 loopback，未来本机代理不能直接绕过该校验 | 新增独立、可信本机源类型，仅接受模块当前会话签发地址；房间广播继续拒绝 loopback/凭据，测试随机端口与过期 URL |
 | 系统交互 | 旋转、沉浸、安全区、音频会话、来电/蓝牙、权限和后台恢复需完善 | Expo 模块/配置插件/Swift 实现；iOS 使用导航返回，不照搬 Android 最小化；统一资源释放 |
-| 发布 | 尚无本轮可验收的原生构建 | Apple 签名、EAS 项目/设备、development build、TestFlight、升级保留数据与隐私用途验收 |
+| 发布 | 已有本轮原生模拟器包，无签名 IPA | Apple 签名/设备、development build、TestFlight、升级保留数据与隐私用途验收 |
 
-顺序：P0 上游修复与播放验收 → P1 房间模块拆分/界面对齐 → P2 媒体、字幕弹幕、分离轨验证 → P3 一起听/语音/共享观看 → P4 B 站原生功能 → P5 发布。每个阶段可拆小版本，每版单独按第 7 节验收与提交。
+顺序：P0 单内核适配与真机播放验收 → P1 房间模块拆分/界面对齐 → P2 媒体、字幕弹幕、分离轨验证 → P3 一起听/语音/共享观看 → P4 B 站原生功能 → P5 发布。每个阶段可拆小版本，每版单独按第 7 节验收与提交。
 
 ## 5. 三端共享边界
 
@@ -102,7 +103,7 @@
 
 - 在 ZV-iOS 执行 npm test、npm run lint、npx tsc --noEmit、npx expo-doctor、npx expo export --platform ios，记录真实结果，不复制历史数字。
 - 生成签名 development/preview 构建，实测启动、登录、房间、此次新增链路、播放10分钟/seek、重连、横竖屏、权限/耳机/后台；iPhone/iPad 与 Android 跨端对测。
-- 修改共享协议/Go 核心时，回归根 npm test、npm run test:e2e、npm run test:native、npm run android:sync 和 Android 构建；涉及已有鸿蒙能力也回归对应 HAP。
+- 修改共享协议/Go 核心时，运行根目录 `npm run build`、`npm run android:sync` 和 Android 构建；涉及已有鸿蒙能力时重新生成 `rawfile/web` 并回归对应 HAP。
 - 在 docs/releases/ios-<版本>-<构建号>.md 记录版本、代码提交、上个通过标签、环境/服务端/设备、复现步骤、通过/失败/阻塞、截图脱敏日志、安装包位置和 SHA-256、用户结论。
 - 无真机/签名或上游未修复时可提交 checkpoint，但版本状态必须是“阻塞/未验收”，不得写成已完成或创建通过标签。
 - 仓库根为 ZViewer-client；提交前检查 git status、git diff --check、git diff --cached；只暂存该版明确相关文件，禁止 git add . 混入他人的未完成工作、密钥、令牌和安装包。

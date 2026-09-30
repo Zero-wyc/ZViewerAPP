@@ -1,0 +1,1360 @@
+{
+  "desktop": {
+    "scope": "desktop libVLC; NOT iOS VLCKit acceptance",
+    "libvlc": "3.0.23 Vetinari",
+    "server": "unmodified local v4.2.0 source",
+    "serverCap": 8388608,
+    "films": {},
+    "continuous": {
+      "S01E01.mkv": {
+        "time": 599.592,
+        "duration": 1446.2,
+        "state": 3,
+        "decodedVideo": 28797,
+        "decodedAudio": 60158,
+        "readBytes": 211060950,
+        "relayRequests": 33,
+        "relayBytes": 212484310
+      },
+      "S01E04.mp4": {
+        "time": 599.401,
+        "duration": 1421.462,
+        "state": 3,
+        "decodedVideo": 28777,
+        "decodedAudio": 56367,
+        "readBytes": 202920522,
+        "relayRequests": 27,
+        "relayBytes": 203868746
+      }
+    },
+    "seeks": [
+      {
+        "target": 90,
+        "values": {
+          "S01E01.mkv": {
+            "time": 95.88,
+            "duration": 1446.2,
+            "state": 3,
+            "decodedVideo": 29140,
+            "decodedAudio": 60956,
+            "readBytes": 228987094,
+            "relayRequests": 36,
+            "relayBytes": 231030998
+          },
+          "S01E04.mp4": {
+            "time": 95.866,
+            "duration": 1421.462,
+            "state": 3,
+            "decodedVideo": 29157,
+            "decodedAudio": 57261,
+            "readBytes": 226161226,
+            "relayRequests": 30,
+            "relayBytes": 227723850
+          }
+        }
+      },
+      {
+        "target": 700,
+        "values": {
+          "S01E01.mkv": {
+            "time": 705.864,
+            "duration": 1446.2,
+            "state": 3,
+            "decodedVideo": 29569,
+            "decodedAudio": 61746,
+            "readBytes": 249297110,
+            "relayRequests": 39,
+            "relayBytes": 252068054
+          },
+          "S01E04.mp4": {
+            "time": 705.637,
+            "duration": 1421.462,
+            "state": 3,
+            "decodedVideo": 29582,
+            "decodedAudio": 58437,
+            "readBytes": 246450762,
+            "relayRequests": 33,
+            "relayBytes": 248629834
+          }
+        }
+      },
+      {
+        "target": 1300,
+        "values": {
+          "S01E01.mkv": {
+            "time": 1305.797,
+            "duration": 1446.2,
+            "state": 3,
+            "decodedVideo": 30059,
+            "decodedAudio": 62526,
+            "readBytes": 277567702,
+            "relayRequests": 43,
+            "relayBytes": 280969430
+          },
+          "S01E04.mp4": {
+            "time": 1305.781,
+            "duration": 1421.462,
+            "state": 3,
+            "decodedVideo": 30012,
+            "decodedAudio": 59519,
+            "readBytes": 268249674,
+            "relayRequests": 36,
+            "relayBytes": 271108682
+          }
+        }
+      }
+    ],
+    "pause": {
+      "before": {
+        "S01E01.mkv": {
+          "time": 1305.797,
+          "duration": 1446.2,
+          "state": 4,
+          "decodedVideo": 30059,
+          "decodedAudio": 62526,
+          "readBytes": 277567702,
+          "relayRequests": 43,
+          "relayBytes": 280969430
+        },
+        "S01E04.mp4": {
+          "time": 1305.781,
+          "duration": 1421.462,
+          "state": 4,
+          "decodedVideo": 30012,
+          "decodedAudio": 59519,
+          "readBytes": 268249674,
+          "relayRequests": 36,
+          "relayBytes": 271108682
+        }
+      },
+      "after": {
+        "S01E01.mkv": {
+          "time": 1305.797,
+          "duration": 1446.2,
+          "state": 4,
+          "decodedVideo": 30059,
+          "decodedAudio": 62526,
+          "readBytes": 277567702,
+          "relayRequests": 43,
+          "relayBytes": 280969430
+        },
+        "S01E04.mp4": {
+          "time": 1305.781,
+          "duration": 1421.462,
+          "state": 4,
+          "decodedVideo": 30012,
+          "decodedAudio": 59519,
+          "readBytes": 268249674,
+          "relayRequests": 36,
+          "relayBytes": 271108682
+        }
+      }
+    },
+    "resumed": {
+      "S01E01.mkv": {
+        "time": 1311.845,
+        "duration": 1446.2,
+        "state": 3,
+        "decodedVideo": 30349,
+        "decodedAudio": 63128,
+        "readBytes": 283611350,
+        "relayRequests": 44,
+        "relayBytes": 286802134
+      },
+      "S01E04.mp4": {
+        "time": 1311.781,
+        "duration": 1421.462,
+        "state": 3,
+        "decodedVideo": 30304,
+        "decodedAudio": 60083,
+        "readBytes": 270254666,
+        "relayRequests": 36,
+        "relayBytes": 273205834
+      }
+    },
+    "stop": {
+      "before": {
+        "S01E01.mkv": {
+          "time": -0.001,
+          "duration": -0.001,
+          "state": 5,
+          "decodedVideo": 30353,
+          "decodedAudio": 63128,
+          "readBytes": 283611350,
+          "relayRequests": 44,
+          "relayBytes": 286802134
+        },
+        "S01E04.mp4": {
+          "time": -0.001,
+          "duration": -0.001,
+          "state": 5,
+          "decodedVideo": 30312,
+          "decodedAudio": 60085,
+          "readBytes": 270254666,
+          "relayRequests": 36,
+          "relayBytes": 273205834
+        }
+      },
+      "after": {
+        "S01E01.mkv": {
+          "time": -0.001,
+          "duration": -0.001,
+          "state": 5,
+          "decodedVideo": 30353,
+          "decodedAudio": 63128,
+          "readBytes": 283611350,
+          "relayRequests": 44,
+          "relayBytes": 286802134
+        },
+        "S01E04.mp4": {
+          "time": -0.001,
+          "duration": -0.001,
+          "state": 5,
+          "decodedVideo": 30312,
+          "decodedAudio": 60085,
+          "readBytes": 270254666,
+          "relayRequests": 36,
+          "relayBytes": 273205834
+        }
+      }
+    },
+    "requests": [
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=0-",
+        "bytes": 8388608,
+        "start": 0.04,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 0-8388607/470132854",
+        "contentLength": "8388608",
+        "end": 0.065
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=0-",
+        "bytes": 8388608,
+        "start": 0.041,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 0-8388607/362845230",
+        "contentLength": "8388608",
+        "end": 0.052
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=8388608-",
+        "bytes": 8388608,
+        "start": 0.053,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 8388608-16777215/362845230",
+        "contentLength": "8388608",
+        "end": 0.066
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=8388608-",
+        "bytes": 8388608,
+        "start": 0.065,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 8388608-16777215/470132854",
+        "contentLength": "8388608",
+        "end": 0.074
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=16777216-",
+        "bytes": 262144,
+        "start": 0.067,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 16777216-25165823/362845230",
+        "contentLength": "8388608",
+        "cancelled": true,
+        "end": 0.089
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=16777216-",
+        "bytes": 262144,
+        "start": 0.075,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 16777216-25165823/470132854",
+        "contentLength": "8388608",
+        "cancelled": true,
+        "end": 0.089
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=75-",
+        "bytes": 229376,
+        "start": 0.086,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 75-8388682/470132854",
+        "contentLength": "8388608",
+        "cancelled": true,
+        "end": 0.092
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=361941476-",
+        "bytes": 903754,
+        "start": 0.087,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 361941476-362845229/362845230",
+        "contentLength": "903754",
+        "end": 0.091
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=470084770-",
+        "bytes": 48084,
+        "start": 0.09,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 470084770-470132853/470132854",
+        "contentLength": "48084",
+        "end": 0.092
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=107-",
+        "bytes": 262144,
+        "start": 0.1,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 107-8388714/470132854",
+        "contentLength": "8388608",
+        "cancelled": true,
+        "end": 0.125
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=470131572-",
+        "bytes": 1282,
+        "start": 0.113,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 470131572-470132853/470132854",
+        "contentLength": "1282",
+        "end": 0.125
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=124-",
+        "bytes": 262144,
+        "start": 0.127,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 124-8388731/470132854",
+        "contentLength": "8388608",
+        "cancelled": true,
+        "end": 0.132
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=1273434-",
+        "bytes": 393216,
+        "start": 0.13,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 1273434-9662041/470132854",
+        "contentLength": "8388608",
+        "cancelled": true,
+        "end": 0.145
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=140-",
+        "bytes": 8388608,
+        "start": 0.133,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 140-8388747/470132854",
+        "contentLength": "8388608",
+        "end": 0.164
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=48-",
+        "bytes": 8388608,
+        "start": 0.15,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 48-8388655/362845230",
+        "contentLength": "8388608",
+        "end": 0.162
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=8388656-",
+        "bytes": 8388608,
+        "start": 0.163,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 8388656-16777263/362845230",
+        "contentLength": "8388608",
+        "end": 0.173
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=8388748-",
+        "bytes": 8388608,
+        "start": 0.168,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 8388748-16777355/470132854",
+        "contentLength": "8388608",
+        "end": 0.188
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=16777264-",
+        "bytes": 8388608,
+        "start": 0.174,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 16777264-25165871/362845230",
+        "contentLength": "8388608",
+        "end": 21.589
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=16777356-",
+        "bytes": 8388608,
+        "start": 0.189,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 16777356-25165963/470132854",
+        "contentLength": "8388608",
+        "end": 6.799
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=25165964-",
+        "bytes": 8388608,
+        "start": 8.01,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 25165964-33554571/470132854",
+        "contentLength": "8388608",
+        "end": 39.499
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=25165872-",
+        "bytes": 8388608,
+        "start": 22.839,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 25165872-33554479/362845230",
+        "contentLength": "8388608",
+        "end": 31.839
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=33554480-",
+        "bytes": 8388608,
+        "start": 32.591,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 33554480-41943087/362845230",
+        "contentLength": "8388608",
+        "end": 48.839
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=33554572-",
+        "bytes": 8388608,
+        "start": 40.917,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 33554572-41943179/470132854",
+        "contentLength": "8388608",
+        "end": 81.833
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=41943088-",
+        "bytes": 8388608,
+        "start": 49.59,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 41943088-50331695/362845230",
+        "contentLength": "8388608",
+        "end": 63.589
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=50331696-",
+        "bytes": 8388608,
+        "start": 64.59,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 50331696-58720303/362845230",
+        "contentLength": "8388608",
+        "end": 77.09
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=58720304-",
+        "bytes": 8388608,
+        "start": 77.849,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 58720304-67108911/362845230",
+        "contentLength": "8388608",
+        "end": 88.84
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=41943180-",
+        "bytes": 8388608,
+        "start": 83.085,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 41943180-50331787/470132854",
+        "contentLength": "8388608",
+        "end": 107.608
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=67108912-",
+        "bytes": 8388608,
+        "start": 90.34,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 67108912-75497519/362845230",
+        "contentLength": "8388608",
+        "end": 101.589
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=75497520-",
+        "bytes": 8388608,
+        "start": 102.84,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 75497520-83886127/362845230",
+        "contentLength": "8388608",
+        "end": 132.09
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=50331788-",
+        "bytes": 8388608,
+        "start": 109.444,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 50331788-58720395/470132854",
+        "contentLength": "8388608",
+        "end": 150.86
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=83886128-",
+        "bytes": 8388608,
+        "start": 134.34,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 83886128-92274735/362845230",
+        "contentLength": "8388608",
+        "end": 174.089
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=58720396-",
+        "bytes": 8388608,
+        "start": 152.779,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 58720396-67109003/470132854",
+        "contentLength": "8388608",
+        "end": 180.139
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=92274736-",
+        "bytes": 8388608,
+        "start": 175.84,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 92274736-100663343/362845230",
+        "contentLength": "8388608",
+        "end": 228.589
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=67109004-",
+        "bytes": 8388608,
+        "start": 181.515,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 67109004-75497611/470132854",
+        "contentLength": "8388608",
+        "end": 193.027
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=75497612-",
+        "bytes": 8388608,
+        "start": 193.695,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 75497612-83886219/470132854",
+        "contentLength": "8388608",
+        "end": 207.667
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=83886220-",
+        "bytes": 8388608,
+        "start": 208.585,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 83886220-92274827/470132854",
+        "contentLength": "8388608",
+        "end": 215.726
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=92274828-",
+        "bytes": 8388608,
+        "start": 216.267,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 92274828-100663435/470132854",
+        "contentLength": "8388608",
+        "end": 224.267
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=100663436-",
+        "bytes": 8388608,
+        "start": 225.018,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 100663436-109052043/470132854",
+        "contentLength": "8388608",
+        "end": 233.777
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=100663344-",
+        "bytes": 8388608,
+        "start": 229.339,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 100663344-109051951/362845230",
+        "contentLength": "8388608",
+        "end": 260.589
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=109052044-",
+        "bytes": 8388608,
+        "start": 235.028,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 109052044-117440651/470132854",
+        "contentLength": "8388608",
+        "end": 253.712
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=117440652-",
+        "bytes": 8388608,
+        "start": 254.881,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 117440652-125829259/470132854",
+        "contentLength": "8388608",
+        "end": 299.341
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=109051952-",
+        "bytes": 8388608,
+        "start": 268.341,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 109051952-117440559/362845230",
+        "contentLength": "8388608",
+        "end": 300.59
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=117440560-",
+        "bytes": 8388608,
+        "start": 301.84,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 117440560-125829167/362845230",
+        "contentLength": "8388608",
+        "end": 327.589
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=125829260-",
+        "bytes": 8388608,
+        "start": 305.474,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 125829260-134217867/470132854",
+        "contentLength": "8388608",
+        "end": 341.509
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=125829168-",
+        "bytes": 8388608,
+        "start": 330.841,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 125829168-134217775/362845230",
+        "contentLength": "8388608",
+        "end": 371.84
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=134217868-",
+        "bytes": 8388608,
+        "start": 347.809,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 134217868-142606475/470132854",
+        "contentLength": "8388608",
+        "end": 393.562
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=134217776-",
+        "bytes": 8388608,
+        "start": 376.09,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 134217776-142606383/362845230",
+        "contentLength": "8388608",
+        "end": 417.59
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=142606476-",
+        "bytes": 8388608,
+        "start": 396.773,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 142606476-150995083/470132854",
+        "contentLength": "8388608",
+        "end": 431.015
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=142606384-",
+        "bytes": 8388608,
+        "start": 420.591,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 142606384-150994991/362845230",
+        "contentLength": "8388608",
+        "end": 449.34
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=150995084-",
+        "bytes": 8388608,
+        "start": 437.246,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 150995084-159383691/470132854",
+        "contentLength": "8388608",
+        "end": 484.026
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=150994992-",
+        "bytes": 8388608,
+        "start": 453.34,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 150994992-159383599/362845230",
+        "contentLength": "8388608",
+        "end": 485.589
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=159383692-",
+        "bytes": 8388608,
+        "start": 487.405,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 159383692-167772299/470132854",
+        "contentLength": "8388608",
+        "end": 522.44
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=159383600-",
+        "bytes": 8388608,
+        "start": 488.59,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 159383600-167772207/362845230",
+        "contentLength": "8388608",
+        "end": 527.341
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=167772300-",
+        "bytes": 8388608,
+        "start": 526.027,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 167772300-176160907/470132854",
+        "contentLength": "8388608",
+        "end": 552.052
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=167772208-",
+        "bytes": 8388608,
+        "start": 528.841,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 167772208-176160815/362845230",
+        "contentLength": "8388608",
+        "end": 573.839
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=176160908-",
+        "bytes": 8388608,
+        "start": 554.18,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 176160908-184549515/470132854",
+        "contentLength": "8388608",
+        "end": 577.328
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=176160816-",
+        "bytes": 8388608,
+        "start": 575.589,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 176160816-184549423/362845230",
+        "contentLength": "8388608",
+        "end": 595.84
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=184549516-",
+        "bytes": 8388608,
+        "start": 579.914,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 184549516-192938123/470132854",
+        "contentLength": "8388608",
+        "end": 597.465
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=184549424-",
+        "bytes": 1376256,
+        "start": 597.59,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 184549424-192938031/362845230",
+        "contentLength": "8388608",
+        "cancelled": true,
+        "end": 600.047
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=192938124-",
+        "bytes": 1310720,
+        "start": 598.225,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 192938124-201326731/470132854",
+        "contentLength": "8388608",
+        "cancelled": true,
+        "end": 600.047
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=25846217-",
+        "bytes": 8388608,
+        "start": 600.044,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 25846217-34234824/470132854",
+        "contentLength": "8388608",
+        "end": 600.059
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=48019204-",
+        "bytes": 8388608,
+        "start": 600.044,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 48019204-56407811/362845230",
+        "contentLength": "8388608",
+        "end": 600.059
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=34234825-",
+        "bytes": 8388608,
+        "start": 600.06,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 34234825-42623432/470132854",
+        "contentLength": "8388608",
+        "end": 600.072
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=56407812-",
+        "bytes": 8388608,
+        "start": 600.06,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 56407812-64796419/362845230",
+        "contentLength": "8388608",
+        "end": 600.072
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=42623433-",
+        "bytes": 1769472,
+        "start": 600.072,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 42623433-51012040/470132854",
+        "contentLength": "8388608",
+        "cancelled": true,
+        "end": 606.047
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=64796420-",
+        "bytes": 7077888,
+        "start": 600.072,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 64796420-73185027/362845230",
+        "contentLength": "8388608",
+        "cancelled": true,
+        "end": 606.048
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=205322383-",
+        "bytes": 8388608,
+        "start": 606.045,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 205322383-213710990/470132854",
+        "contentLength": "8388608",
+        "end": 606.058
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=184512928-",
+        "bytes": 8388608,
+        "start": 606.045,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 184512928-192901535/362845230",
+        "contentLength": "8388608",
+        "end": 606.059
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=213710991-",
+        "bytes": 8388608,
+        "start": 606.058,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 213710991-222099598/470132854",
+        "contentLength": "8388608",
+        "end": 606.069
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=192901536-",
+        "bytes": 8388608,
+        "start": 606.06,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 192901536-201290143/362845230",
+        "contentLength": "8388608",
+        "end": 606.07
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=222099599-",
+        "bytes": 4259840,
+        "start": 606.069,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 222099599-230488206/470132854",
+        "contentLength": "8388608",
+        "cancelled": true,
+        "end": 612.057
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=201290144-",
+        "bytes": 4128768,
+        "start": 606.071,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 201290144-209678751/362845230",
+        "contentLength": "8388608",
+        "cancelled": true,
+        "end": 612.048
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=385700184-",
+        "bytes": 8388608,
+        "start": 612.045,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 385700184-394088791/470132854",
+        "contentLength": "8388608",
+        "end": 612.066
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=320667136-",
+        "bytes": 8388608,
+        "start": 612.045,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 320667136-329055743/362845230",
+        "contentLength": "8388608",
+        "end": 612.056
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=329055744-",
+        "bytes": 8388608,
+        "start": 612.056,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 329055744-337444351/362845230",
+        "contentLength": "8388608",
+        "end": 612.075
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=394088792-",
+        "bytes": 8388608,
+        "start": 612.067,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 394088792-402477399/470132854",
+        "contentLength": "8388608",
+        "end": 612.077
+      },
+      {
+        "film": "S01E04.mp4",
+        "method": "GET",
+        "range": "bytes=337444352-",
+        "bytes": 7798784,
+        "start": 612.075,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 337444352-345832959/362845230",
+        "contentLength": "8388608",
+        "cancelled": true,
+        "end": 639.258
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=402477400-",
+        "bytes": 8388608,
+        "start": 612.078,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 402477400-410866007/470132854",
+        "contentLength": "8388608",
+        "end": 614.005
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=410866008-",
+        "bytes": 8388608,
+        "start": 614.84,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 410866008-419254615/470132854",
+        "contentLength": "8388608",
+        "end": 637.515
+      },
+      {
+        "film": "S01E01.mkv",
+        "method": "GET",
+        "range": "bytes=419254616-",
+        "bytes": 1179648,
+        "start": 638.35,
+        "active": false,
+        "status": 206,
+        "contentRange": "bytes 419254616-427643223/470132854",
+        "contentLength": "8388608",
+        "cancelled": true,
+        "end": 639.148
+      }
+    ],
+    "elapsed": 646.357
+  },
+  "web": {
+    "scope": "actual unchanged web client / Chrome / local server",
+    "checkpoints": [
+      {
+        "phase": "playing-60",
+        "currentTime": 59.84888,
+        "duration": 1421.461708,
+        "paused": false,
+        "readyState": 4,
+        "buffered": [
+          [
+            0,
+            126.957
+          ]
+        ],
+        "requests": 7,
+        "bytes": 37556584
+      },
+      {
+        "phase": "playing-120",
+        "currentTime": 119.853102,
+        "duration": 1421.461708,
+        "paused": false,
+        "readyState": 4,
+        "buffered": [
+          [
+            0,
+            254.3
+          ]
+        ],
+        "requests": 11,
+        "bytes": 70062440
+      },
+      {
+        "phase": "pause-settled",
+        "currentTime": 119.856659,
+        "duration": 1421.461708,
+        "paused": true,
+        "readyState": 4,
+        "buffered": [
+          [
+            0,
+            254.3
+          ]
+        ],
+        "requests": 11,
+        "bytes": 70062440
+      },
+      {
+        "phase": "pause-after-15s",
+        "currentTime": 119.856659,
+        "duration": 1421.461708,
+        "paused": true,
+        "readyState": 4,
+        "buffered": [
+          [
+            0,
+            254.3
+          ]
+        ],
+        "requests": 11,
+        "bytes": 70062440
+      }
+    ],
+    "afterLeave": {
+      "bytesAtLeave": 70062440,
+      "bytes": 70062440,
+      "requestsAtLeave": 11,
+      "requests": 11
+    },
+    "requests": [
+      {
+        "range": "bytes=0-",
+        "bytes": 982330,
+        "started": 1790731037194,
+        "status": 206,
+        "contentRange": "bytes 0-8388607/362845230",
+        "contentLength": "8388608"
+      },
+      {
+        "range": "bytes=361922560-",
+        "bytes": 922670,
+        "started": 1790731037202,
+        "status": 206,
+        "contentRange": "bytes 361922560-362845229/362845230",
+        "contentLength": "922670"
+      },
+      {
+        "range": "bytes=950272-",
+        "bytes": 8388608,
+        "started": 1790731038236,
+        "status": 206,
+        "contentRange": "bytes 950272-9338879/362845230",
+        "contentLength": "8388608"
+      },
+      {
+        "range": "bytes=0-4194303",
+        "bytes": 4194304,
+        "started": 1790731040188,
+        "status": 206,
+        "contentRange": "bytes 0-4194303/362845230",
+        "contentLength": "4194304"
+      },
+      {
+        "range": "bytes=9338880-",
+        "bytes": 8388608,
+        "started": 1790731060275,
+        "status": 206,
+        "contentRange": "bytes 9338880-17727487/362845230",
+        "contentLength": "8388608"
+      },
+      {
+        "range": "bytes=17727488-",
+        "bytes": 8388608,
+        "started": 1790731069943,
+        "status": 206,
+        "contentRange": "bytes 17727488-26116095/362845230",
+        "contentLength": "8388608"
+      },
+      {
+        "range": "bytes=26116096-",
+        "bytes": 8388608,
+        "started": 1790731086609,
+        "status": 206,
+        "contentRange": "bytes 26116096-34504703/362845230",
+        "contentLength": "8388608"
+      },
+      {
+        "range": "bytes=34504704-",
+        "bytes": 8388608,
+        "started": 1790731102256,
+        "status": 206,
+        "contentRange": "bytes 34504704-42893311/362845230",
+        "contentLength": "8388608"
+      },
+      {
+        "range": "bytes=42893312-",
+        "bytes": 8388608,
+        "started": 1790731115318,
+        "status": 206,
+        "contentRange": "bytes 42893312-51281919/362845230",
+        "contentLength": "8388608"
+      },
+      {
+        "range": "bytes=51281920-",
+        "bytes": 8388608,
+        "started": 1790731127653,
+        "status": 206,
+        "contentRange": "bytes 51281920-59670527/362845230",
+        "contentLength": "8388608"
+      },
+      {
+        "range": "bytes=59670528-",
+        "bytes": 5242880,
+        "started": 1790731140464,
+        "status": 206,
+        "contentRange": "bytes 59670528-68059135/362845230",
+        "contentLength": "8388608"
+      }
+    ]
+  }
+}

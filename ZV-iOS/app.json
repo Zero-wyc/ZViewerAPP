@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "ZViewer",
+    "slug": "zviewer-ios",
+    "version": "1.2.1",
+    "orientation": "default",
+    "icon": "./assets/images/zviewer-icon.png",
+    "scheme": "zviewer",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "bundleIdentifier": "com.zviewer.mobile",
+      "buildNumber": "2",
+      "supportsTablet": true,
+      "icon": "./assets/images/zviewer-icon.png",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "连接你指定的局域网 ZViewer 服务器。",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      }
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/zviewer-icon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#111417",
+          "image": "./assets/images/zviewer-icon.png",
+          "imageWidth": 180
+        }
+      ],
+      "expo-secure-store",
+      "expo-libvlc-player"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": false
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "0b2a3a4d-2f06-4cb4-9ca7-6d57a123e31c"
+      }
+    },
+    "owner": "fredqin2006"
+  }
+}
