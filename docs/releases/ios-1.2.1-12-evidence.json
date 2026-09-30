@@ -1,0 +1,151 @@
+{
+  "recordedDate": "2026-09-30",
+  "baselineCommit": "95bb3bd",
+  "scope": "b12 client fixes, local unmodified v4.2.0 UI, device build and offline unsigned IPA inspection; native iPad rotation revalidation pending",
+  "buildId": "b559808d-4da0-4828-a3a6-ebd5f985dce7",
+  "buildStatus": "FINISHED",
+  "buildCompletedAt": "2026-09-30T06:55:04.640Z",
+  "ipa": {
+    "bundleId": "com.zviewer.mobile",
+    "version": "1.2.1",
+    "build": "12",
+    "app": {
+      "arm64": true,
+      "platform": 2,
+      "signed": false,
+      "encrypted": false
+    },
+    "frameworks": [
+      "ExpoFileSystem.framework",
+      "ExpoFont.framework",
+      "ExpoImage.framework",
+      "ExpoModulesCore.framework",
+      "ExpoModulesJSI.framework",
+      "ExpoModulesWorklets.framework",
+      "React.framework",
+      "ReactNativeDependencies.framework",
+      "SDWebImage.framework",
+      "SDWebImageAVIFCoder.framework",
+      "SDWebImageSVGCoder.framework",
+      "SDWebImageWebPCoder.framework",
+      "VLCKit.framework",
+      "WebRTC.framework",
+      "hermesvm.framework",
+      "libavif.framework"
+    ],
+    "nativeBridges": {
+      "ZViewerNativeModule": true,
+      "ZVBiliBridge": true,
+      "ZVVoiceCodec": true
+    },
+    "jsBytes": 2988995,
+    "background": [
+      "audio"
+    ],
+    "ats": {
+      "NSAllowsLocalNetworking": true
+    },
+    "requiresFullScreen": true,
+    "orientations": [
+      "UIInterfaceOrientationPortrait",
+      "UIInterfaceOrientationPortraitUpsideDown",
+      "UIInterfaceOrientationLandscapeLeft",
+      "UIInterfaceOrientationLandscapeRight"
+    ],
+    "ipadOrientations": null,
+    "bytes": 46407060,
+    "sha256": "532efd15d4327b8219fda437224aa9b9b41407b60a3d56f22a545a034110374a"
+  },
+  "cloudShaMatches": true,
+  "nativeSmoke": [
+    "Prepared device ARM64 Bilicore and Opus libraries.",
+    "Opus host smoke: 50 mono/48kHz/20ms encode-decode frames passed (not device capture acceptance)."
+  ],
+  "bundledLicenses": {
+    "BILICORE-LICENSE": true,
+    "OPUS-LICENSE": true
+  },
+  "tests": {
+    "passed": 35,
+    "total": 35,
+    "lint": "passed",
+    "typecheck": "passed",
+    "iosExport": "passed",
+    "webExport": "passed"
+  },
+  "doctor": {
+    "evidenceSource": "b11; dependencies unchanged",
+    "passed": 20,
+    "total": 21,
+    "warnings": [
+      "react-native-webrtc: untested on New Architecture",
+      "zviewer-native: no Directory metadata"
+    ],
+    "suppressed": false
+  },
+  "ui": {
+    "scope": "Expo web UI + unmodified local v4.2.0; not device media acceptance",
+    "checks": [
+      "local account login + Socket connection",
+      "create room + restore host",
+      "add movie through UI persists canonical source",
+      "source picker opens/closes three times without layout changes at 1180x820",
+      "source picker opens/closes three times without layout changes at 820x1180",
+      "source picker opens/closes three times without layout changes at 390x844",
+      "browse local server mount + resolve file + add movie",
+      "member join follows server viewer-joined event",
+      "member leave follows server viewer-left event",
+      "rename room follows actual server protocol",
+      "Android music navigation and floating player are present",
+      "actual raw NCM status DTO shows logged-out gate without envelope error",
+      "NCM menu stays anchored below its button after resizing to 1180x820",
+      "NCM menu stays anchored below its button after resizing to 820x1180",
+      "NCM menu stays anchored below its button after resizing to 390x844",
+      "menu selection closes dropdown and switches music page",
+      "music ipad-landscape has no horizontal page overflow",
+      "music ipad-portrait has no horizontal page overflow",
+      "music iphone has no horizontal page overflow",
+      "successful QR polling refreshes existing My Music page",
+      "real NCM logout returns to Android login gate",
+      "listen mode mounts music search UI",
+      "fixture NCM result + real server music queue upsert/broadcast",
+      "real server music queue remove/broadcast",
+      "screen sharing missing-module preview remains usable",
+      "fullscreen fills 1180x820 viewport",
+      "video controls remain within 1180x820",
+      "fullscreen fills 820x1180 viewport",
+      "video controls remain within 820x1180",
+      "fullscreen fills 390x844 viewport",
+      "video controls remain within 390x844",
+      "rotation does not toggle fullscreen",
+      "ipad-landscape has no horizontal page overflow",
+      "ipad-portrait has no horizontal page overflow",
+      "iphone has no horizontal page overflow",
+      "leave room returns to lobby",
+      "no JS runtime exceptions"
+    ],
+    "errors": []
+  },
+  "reportedIssues": [
+    "NCM dropdown did not align with its button",
+    "Opening Add Source in landscape repeatedly rotated the iPad screen"
+  ],
+  "fixes": {
+    "ncmMenu": "Anchored as a positioned child of the button container; header stacking keeps it over content; selection/search/account closes it",
+    "sourcePicker": "Explicit fullScreen Modal with portrait/portrait-upside-down/landscape, replacing native default portrait mask; no modal layout/show/hide orientation calls"
+  },
+  "nativeRotationStatus": "Conflict fixed in client configuration; no UIKit event trace or b12 device result collected, not declared resolved on device",
+  "serverFilesUnchanged": [
+    "backend/src/routes/serverFiles.ts",
+    "backend/src/services/proxy/range-stream.ts",
+    "backend/src/services/proxy/http-proxy.ts"
+  ],
+  "networkScope": "isolated local v4.2.0; no NAS connections",
+  "deviceRetest": [
+    "landscape Add Source open/close three times, scroll and dismiss",
+    "physical rotation while SourcePicker is open, close and preserve prior direction policy",
+    "NCM dropdown from both music tabs, rotation and sidebar size changes",
+    "previous playback/fullscreen/music regression matrix remains pending where not user-confirmed"
+  ],
+  "historicalEvidence": "ios-1.2.1-11-evidence.json; prior user playback/QR/anime/mount feedback remains scoped; no new voice or cross-client acceptance"
+}

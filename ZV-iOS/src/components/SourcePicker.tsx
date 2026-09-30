@@ -54,7 +54,9 @@ export function SourcePicker({ visible, onClose, onAdd }: { visible: boolean; on
     });
   };
   const close = () => { if (busy) return; ++version.current; onClose(); };
-  return <Modal visible={visible} animationType="slide" onRequestClose={close}><SafeAreaView style={{ flex: 1, backgroundColor: '#111417', padding: 16 }}><ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
+  // Match the app's orientation mask: a portrait-only modal conflicts with
+  // the room's landscape lock when UIKit presents its view controller.
+  return <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" supportedOrientations={['portrait', 'portrait-upside-down', 'landscape']} onRequestClose={close}><SafeAreaView testID="source-picker" style={{ flex: 1, backgroundColor: '#111417', padding: 16 }}><ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
     <View style={ui.row}><Text style={[ui.title, { flex: 1 }]}>添加影片</Text><RoomButton label="完成" onPress={close} disabled={busy} secondary /></View>
     <Text style={ui.title}>视频直链</Text><RoomInput placeholder="影片名称" value={title} onChangeText={setTitle} />
     <RoomInput placeholder="MP4 / MKV / HLS / FLV 等 HTTP(S) 媒体地址" value={url} onChangeText={setUrl} autoCapitalize="none" keyboardType="url" />

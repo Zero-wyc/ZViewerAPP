@@ -23,6 +23,21 @@ const backend = 'http://127.0.0.1:7333';
     await page.getByText('片单', { exact: true }).click(); await page.getByRole('button', { name: '添加影片', exact: true }).click();
     await page.getByPlaceholder('影片名称').fill('UI direct source'); await page.getByPlaceholder('MP4 / MKV / HLS / FLV 等 HTTP(S) 媒体地址').fill('https://example.invalid/sample.mp4'); await page.getByRole('button', { name: '添加到片单', exact: true }).click(); await page.getByText('UI direct source', { exact: true }).waitFor();
     const movies = await (await fetch(`${backend}/api/rooms/${roomId}/movies`, { headers })).json(); check('add movie through UI persists canonical source', movies.movies.some(item => item.title === 'UI direct source' && !item.url.includes('token=')));
+    // Exercise the reported landscape entry and repeated dismissal/resizing.
+    // Web verifies layout/lifecycle only; UIKit rotation still needs the unsigned device build.
+    for (const [w,h] of [[1180,820],[820,1180],[390,844]]) {
+      await page.setViewportSize({width:w,height:h});
+      if (await page.getByRole('button',{name:'展开侧栏',exact:true}).isVisible()) await page.getByRole('button',{name:'展开侧栏',exact:true}).click();
+      for (let attempt=0;attempt<3;attempt++) {
+        await page.getByRole('button',{name:'添加影片',exact:true}).click(); await page.getByTestId('source-picker').waitFor();
+        await page.waitForTimeout(200); const box=await page.getByTestId('source-picker').boundingBox();
+        assert.ok(box && Math.abs(box.width-w)<2 && Math.abs(box.height-h)<2, 'Source picker fills the current viewport');
+        if (attempt===0) await page.screenshot({path:resolve(output,`ios-source-picker-${w}x${h}.png`)});
+        await page.getByRole('button',{name:'完成',exact:true}).click(); await page.getByTestId('source-picker').waitFor({state:'hidden'});
+      }
+      check(`source picker opens/closes three times without layout changes at ${w}x${h}`);
+    }
+    await page.setViewportSize({width:1180,height:820});
     await page.getByRole('button', { name: '添加影片', exact: true }).click(); await page.getByRole('button', { name: '服务器文件与我的挂载', exact: true }).click();
     // Mount display names are configured locally; identify the root without logging paths.
     const roots = await (await fetch(backend + '/api/server-files/roots', { headers })).json(); const root = roots.roots.find(item => item.absPath.replaceAll('\\', '/').toLowerCase() === 'c:/users/fredq/videos');
@@ -38,6 +53,14 @@ const backend = 'http://127.0.0.1:7333';
     await page.getByRole('button', { name: '一起听', exact: true }).first().click(); await page.getByRole('button', { name: '网易云音乐', exact: true }).waitFor(); check('Android music navigation and floating player are present');
     const statusDto = await (await statusResponse).json(); assert.equal(statusDto.loggedIn, false); assert.equal(statusDto.success, undefined);
     await page.waitForTimeout(150); check('actual raw NCM status DTO shows logged-out gate without envelope error', await page.getByText('请先登录网易云音乐', {exact:true}).isVisible() && await page.getByText('服务器未返回成功结果', {exact:true}).count() === 0);
+    await page.getByRole('button',{name:'哔哩哔哩',exact:true}).click(); await page.getByRole('button',{name:'网易云音乐',exact:true}).click();
+    for (const [w,h] of [[1180,820],[820,1180],[390,844]]) {
+      await page.setViewportSize({width:w,height:h}); await page.waitForTimeout(150);
+      const anchor=await page.getByTestId('ncm-menu-anchor').boundingBox(); const menu=await page.getByTestId('ncm-menu').boundingBox();
+      check(`NCM menu stays anchored below its button after resizing to ${w}x${h}`, anchor && menu && Math.abs(menu.x-anchor.x)<2 && Math.abs(menu.y-anchor.y-anchor.height-8)<2 && menu.x>=0 && menu.x+menu.width<=w+1);
+      await page.screenshot({path:resolve(output,`ios-ncm-menu-${w}x${h}.png`)});
+    }
+    await page.getByText('我的音乐',{exact:true}).click(); await page.getByTestId('ncm-menu').waitFor({state:'hidden'}); await page.getByText('请先登录网易云音乐',{exact:true}).waitFor(); check('menu selection closes dropdown and switches music page');
     mkdirSync(output, { recursive: true });
     for (const [device,w,h] of [['ipad-landscape',1180,820],['ipad-portrait',820,1180],['iphone',390,844]]) {
       await page.setViewportSize({width:w,height:h}); await page.waitForTimeout(150);

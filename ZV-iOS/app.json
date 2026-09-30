@@ -9,7 +9,7 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "bundleIdentifier": "com.zviewer.mobile",
-      "buildNumber": "11",
+      "buildNumber": "12",
       "supportsTablet": true,
       "icon": "./assets/images/zviewer-icon.png",
       "infoPlist": {

@@ -1,6 +1,6 @@
 # ZViewer iOS
 
-独立 Expo SDK 57 / React Native 工程。当前交付 **1.2.1 / build 11 未签名真机测试包**；文件、音乐和 HTTP-FLV 使用单一 VLCKit，保留统一播放器适配接口及 v4.2.0 的 8 MiB Range 行为。
+独立 Expo SDK 57 / React Native 工程。当前交付 **1.2.1 / build 12 未签名真机测试包**；文件、音乐和 HTTP-FLV 使用单一 VLCKit，保留统一播放器适配接口及 v4.2.0 的 8 MiB Range 行为。
 
 ## 已实现
 
@@ -13,7 +13,9 @@
 - b11 修正：保留初始化前起播意图；播放条覆盖在视频内；全屏移除外层留白，旋转操作独立，退出恢复之前方向策略。iPad `requireFullScreen` 用于使方向锁生效，**关闭 Split View**。
 - 网易云使用折叠菜单、我的音乐登录页、居中底部播放条、独立队列/歌词面板；适配原始登录状态 DTO，扫码成功刷新歌单，退出恢复登录页。
 
-用户已反馈上一轮视频、B站扫码、番剧和挂载视频正常。**b11 自动起播/全屏/旋转/样式仍待真机复验**，语音、同步及扩展媒体矩阵仍待测。状态及限制见 [原 plan](../docs/ios-continuation-plan.md) 和 [b11 交付记录](../docs/releases/ios-1.2.1-11-unsigned.md)。
+用户已反馈上一轮视频、B站扫码、番剧和挂载视频正常。**b12 自动起播/全屏/旋转/样式仍待真机复验**，语音、同步及扩展媒体矩阵仍待测。状态及限制见 [原 plan](../docs/ios-continuation-plan.md) 和 [b12 交付记录](../docs/releases/ios-1.2.1-12-unsigned.md)。
+
+本次 b12 修正网易云下拉菜单锚点，并为添加片源弹窗显式配置横竖屏方向。三尺寸菜单/弹窗布局检查通过；iPad 横屏持续旋转仍待新包复验。
 
 ## 未签名真机构建
 
@@ -25,7 +27,7 @@ cd ZV-iOS
 
 脚本先暂存共享 Go 源，再将 EAS archive 限定本工程。自定义 workflow 校验固定 Go/Opus 下载摘要、构建依赖、运行 Opus 编解码检查，以 CNG 生成项目并编译 iphoneos ARM64 Release。包内置 JS，不需要 Apple 登录、设备注册或 Metro。
 
-本版 IPA：`release-assets/ZViewer-1.2.1-b11-unsigned.ipa`（不提交 Git）。按最新要求仅交付 unsigned，**需要用户自行签名后安装**。Expo Go 不能加载 VLC/Go/语音原生模块。旧 development/simulator profile 尚未配置本模块对应的 vendor 准备步骤，当前请用 unsigned-device；模拟器包不能改后缀当真机包。
+本版 IPA：`release-assets/ZViewer-1.2.1-b12-unsigned.ipa`（不提交 Git）。按最新要求仅交付 unsigned，**需要用户自行签名后安装**。Expo Go 不能加载 VLC/Go/语音原生模块。旧 development/simulator profile 尚未配置本模块对应的 vendor 准备步骤，当前请用 unsigned-device；模拟器包不能改后缀当真机包。
 
 ## 验证与限制
 
@@ -36,12 +38,12 @@ npm run lint
 npm run typecheck
 npx expo-doctor
 npx expo export --platform ios
-python scripts/inspect-unsigned-ipa.py release-assets/ZViewer-1.2.1-b11-unsigned.ipa
+python scripts/inspect-unsigned-ipa.py release-assets/ZViewer-1.2.1-b12-unsigned.ipa
 ```
 
 本版 35 项单测、lint/类型、iOS/Web 导出通过；Doctor 20/21，Directory 提示 WebRTC New Architecture 未测试、私有本地模块无元数据，未屏蔽。EAS 设备编译和 IPA 平台/桥接/JS/方向声明检查见版本记录。
 
-`check-room-ui.cjs` 本轮 30 项检查通过，含两模式三尺寸、全屏填满/控件位置、旋转操作不切换全屏、真实登录状态及退出、扫码后刷新；`check-room-protocol.cjs` 和 `check-mount-flow.cjs` 历史分别 16 项协议、7 项挂载通过。仅使用隔离的本地 v4.2.0；音乐上游扫码/歌单/搜索、语音包和 DAV 为 fixture，不等于真实账号、麦克风或 NAS 验收。`check-local-results.mjs` 核对此前桌面 VLC/原网页 Range 证据。本轮未连接 NAS。
+`check-room-ui.cjs` 本轮 37 项检查通过，含两模式三尺寸、全屏填满/控件位置、旋转操作不切换全屏、真实登录状态及退出、扫码后刷新；`check-room-protocol.cjs` 和 `check-mount-flow.cjs` 历史分别 16 项协议、7 项挂载通过。仅使用隔离的本地 v4.2.0；音乐上游扫码/歌单/搜索、语音包和 DAV 为 fixture，不等于真实账号、麦克风或 NAS 验收。`check-local-results.mjs` 核对此前桌面 VLC/原网页 Range 证据。本轮未连接 NAS。
 
 VLCKit 4.0.0a24 是预发布版，expo-libvlc-player 固定 57.0.54。真机续读/编码/后台/PiP、蓝牙/来电、语音回声、B站账号/高画质/失效和 Android 同房同步均待测。复杂 ASS 样式使用 VLC 外部字幕；同步 RN 字幕层显示文本和基础样式。
 
