@@ -9,7 +9,7 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "bundleIdentifier": "com.zviewer.mobile",
-      "buildNumber": "9",
+      "buildNumber": "11",
       "supportsTablet": true,
       "icon": "./assets/images/zviewer-icon.png",
       "infoPlist": {
@@ -18,7 +18,8 @@
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         }
-      }
+      },
+      "requireFullScreen": true
     },
     "web": {
       "output": "static",
@@ -42,7 +43,13 @@
         }
       ],
       "@config-plugins/react-native-webrtc",
-      "./plugins/with-voice-audio.cjs"
+      "./plugins/with-voice-audio.cjs",
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "DEFAULT"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -34,13 +34,44 @@ const backend = 'http://127.0.0.1:7333';
     await page.getByText('房间', { exact: true }).click(); await page.getByText(guest.user.username + ' · viewer', { exact: true }).waitFor(); check('member join follows server viewer-joined event');
     viewer.disconnect(); await page.getByText(guest.user.username + ' · viewer', { exact: true }).waitFor({ state: 'hidden' }); check('member leave follows server viewer-left event');
     await page.getByPlaceholder('房间名称').fill('Updated iOS room'); await page.getByRole('button', { name: '保存名称', exact: true }).click(); await page.getByText('Updated iOS room', { exact: true }).filter({ visible: true }).first().waitFor(); check('rename room follows actual server protocol');
-    await page.getByRole('button', { name: '一起听', exact: true }).click(); await page.getByPlaceholder('歌曲 / 歌手').waitFor(); check('listen mode mounts queue + lyrics UI');
+    const statusResponse = page.waitForResponse(response => response.url().endsWith('/api/music/login/status'));
+    await page.getByRole('button', { name: '一起听', exact: true }).first().click(); await page.getByRole('button', { name: '网易云音乐', exact: true }).waitFor(); check('Android music navigation and floating player are present');
+    const statusDto = await (await statusResponse).json(); assert.equal(statusDto.loggedIn, false); assert.equal(statusDto.success, undefined);
+    await page.waitForTimeout(150); check('actual raw NCM status DTO shows logged-out gate without envelope error', await page.getByText('请先登录网易云音乐', {exact:true}).isVisible() && await page.getByText('服务器未返回成功结果', {exact:true}).count() === 0);
+    mkdirSync(output, { recursive: true });
+    for (const [device,w,h] of [['ipad-landscape',1180,820],['ipad-portrait',820,1180],['iphone',390,844]]) {
+      await page.setViewportSize({width:w,height:h}); await page.waitForTimeout(150);
+      await page.screenshot({path:resolve(output,`ios-music-${device}.png`)});
+      check(`music ${device} has no horizontal page overflow`, await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2));
+    }
+    await page.setViewportSize({width:1180,height:820});
+    // QR/upstream account data are fixtures; the initial status and logout above/below use the real local server.
+    await page.route('**/api/music/ncm/login/qr/key', route => route.fulfill({json:{code:200,data:{unikey:'local-qr-fixture'}}}));
+    await page.route('**/api/music/ncm/login/qr/create?*', route => route.fulfill({json:{code:200,data:{qrimg:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg=='}}}));
+    await page.route('**/api/music/ncm/login/qr/check?*', route => route.fulfill({json:{code:803}}));
+    await page.route('**/api/music/login/status', route => route.fulfill({json:{loggedIn:true,nickname:'Local music account',vipStatus:0}}));
+    await page.route('**/api/music/ncm/user/account', route => route.fulfill({json:{code:200,profile:{userId:123}}}));
+    await page.route('**/api/music/ncm/user/playlist?*', route => route.fulfill({json:{code:200,playlist:[]}}));
+    await page.getByRole('button',{name:'扫码登录',exact:true}).click(); await page.getByText('网易云登录成功',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'我的音乐',exact:true}).click(); await page.getByText('Local music account',{exact:true}).waitFor(); check('successful QR polling refreshes existing My Music page');
+    await page.getByRole('button',{name:'退出网易云账号',exact:true}).click(); await page.getByText('请先登录网易云音乐',{exact:true}).waitFor(); check('real NCM logout returns to Android login gate');
+    await page.getByRole('button', { name: '搜索', exact: true }).click(); await page.getByPlaceholder('歌曲 / 歌手').waitFor(); check('listen mode mounts music search UI');
     await page.route('**/api/music/ncm/cloudsearch?*', route => route.fulfill({ json: { code: 200, result: { songs: [{ id: 123456789, name: 'Fixture music item', ar: [{ name: 'Local fixture' }], al: { name: 'Local fixture', picUrl: '' }, dt: 90000, fee: 0 }] } } }));
-    await page.getByPlaceholder('歌曲 / 歌手').fill('fixture'); await page.getByRole('button', { name: '搜索', exact: true }).click(); await page.getByRole('button', { name: '添加到队列', exact: true }).click(); await page.getByText('播放队列 · 1', { exact: true }).waitFor(); check('fixture NCM result + real server music queue upsert/broadcast');
-    await page.getByRole('button', { name: '移除', exact: true }).click(); await page.getByText('播放队列 · 0', { exact: true }).waitFor(); check('real server music queue remove/broadcast');
-    await page.getByRole('button', { name: '屏幕共享', exact: true }).click(); await page.getByText('共享观看需要原生安装包', { exact: true }).waitFor(); check('screen sharing missing-module preview remains usable');
-    await page.getByRole('button', { name: '同步观影', exact: true }).click(); await page.getByText('等待房主选择影片', { exact: true }).waitFor();
-    await page.getByText('片单', { exact: true }).click();
+    await page.getByPlaceholder('歌曲 / 歌手').fill('fixture'); await page.getByRole('button', { name: '搜索歌曲', exact: true }).click(); await page.getByRole('button', { name: '添加到队列', exact: true }).click(); await page.getByRole('button', { name: '队列', exact: true }).click(); await page.getByText('播放队列 · 1', { exact: true }).waitFor(); check('fixture NCM result + real server music queue upsert/broadcast');
+    await page.getByRole('button', { name: '移除', exact: true }).click(); await page.getByText('播放队列 · 0', { exact: true }).waitFor(); check('real server music queue remove/broadcast'); await page.getByRole('button', { name: '关闭', exact: true }).click();
+    await page.getByRole('button', { name: '投屏', exact: true }).click(); await page.getByText('共享观看需要原生安装包', { exact: true }).waitFor(); check('screen sharing missing-module preview remains usable');
+    await page.getByRole('button', { name: '一起看', exact: true }).click(); await page.getByText('等待房主选择影片', { exact: true }).waitFor();
+    const bounds = () => page.getByTestId('video-container').boundingBox();
+    for (const [w,h] of [[1180,820],[820,1180],[390,844]]) {
+      await page.setViewportSize({ width:w,height:h }); await page.getByRole('button', { name:'全屏',exact:true }).click();
+      await page.waitForTimeout(150); await page.screenshot({path:resolve(output,`ios-fullscreen-${w}x${h}.png`)}); const box=await bounds();
+      check(`fullscreen fills ${w}x${h} viewport`, box && Math.abs(box.x)<2 && Math.abs(box.y)<2 && Math.abs(box.width-w)<2 && Math.abs(box.height-h)<2);
+      const slider = await page.getByLabel('播放进度').boundingBox(); check(`video controls remain within ${w}x${h}`, slider && slider.y >= 0 && slider.y+slider.height <= h+1);
+      await page.getByRole('button', { name:'退出全屏',exact:true }).click(); await page.getByRole('button',{name:'房间设置',exact:true}).waitFor();
+    }
+    await page.setViewportSize({width:1180,height:820}); await page.getByRole('button',{name:'旋转',exact:true}).click();
+    check('rotation does not toggle fullscreen',await page.getByRole('button',{name:'房间设置',exact:true}).isVisible());
+    if (await page.getByRole('button',{name:'展开侧栏',exact:true}).isVisible()) await page.getByRole('button',{name:'展开侧栏',exact:true}).click(); await page.getByText('片单', { exact: true }).click();
     mkdirSync(output, { recursive: true });
     for (const [name, width, height] of [['ipad-landscape', 1180, 820], ['ipad-portrait', 820, 1180], ['iphone', 390, 844]]) {
       await page.setViewportSize({ width, height }); await page.waitForTimeout(700); await page.screenshot({ path: resolve(output, `ios-ui-${name}.png`) });

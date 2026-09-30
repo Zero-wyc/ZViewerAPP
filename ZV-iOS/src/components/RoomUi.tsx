@@ -1,4 +1,6 @@
 import { Pressable, StyleSheet, Text, TextInput, type TextInputProps } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import type { ComponentProps } from 'react';
 
 export const roomColors = { background: '#111417', surface: '#1b2024', line: '#343d41', text: '#edf1ef', muted: '#a8b3b6', accent: '#65d59b', error: '#ffaaa5' };
 export const ui = StyleSheet.create({
@@ -15,3 +17,6 @@ export function RoomButton({ label, onPress, disabled, secondary }: { label: str
   return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} style={[ui.button, secondary && ui.secondary, disabled && { opacity: 0.45 }]}><Text style={[ui.buttonText, secondary && ui.text]}>{label}</Text></Pressable>;
 }
 export function RoomInput(props: TextInputProps) { return <TextInput placeholderTextColor={roomColors.muted} autoCorrect={false} {...props} style={[ui.input, props.style]} />; }
+export function RoomIconButton({ label, icon, onPress }: { label: string; icon: ComponentProps<typeof Feather>['name']; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><Feather name={icon} size={22} color={roomColors.muted} /></Pressable>;
+}

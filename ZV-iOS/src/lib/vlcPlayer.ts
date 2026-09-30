@@ -5,7 +5,7 @@ export type VideoSource = ReturnType<typeof nativeVideoSource>;
 export type VlcViewPort = { play(): Promise<void>; pause(): Promise<void>; stop(): Promise<void>; seek(milliseconds: number, type?: 'time'): Promise<void>; startPictureInPicture?(): Promise<void> };
 export type VlcTrack = { id: number; name: string };
 export type VlcSettings = { tracks: { audio?: number; subtitle?: number }; volume: number; subtitleDelay: number; subtitleUri?: string };
-export type VlcSnapshot = { id: number; source: VideoSource; initialTime: number; rate: number; settings: VlcSettings };
+export type VlcSnapshot = { id: number; source: VideoSource; initialTime: number; rate: number; settings: VlcSettings; autoplay: boolean };
 type Events = {
   playingChange: { isPlaying: boolean };
   playbackRateChange: { playbackRate: number };
@@ -56,6 +56,7 @@ export class VlcPlayer implements NativePlayerPort {
     this.emit('playbackRateChange', { playbackRate: rate });
   }
   get playing() { return this.actualPlaying; }
+  get preparing() { return !!this.snapshot && !this.prepared; }
   get duration() { return this.length; }
   get mediaTracks() { return this.availableTracks; }
   get mediaSettings() { return this.settings; }
@@ -71,12 +72,13 @@ export class VlcPlayer implements NativePlayerPort {
   play() {
     if (this.disposed) return;
     this.desiredPlaying = true;
-    // The view starts paused to avoid playing before the adapter applies seek.
+    if (this.snapshot) { this.snapshot = { ...this.snapshot, autoplay: true }; this.render(this.snapshot); }
     this.command(() => this.vlc?.play());
   }
   pause() {
     if (this.disposed) return;
     this.desiredPlaying = false; this.actualPlaying = false;
+    if (this.snapshot) { this.snapshot = { ...this.snapshot, autoplay: false }; this.render(this.snapshot); }
     this.command(() => this.vlc?.pause());
   }
   private command(work: () => Promise<void> | undefined) {
@@ -101,7 +103,7 @@ export class VlcPlayer implements NativePlayerPort {
     this.position = 0; this.length = 0; this.rate = 1;
     this.availableTracks = { audio: [], video: [], subtitle: [] };
     this.settings = { ...this.settings, tracks: {}, subtitleUri: undefined, subtitleDelay: 0 };
-    this.snapshot = { id: this.revision, source, initialTime: 0, rate: 1, settings: this.settings };
+    this.snapshot = { id: this.revision, source, initialTime: 0, rate: 1, settings: this.settings, autoplay: false };
     this.render(this.snapshot);
     this.emit('statusChange', { status: 'loading' });
   }
@@ -114,7 +116,7 @@ export class VlcPlayer implements NativePlayerPort {
     if (!this.accepts(id)) return;
     this.prepared = true; this.length = Math.max(0, lengthMilliseconds / 1000);
     this.seekPending();
-    if (!this.desiredPlaying) this.command(() => this.vlc?.pause());
+    this.command(() => this.desiredPlaying ? this.vlc?.play() : this.vlc?.pause());
     this.emit('sourceLoad', { duration: this.length, availableAudioTracks: this.availableTracks.audio, availableVideoTracks: this.availableTracks.video, availableSubtitleTracks: this.availableTracks.subtitle });
     this.emit('statusChange', { status: 'readyToPlay' });
   }
@@ -125,6 +127,9 @@ export class VlcPlayer implements NativePlayerPort {
   }
   playingChanged(id: number, playing: boolean) {
     if (!this.accepts(id)) return;
+    // A native start-paused callback while preparing must not overwrite the
+    // room's requested play state before VLC has applied the initial intent.
+    if (!playing && !this.prepared && this.desiredPlaying) return;
     if (playing && !this.desiredPlaying) { this.command(() => this.vlc?.pause()); return; }
     this.actualPlaying = playing;
     this.emit('playingChange', { isPlaying: playing });

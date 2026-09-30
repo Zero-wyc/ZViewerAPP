@@ -41,7 +41,7 @@ function VlcSurface({ player, snapshot, style }: { player: VlcPlayer; snapshot: 
     tracks={snapshot.settings.tracks}
     volume={snapshot.settings.volume}
     delays={{ subtitle: Math.round(snapshot.settings.subtitleDelay * 1000000) }}
-    autoplay={false}
+    autoplay={snapshot.autoplay}
     pictureInPicture={true}
     time={Math.round(snapshot.initialTime * 1000)}
     rate={snapshot.rate}

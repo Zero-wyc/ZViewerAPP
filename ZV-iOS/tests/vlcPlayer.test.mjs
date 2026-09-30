@@ -12,6 +12,21 @@ function fixture(available = true) {
 }
 const state = { sourceUrl: '/api/server-files/proxy?path=custom%3Avideos%2FS01E01.mkv', sourceType: 'server-files', format: 'mkv', currentTime: 120, isPlaying: true };
 
+test('early play survives native initialization and start-paused callbacks', async () => {
+  const f = fixture(); const adapter = new NativeMediaAdapter(f.player); const events = [];
+  f.player.addListener('playingChange', event => events.push(event.isPlaying));
+  await adapter.apply(state, server, 'token'); const snapshot = f.snapshots.at(-1);
+  assert.equal(snapshot.autoplay, true); assert.equal(f.player.preparing, true);
+  f.player.attach(snapshot.id, f.view); f.player.playingChanged(snapshot.id, false);
+  assert.deepEqual(events, []); // Initial paused notification is not a room pause.
+  f.calls.length = 0; f.player.loaded(snapshot.id, 1446200);
+  assert.equal(f.player.preparing, false); assert.ok(f.calls.includes('play'));
+  await adapter.apply({ ...state, isPlaying: false }, server, 'token');
+  assert.equal(f.snapshots.at(-1).autoplay, false);
+  f.calls.length = 0; f.player.loaded(snapshot.id, 1446200);
+  assert.ok(f.calls.includes('pause')); assert.ok(!f.calls.includes('play'));
+});
+
 test('VLC adapts milliseconds, initial seek, rate and the shared room clock', async () => {
   const f = fixture(); const adapter = new NativeMediaAdapter(f.player);
   await adapter.apply(state, server, 'token'); const snapshot = f.snapshots.at(-1);

@@ -5,6 +5,7 @@
   "dependencies": {
     "@config-plugins/react-native-webrtc": "^15.0.2",
     "@expo/ui": "~57.0.21",
+    "@expo/vector-icons": "^15.0.2",
     "@react-native-community/slider": "5.2.0",
     "base64-js": "^1.5.1",
     "expo": "~57.0.26",

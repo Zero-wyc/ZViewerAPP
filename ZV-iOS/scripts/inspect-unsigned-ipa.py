@@ -38,7 +38,7 @@ def inspect(path):
         bridges = {name: name.encode() in binary for name in ['ZViewerNativeModule', 'ZVBiliBridge', 'ZVVoiceCodec']}
         assert all(bridges.values()), 'Missing linked native Bilibili/voice bridge classes'
         assert info.get('NSMicrophoneUsageDescription'), 'Missing microphone permission description'
-        return dict(bundleId=info['CFBundleIdentifier'], version=info['CFBundleShortVersionString'], build=info['CFBundleVersion'], app=app, frameworks=frameworks, nativeBridges=bridges, jsBytes=archive.getinfo(root + 'main.jsbundle').file_size, background=info.get('UIBackgroundModes'), ats=info.get('NSAppTransportSecurity'))
+        return dict(bundleId=info['CFBundleIdentifier'], version=info['CFBundleShortVersionString'], build=info['CFBundleVersion'], app=app, frameworks=frameworks, nativeBridges=bridges, jsBytes=archive.getinfo(root + 'main.jsbundle').file_size, background=info.get('UIBackgroundModes'), ats=info.get('NSAppTransportSecurity'), requiresFullScreen=info.get('UIRequiresFullScreen', False), orientations=info.get('UISupportedInterfaceOrientations'), ipadOrientations=info.get('UISupportedInterfaceOrientations~ipad'))
 
 if __name__ == '__main__':
     path = Path(sys.argv[1]); result = inspect(path)

@@ -1,0 +1,167 @@
+{
+  "recordedDate": "2026-09-30",
+  "scope": "b11 source checks, local unmodified v4.2.0 UI and unsigned device compilation/offline inspection; b11 physical-device revalidation pending",
+  "baselineCommit": "e19f094",
+  "buildId": "3f8cb619-c4c1-4a40-9e23-ef0cd0903c6d",
+  "buildStatus": "FINISHED",
+  "buildCompletedAt": "2026-09-30T06:04:07.397Z",
+  "ipa": {
+    "bundleId": "com.zviewer.mobile",
+    "version": "1.2.1",
+    "build": "11",
+    "app": {
+      "arm64": true,
+      "platform": 2,
+      "signed": false,
+      "encrypted": false
+    },
+    "frameworks": [
+      "ExpoFileSystem.framework",
+      "ExpoFont.framework",
+      "ExpoImage.framework",
+      "ExpoModulesCore.framework",
+      "ExpoModulesJSI.framework",
+      "ExpoModulesWorklets.framework",
+      "React.framework",
+      "ReactNativeDependencies.framework",
+      "SDWebImage.framework",
+      "SDWebImageAVIFCoder.framework",
+      "SDWebImageSVGCoder.framework",
+      "SDWebImageWebPCoder.framework",
+      "VLCKit.framework",
+      "WebRTC.framework",
+      "hermesvm.framework",
+      "libavif.framework"
+    ],
+    "nativeBridges": {
+      "ZViewerNativeModule": true,
+      "ZVBiliBridge": true,
+      "ZVVoiceCodec": true
+    },
+    "jsBytes": 2988799,
+    "background": [
+      "audio"
+    ],
+    "ats": {
+      "NSAllowsLocalNetworking": true
+    },
+    "requiresFullScreen": true,
+    "orientations": [
+      "UIInterfaceOrientationPortrait",
+      "UIInterfaceOrientationPortraitUpsideDown",
+      "UIInterfaceOrientationLandscapeLeft",
+      "UIInterfaceOrientationLandscapeRight"
+    ],
+    "ipadOrientations": null,
+    "bytes": 46407465,
+    "sha256": "78ab5b572f0e3d129fa41f9674416b033e6d103682c5751e5b9dbc8a1e749537",
+    "bundledFontCount": 1
+  },
+  "cloudShaMatches": true,
+  "nativeSmoke": [
+    "Prepared device ARM64 Bilicore and Opus libraries.",
+    "Opus host smoke: 50 mono/48kHz/20ms encode-decode frames passed (not device capture acceptance)."
+  ],
+  "bundledLicenses": {
+    "BILICORE-LICENSE": true,
+    "OPUS-LICENSE": true
+  },
+  "tests": {
+    "passed": 35,
+    "total": 35,
+    "lint": "passed",
+    "typecheck": "passed",
+    "iosExport": "passed",
+    "webExport": "passed"
+  },
+  "doctor": {
+    "passed": 20,
+    "total": 21,
+    "warnings": [
+      "react-native-webrtc: untested on New Architecture",
+      "zviewer-native: no Directory metadata available"
+    ],
+    "warningsSuppressed": false
+  },
+  "ui": {
+    "scope": "Expo web UI + unmodified local v4.2.0; not device media acceptance",
+    "checks": [
+      "local account login + Socket connection",
+      "create room + restore host",
+      "add movie through UI persists canonical source",
+      "browse local server mount + resolve file + add movie",
+      "member join follows server viewer-joined event",
+      "member leave follows server viewer-left event",
+      "rename room follows actual server protocol",
+      "Android music navigation and floating player are present",
+      "actual raw NCM status DTO shows logged-out gate without envelope error",
+      "music ipad-landscape has no horizontal page overflow",
+      "music ipad-portrait has no horizontal page overflow",
+      "music iphone has no horizontal page overflow",
+      "successful QR polling refreshes existing My Music page",
+      "real NCM logout returns to Android login gate",
+      "listen mode mounts music search UI",
+      "fixture NCM result + real server music queue upsert/broadcast",
+      "real server music queue remove/broadcast",
+      "screen sharing missing-module preview remains usable",
+      "fullscreen fills 1180x820 viewport",
+      "video controls remain within 1180x820",
+      "fullscreen fills 820x1180 viewport",
+      "video controls remain within 820x1180",
+      "fullscreen fills 390x844 viewport",
+      "video controls remain within 390x844",
+      "rotation does not toggle fullscreen",
+      "ipad-landscape has no horizontal page overflow",
+      "ipad-portrait has no horizontal page overflow",
+      "iphone has no horizontal page overflow",
+      "leave room returns to lobby",
+      "no JS runtime exceptions"
+    ],
+    "errors": []
+  },
+  "androidReference": {
+    "surface": "Medium_Tablet Android emulator, offline network and isolated local v4.2.0",
+    "screens": [
+      "android-watch.png",
+      "android-music.png"
+    ],
+    "iosEvidenceSurface": "Expo Web layout preview, not native VLC rendering"
+  },
+  "previousUserFeedback": {
+    "source": "User message after prior delivery; exact device OS/codec/duration/build not recorded",
+    "reportedNormal": [
+      "视频播放",
+      "B站扫码",
+      "番剧播放",
+      "挂载视频播放"
+    ],
+    "reportedIssues": [
+      "网易云样式和安卓不同",
+      "播放条位置",
+      "选片无法自动起播",
+      "全屏布局",
+      "旋转后房间UI"
+    ]
+  },
+  "serverFilesUnchanged": [
+    "backend/src/routes/serverFiles.ts",
+    "backend/src/services/proxy/range-stream.ts",
+    "backend/src/services/proxy/http-proxy.ts"
+  ],
+  "historicalEvidence": {
+    "release": "ios-1.2.1-9-evidence.json",
+    "protocolChecks": 16,
+    "mountChecks": 7,
+    "desktopAndOriginalWebRange": "sanitized evidence rechecked; not iOS VLCKit proof"
+  },
+  "ipadSplitView": "disabled via UIRequiresFullScreen for orientation locking",
+  "pendingDeviceChecks": [
+    "b11 automatic play/fullscreen/rotation/control placement",
+    "watch/music UI compared with Android",
+    "real NCM QR/VIP/playlists/lyrics/background",
+    "ten-minute media/seek/capped 206/traffic",
+    "voice microphone/echo/Bluetooth/cross-client",
+    "Bilibili high quality/split tracks/pages/expiry",
+    "PiP/background/real sharing/room permission and sync"
+  ]
+}
