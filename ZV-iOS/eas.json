@@ -17,6 +17,18 @@
     "preview": {
       "distribution": "internal"
     },
+    "unsigned-device": {
+      "extends": "preview",
+      "developmentClient": false,
+      "environment": "preview",
+      "ios": {
+        "withoutCredentials": true,
+        "simulator": false,
+        "buildConfiguration": "Release",
+        "config": "ios-unsigned.yml",
+        "applicationArchivePath": "ios/build/ZViewer-unsigned.ipa"
+      }
+    },
     "production": {}
   }
 }

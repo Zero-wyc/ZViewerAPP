@@ -9,11 +9,12 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "bundleIdentifier": "com.zviewer.mobile",
-      "buildNumber": "2",
+      "buildNumber": "9",
       "supportsTablet": true,
       "icon": "./assets/images/zviewer-icon.png",
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "连接你指定的局域网 ZViewer 服务器。",
+        "NSMicrophoneUsageDescription": "你主动加入房间语音时，用于与房间成员通话。",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         }
@@ -34,7 +35,14 @@
         }
       ],
       "expo-secure-store",
-      "expo-libvlc-player"
+      [
+        "expo-libvlc-player",
+        {
+          "supportsPictureInPicture": true
+        }
+      ],
+      "@config-plugins/react-native-webrtc",
+      "./plugins/with-voice-audio.cjs"
     ],
     "experiments": {
       "typedRoutes": true,

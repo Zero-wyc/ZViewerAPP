@@ -35,6 +35,7 @@ type SessionContextValue = {
   login: (server: string, mode: 'account' | 'guest', username?: string, password?: string) => Promise<void>;
   logout: () => Promise<void>;
   request: <T>(path: string, init?: RequestInit) => Promise<T & { success: boolean; message?: string }>;
+  requestText: (path: string, init?: RequestInit) => Promise<string>;
 };
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -84,7 +85,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return refreshInFlight.current;
   }, [update]);
 
-  const request = useCallback(async <T,>(path: string, init: RequestInit = {}) => {
+  const requestText = useCallback(async (path: string, init: RequestInit = {}) => {
+    if (!path.startsWith('/api/') || path.startsWith('//') || path.includes('\\')) throw new Error('无效的服务端接口');
     let active = current.current;
     if (!active) throw new Error('请先登录');
     const execute = async (token: string) => {
@@ -109,10 +111,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     }
-    const data = await response.json().catch(() => ({})) as T & { success: boolean; message?: string };
-    if (!response.ok || !data.success) throw new Error(data.message || `请求失败 (${response.status})`);
-    return data;
+    const text = await response.text();
+    if (!response.ok) { let message = ''; try { message = JSON.parse(text).message; } catch {} throw new Error(message || `请求失败 (${response.status})`); }
+    return text;
   }, [refresh, update]);
+  const request = useCallback(async <T,>(path: string, init: RequestInit = {}) => {
+    const data = JSON.parse(await requestText(path, init)) as T & { success: boolean; message?: string };
+    if (!data.success) throw new Error(data.message || '服务器未返回成功结果');
+    return data;
+  }, [requestText]);
 
   useEffect(() => {
     let mounted = true;
@@ -186,7 +193,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
   }, [session, request]);
 
-  const value = useMemo(() => ({ session, savedServer, restoring, socket, connected, login, logout, request }), [session, savedServer, restoring, socket, connected, login, logout, request]);
+  const value = useMemo(() => ({ session, savedServer, restoring, socket, connected, login, logout, request, requestText }), [session, savedServer, restoring, socket, connected, login, logout, request, requestText]);
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 

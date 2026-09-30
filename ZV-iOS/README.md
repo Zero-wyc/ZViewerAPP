@@ -1,49 +1,46 @@
 # ZViewer iOS
 
-独立 Expo SDK 57 / React Native 客户端，与根目录 Vite/Capacitor Android 工程独立安装。
+独立 Expo SDK 57 / React Native 工程。当前交付 **1.2.1 / build 9 未签名真机测试包**；文件、音乐和 HTTP-FLV 使用单一 VLCKit，保留统一播放器适配接口及 v4.2.0 的 8 MiB Range 行为。
 
-目前为 **1.2.1 / build 2 待验收候选**。当前 Android 的绿色主色、深灰 surface/text、大厅宽度与聊天/片单/房间入口作为界面基准；完整原生布局/旋转及多设备体验仍待 P1 验收。
+## 已实现
 
-## 当前能力
+- Android 风格的绿色/深灰房间界面、响应布局、登录/游客/会话刷新、房间审批/密码/聊天/成员权限。
+- 片单、服务器文件、WebDAV/FTP/OpenList/Emby/Jellyfin 挂载管理、AniSubs/旧番剧/Kazumi。
+- VLC 播放/同步、分离音轨、进度/倍速/音量、字幕/全屏/PiP；字幕文件导入与房间同步，弹幕导入/编辑/在线搜索/叠加。
+- 一起听队列/同步/审批/循环，网易云账号/歌单/歌词/音质、B站音乐；原有 WebRTC 共享接收和 OBS-FLV。
+- **本机 B站 Go bilicore**：QR、Keychain Cookie、搜索/推荐/收藏/关注/合集/分 P/画质/歌词/有限回退；各端独立解析，房间只广播 BV 原地址。
+- **房间语音**：AVAudioEngine/回声处理、Opus 48kHz/20ms、旧 PCM 接收、既有媒体 Socket、静音/禁言/踢出/重连/释放；收起面板继续通话，离房释放。
 
-- 自定义服务端、账号/游客登录、设备 SecureStore 会话恢复和令牌刷新；Web 预览会话仅存内存。
-- 房间列表、创建、密码/审批加入、聊天、现有片单与基础播放同步。
-- iOS 仅使用 VLCKit：MP4、MKV、HLS 和现有单轨代理 URL 统一经过 NativeMediaAdapter → VlcPlayer → 原生视图，无 AVPlayer 分支。
-- VLC 自行管理 Range；客户端不发送 `rangeMode=avplayer`，适配现有 8 MiB 分片响应。诊断检查范围、总长、实际短响应及下一分片，并支持取消和脱敏。
+源码、编译及协议检查已完成，**尚无 iPad/iPhone 运行验收结果**。状态及限制见 [原 plan](../docs/ios-continuation-plan.md) 和 [b9 交付记录](../docs/releases/ios-1.2.1-9-unsigned.md)。
 
-**本轮单内核候选已完成原生编译，尚待真机验收。** 本地未修改的 v4.2.0 服务端下，桌面 libVLC 3.0.23 播放用户提供的 MKV、MP4 均完成十分钟连播、三点 seek、暂停恢复及停止流量检查；原网页 MP4 播放、暂停、退出检查通过。这些是独立的桌面证据，不能代替 iOS VLCKit 4.0.0a24 验收。iOS 模拟器原生包已由 EAS 编译成功，仍无签名 IPA。分离音视频、来源浏览完整移植、字幕弹幕、一起听、语音、共享观看与 B 站原生代理仍按阶段推进。
+## 未签名真机构建
 
-依据：[后续交付计划](../docs/ios-continuation-plan.md)、[单内核交付记录](../docs/releases/ios-1.2.1-2-vlc.md)、[此前 AVPlayer 复测记录](../docs/releases/ios-1.2.1-2.md)、[Expo 工程约定](AGENTS.md)。历史记录不能作为当前内核的验收结论。
+```powershell
+cd ZV-iOS
+./scripts/build-ios-unsigned.ps1
+# 等待完成：./scripts/build-ios-unsigned.ps1 -Wait
+```
 
-## 开发与验证
+脚本先暂存共享 Go 源，再将 EAS archive 限定本工程。自定义 workflow 校验固定 Go/Opus 下载摘要、构建依赖、运行 Opus 编解码检查，以 CNG 生成项目并编译 iphoneos ARM64 Release。包内置 JS，不需要 Apple 登录、设备注册或 Metro。
+
+本版 IPA：`release-assets/ZViewer-1.2.1-b9-unsigned.ipa`（不提交 Git）。**需要用户自行签名后安装**。Expo Go 不能加载 VLC/Go/语音原生模块。旧 development/simulator profile 尚未配置本模块对应的 vendor 准备步骤，当前请用 unsigned-device；模拟器包不能改后缀当真机包。
+
+## 验证与限制
 
 ```sh
-cd ZV-iOS
 npm ci
-npm start
 npm test
 npm run lint
 npm run typecheck
 npx expo-doctor
 npx expo export --platform ios
+python scripts/inspect-unsigned-ipa.py release-assets/ZViewer-1.2.1-b9-unsigned.ipa
 ```
 
-历史房间诊断脚本（Node 22.18+，ffprobe 可选）：
+本版 34 项单测、lint/类型、iOS/Web 导出通过；Doctor 20/21，Directory 提示 WebRTC New Architecture 未测试、私有本地模块无元数据，未屏蔽。EAS 设备编译及 IPA 平台/桥接/JS 检查通过。
 
-```sh
-npm run test:live-media -- <仓库外的账密文件路径> [房间名称]
-```
+`check-room-ui.cjs`、`check-room-protocol.cjs`、`check-mount-flow.cjs` 分别检查 16 项页面、16 项语音/字幕/弹幕协议和 7 项挂载流程，仅使用隔离的本地 v4.2.0。音乐搜索、语音包和 DAV 数据为 fixture，不等于真实账号、麦克风或 NAS 验收。`check-local-results.mjs` 核对此前桌面 VLC/原网页 Range 证据。本轮未连接 NAS。
 
-账密文件包含服务器 URL、`账号：...`、`密码：...`。脚本默认禁止远程访问；仅在重新明确授权远程诊断后使用 `--allow-remote`。本轮不使用此脚本连接 NAS。客户端拒绝房间中的 loopback 媒体 URL；本地桌面与网页验证使用独立的本地测试脚本，见交付记录。诊断的 ready 只表示检查通过，不能代替原生播放验收。
+VLCKit 4.0.0a24 是预发布版，expo-libvlc-player 固定 57.0.54。真机续读/编码/后台/PiP、蓝牙/来电、语音回声、B站账号/高画质/失效和 Android 同房同步均待测。复杂 ASS 样式使用 VLC 外部字幕；同步 RN 字幕层显示文本和基础样式。
 
-`eas.json` 已包含 development、ios-simulator、preview、production；关联 `@fredqin2006/zviewer-ios`。实际真机构建仍需 Apple 签名和设备配置：
-
-```sh
-npx eas-cli@latest build --platform ios --profile development
-```
-
-Windows 首次真机注册/签名可在交互式 PowerShell 执行 `./scripts/build-ios-device.ps1`。脚本先调用 `device:create`，按提示在 iPad Safari 打开注册链接，再启动 development 构建；Apple 登录和双重验证只在本机 EAS 提示中输入。已注册设备可使用 `-SkipDeviceRegistration`。构建 archive 限定为当前 Expo 目录。安装成功后使用 `npx expo start --dev-client --tunnel` 生成播放验收入口；`npx expo start --go --tunnel` 仅用于页面预览。
-
-VLCKit 是自定义原生模块，Expo Go 无法播放。`expo-libvlc-player` 固定为 57.0.54，其 iOS pod 使用 VLCKit 4.0.0a24；升级需重新原生编译及验收。HLS 清单鉴权、子分片、音轨/字幕及 HEVC/Opus 硬件行为仍须分别在真机验证。
-
-不要把账密、证书、令牌或安装包放入版本库。生成的 ios/android 目录由 CNG 管理；不执行 Capacitor iOS 同步。优先使用 HTTPS；局域网 HTTP、系统权限、耳机/后台与 iPad/iPhone/Android 对测须完成真机验证。
+CNG 管理生成原生目录；维护本地 Expo Module/config plugin，不手改生成项目，不执行 Capacitor 同步。以 [AGENTS.md](AGENTS.md) 为规范。

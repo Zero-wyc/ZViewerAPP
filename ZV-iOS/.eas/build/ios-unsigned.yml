@@ -1,0 +1,18 @@
+build:
+  name: Unsigned iOS device IPA for personal sideloading
+  steps:
+    - eas/checkout
+    - eas/install_node_modules
+    - eas/resolve_build_config
+    - run:
+        name: Build pinned native Bilibili and Opus dependencies
+        command: bash scripts/prepare-native-ios.sh
+    - eas/prebuild
+    - run:
+        name: Install iOS pods
+        working_directory: ios
+        command: pod install
+    - run:
+        name: Compile device Release app and package unsigned IPA
+        command: bash scripts/build-unsigned-ios.sh
+    - eas/find_and_upload_build_artifacts

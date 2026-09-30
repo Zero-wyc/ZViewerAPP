@@ -25,10 +25,11 @@ test('token rotation preserves native position and replaces only authentication'
 });
 
 test('a slow old load cannot overwrite a newer source', async () => {
-  const native = player(); let finish;
-  native.replaceAsync = async function(source) { this.sources.push(source); if (this.sources.length === 1) await new Promise(resolve => { finish = resolve; }); this.currentTime = 0; };
+  const native = player(); let finish; let started;
+  const loading = new Promise(resolve => { started = resolve; });
+  native.replaceAsync = async function(source) { this.sources.push(source); if (this.sources.length === 1) await new Promise(resolve => { finish = resolve; started(); }); this.currentTime = 0; };
   const adapter = new NativeMediaAdapter(native);
-  const first = adapter.apply(state, server, 'token'); await Promise.resolve();
+  const first = adapter.apply(state, server, 'token'); await loading;
   const next = adapter.apply({ ...state, sourceUrl: '/api/jellyfin/stream?movieId=2', currentTime: 120 }, server, 'token');
   finish(); await Promise.all([first, next]);
   assert.equal(native.currentTime, 120); assert.match(native.sources.at(-1).uri, /movieId=2/); assert.equal(adapter.busy, false);
@@ -37,7 +38,7 @@ test('a slow old load cannot overwrite a newer source', async () => {
 test('unsupported new sources stop the old movie and permit retry', async () => {
   const native = player(); const adapter = new NativeMediaAdapter(native);
   await adapter.apply(state, server, 'token');
-  await assert.rejects(adapter.apply({ ...state, audioUrl: 'https://cdn.example/audio' }, server, 'token'), /分离音轨/);
+  await assert.rejects(adapter.apply({ ...state, sourceType: 'unsupported' }, server, 'token'), /先解析/);
   assert.equal(native.playing, false);
   await adapter.apply(state, server, 'token', 1); assert.equal(native.playing, true);
 });

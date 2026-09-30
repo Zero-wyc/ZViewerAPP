@@ -32,11 +32,20 @@ test('media cannot leak session credentials to foreign URLs or an escaped API pr
   assert.throws(() => nativeVideoSource({ sourceUrl: '/api/../../public/video.mp4' }, server, token));
 });
 
-test('untrusted loopback, embedded credentials and split tracks are rejected', () => {
+test('untrusted loopback and embedded credentials are rejected on either track', () => {
   for (const uri of ['http://127.2.3.4/video', 'http://localhost./video', 'http://[::1]/video', 'http://[::ffff:127.0.0.1]/video', 'https://user:pass@cdn.example/video']) {
     assert.throws(() => nativeVideoSource({ sourceUrl: uri }, server, token));
   }
-  assert.throws(() => nativeVideoSource({ sourceUrl: 'https://cdn.example/video', audioUrl: 'https://cdn.example/audio' }, server, token));
+  assert.throws(() => nativeVideoSource({ sourceUrl: 'https://cdn.example/video', audioUrl: 'http://127.0.0.1/audio' }, server, token));
+});
+
+test('VLC split audio authenticates each track independently and keeps canonical URLs private', () => {
+  const owned = nativeVideoSource({ ...source, audioUrl: '/api/music/stream?songId=1&token=foreign' }, server, token);
+  assert.equal(owned.slaves.length, 1);
+  assert.equal(new URL(owned.slaves[0].uri).searchParams.get('token'), token);
+  assert.equal(new URL(owned.slaves[0].identity).searchParams.get('token'), null);
+  const foreign = nativeVideoSource({ ...source, audioUrl: 'https://cdn.example/audio.m4s' }, server, token);
+  assert.deepEqual(foreign.slaves[0].headers, {});
 });
 
 async function withMock(mock, run) {

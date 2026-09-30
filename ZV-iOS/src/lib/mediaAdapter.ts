@@ -28,7 +28,8 @@ export class NativeMediaAdapter {
   private initialTime = 0;
   private pending = 0;
   private player: NativePlayerPort;
-  constructor(player: NativePlayerPort) { this.player = player; }
+  private resolve: (state: PlaybackSource, server: string, token: string) => Promise<ReturnType<typeof nativeVideoSource>>;
+  constructor(player: NativePlayerPort, resolve = async (state: PlaybackSource, server: string, token: string) => nativeVideoSource(state, server, token)) { this.player = player; this.resolve = resolve; }
   get busy() { return this.pending > 0; }
   invalidate() { this.key = ''; }
 
@@ -43,8 +44,9 @@ export class NativeMediaAdapter {
           await this.player.replaceAsync(null);
           return;
         }
-        const source = nativeVideoSource(state, server, token);
-        const key = JSON.stringify([source.uri, source.contentType, source.headers, revision]);
+        const source = await this.resolve(state, server, token);
+        if (this.disposed || version !== this.version) return;
+        const key = JSON.stringify([source.uri, source.contentType, source.headers, source.slaves.map(slave => slave.uri), revision]);
         if (key !== this.key) {
           const preserveTime = source.identity === this.uri && !!this.key;
           const position = preserveTime ? this.player.currentTime : state.currentTime;
@@ -60,7 +62,9 @@ export class NativeMediaAdapter {
         const rate = Number.isFinite(state.playbackRate) && state.playbackRate! > 0 ? state.playbackRate! : 1;
         if (this.player.playbackRate !== rate) this.player.playbackRate = rate;
         if (state.isPlaying && !this.player.playing) this.player.play();
-        if (!state.isPlaying && this.player.playing) this.player.pause();
+        // Cancel a pending native start too: actualPlaying can still be false
+        // while the view is preparing a source that was requested to play.
+        if (!state.isPlaying) this.player.pause();
       } catch (error) {
         if (!this.disposed && version === this.version) { this.key = ''; this.player.pause(); throw error; }
       }

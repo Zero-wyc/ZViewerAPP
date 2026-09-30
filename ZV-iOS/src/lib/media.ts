@@ -6,10 +6,10 @@ export type PlaybackSource = {
   headers?: Record<string, string>;
 };
 
-export function nativeVideoSource(source: PlaybackSource, serverUrl: string, accessToken: string) {
+export function nativeVideoSource(source: PlaybackSource, serverUrl: string, accessToken: string): NativeVideoSource {
   const sourceType = source.sourceType || 'mp4';
-  if (!['mp4', 'url', 'server-files', 'jellyfin', 'emby', 'webdav', 'ftp', 'openlist', 'smb'].includes(sourceType) || source.audioUrl) {
-    throw new Error('该影片需要专用解析或分离音轨，当前 iOS 播放器尚不支持');
+  if (!['mp4', 'url', 'server-files', 'jellyfin', 'emby', 'webdav', 'ftp', 'openlist', 'smb', 'bilibili', 'anime', 'kazumi'].includes(sourceType)) {
+    throw new Error('该影片需要先解析为可播放的媒体地址');
   }
 
   const relative = source.sourceUrl.startsWith('/') && !source.sourceUrl.startsWith('//');
@@ -52,6 +52,9 @@ export function nativeVideoSource(source: PlaybackSource, serverUrl: string, acc
     if (/^referer$/i.test(key)) options.push(`http-referrer=${value}`);
     if (/^user-agent$/i.test(key)) options.push(`http-user-agent=${value}`);
   }
-  return { uri: parsed.toString(), identity, headers, serverApi, options,
+  const slaves = source.audioUrl ? [nativeVideoSource({ sourceUrl: source.audioUrl, headers: source.headers }, serverUrl, accessToken)] : [];
+  return { uri: parsed.toString(), identity, headers, serverApi, options, slaves,
     contentType: hls ? 'hls' as const : 'progressive' as const };
 }
+
+export type NativeVideoSource = { uri: string; identity: string; headers: Record<string, string>; serverApi: boolean; options: string[]; slaves: NativeVideoSource[]; contentType: 'hls' | 'progressive' };

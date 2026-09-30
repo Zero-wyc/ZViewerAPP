@@ -1,9 +1,21 @@
+import { SubtitleOverlay, SubtitlePanel, useSubtitles } from '@/components/Subtitles';
+import { DanmakuManager } from '@/components/DanmakuManager';
 /* eslint-disable react-hooks/immutability -- the VLC control port intentionally mutates native playback state. */
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { VlcVideo, useVlcVideo } from '@/components/VlcVideo';
+import * as ScreenOrientation from 'expo-screen-orientation';
+import { MoviePanel } from '@/components/MoviePanel';
+import { PlaybackControls } from '@/components/PlaybackControls';
+import { moviePlayback, type Movie } from '@/lib/sources';
+import { RoomSettings, type Viewer } from '@/components/RoomSettings';
+import { DanmakuOverlay, DanmakuSettings, useDanmaku } from '@/components/Danmaku';
+import { MusicPanel } from '@/components/MusicPanel';
+import { ScreenShare, type ShareState } from '@/components/ScreenShare';
+import { playbackSource, onBiliChange, biliFallback, stopBiliPlayback } from '@/lib/biliNative';
+import { VoicePanel } from '@/components/VoicePanel';
 
 import { emitAck } from '@/lib/socket';
 import { nativeVideoSource } from '@/lib/media';
@@ -14,9 +26,8 @@ import { useSession } from '@/state/session';
 
 type Phase = 'connecting' | 'password' | 'joining' | 'waiting' | 'ready' | 'error' | 'closed';
 type RoomMode = 'watch-together' | 'listen-together' | 'screen-share';
-type Movie = { id: number; title: string; url: string; source?: string; sourceType?: string; format?: string; audioUrl?: string | null; roomId?: string };
 type Comment = { id: number; username: string; content: string; createdAt: string };
-type JoinData = { roomId?: string; mode?: RoomMode; name?: string; isHost?: boolean; playback?: Playback };
+type JoinData = ShareState & { roomId?: string; mode?: RoomMode; name?: string; isHost?: boolean; playback?: Playback };
 
 function Button({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.button, disabled && styles.disabled]}><Text style={styles.buttonText}>{label}</Text></Pressable>;
@@ -25,6 +36,8 @@ function Button({ label, onPress, disabled = false }: { label: string; onPress: 
 export default function RoomScreen() {
   const { roomId, name, asHost, hasPassword } = useLocalSearchParams<{ roomId: string; name?: string; asHost?: string; hasPassword?: string }>();
   const { session, socket, connected, request } = useSession();
+  const [share, setShare] = useState<ShareState>({});
+  const [sendAsDanmaku, setSendAsDanmaku] = useState(false);
   const [phase, setPhase] = useState<Phase>(hasPassword === '1' && asHost !== '1' ? 'password' : 'connecting');
   const [error, setError] = useState('');
   const [password, setPassword] = useState('');
@@ -45,6 +58,9 @@ export default function RoomScreen() {
   const [busy, setBusy] = useState(false);
   const [fullScreen, setFullScreen] = useState(false);
   const [joinRequests, setJoinRequests] = useState<{ viewerSocketId: string; username: string }[]>([]);
+  const [viewers, setViewers] = useState<Viewer[]>([]);
+  const mediaColumn = useRef<ScrollView | null>(null);
+  useEffect(() => { mediaColumn.current?.scrollTo({ y: 0, animated: false }); }, [mode]);
   const attempted = useRef(hasPassword !== '1' || asHost === '1');
   const hostRef = useRef(asHost === '1');
   const passwordRef = useRef('');
@@ -53,6 +69,8 @@ export default function RoomScreen() {
   const generation = useRef(0);
   const video = useVlcVideo();
   const { player } = video;
+  const danmaku = useDanmaku(roomId, player, phase === 'ready' && mode === 'watch-together');
+  const subtitles = useSubtitles(roomId, player, host, phase === 'ready' && mode === 'watch-together', source?.sourceUrl);
   const readyRef = useRef(false);
   useEffect(() => { readyRef.current = phase === 'ready' && mode === 'watch-together'; playbackRef.current = source; }, [phase, mode, source]);
   const publishNativeState = useCallback((action?: 'play' | 'pause' | 'seek' | 'rate', value?: number) => {
@@ -64,13 +82,20 @@ export default function RoomScreen() {
     socket.emit('watch-together-state', { roomId, state });
   }, [player, socket, roomId]);
   useEffect(() => {
-    const adapter = new NativeMediaAdapter(player); adapterRef.current = adapter;
+    const adapter = new NativeMediaAdapter(player, playbackSource); adapterRef.current = adapter;
     return () => { readyRef.current = false; adapter.dispose(); if (adapterRef.current === adapter) adapterRef.current = null; };
   }, [player]);
+  useEffect(() => onBiliChange(() => { adapterRef.current?.invalidate(); setRetryTick(value => value + 1); }), []);
+  useEffect(() => () => { void stopBiliPlayback(); }, []);
   const { width, height } = useWindowDimensions();
   const wide = !fullScreen && width >= 900 && width > height;
   const leftWidth = wide ? Math.min(760, (width - 56) * 0.6) : Math.max(0, width - 32);
-  const playerHeight = fullScreen ? Math.max(180, height - 230) : Math.min(leftWidth * 9 / 16, wide ? Math.max(180, height - 238) : 460);
+  const playerHeight = fullScreen ? Math.max(180, height - 120) : Math.min(leftWidth * 9 / 16, wide ? Math.max(180, height - 238) : 460);
+  useEffect(() => () => { void ScreenOrientation.unlockAsync().catch(() => {}); }, []);
+  const toggleFullscreen = () => {
+    const next = !fullScreen; setFullScreen(next);
+    void (next ? ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE) : ScreenOrientation.unlockAsync()).catch(() => setError('当前设备或分屏模式无法锁定方向，可手动旋转屏幕'));
+  };
 
   const loadMovies = useCallback(async () => {
     try {
@@ -87,6 +112,7 @@ export default function RoomScreen() {
   }, [socket, roomId]);
 
   const applyRoom = useCallback((data: JoinData = {}) => {
+    if (data.shareMethod) setShare({ shareMethod: data.shareMethod, streamKey: data.streamKey });
     if (data.name) setRoomName(data.name);
     if (data.mode) setMode(data.mode);
     if (data.playback?.sourceUrl) { playbackRef.current = data.playback; setSource(data.playback); setMediaProbe(null); }
@@ -128,12 +154,17 @@ export default function RoomScreen() {
     if (!socket) return;
     const invalidateJoin = () => { generation.current++; };
     const onConnect = () => { if (attempted.current) void join(hostRef.current); else setPhase('password'); };
-    const onDisconnect = () => { generation.current++; setPhase('connecting'); };
+    const onDisconnect = () => { generation.current++; setViewers([]); setPhase('connecting'); };
+    const onViewerJoined = (payload: { viewerSocketId: string; userId?: number; username?: string; role?: string }) => { setViewers(previous => [...previous.filter(item => item.socketId !== payload.viewerSocketId), { ...payload, socketId: payload.viewerSocketId }]); };
+    const onViewerLeft = (payload: { viewerSocketId: string }) => setViewers(previous => previous.filter(item => item.socketId !== payload.viewerSocketId));
     const onApproved = (data: JoinData) => { if (data.roomId === roomId) applyRoom(data); };
     const onRejected = (data: JoinData) => { if (data.roomId === roomId) { generation.current++; setPhase('error'); setError('房主拒绝了加入申请'); } };
     const onClosed = (data: JoinData) => { if (data.roomId === roomId) { generation.current++; attempted.current = false; readyRef.current = false; player.pause(); setSource(null); setPhase('closed'); setError('房间已关闭'); } };
     const onKicked = (data: { reason?: string }) => { generation.current++; attempted.current = false; readyRef.current = false; player.pause(); setSource(null); setPhase('closed'); setError(data.reason || '您已被移出房间'); };
     const onMode = (data: JoinData) => { if ((!data.roomId || data.roomId === roomId) && data.mode) setMode(data.mode); };
+    const onHostTransferred = (data: { newHostSocketId: string }) => { const next = data.newHostSocketId === socket.id; hostRef.current = next; setHost(next); if (next) void join(true); };
+    const onName = (data: JoinData) => { if (data.roomId === roomId && data.name) setRoomName(data.name); };
+    const onShare = (data: JoinData) => { if (data.roomId === roomId) setShare({ shareMethod: data.shareMethod, streamKey: data.streamKey }); };
     const onComment = (item: Comment) => setComments(previous => previous.some(value => value.id === item.id) ? previous : [...previous, item]);
     const onMovies = (payload: { movies?: Movie[] }) => { if (Array.isArray(payload.movies)) setMovies(payload.movies.filter(movie => !movie.roomId || movie.roomId === roomId)); };
     const onJoinRequest = (payload: { roomId: string; viewerSocketId: string; username: string }) => {
@@ -155,7 +186,7 @@ export default function RoomScreen() {
       if (payload.state) setSource(payload.state);
       if (payload.suppressed) return;
       const target = payload.state?.currentTime ?? payload.currentTime;
-      if (Number.isFinite(target) && Math.abs(player.currentTime - target!) > 3) player.currentTime = target!;
+      if (Number.isFinite(target) && Math.abs(player.currentTime - target!) > 2) player.currentTime = target!;
       const playing = payload.state?.isPlaying ?? payload.isPlaying;
       if (playing === true && !player.playing) player.play();
       if (playing === false && player.playing) player.pause();
@@ -167,9 +198,12 @@ export default function RoomScreen() {
     socket.on('room-closed', onClosed);
     socket.on('viewer-kicked', onKicked);
     socket.on('room-mode-changed', onMode);
+    socket.on('host-transferred', onHostTransferred); socket.on('room-name-updated', onName);
+    socket.on('share-method-changed', onShare);
     socket.on('new-comment', onComment);
     socket.on('movie-list', onMovies);
     socket.on('join-request', onJoinRequest);
+    socket.on('viewer-joined', onViewerJoined); socket.on('viewer-left', onViewerLeft);
     socket.on('watch-together-state', onPlayback);
     socket.on('watch-together-control', onControl);
     socket.on('sync-heartbeat', onHeartbeat);
@@ -180,8 +214,11 @@ export default function RoomScreen() {
       socket.off('join-approved', onApproved); socket.off('join-rejected', onRejected);
       socket.off('viewer-kicked', onKicked);
       socket.off('room-closed', onClosed); socket.off('room-mode-changed', onMode);
+      socket.off('host-transferred', onHostTransferred); socket.off('room-name-updated', onName);
+      socket.off('share-method-changed', onShare);
       socket.off('new-comment', onComment); socket.off('movie-list', onMovies);
       socket.off('join-request', onJoinRequest);
+      socket.off('viewer-joined', onViewerJoined); socket.off('viewer-left', onViewerLeft);
       socket.off('watch-together-state', onPlayback); socket.off('watch-together-control', onControl);
       socket.off('sync-heartbeat', onHeartbeat);
     };
@@ -232,7 +269,12 @@ export default function RoomScreen() {
   useEffect(() => {
     const subscription = player.addListener('statusChange', ({ status, error: videoError }) => {
       setMediaStatus(status);
-      if (status === 'error') { adapterRef.current?.invalidate(); setPlaybackError(safeMediaError(videoError?.message || '视频播放失败')); }
+      if (status === 'error') {
+        adapterRef.current?.invalidate();
+        const current = playbackRef.current;
+        if (current?.sourceType === 'bilibili' && biliFallback(current.sourceUrl)) { setPlaybackError(''); setRetryTick(value => value + 1); }
+        else setPlaybackError(safeMediaError(videoError?.message || '视频播放失败'));
+      }
     });
     const loaded = player.addListener('sourceLoad', ({ duration, availableAudioTracks, availableVideoTracks, availableSubtitleTracks }) => {
       setTrackSummary(`时长 ${Math.round(duration)} 秒 · 视频 ${availableVideoTracks.length} 轨 · 音频 ${availableAudioTracks.length} 轨 · 字幕 ${availableSubtitleTracks.length} 轨`);
@@ -274,7 +316,7 @@ export default function RoomScreen() {
   const sendComment = async () => {
     if (!socket || !draft.trim()) return;
     setBusy(true);
-    try { await emitAck(socket, 'send-comment', { roomId, content: draft.trim(), isDanmaku: false }); setDraft(''); }
+    try { await emitAck(socket, sendAsDanmaku ? 'send-danmaku' : 'send-comment', { roomId, content: draft.trim(), ...(sendAsDanmaku ? { videoTime: player.currentTime } : { isDanmaku: false }) }); setDraft(''); }
     catch (failure) { setError(messageFor(failure)); }
     finally { setBusy(false); }
   };
@@ -314,12 +356,23 @@ export default function RoomScreen() {
 
   const playMovie = async (movie: Movie) => {
     if (!host || !socket || !session) return;
-    try { nativeVideoSource({ sourceUrl: movie.url, sourceType: movie.source || movie.sourceType, format: movie.format, audioUrl: movie.audioUrl }, session.serverUrl, session.accessToken); }
+    const version = generation.current;
+    let resolved = moviePlayback(movie);
+    try {
+      if (movie.source === 'anime' && movie.sourceMeta) {
+        const media = await request<{ url: string; headers?: Record<string, string>; format?: string }>('/api/stream/anisubs/resolve', { method: 'POST', body: JSON.stringify({ source: movie.sourceMeta.sourceId, episode: movie.sourceMeta.episode }) });
+        const query = new URLSearchParams({ url: media.url }); for (const [key, value] of Object.entries(media.headers || {})) { const name = ({ referer: 'referer', 'user-agent': 'userAgent', origin: 'origin', cookie: 'cookie' } as Record<string, string>)[key.toLowerCase()]; if (name) query.set(name, value); }
+        resolved = { sourceUrl: `/api/stream/anisubs/proxy?${query}`, sourceType: 'anime', format: media.format };
+      }
+      if (version !== generation.current || !readyRef.current) return;
+      nativeVideoSource(resolved, session.serverUrl, session.accessToken);
+    }
     catch (failure) { setPlaybackError(safeMediaError(messageFor(failure))); return; }
     setPlaybackError('');
     try { await emitAck(socket, 'play-movie', { roomId, movieId: movie.id }); }
     catch (failure) { setPlaybackError(safeMediaError(messageFor(failure))); return; }
-    const state: Playback = { sourceUrl: movie.url, sourceType: movie.source || movie.sourceType || 'mp4', format: movie.format, audioUrl: movie.audioUrl, isPlaying: true, currentTime: 0, playbackRate: 1 };
+    if (version !== generation.current || !readyRef.current) return;
+    const state: Playback = { ...resolved, isPlaying: true, currentTime: 0, playbackRate: 1 };
     playbackRef.current = state;
     setSource(state);
     socket.emit('watch-together-state', { roomId, state });
@@ -327,24 +380,24 @@ export default function RoomScreen() {
 
   if (!session) return <SafeAreaView style={styles.root}><Text style={styles.text}>请先登录</Text><Button label="返回" onPress={() => router.replace('/')} /></SafeAreaView>;
   return <SafeAreaView style={styles.root}>
-    <View style={styles.header}><Pressable onPress={leave}><Text style={styles.link}>‹ 返回</Text></Pressable><View style={{ flex: 1 }}><Text style={styles.title} numberOfLines={1}>{roomName}</Text><Text style={styles.muted}>{host ? '房主' : '观众'} · {connected ? '已连接' : '重连中'}</Text></View><Pressable onPress={() => setTab('room')}><Text style={styles.link}>房间设置</Text></Pressable></View>
+    <View style={[styles.header, fullScreen && { display: 'none' }]}><Pressable onPress={leave}><Text style={styles.link}>‹ 返回</Text></Pressable><View style={{ flex: 1 }}><Text style={styles.title} numberOfLines={1}>{roomName}</Text><Text style={styles.muted}>{host ? '房主' : '观众'} · {connected ? '已连接' : '重连中'}</Text></View><Pressable onPress={toggleFullscreen}><Text style={styles.link}>旋转</Text></Pressable><Pressable onPress={() => setTab('room')}><Text style={styles.link}>房间设置</Text></Pressable></View>
+    <View style={fullScreen ? { display: 'none' } : undefined}><VoicePanel roomId={roomId} ready={phase === 'ready'} host={host} /></View>
     {phase !== 'ready' ? <View style={styles.join}><ActivityIndicator color="#65d59b" animating={phase === 'joining' || phase === 'connecting' || phase === 'waiting'} /><Text style={styles.title}>{phase === 'password' ? '请输入房间密码' : phase === 'waiting' ? '等待房主批准' : phase === 'closed' ? '房间已关闭' : phase === 'error' ? '无法加入房间' : '正在加入房间'}</Text>{error ? <Text style={styles.error}>{error}</Text> : null}{phase === 'password' ? <><TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholder="房间密码" placeholderTextColor="#a8b3b6" /><Button label="进入房间" disabled={!connected} onPress={() => { passwordRef.current = password; attempted.current = true; void join(hostRef.current); }} /></> : null}{phase === 'error' ? <Button label="重试" disabled={!connected} onPress={() => void join(hostRef.current)} /> : null}<Button label="返回房间列表" onPress={leave} /></View> : <>
       <View style={[styles.roomBody, wide && styles.roomBodyWide]}>
-        <ScrollView style={[styles.mediaColumn, fullScreen && { flex: 1, maxHeight: '100%' }, wide && { width: leftWidth, flex: 0, maxHeight: '100%' }]} contentContainerStyle={styles.mediaContent}>
-          {mode === 'watch-together' ? <View style={[styles.playerBox, { height: playerHeight }]}>{source?.sourceUrl && !source.audioUrl && !playbackError ? <VlcVideo video={video} style={styles.video} /> : <View style={styles.placeholder}><Text style={styles.muted}>{source?.audioUrl ? '此影片需要分离音视频适配器' : playbackError ? `播放失败（${classifyPlayerError(playbackError)}）：${playbackError}` : '等待房主选择影片'}</Text>{playbackError && source?.sourceUrl ? <Button label="重试播放" onPress={() => { adapterRef.current?.invalidate(); setPlaybackError(''); setRetryTick(value => value + 1); }} /> : null}</View>}</View> : <View style={[styles.playerBox, { height: playerHeight }]}><Text style={styles.muted}>{mode === 'listen-together' ? '一起听播放器尚未接入' : '屏幕共享观看尚未接入'}</Text></View>}
+        <ScrollView ref={mediaColumn} style={[styles.mediaColumn, fullScreen && { flex: 1, maxHeight: '100%' }, wide && { width: leftWidth, flexBasis: leftWidth, flexGrow: 0, flexShrink: 0, maxHeight: '100%' }]} contentContainerStyle={styles.mediaContent}>
+          {mode === 'watch-together' ? <View style={[styles.playerBox, { height: playerHeight }]}>{source?.sourceUrl && !playbackError ? <VlcVideo video={video} style={styles.video} /> : <View style={styles.placeholder}><Text style={styles.muted}>{playbackError ? `播放失败（${classifyPlayerError(playbackError)}）：${playbackError}` : '等待房主选择影片'}</Text>{playbackError && source?.sourceUrl ? <Button label="重试播放" onPress={() => { adapterRef.current?.invalidate(); setPlaybackError(''); setRetryTick(value => value + 1); }} /> : null}</View>}<SubtitleOverlay subtitles={subtitles} player={player} /><DanmakuOverlay player={player} state={danmaku} width={fullScreen ? width - 32 : leftWidth} height={playerHeight} /></View> : mode === 'listen-together' ? <MusicPanel roomId={roomId} host={host} /> : <ScreenShare roomId={roomId} share={share} height={playerHeight} />}
           {mode === 'watch-together' && source?.sourceUrl ? <View style={styles.controlPanel}>
-            <Text style={styles.sectionTitle}>播放控制</Text>
-            {host ? <View style={styles.controls}><Button label="−15 秒" onPress={() => control('seek', player.currentTime - 15)} /><Button label={source.isPlaying ? '暂停' : '播放'} onPress={() => control(source.isPlaying ? 'pause' : 'play')} /><Button label="+15 秒" onPress={() => control('seek', player.currentTime + 15)} /></View> : <Text style={styles.muted}>由房主控制播放与跳转</Text>}
+            <DanmakuSettings state={danmaku} /><DanmakuManager roomId={roomId} host={host} tracks={danmaku.tracks} /><SubtitlePanel subtitles={subtitles} /><PlaybackControls player={player} host={host} control={control} fullscreen={fullScreen} toggleFullscreen={toggleFullscreen} />
             <Text style={styles.muted}>播放器：{mediaStatus}{trackSummary ? ` · ${trackSummary}` : ''}</Text>
-            <View style={styles.controls}><Button label={fullScreen ? "退出全屏" : "全屏"} onPress={() => { setFullScreen(value => !value); }} disabled={Boolean(playbackError || source.audioUrl)} /><Button label={diagnosing ? '检测中…' : '播放诊断'} onPress={() => void runProbe()} disabled={diagnosing} /></View>
+            <View style={styles.controls}><Button label={diagnosing ? '检测中…' : '播放诊断'} onPress={() => void runProbe()} disabled={diagnosing} /></View>
             {mediaProbe ? <Text style={mediaProbe.category === 'ready' ? styles.muted : styles.error}>网络探测：{mediaProbe.detail} · 来源 {mediaProbe.source}{mediaProbe.status ? ` · HEAD ${mediaProbe.status}` : ''}{mediaProbe.contentType ? ` · ${mediaProbe.contentType}` : ''}{mediaProbe.checks?.map(check => ` · ${check.name} ${check.status}${check.valid ? '✓' : '✗'}`).join('')}{mediaProbe.signature ? ` · 文件头 ${mediaProbe.signature}` : ''}{mediaProbe.redirected ? ' · 已跳转' : ''}</Text> : null}
           </View> : null}
         </ScrollView>
         <View style={[styles.sidePanel, fullScreen && { display: 'none' }]}>
           <View style={styles.tabs}><Pressable onPress={() => setTab('chat')}><Text style={tab === 'chat' ? styles.activeTab : styles.muted}>聊天</Text></Pressable><Pressable onPress={() => setTab('movies')}><Text style={tab === 'movies' ? styles.activeTab : styles.muted}>片单</Text></Pressable><Pressable onPress={() => setTab('room')}><Text style={tab === 'room' ? styles.activeTab : styles.muted}>房间</Text></Pressable></View>
-          {tab === 'chat' ? <><ScrollView style={styles.list} contentContainerStyle={styles.listContent}>{comments.map(comment => <View key={comment.id} style={styles.item}><Text style={styles.muted}>{comment.username}</Text><Text style={styles.text}>{comment.content}</Text></View>)}</ScrollView><View style={styles.composer}><TextInput style={[styles.input, { flex: 1 }]} value={draft} onChangeText={setDraft} placeholder="发送消息" placeholderTextColor="#a8b3b6" /><Button label="发送" disabled={busy || !connected} onPress={() => void sendComment()} /></View></> : null}
-          {tab === 'movies' ? <><ScrollView style={styles.list} contentContainerStyle={styles.listContent}>{movies.length === 0 ? <Text style={styles.muted}>暂无影片</Text> : movies.map(movie => <Pressable key={movie.id} style={styles.item} onPress={() => void playMovie(movie)}><Text style={styles.text}>{movie.title}</Text><Text style={styles.muted}>{host ? '点击播放可直连的影片' : '由房主控制播放'}</Text></Pressable>)}</ScrollView><Button label="刷新片单" onPress={() => void loadMovies()} /></> : null}
-          {tab === 'room' ? <ScrollView style={styles.list} contentContainerStyle={styles.listContent}><Text style={styles.text}>房间：{roomName}</Text><Text style={styles.muted}>模式：{mode} · {host ? '房主' : '观众'}</Text>{joinRequests.map(item => <View key={item.viewerSocketId} style={styles.item}><Text style={styles.text}>{item.username} 申请加入</Text><View style={styles.controls}><Button label="同意" onPress={() => void decideJoin(item.viewerSocketId, true)} /><Button label="拒绝" onPress={() => void decideJoin(item.viewerSocketId, false)} /></View></View>)}{host ? <Button label="关闭房间" onPress={closeRoom} /> : null}</ScrollView> : null}
+          {tab === 'chat' ? <><ScrollView style={styles.list} contentContainerStyle={styles.listContent}>{comments.map(comment => <View key={comment.id} style={styles.item}><Text style={styles.muted}>{comment.username}</Text><Text style={styles.text}>{comment.content}</Text></View>)}</ScrollView><View style={styles.composer}><TextInput style={[styles.input, { flex: 1 }]} value={draft} onChangeText={setDraft} placeholder={sendAsDanmaku ? "发送弹幕" : "发送消息"} placeholderTextColor="#a8b3b6" /><Button label={sendAsDanmaku ? "弹幕" : "聊天"} onPress={() => setSendAsDanmaku(value => !value)} /><Button label="发送" disabled={busy || !connected} onPress={() => void sendComment()} /></View></> : null}
+          {tab === 'movies' ? <MoviePanel roomId={roomId} movies={movies} host={host} play={playMovie} reload={loadMovies} /> : null}
+          {tab === 'room' ? <><RoomSettings roomId={roomId} roomName={roomName} host={host} close={closeRoom} viewers={viewers} />{joinRequests.map(item => <View key={item.viewerSocketId} style={styles.item}><Text style={styles.text}>{item.username} 申请加入</Text><View style={styles.controls}><Button label="同意" onPress={() => void decideJoin(item.viewerSocketId, true)} /><Button label="拒绝" onPress={() => void decideJoin(item.viewerSocketId, false)} /></View></View>)}</> : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
       </View>
@@ -353,5 +406,5 @@ export default function RoomScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#111417', padding: 16, gap: 12 }, header: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 44 }, link: { color: '#65d59b', fontSize: 17 }, title: { color: '#edf1ef', fontSize: 19, fontWeight: '700' }, sectionTitle: { color: '#edf1ef', fontSize: 16, fontWeight: '700' }, text: { color: '#edf1ef', fontSize: 15 }, muted: { color: '#a8b3b6', fontSize: 13 }, error: { color: '#ffaaa5', padding: 8 }, join: { flex: 1, justifyContent: 'center', gap: 15 }, input: { backgroundColor: '#1b2024', borderColor: '#343d41', borderWidth: 1, color: '#edf1ef', borderRadius: 10, paddingHorizontal: 12, minHeight: 44 }, button: { backgroundColor: '#65d59b', borderRadius: 10, minHeight: 44, paddingHorizontal: 15, justifyContent: 'center', alignItems: 'center' }, buttonText: { color: '#111417', fontWeight: '700' }, disabled: { opacity: 0.45 }, roomBody: { flex: 1, gap: 12 }, roomBodyWide: { flexDirection: 'row' }, mediaColumn: { flexGrow: 0, maxHeight: '56%' }, mediaContent: { gap: 10, paddingBottom: 8 }, playerBox: { width: '100%', backgroundColor: '#05080c', alignItems: 'center', justifyContent: 'center', borderRadius: 12, overflow: 'hidden' }, placeholder: { alignItems: 'center', gap: 12, padding: 16 }, video: { width: '100%', height: '100%' }, controlPanel: { gap: 8 }, controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, sidePanel: { flex: 1, minHeight: 170, gap: 8 }, tabs: { flexDirection: 'row', gap: 28, paddingVertical: 8 }, activeTab: { color: '#65d59b', fontWeight: '700' }, list: { flex: 1 }, listContent: { gap: 8, paddingBottom: 18 }, item: { backgroundColor: '#1b2024', padding: 12, borderRadius: 10, gap: 4 }, composer: { flexDirection: 'row', gap: 8 },
+  root: { flex: 1, backgroundColor: '#111417', padding: 16, gap: 12 }, header: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 44 }, link: { color: '#65d59b', fontSize: 17 }, title: { color: '#edf1ef', fontSize: 19, fontWeight: '700' }, sectionTitle: { color: '#edf1ef', fontSize: 16, fontWeight: '700' }, text: { color: '#edf1ef', fontSize: 15 }, muted: { color: '#a8b3b6', fontSize: 13 }, error: { color: '#ffaaa5', padding: 8 }, join: { flex: 1, justifyContent: 'center', gap: 15 }, input: { backgroundColor: '#1b2024', borderColor: '#343d41', borderWidth: 1, color: '#edf1ef', borderRadius: 10, paddingHorizontal: 12, minHeight: 44 }, button: { backgroundColor: '#65d59b', borderRadius: 10, minHeight: 44, paddingHorizontal: 15, justifyContent: 'center', alignItems: 'center' }, buttonText: { color: '#111417', fontWeight: '700' }, disabled: { opacity: 0.45 }, roomBody: { flex: 1, gap: 12 }, roomBodyWide: { flexDirection: 'row' }, mediaColumn: { flexBasis: 'auto', flexGrow: 0, flexShrink: 1, maxHeight: '56%' }, mediaContent: { gap: 10, paddingBottom: 8 }, playerBox: { width: '100%', backgroundColor: '#05080c', alignItems: 'center', justifyContent: 'center', borderRadius: 12, overflow: 'hidden' }, placeholder: { alignItems: 'center', gap: 12, padding: 16 }, video: { width: '100%', height: '100%' }, controlPanel: { gap: 8 }, controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, sidePanel: { flex: 1, minHeight: 170, gap: 8 }, tabs: { flexDirection: 'row', gap: 28, paddingVertical: 8 }, activeTab: { color: '#65d59b', fontWeight: '700' }, list: { flex: 1 }, listContent: { gap: 8, paddingBottom: 18 }, item: { backgroundColor: '#1b2024', padding: 12, borderRadius: 10, gap: 4 }, composer: { flexDirection: 'row', gap: 8 },
 });

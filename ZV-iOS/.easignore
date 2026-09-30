@@ -1,0 +1,15 @@
+node_modules/
+/ios/
+/android/
+.expo/
+.native-tools/
+modules/zviewer-native/ios/Vendor/
+release-assets/
+dist/
+*.ipa
+*.xcarchive
+.claude/
+.vscode/
+CLAUDE.md
+# .native-staging is intentionally included: the upload stays scoped to this
+# Expo project while consuming an exact copy of the shared Go implementation.

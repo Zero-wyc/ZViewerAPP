@@ -1,0 +1,107 @@
+{
+  "recordedDate": "2026-09-30",
+  "scope": "Local unmodified v4.2.0 + device compilation/offline inspection; no iPad/iPhone runtime acceptance",
+  "buildId": "10d2231e-6e5f-4269-8147-35b312846918",
+  "ipa": {
+    "bundleId": "com.zviewer.mobile",
+    "version": "1.2.1",
+    "build": "9",
+    "app": {
+      "arm64": true,
+      "platform": 2,
+      "signed": false,
+      "encrypted": false
+    },
+    "frameworks": [
+      "ExpoFileSystem.framework",
+      "ExpoFont.framework",
+      "ExpoImage.framework",
+      "ExpoModulesCore.framework",
+      "ExpoModulesJSI.framework",
+      "ExpoModulesWorklets.framework",
+      "React.framework",
+      "ReactNativeDependencies.framework",
+      "SDWebImage.framework",
+      "SDWebImageAVIFCoder.framework",
+      "SDWebImageSVGCoder.framework",
+      "SDWebImageWebPCoder.framework",
+      "VLCKit.framework",
+      "WebRTC.framework",
+      "hermesvm.framework",
+      "libavif.framework"
+    ],
+    "nativeBridges": {
+      "ZViewerNativeModule": true,
+      "ZVBiliBridge": true,
+      "ZVVoiceCodec": true
+    },
+    "jsBytes": 2928565,
+    "background": [
+      "audio"
+    ],
+    "ats": {
+      "NSAllowsLocalNetworking": true
+    },
+    "bytes": 46352519,
+    "sha256": "f5bbda4dd8fed7bf9c16f208a9dc3803ec015c74bbda6f6f1abe3683f285302c"
+  },
+  "nativeSmoke": [
+    "Prepared device ARM64 Bilicore and Opus libraries.",
+    "Opus host smoke: 50 mono/48kHz/20ms encode-decode frames passed (not device capture acceptance)."
+  ],
+  "ui": {
+    "scope": "Expo web UI + unmodified local v4.2.0; not device media acceptance",
+    "checks": [
+      "local account login + Socket connection",
+      "create room + restore host",
+      "add movie through UI persists canonical source",
+      "browse local server mount + resolve file + add movie",
+      "member join follows server viewer-joined event",
+      "member leave follows server viewer-left event",
+      "rename room follows actual server protocol",
+      "listen mode mounts queue + lyrics UI",
+      "fixture NCM result + real server music queue upsert/broadcast",
+      "real server music queue remove/broadcast",
+      "screen sharing missing-module preview remains usable",
+      "ipad-landscape has no horizontal page overflow",
+      "ipad-portrait has no horizontal page overflow",
+      "iphone has no horizontal page overflow",
+      "leave room returns to lobby",
+      "no JS runtime exceptions"
+    ],
+    "errors": []
+  },
+  "protocol": {
+    "scope": "unmodified isolated local v4.2.0 with synthetic packets; not device audio acceptance",
+    "checks": [
+      "host + admitted guest",
+      "voice join uses primary member identity",
+      "unissued media token rejected",
+      "binary Opus relay preserves bytes/time/primary id",
+      "legacy PCM relay",
+      "codec config uses existing main connection event",
+      "server-enforced mute drops media",
+      "unmute resumes media",
+      "media reconnect rebinds existing token",
+      "kick invalidates relay token",
+      "subtitle sync and host permission",
+      "late subtitle state request",
+      "danmaku import persists and broadcasts",
+      "danmaku offset update",
+      "danmaku hide/delete",
+      "voice leave"
+    ]
+  },
+  "mount": {
+    "scope": "synthetic local DAV + unmodified v4.2.0; not remote NAS/media decode acceptance",
+    "checks": [
+      "DAV connection test",
+      "mount create",
+      "file resolve",
+      "movie preserves mount metadata and gets movieId stream",
+      "admitted guest Range reads owner mount by movieId",
+      "mount edit with password retained",
+      "mount delete"
+    ]
+  }
+}

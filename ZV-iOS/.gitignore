@@ -42,3 +42,9 @@ example
 /ios
 /android
 /.expo-export-test/
+*.ipa
+*.xcarchive/
+/release-assets/
+/.native-staging/
+/.native-tools/
+/modules/zviewer-native/ios/Vendor/
