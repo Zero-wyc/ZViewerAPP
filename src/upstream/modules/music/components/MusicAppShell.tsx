@@ -171,8 +171,7 @@ function ShellInner({
 
   // Media Session 接入（常驻壳层，provider 实例内唯一挂载点）：手机播放时
   // 歌曲/封面出现在系统状态栏（Android 通知栏、iOS 锁屏/控制中心），锁屏
-  // 可播放/暂停/切歌/拖进度；后台播放由 <audio> 媒体元素天然支持（见
-  // hooks/useMediaSession 注释）
+  // 可播放/暂停/切歌/拖进度；原生桥接同时管理媒体后台播放任务。
   useMediaSessionSync()
 
   const {

@@ -22,9 +22,11 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(PlayerDisplayPlugin.class);
         registerPlugin(AudioRoutingPlugin.class);
         registerPlugin(BilibiliProxyPlugin.class);
+        registerPlugin(SystemMediaSessionPlugin.class);
         // Drop the launch theme before AppCompat creates native popup contexts.
         setTheme(R.style.AppTheme_NoActionBar);
         super.onCreate(savedInstanceState);
+        if (Build.VERSION.SDK_INT >= 26) bridge.getWebView().setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false);
         int background = Color.rgb(17, 20, 23);
         getWindow().getDecorView().setBackgroundColor(background);
         getWindow().setStatusBarColor(Color.TRANSPARENT);

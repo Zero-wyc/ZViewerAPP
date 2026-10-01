@@ -72,6 +72,8 @@ npm run harmony:web
 
 ## 4. HarmonyOS 升级顺序
 
+系统媒体由 `NativeMediaSession.ets` 实现，通过 `Index.ets` 的 `updateMediaSession`/`clearMediaSession` 和 `bridge-bootstrap.js` 与共享播放器连接。封面下载后解码为 PixelMap；播放必须同时具备 AVSession 与 AUDIO_PLAYBACK 连续任务。暂停释放连续任务，退出销毁会话与图片资源。默认及解除手动锁定使用 AUTO_ROTATION_RESTRICTED，尊重系统旋转开关。契约与回归要求见 [双端维护与发布](mobile-release-maintenance.md#系统媒体控件后台播放与旋转2026-10-01)。
+
 1. 共享业务改根项目 `src/`，完成 `npm run build`。
 2. 运行 `npm run harmony:web`，确认 `rawfile/web` 已重新生成。
 3. 需要系统能力时，先确认 `src/platform/contracts.ts` 的可选方法和降级行为。

@@ -11,6 +11,17 @@ interface CapacitorPlayerDisplay {
 
 const capacitorDisplay = registerPlugin<CapacitorPlayerDisplay>('PlayerDisplay')
 
+let orientationLocked = false
+export const getOrientationLocked = () => orientationLocked
+export function subscribeOrientationLock(listener: () => void): () => void {
+  window.addEventListener('zviewer:orientation-lock', listener)
+  return () => window.removeEventListener('zviewer:orientation-lock', listener)
+}
+function setOrientationLocked(locked: boolean) {
+  orientationLocked = locked
+  window.dispatchEvent(new Event('zviewer:orientation-lock'))
+}
+
 export async function setSystemBarStyle(dark: boolean): Promise<void> {
   if (getRuntimePlatform() === 'harmony') await getHarmonyBridge()?.setSystemBarStyle?.(dark)
   else if (getRuntimePlatform() === 'android') await capacitorDisplay.setSystemBarStyle({ dark })
@@ -21,7 +32,7 @@ async function toggleWebOrientation(isLandscape: boolean): Promise<void> {
     lock?: (value: 'portrait' | 'landscape') => Promise<void>
   }
   if (!orientation.lock) throw new Error('Screen orientation locking is unavailable')
-  await orientation.lock(isLandscape ? 'portrait' : 'landscape')
+  await orientation.lock(isLandscape ? 'landscape' : 'portrait')
 }
 
 export const playerDisplay: PlayerDisplayPort = {
@@ -31,13 +42,16 @@ export const playerDisplay: PlayerDisplayPort = {
       const toggle = getHarmonyBridge()?.toggleOrientation
       if (!toggle) throw new Error('Harmony orientation bridge is unavailable')
       await toggle.call(getHarmonyBridge(), isLandscape)
+      setOrientationLocked(true)
       return
     }
     if (platform === 'android' || platform === 'ios') {
       await capacitorDisplay.toggleOrientation()
+      setOrientationLocked(true)
       return
     }
     await toggleWebOrientation(isLandscape)
+    setOrientationLocked(true)
   },
 
   async setImmersive(enabled) {
@@ -62,6 +76,7 @@ export const playerDisplay: PlayerDisplayPort = {
     } else {
       screen.orientation?.unlock?.()
     }
+    setOrientationLocked(false)
   },
 }
 

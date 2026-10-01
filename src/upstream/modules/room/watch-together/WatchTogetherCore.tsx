@@ -42,6 +42,7 @@ import {
 } from '@/components/ui/RequestNotification'
 import type { MediaFormat } from '@/lib/mediaFormat'
 import { useVideoPlayingState } from '@/modules/art-player/useVideoPlayingState'
+import { systemArtworkUrl, useSystemMediaSession } from '../../../../mobile/useSystemMediaSession'
 import { SettingsPanel } from '@/components/VideoPlayer/SettingsPanel'
 import { SubtitleOverlay } from '@/components/VideoPlayer/SubtitleOverlay'
 import { isCliProxyUrl } from '@/modules/player/services/url-proxy'
@@ -1527,6 +1528,36 @@ export function WatchTogetherCore({
 
   // ── 观众申请按钮（渲染用）──────────────────────────────
   const isPlaying = useVideoPlayingState(video)
+
+  useSystemMediaSession({
+    getSnapshot() {
+      const state = useRoomStore.getState()
+      const movie = state.movies.find(item => item.id === state.currentMovieId)
+      if (!movie || !video.currentSrc) return null
+      return {
+        mediaId: String(movie.id), kind: 'video', title: movie.title || '一起看', artist: state.roomName || '', album: '',
+        artwork: systemArtworkUrl(movie.cover), playing: !video.paused && !video.ended,
+        position: Math.max(0, video.currentTime || 0),
+        duration: Number.isFinite(video.duration) ? Math.max(0, video.duration) : 0,
+        playbackRate: video.playbackRate || 1,
+        actions: ['play', 'pause', 'stop', 'seekto'],
+      }
+    },
+    onAction(action, position) {
+      const canControl = isHost || hostOffline
+      if (action === 'play') {
+        if (canControl) void video.play().catch(() => {})
+        else handleRequestPlay()
+      } else if (action === 'pause' || action === 'stop') {
+        if (canControl) video.pause()
+        else handleRequestPause()
+      } else if (action === 'seekto' && position !== undefined && Number.isFinite(position)) {
+        const target = Math.max(0, Math.min(position, Number.isFinite(video.duration) ? video.duration : Infinity))
+        if (canControl) video.currentTime = target
+        else handleRequestSeek(target)
+      }
+    },
+  })
 
   // ── 房主端申请审批通知列表（与重构前一致）─────────────────
   // React Compiler 误报：以下 push 操作构建的是纯渲染数据（通知列表），

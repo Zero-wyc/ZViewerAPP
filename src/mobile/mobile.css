@@ -344,6 +344,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid #65d59b; outline-
     margin-top: 0;
   }
 }
+@media (orientation: landscape) {
+  .mobile-room-music:has(.music-player-overlay) > .mobile-room-header { display: none; }
+}
 @media (orientation: landscape) and (max-height: 540px) {
   .mobile-room:not(.mobile-room-music) .mobile-room-header { min-height: 48px; padding-block: 2px; }
   .mobile-watch-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(270px, 1fr); }

@@ -3,6 +3,7 @@ import { webview } from '@kit.ArkWeb';
 import { window } from '@kit.ArkUI';
 import { BilibiliLocalProxy } from '../services/BilibiliLocalProxy';
 import { DEBUG } from 'BuildProfile';
+import { NativeMediaSession, MediaSessionState } from '../services/NativeMediaSession';
 
 const LOCAL_ORIGIN = 'https://zviewer.local';
 const LOCAL_PAGE = `${LOCAL_ORIGIN}/index.html`;
@@ -28,11 +29,12 @@ function mimeType(path: string): string {
 class HarmonyHost {
   private context: common.UIAbilityContext;
   private controller: webview.WebviewController;
-  private initialOrientation: window.Orientation | null = null;
+  private media: NativeMediaSession;
 
   constructor(context: common.UIAbilityContext, controller: webview.WebviewController) {
     this.context = context;
     this.controller = controller;
+    this.media = new NativeMediaSession(context, controller);
   }
 
   getPlatform(): string {
@@ -46,7 +48,7 @@ class HarmonyHost {
   }
 
   request(id: number, action: string, argument: string): void {
-    if (!Number.isSafeInteger(id) || id < 1 || id > 2147483647 || argument.length > 1024) return;
+    if (!Number.isSafeInteger(id) || id < 1 || id > 2147483647 || argument.length > 16384) return;
     this.perform(action, argument).then((result: string | null) => this.respond(id, null, result))
       .catch((error: Error) => {
         console.error(`ZViewer native ${action} failed: ${error.message}`);
@@ -55,6 +57,14 @@ class HarmonyHost {
   }
 
   private async perform(action: string, argument: string): Promise<string | null> {
+    if (action === 'updateMediaSession') {
+      await this.media.update(JSON.parse(argument) as MediaSessionState);
+      return null;
+    }
+    if (action === 'clearMediaSession') {
+      await this.media.clear(JSON.parse(argument) as string);
+      return null;
+    }
     if (action === 'bilibiliStart') {
       await bilibiliProxy.start();
       return JSON.stringify(bilibiliProxy.status());
@@ -71,12 +81,11 @@ class HarmonyHost {
     const mainWindow = await window.getLastWindow(this.context);
     if (action === 'toggleOrientation') {
       if (argument !== 'true' && argument !== 'false') throw new Error('Invalid orientation argument');
-      if (this.initialOrientation === null) this.initialOrientation = mainWindow.getPreferredOrientation();
       await mainWindow.setPreferredOrientation(argument === 'true' ? window.Orientation.LANDSCAPE : window.Orientation.PORTRAIT);
       return null;
     }
     if (action === 'unlockOrientation') {
-      await mainWindow.setPreferredOrientation(this.initialOrientation ?? window.Orientation.UNSPECIFIED);
+      await mainWindow.setPreferredOrientation(window.Orientation.AUTO_ROTATION_RESTRICTED);
       return null;
     }
     if (action === 'setImmersive') {
@@ -109,6 +118,8 @@ class HarmonyHost {
     this.controller.runJavaScript(`window.__zvHarmonyResponse?.(${id}, ${JSON.stringify(error)}, ${JSON.stringify(result)})`)
       .catch(() => console.error('Unable to deliver native response'));
   }
+
+  dispose(): void { void this.media.destroy(); }
 }
 
 @Entry
@@ -146,6 +157,7 @@ struct Index {
   }
 
   aboutToDisappear(): void {
+    this.host.dispose();
     this.mainWindow?.off('avoidAreaChange', this.areaChanged);
     this.mainWindow?.off('windowSizeChange', this.areaChanged);
     this.mainWindow = null;

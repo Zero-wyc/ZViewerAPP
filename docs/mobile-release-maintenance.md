@@ -22,6 +22,24 @@ HarmonyOS 使用 DevEco Studio 的本机签名配置，运行 release `assembleH
 
 ## 验收与清理
 
+### 系统媒体控件、后台播放与旋转（2026-10-01）
+
+共享入口是 `src/mobile/useSystemMediaSession.ts` 和 `src/platform/mediaSession.ts`。一起听通过 `useMediaSessionSync` 读取真实音频元素；一起看通过 `WatchTogetherCore` 读取当前影片与视频元素。网页保持 Media Session API 行为，Android/HarmonyOS 使用原生媒体会话。桥接进度、时长使用秒，原生系统接口转换为毫秒。系统按钮仍经过房主/观众控制权限与审批，不能绕过房间规则。
+
+每个播放器生成独立 sessionId，退出时只清除自己持有的会话，避免旧播放器的延迟清理删除新会话。歌曲/影片、封面、播放状态变化才刷新元数据与通知，进度持续更新。封面相对地址以服务端地址解析，原生下载并解码；不能把 ArkWeb 本地来源或未解码的网络地址当作系统封面。
+
+Android 新增 `SystemMediaSessionPlugin`、`PlaybackService`、`PlaybackWebView`：媒体前台服务公开播放通知与 MediaSession，播放期间持有 PARTIAL_WAKE_LOCK；WebView 只在服务确认正在播放时保留媒体管线活跃，防止后台窗口不可见导致视频音轨暂停。暂停释放播放锁并恢复正常后台窗口状态；离开播放器、销毁宿主时释放会话和服务。不要用无条件常驻、循环唤醒或忽略所有窗口可见性事件替代这项有播放状态边界的策略。
+
+HarmonyOS 新增 `NativeMediaSession.ets`：创建 AVSession、设置解码后的 PixelMap 封面，并在实际播放期间申请 AUDIO_PLAYBACK 连续任务。`module.json5` 同时声明 `backgroundModes: ["audioPlayback"]` 和 `ohos.permission.KEEP_BACKGROUND_RUNNING`。系统继续播放先恢复 Web 引擎，再把命令送回共享播放器。暂停停止连续任务，离开或销毁时销毁会话、取消封面请求并释放图片资源。
+
+Android 默认/解除手动锁定使用 FULL_USER，HarmonyOS 使用 AUTO_ROTATION_RESTRICTED，两端尊重系统自动旋转开关。播放器方向按钮首次点击切换并锁定方向，再次点击恢复自动旋转；离开房间恢复自动策略。一起听完整播放器覆盖层在横屏隐藏房间顶栏，收起覆盖层或回到竖屏后恢复；不要在横屏普通音乐导航页隐藏返回入口。
+
+验收使用隔离的 source-code 服务端、命令行 adb/hdc、原生调试包和至少 5 分钟音视频素材。后台播放必须同时确认宿主已经进入后台、进度持续推进、音轨未静音及系统音频流有效，不能仅看 paused=false 或前台服务存在。还需验证系统播放/暂停/切歌/拖动、封面切换、恢复前台、退出后的后台资源释放，以及系统旋转开关开/关与手动锁定恢复。模拟器结果不替代真机省电策略、蓝牙设备和长时间待机验收。
+
+本轮开发基于已发布 1.3.5，新增修改在独立分支构建与本地提交，不覆盖既有发布 tag；后续正式发布须先确定新版本号并重新执行签名、打包和 Release 流程。
+
+实际验证范围、问题复现与后台时长数据见 [2026-10-01 系统媒体与旋转验收](mobile-media-lifecycle-2026-10-01.md)。
+
 ### 一起听界面维护（1.3.5）
 
 - `MusicTopNav.tsx` 使用 `isGlobalAppearanceRuntime()` 与窄屏判断固定移动端折叠导航。Android/HarmonyOS 的横屏与平板也不能展开；旧偏好 `musicNavCollapsed=false` 不能恢复完整导航。保留网易云的首页、私人漫游、云盘、我的音乐，以及哔哩哔哩入口；桌面网页仍可切换完整导航。

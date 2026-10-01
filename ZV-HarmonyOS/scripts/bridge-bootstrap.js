@@ -34,6 +34,8 @@
   });
   window.zviewerNative = {
     platform: 'harmony',
+    updateMediaSession: (state) => request('updateMediaSession', state),
+    clearMediaSession: (sessionId) => request('clearMediaSession', sessionId),
     minimizeApp: () => window.zviewerHost.minimizeApp(),
     toggleOrientation: (isLandscape) => request('toggleOrientation', isLandscape),
     unlockOrientation: () => request('unlockOrientation', null),

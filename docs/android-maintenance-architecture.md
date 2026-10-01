@@ -37,6 +37,7 @@
 | `ZV-Android/app/src/main/java/com/zviewer/mobile/BilibiliProxyPlugin.java` | 调用 Go Mobile API、二维码登录、状态查询、退出和二维码保存 | Cookie 只留在原生/Go 侧；JS 只接收脱敏状态 |
 | `ZV-Android/app/src/main/java/com/zviewer/mobile/PlayerDisplayPlugin.java` | 旋转、沉浸式显示、解除锁定 | 与 `src/platform/playerDisplay.ts` 的方法名保持一致 |
 | `ZV-Android/app/src/main/java/com/zviewer/mobile/AudioRoutingPlugin.java` | 一起听与语音之间的媒体音频路由 | 只处理系统音频会话，不把业务状态搬入 Java |
+| `SystemMediaSessionPlugin.java`、`PlaybackService.java`、`PlaybackWebView.java` | 系统媒体控件、封面、媒体前台服务与播放期间的 WebView 后台管线 | JS 持有播放状态和房间权限；暂停/离开释放播放锁，离开销毁媒体服务；对应布局为 `capacitor_bridge_layout_main.xml` |
 | `ZV-Android/app/src/main/AndroidManifest.xml`、Gradle 文件和资源 | 权限、包名、启动页、签名和 Android 构建 | 证书、密码、本机 SDK 路径不进仓库 |
 | `native/bilicore/core/`、`native/bilicore/mobile/` | Go B 站解析、代理、二维码和移动绑定 | 修改时同时考虑 AAR 构建和 Android WebView 播放链路 |
 | `scripts/build-bilicore.mjs` | 从 Go 源码生成 Android AAR | Android 构建自动调用；不要手工提交生成的 AAR |
@@ -83,6 +84,8 @@ HarmonyOS 代码见 [HarmonyOS 应用维护架构](harmonyos-maintenance-archite
 | 旋转、沉浸式显示、返回键、最小化和生命周期 | `src/mobile/PlayerDisplayControls.tsx`、`src/mobile/useNativeBack.ts`、`src/platform/{playerDisplay,lifecycle}.ts` | `PlayerDisplayPlugin.java`、`MainActivity.java`、Manifest | 原生插件只实现系统动作，页面状态由 React 管理 |
 
 ## 4. Android 升级顺序
+
+系统媒体与旋转的维护契约、生命周期及后台验收条件见 [双端维护与发布](mobile-release-maintenance.md#系统媒体控件后台播放与旋转2026-10-01)。一起看也需要系统媒体会话，不能仅对一起听创建后台服务。默认方向与解除手动锁定都使用 FULL_USER，尊重设备的自动旋转设置。
 
 1. 先判断需求属于共享业务、平台契约还是 Android 宿主。
 2. 共享业务改 `src/`，完成 TypeScript/Vite 构建后再执行 `npm run android:sync`。
