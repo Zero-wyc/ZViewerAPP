@@ -77,6 +77,10 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
   useEffect(() => {
     const back = () => {
       if (document.fullscreenElement) { void document.exitFullscreen(); return }
+      if (document.querySelector('[data-music-immersive="true"]')) {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+        return
+      }
       if (fullscreen) setFullscreen(false)
       else if (document.querySelector('.zart-web-fullscreen')) document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
       else if (addOpen) setAddOpen(false)

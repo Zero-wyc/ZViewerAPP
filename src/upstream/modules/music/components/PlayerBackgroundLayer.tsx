@@ -63,6 +63,9 @@ export function PlayerBackgroundLayer({
   immersive,
   onImmersiveTap,
 }: PlayerBackgroundLayerProps) {
+  // Viewing the video should preserve the whole frame; background preferences
+  // (cropping, stretching and blur) only apply while the player UI is visible.
+  const effectiveFit = immersive ? 'contain' : videoFit
   // ===== 切歌封面交叉溶解：换曲瞬间快照上一首封面为独立背景层（0.9s
   //       淡出，动画结束即卸载），与新封面 zen-cover-fade 淡入交叠——
   //       当前背景（封面或视频消失后的空档）优雅溶解为下一首封面，
@@ -141,7 +144,7 @@ export function PlayerBackgroundLayer({
           {/* ===== contain 黑边填充：放大模糊的封面铺满底层（视频网站
               同款手法），视频 object-contain 完整显示不裁剪，"黑边"
               区域由画面感填充，视觉无黑边 ===== */}
-          {videoFit === 'contain' && (
+          {effectiveFit === 'contain' && (
             <div
               aria-hidden="true"
               className={cn(
@@ -175,9 +178,9 @@ export function PlayerBackgroundLayer({
             onPlaying={videoHandlers.onPlaying}
             className={cn(
               'pointer-events-none h-full w-full',
-              videoFit === 'cover'
+              effectiveFit === 'cover'
                 ? 'object-cover'
-                : videoFit === 'fill'
+                : effectiveFit === 'fill'
                   ? 'object-fill'
                   : 'object-contain',
               immersive ? 'fixed inset-0 z-[70]' : 'absolute inset-0 z-0'
@@ -188,7 +191,7 @@ export function PlayerBackgroundLayer({
               // 视频背景模糊（设置可调）：模糊边缘会半透明羽化露出底层
               // 封面/纯色底，同步放大 10% 裁掉羽化边（cover/fill 模式）；
               // contain 模式视频本体不铺满，放大无副作用
-              ...(videoBlurLevel > 0
+              ...(videoBlurLevel > 0 && !immersive
                 ? {
                     filter: `blur(${videoBlurLevel}px)`,
                     transform: 'scale(1.1)',

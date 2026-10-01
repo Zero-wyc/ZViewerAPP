@@ -123,7 +123,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #65d59b; outline-
 .mobile-approval span { flex: 1; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
 .mobile-room .zart-stage .zart-video-container { min-height: 0; }
 .mobile-room .zart-web-fullscreen { z-index: 500; }
-.mobile-room .glass-strong { background-color: #1b2024; }
+.mobile-room .glass-strong { background-color: var(--glass-bg); }
 
 .mobile-voice-trigger.is-connected { color: #65d59b; background: #233c30; }
 .mobile-voice-panel {

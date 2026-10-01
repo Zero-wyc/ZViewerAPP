@@ -607,6 +607,7 @@ function ListenTogetherInner({
   return (
     <div
       className="relative flex h-full min-w-0 flex-col overflow-hidden"
+      data-music-immersive={immersive}
       // 提示条黑底 alpha 跟随滑块（zen-notice-bar 内 calc 引用）；
       // --lt-ui-blur 为冰霜层模糊半径（设置：UI 模糊浓度）；
       // 文字系变量局部引用到 --lt-glass-*（按「含玻璃层的有效背景」判定
