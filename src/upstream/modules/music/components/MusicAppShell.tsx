@@ -446,8 +446,8 @@ function ShellInner({
           onPointerDown={flashOverlayClose}
           className={
             playerOverlayClosing
-              ? 'player-slide-out absolute inset-0 z-40'
-              : 'player-slide-in absolute inset-0 z-40'
+              ? 'music-player-overlay player-slide-out absolute inset-0 z-40'
+              : 'music-player-overlay player-slide-in absolute inset-0 z-40'
           }
         >
           <ListenTogetherPanel
@@ -460,7 +460,7 @@ function ShellInner({
           {/* 右上角收起按钮（滑出动画结束后卸载）：手机上默认完全隐藏
               （触摸屏幕任意处亮起 3s——触屏无 hover 且常显会压在歌词
               首行上），桌面保持 hover 区域显形；纯图标无玻璃底无模糊 */}
-          <div className="group/hide absolute right-3 top-3 z-[70] h-16 w-16 max-md:right-2 max-md:top-2">
+          <div className="music-player-collapse group/hide absolute right-3 top-3 z-[70] h-16 w-16 max-md:right-2 max-md:top-2">
             <button
               type="button"
               className={cn(

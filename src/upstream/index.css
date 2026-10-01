@@ -1602,6 +1602,19 @@ body[data-no-hover-transform='true'] .zen-avatar-hover:hover {
   animation: player-slide-out 0.5s cubic-bezier(0.14, 0.91, 0.58, 1) both;
 }
 
+/* The slide animation retains a transform and otherwise traps fixed video
+   layers inside the music panel. Pure video mode must cover the viewport. */
+.music-player-overlay:has([data-music-immersive='true']) {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  animation: none;
+  transform: none;
+}
+.music-player-overlay:has([data-music-immersive='true']) .music-player-collapse {
+  display: none;
+}
+
 /* 播放卡入场（Player.vue .player-in）：先展开宽度（35% 处达到目标宽），
    再纵向展开至满高并淡入；0.7s 延迟 0.2s。
    目标宽用 --lt-card-w 变量（组件容器上定义 clamp(280px,42vh,480px)）：
