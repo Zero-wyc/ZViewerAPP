@@ -15,9 +15,6 @@ const config: CapacitorConfig = {
     path: 'ZV-Android',
     allowMixedContent: true,
   },
-  ios: {
-    path: 'ZV-iOS',
-  },
 }
 
 export default config

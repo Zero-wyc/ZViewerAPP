@@ -31,6 +31,8 @@ export interface SystemSettings {
   cdnAccelerate: boolean
   /** CDN 代理地址（如 https://gh-proxy.com），对所有 GitHub 请求使用前缀代理 */
   cdnProxyUrl: string
+  /** 允许单用户在多个页面同时登录同一房间（仅供测试，服务端门控） */
+  roomMultiInstanceLogin: boolean
   dataSourceConfig?: Record<string, unknown> | null
 }
 
@@ -57,10 +59,11 @@ const DEFAULT_SETTINGS: SystemSettings = {
   roomCreationMode: 'admin-only',
   roomPermissionMatrix: null,
   betaFeaturesEnabled: false,
-  dashDisabled: true,
+  dashDisabled: false,
   playsvideoEnabled: true,
   cdnAccelerate: false,
   cdnProxyUrl: 'https://gh-proxy.com',
+  roomMultiInstanceLogin: false,
   dataSourceConfig: null,
 }
 

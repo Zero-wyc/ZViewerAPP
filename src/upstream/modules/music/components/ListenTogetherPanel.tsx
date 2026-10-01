@@ -219,8 +219,13 @@ function ListenTogetherInner({
   // 关联时，解析（默认 720P 直链 / CLI 开启时高画质 DASH）后作为静音背景
   // 铺满播放器，跟随音乐播放/暂停；B站 本地插播曲目直接用其视频作背景 =====
   const musicVideoCli = useMusicSettingsStore((s) => s.musicVideoCli)
-  /** CLI 高画质分辨率（qn，0=自动）：仅 CLI 路径生效，变更即重解析 */
+  /** 视频背景分辨率（qn，0=自动）：CLI DASH 与服务器 DASH 双轨共用，变更即重解析 */
   const musicVideoQn = useMusicSettingsStore((s) => s.musicVideoQn)
+  /** 服务器解析 DASH 模式（仅 CLI 路径未生效时使用），变更即重解析；
+   *  切换入口在歌词页设置弹窗（PlayerSettingsModal），歌词页本体不显示 */
+  const musicVideoServerDash = useMusicSettingsStore(
+    (s) => s.musicVideoServerDash
+  )
   const bgVideoFit = normalizeBgVideoFit(
     useMusicSettingsStore((s) => s.bgVideoFit)
   )
@@ -266,7 +271,8 @@ function ListenTogetherInner({
     musicVideoCli,
     isBiliSong ? (currentSong?.biliBvid ?? null) : null,
     currentSong?.biliCid ?? 0,
-    musicVideoQn
+    musicVideoQn,
+    musicVideoServerDash
   )
   // 背景视频回包的元组成员**必须解构**后使用：整体对象内含 videoRef，
   // 在 render 期做 `bgVideo.xxx` 成员访问会被 react-hooks/refs 规则判为
@@ -957,34 +963,43 @@ function ListenTogetherInner({
               另：歌词就绪后若无歌词/纯音乐，lyricPanelVisible 为 false，
               面板整块不渲染（等同手动收起，注释见该派生值声明处） ===== */}
           {/* 面板外壳（visibility 闸门 / 冰霜层两段式入场 / 评论区切换 /
-              PlayerLyricPanel 接线）：整块已抽为 PlayerLyricPanelShell */}
+              PlayerLyricPanel 接线）：整块已抽为 PlayerLyricPanelShell。
+              wrapper 仅承担布局（无 opacity/transform，避免成为 Backdrop
+              Root 隔离内部冰霜层） */}
           {(isPortraitMobile ? mobileLyricViewActive : desktopLyricView) &&
             lyricPanelVisible && (
-              <PlayerLyricPanelShell
-                isPortraitMobile={isPortraitMobile}
-                lyricRevealed={lyricRevealed}
-                uiTone={uiTone}
-                uiFade={uiFade}
-                rightPanelMode={rightPanelMode}
-                currentBiliBvid={currentBiliBvid}
-                lyricOriginal={lyricOriginal}
-                lyricRoma={lyricRoma}
-                showTranslation={showTranslation}
-                lines={displayLyricLines}
-                activeIndex={activeLyricIndex}
-                emptyMode={emptyMode}
-                lyricSize={lyricSize}
-                tlyricSize={tlyricSize}
-                rlyricSize={rlyricSize}
-                interludeThresholdSec={lyricInterlude}
-                lyricBlur={lyricBlur}
-                lyricBlurPx={lyricBlurLevel}
-                lyricMaskOpacityPct={lyricMaskOpacity}
-                lyricMaskBlur={lyricMaskBlur}
-                onSeek={handleLyricSeek}
-                onUpdateLineOffset={handleUpdateLineOffset}
-                qualityLabel={qualityLabel}
-              />
+              <div
+                className={cn(
+                  'relative flex min-h-0 min-w-0',
+                  isPortraitMobile ? 'w-full flex-1' : 'h-full flex-1'
+                )}
+              >
+                <PlayerLyricPanelShell
+                  isPortraitMobile={isPortraitMobile}
+                  lyricRevealed={lyricRevealed}
+                  uiTone={uiTone}
+                  uiFade={uiFade}
+                  rightPanelMode={rightPanelMode}
+                  currentBiliBvid={currentBiliBvid}
+                  lyricOriginal={lyricOriginal}
+                  lyricRoma={lyricRoma}
+                  showTranslation={showTranslation}
+                  lines={displayLyricLines}
+                  activeIndex={activeLyricIndex}
+                  emptyMode={emptyMode}
+                  lyricSize={lyricSize}
+                  tlyricSize={tlyricSize}
+                  rlyricSize={rlyricSize}
+                  interludeThresholdSec={lyricInterlude}
+                  lyricBlur={lyricBlur}
+                  lyricBlurPx={lyricBlurLevel}
+                  lyricMaskOpacityPct={lyricMaskOpacity}
+                  lyricMaskBlur={lyricMaskBlur}
+                  onSeek={handleLyricSeek}
+                  onUpdateLineOffset={handleUpdateLineOffset}
+                  qualityLabel={qualityLabel}
+                />
+              </div>
             )}
         </div>
       )}

@@ -6,11 +6,15 @@ import { useRoomStore } from '@/store/roomStore'
 // 分P 切换支持：applyQualityChange 在有 preResolved 时跳过 format 检查
 import type { WatchTogetherState, Movie } from '@/store/roomStore'
 import { safePlay } from '@/modules/sync-playback/safePlay'
+import { wasUserPaused } from '@/modules/player/services/pause-intent'
 import { getBilibiliParseOptions } from './parseOptions'
 import { extractBvid, resolveBilibiliViaCli } from './cliApi'
-import { getActiveCliProxyUrl } from '@/modules/room/watch-together/movie-source-resolver'
-import { isEmbeddedBilibiliHost } from '../../../platform/bilibiliProxy'
-import { getNativeQualityPolicy, selectNativeQuality, recordNativeQuality } from './nativeQualityPolicy'
+import {
+  getActiveCliProxyUrl,
+  getEffectivePreferMp4,
+} from '@/modules/room/watch-together/movie-source-resolver'
+import { isEmbeddedBilibiliHost, getEmbeddedProxyStatus } from '../../../platform/bilibiliProxy'
+import { getNativeQualityPolicy, selectNativeQuality, recordNativeQuality, restoreNativeQuality, getQualitySelectionRevision } from './nativeQualityPolicy'
 
 function qualitiesEqual(a: QualityOption[], b: QualityOption[]): boolean {
   if (a.length !== b.length) return false
@@ -108,11 +112,16 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
       // eslint-disable-next-line react-hooks/immutability -- ref.current 设计为可变
       ctx.suppressEventsRef.current = true
 
+      const previousPolicy = { ...getNativeQualityPolicy(movie.id) }
+      const sessionVersion = getEmbeddedProxyStatus().sessionVersion
+      let revision = getQualitySelectionRevision(movie.id)
+      const isCurrent = () => video.isConnected && useRoomStore.getState().currentMovieId === movie.id && useRoomStore.getState().movies.find(item => item.id === movie.id)?.cid === movie.cid && getEmbeddedProxyStatus().sessionVersion === sessionVersion && getQualitySelectionRevision(movie.id) === revision
       const preserveTime = video.currentTime
       const shouldPlay = !video.paused
 
       try {
         if (isEmbeddedBilibiliHost() && !preResolved) selectNativeQuality(movie.id, qn)
+        revision = getQualitySelectionRevision(movie.id)
         let resolved: ResolvedSource
         if (preResolved) {
           resolved = preResolved
@@ -135,10 +144,18 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
               throw new Error('无法提取 BV 号或 cid，无法使用 CLI 代理')
             }
           } else {
-            resolved = await resolveBilibiliWithOptions(movie.url, qn)
+            // CLI 未启用按影片偏好；CLI 启用未连接由 getEffectivePreferMp4
+            // 返回 true，回退服务器 MP4 直链
+            resolved = await resolveBilibiliWithOptions(
+              movie.url,
+              qn,
+              undefined,
+              { preferMp4: getEffectivePreferMp4(movie.id) }
+            )
           }
         }
 
+        if (!isCurrent()) return
         if (!resolved.videoUrl) {
           throw new Error('未获取到对应清晰度的播放地址')
         }
@@ -177,10 +194,12 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
           }
         }
 
+        if (!isCurrent()) return
         ctx.setWatchTogether(newState)
         await ctx.applySourceToVideo(video, newState, undefined, blobs)
+        if (!isCurrent()) return
         video.currentTime = preserveTime
-        if (shouldPlay) {
+        if (shouldPlay && !wasUserPaused(video)) {
           void safePlay(video)
         }
 
@@ -195,6 +214,8 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
           ctx.broadcastState(newState)
         }
       } catch (err) {
+        if (!isCurrent()) return
+        if (isEmbeddedBilibiliHost()) restoreNativeQuality(movie.id, previousPolicy)
         console.error('[useBilibiliQuality] 切换清晰度失败:', err)
         // 回退到原 source
         try {
@@ -202,7 +223,7 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
           if (preserveTime > 0) {
             video.currentTime = preserveTime
           }
-          if (shouldPlay) {
+          if (shouldPlay && !wasUserPaused(video)) {
             void safePlay(video)
           }
         } catch {

@@ -66,13 +66,8 @@ export interface ResolvedMovieSource {
    */
   reusedRecoveryUrl: boolean
   /**
-   * MKV 快速路径：音轨为浏览器原生友好编码（AAC/MP3/Opus）时置位，
-   * 跳过 playsvideo 重封装管线直接原生播放（原生失败自动回退管线）。
-   */
-  mkvFastPath?: boolean
-  /**
    * 影片级浏览器播放引擎（playsvideo）开关（添加影片时设置）。
-   * false 时强制原生直连播放，需与系统级开关同时开启才启用管线。
+   * false 时强制原生直连播放（唯一门控，原生失败不回退管线）。
    */
   playsvideoEnabled?: boolean
   /**
@@ -130,19 +125,19 @@ export function getActiveCliProxyUrl(): string | null {
 }
 
 /**
- * 获取影片实际生效的 MP4 偏好。
+ * 获取影片实际生效的 MP4 偏好（感知 CLI 连接状态）。
  *
- * 当用户启用 CLI 高画质代理后，强制走 DASH 代理路径，不再降级到 MP4；
- * 即使本地 CLI 暂时未连接，也保持 DASH 请求，由调用方提示连接代理，
- * 避免用户开启 CLI 后因网络问题被自动切回 MP4。
+ * CLI 已启用且本地代理已连接：强制 DASH 高画质代理路径（preferMp4=false）。
+ * CLI 已启用但本地代理未连接：回退服务器 MP4 直链（preferMp4=true），
+ * 不抛错也不回退服务器 DASH（用户指定语义：CLI 未连接就回退 MP4）。
  *
- * 当服务器端 DASH 被禁用（dashDisabled）且 CLI 未启用时，强制 MP4。
+ * CLI 未启用时：服务器端 DASH 被禁用（dashDisabled）强制 MP4，否则按偏好。
  */
 export function getEffectivePreferMp4(movieId: number): boolean {
   const { preferMp4, cliEnabled } = getBilibiliParseOptions(movieId)
   if (cliEnabled) {
-    // CLI 已启用：强制使用 DASH，不受 dashDisabled 影响
-    return false
+    // CLI 已启用：已连接走 CLI DASH，未连接回退服务器 MP4
+    return getActiveCliProxyUrl() ? false : true
   }
   // CLI 未启用：检查服务器端是否禁用了 DASH
   const { dashDisabled } = useSystemSettingsStore.getState()
@@ -224,6 +219,9 @@ function purgeBilibiliResolveCache(movieId: number): void {
  * 若该影片启用了 CLI 代理且本地 CLI 在线，则通过 CLI 使用用户自己的 Cookie
  * 解析高画质地址；否则回退到服务端解析。
  *
+ * CLI 已启用但本地未连接时：不抛错中断播放，回退服务器端 MP4 直链解析
+ * （getEffectivePreferMp4 已按连接状态返回 true），一起看/一起听同语义。
+ *
  * 结果带 5 分钟 TTL 缓存；forceRefresh 为 true 时绕过缓存并清空旧条目
  * （用于复用旧 URL 失败后的强制重新解析——缓存的正是刚失败的 URL）。
  */
@@ -234,23 +232,27 @@ export async function resolveBilibiliOnline(
 ): Promise<ResolvedMovieSource> {
   const parsePrefs = getBilibiliParseOptions(movie.id)
   const policy = getNativeQualityPolicy(movie.id)
-  const qn = isEmbeddedBilibiliHost() ? policy.qn : movie.currentQn
+  const qn = isEmbeddedBilibiliHost() ? policy.qn : undefined
   const proxyUrl = parsePrefs.cliEnabled ? getActiveCliProxyUrl() : null
-  // CLI 已启用时强制使用 DASH 代理，不再降级 MP4；未连接时直接报错，避免回退
+  // CLI 已启用：已连接走 CLI DASH；未连接由 getEffectivePreferMp4
+  // 返回 true，回退服务器 MP4 直链
   const effectivePreferMp4 =
     options?.preferMp4 ?? getEffectivePreferMp4(movie.id)
   const forceDash = parsePrefs.cliEnabled && !!proxyUrl
 
-  if (parsePrefs.cliEnabled && !proxyUrl && !isEmbeddedBilibiliHost()) {
-    throw new Error('CLI 代理未连接，请先启动本地 zcontrol-cli')
+  if (parsePrefs.cliEnabled && !proxyUrl) {
+    console.warn(
+      '[movie-source-resolver] CLI 已启用但本地代理未连接，回退服务器 MP4 解析'
+    )
   }
 
   const forceRefresh = options?.forceRefresh === true
   const nativeSession = getEmbeddedProxyStatus().sessionVersion
   const capabilityKey = isEmbeddedBilibiliHost() && proxyUrl ? JSON.stringify(await getWebViewCapabilities()) : ''
+  const requestedQn = isEmbeddedBilibiliHost() && policy.mode === 'manual' ? policy.qn : undefined
   const cacheKey = buildBilibiliResolveCacheKey(
     movie.id,
-    qn,
+    requestedQn,
     effectivePreferMp4,
     proxyUrl
   ) + `|${movie.url}|${movie.cid ?? ''}|${isEmbeddedBilibiliHost() ? nativeQualityCacheKey(movie.id) : ''}|${capabilityKey}`
@@ -280,7 +282,7 @@ export async function resolveBilibiliOnline(
     } else {
       const resolved = await resolveBilibiliWithOptions(
         movie.url,
-        movie.currentQn,
+        requestedQn,
         onProgress,
         { preferMp4: effectivePreferMp4 }
       )
@@ -289,7 +291,7 @@ export async function resolveBilibiliOnline(
   } else {
     const resolved = await resolveBilibiliWithOptions(
       movie.url,
-      isEmbeddedBilibiliHost() ? qn ?? 64 : movie.currentQn,
+      requestedQn,
       onProgress,
       { preferMp4: effectivePreferMp4 }
     )
@@ -343,37 +345,6 @@ export async function resolveAnimeOnline(
     headers: undefined,
     reusedRecoveryUrl: false,
   }
-}
-
-/**
- * 计算 MKV 快速路径标记（原生播放直通判定）。
- *
- * 适用于所有挂载源（server-files / webdav / openlist / ftp / smb /
- * emby / jellyfin 等）：音视频编码均为浏览器原生友好时，跳过
- * playsvideo 重封装管线直接原生播放（瞬时起播、暂停即静音）；
- * 原生失败（video.error）由 usePlayerSource 自动回退管线，能力不损失。
- *
- * - 视频：Chrome 对 MKV 的原生支持仅限 H.264（AVC），HEVC（尤其 10bit）
- *   必然 NotSupportedError，有元数据时提前避开一次注定失败的原生尝试；
- * - 音频：DTS/AC3/EAC3/FLAC 等编码需 playsvideo 转码，仅
- *   AAC/MP3/Opus/Vorbis 允许直通；
- * - 编码元数据缺失时 audioCodec 不在白名单内，保守走 playsvideo
- *   （server-files 源历史行为：videoCodec 缺失不阻止，由 attach
- *   失败回退兜底）。
- */
-function computeMkvFastPath(
-  format: MediaFormat | undefined,
-  videoCodec: string | undefined,
-  audioCodec: string | undefined
-): boolean {
-  if (format !== 'mkv') return false
-  const video = (videoCodec || '').toLowerCase()
-  const videoNativeSafe =
-    !video || video.includes('avc') || video.includes('h264')
-  if (!videoNativeSafe) return false
-  return ['aac', 'mp3', 'opus', 'vorbis'].includes(
-    (audioCodec || '').toLowerCase()
-  )
 }
 
 /**
@@ -448,11 +419,6 @@ export async function resolveMovieSource({
       acceptQuality: movie.acceptQuality,
       headers: undefined,
       reusedRecoveryUrl: false,
-      mkvFastPath: computeMkvFastPath(
-        format,
-        movie.videoCodec,
-        movie.audioCodec
-      ),
       playsvideoEnabled: movie.playsvideoEnabled !== false,
     }
   }
@@ -497,11 +463,6 @@ export async function resolveMovieSource({
     acceptQuality: movie.acceptQuality,
     headers: undefined,
     reusedRecoveryUrl: false,
-    mkvFastPath: computeMkvFastPath(
-      inferredFormat,
-      movie.videoCodec,
-      movie.audioCodec
-    ),
     playsvideoEnabled: movie.playsvideoEnabled !== false,
     noProxyFallback: movie.directLink === true,
   }

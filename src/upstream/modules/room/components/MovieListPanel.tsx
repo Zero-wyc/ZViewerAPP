@@ -202,9 +202,6 @@ export function MovieListPanel({
     try {
       const parsePrefs = getBilibiliParseOptions(movie.id)
       const proxyUrl = parsePrefs.cliEnabled ? getActiveCliProxyUrl() : null
-      if (parsePrefs.cliEnabled && !proxyUrl) {
-        throw new Error('CLI 代理未连接，请先启动本地 zcontrol-cli')
-      }
       let resolved: ResolvedSource
 
       if (proxyUrl) {
@@ -223,7 +220,8 @@ export function MovieListPanel({
           throw new Error('无法提取 BV 号或 cid，无法使用 CLI 代理')
         }
       } else {
-        // CLI 未连接时强制 MP4 降级
+        // CLI 未启用按影片偏好；CLI 启用未连接由 getEffectivePreferMp4
+        // 返回 true，回退服务器 MP4 直链
         resolved = await resolveBilibiliWithOptions(movie.url, qn, undefined, {
           preferMp4: getEffectivePreferMp4(movie.id),
         })
@@ -309,9 +307,6 @@ export function MovieListPanel({
     try {
       const parsePrefs = getBilibiliParseOptions(movie.id)
       const proxyUrl = parsePrefs.cliEnabled ? getActiveCliProxyUrl() : null
-      if (parsePrefs.cliEnabled && !proxyUrl) {
-        throw new Error('CLI 代理未连接，请先启动本地 zcontrol-cli')
-      }
       const targetPage = movie.pages?.find((p) => p.page === page)
       let resolved: ResolvedSource
 
@@ -331,7 +326,8 @@ export function MovieListPanel({
           throw new Error('无法提取 BV 号或 cid，无法使用 CLI 代理')
         }
       } else {
-        // CLI 未连接时强制 MP4 降级
+        // CLI 未启用按影片偏好；CLI 启用未连接由 getEffectivePreferMp4
+        // 返回 true，回退服务器 MP4 直链
         resolved = await resolveBilibiliWithOptions(
           movie.url,
           movie.currentQn,

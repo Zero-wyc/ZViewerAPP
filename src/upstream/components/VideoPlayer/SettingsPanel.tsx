@@ -23,6 +23,8 @@ import {
   DanmakuAdvancedSettings,
 } from '@/modules/room/watch-together/DanmakuStylePanel'
 import { AnimatedSidePanel } from './AnimatedSidePanel'
+import { SettingsDialog } from './SettingsDialog'
+import { MobileDanmakuSettings } from './MobileDanmakuSettings'
 import { SubtitleBrowser } from './SubtitleBrowser'
 import { DEFAULT_DANMAKU_STYLE } from '@/store/danmakuStore'
 import type {
@@ -47,6 +49,8 @@ const PANEL_GAP = 8
 
 interface SettingsPanelProps {
   isHost: boolean
+  mobile?: boolean
+  onClose?: () => void
   danmakuStyle?: DanmakuStyleState
   subtitleEnabled?: boolean
   subtitleTracks?: SubtitleTrack[]
@@ -92,10 +96,13 @@ interface SettingsPanelProps {
  * 设置面板（精简版）：字幕（启用 / 轨道 / 加载 URL·文件 / 字号）与弹幕样式两个 Tab。
  * 仅房主可编辑字幕；观众端展示「字幕由房主控制」。
  * 高级设置展开时向左延伸出独立面板，主面板高度保持不变。
+ * 移动端使用同一弹层内的分组设置和子页，不使用侧向延伸定位。
  */
 export function SettingsPanel(props: SettingsPanelProps) {
   const {
     isHost,
+    mobile = false,
+    onClose,
     danmakuStyle,
     subtitleEnabled,
     subtitleTracks,
@@ -220,8 +227,21 @@ export function SettingsPanel(props: SettingsPanelProps) {
     }
   }
 
-  return (
-    <div className="player-settings-panel absolute bottom-full right-2 z-[200] mb-1">
+  const hasSubpanel = showAdvancedPanel || showFontPanel || showBrowserPanel
+  const title = showFontPanel
+    ? `${isDanmakuView ? '弹幕' : '字幕'}字体`
+    : showAdvancedPanel
+      ? `${isDanmakuView ? '弹幕' : '字幕'}高级设置`
+      : showBrowserPanel ? '浏览字幕目录' : '播放设置'
+  const backToSettings = () => {
+    // 字体选择来自高级设置，返回时保留这一层级。
+    setAdvancedOpen(showFontPanel && (!mobile || !isDanmakuView))
+    setFontPanelOpen(false)
+    setBrowserOpen(false)
+  }
+
+  const panel = (
+    <div className={cn('player-settings-panel', !mobile && 'absolute bottom-full right-2 z-[200] mb-1')}>
       {/* 延伸面板：高级设置（独立动画组件，absolute 定位不影响主面板）
           弹幕与字幕各有独立的高级内容，复用同一个展开状态 */}
       <AnimatedSidePanel
@@ -399,6 +419,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
       {/* 主面板（位置固定，不受副面板展开/收起影响） */}
       <div
         className="player-settings-main glass-strong relative overflow-y-auto rounded-xl border border-[var(--glass-border)] p-2.5 shadow-lg"
+        hidden={mobile && hasSubpanel}
         style={{
           width: MAIN_PANEL_WIDTH,
           maxHeight: 420,
@@ -750,6 +771,19 @@ export function SettingsPanel(props: SettingsPanelProps) {
               </>
             )}
           </>
+        ) : mobile ? (
+          <MobileDanmakuSettings
+            style={danmakuStyle!}
+            onStyleChange={onDanmakuStyleChange}
+            onFilterChange={onDanmakuFilterChange}
+            onAdvancedChange={onDanmakuAdvancedChange}
+            onReset={onResetDanmakuStyle}
+            onChooseFont={() => {
+              setAdvancedOpen(false)
+              setBrowserOpen(false)
+              setFontPanelOpen(true)
+            }}
+          />
         ) : (
           <DanmakuStylePanel
             style={danmakuStyle!}
@@ -766,4 +800,10 @@ export function SettingsPanel(props: SettingsPanelProps) {
       </div>
     </div>
   )
+
+  return mobile && onClose ? (
+    <SettingsDialog title={title} onBack={hasSubpanel ? backToSettings : undefined} onClose={onClose}>
+      {panel}
+    </SettingsDialog>
+  ) : panel
 }

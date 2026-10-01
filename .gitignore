@@ -32,3 +32,11 @@ signing-credential.xml
 /ZV-Android/app/libs/
 /native/bilicore/*.exe
 /coverage/
+/.ui-validation/
+/.harmony-421/
+/.codex-android-421/
+/ZV-Android/android/
+/ZV-HarmonyOS/.codegenie/
+/ZV-HarmonyOS/release-assets/
+__pycache__/
+*.pyc

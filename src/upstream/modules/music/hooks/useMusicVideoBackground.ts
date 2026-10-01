@@ -1,3 +1,5 @@
+import { useSystemSettingsStore } from '@/store/systemSettingsStore'
+import { getEmbeddedProxyStatus, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
 /**
  * 歌词模块自定义视频背景的解析 Hook（Hydrogen PlayerVideo 的 Web 复刻数据层）。
  *
@@ -19,7 +21,7 @@ import {
   useSyncExternalStore,
 } from 'react'
 import { resolveBilibiliWithOptions } from '@/modules/bilibili/bilibiliApi'
-import { resolveBilibiliViaCli } from '@/modules/bilibili/cliApi'
+import { resolveBilibiliViaCli, buildCliProxyUrl } from '@/modules/bilibili/cliApi'
 import { getActiveCliProxyUrl } from '@/modules/room/watch-together/movie-source-resolver'
 import {
   getMusicVideo,
@@ -39,7 +41,7 @@ export interface MusicVideoSource {
   audioCodec?: string
   /**
    * 视频时长（秒，来自解析结果）。DASH 流的容器 mvhd 时长为 0/缺失，
-   * 引擎（DashPlayer）以此写 MPD mediaPresentationDuration——缺失时
+   * 引擎（videojs10-dash）以此写 MPD mediaPresentationDuration——缺失时
    * video.duration 无效（0/Infinity），背景视频的进度同步会全部失效
    */
   duration?: number
@@ -68,9 +70,20 @@ export function useMusicVideoBackground(
    */
   biliBvid: string | null = null,
   biliCid = 0,
-  /** CLI 高画质分辨率（B站 qn，0=自动跟随账号默认；仅 CLI 路径生效） */
-  qn = 0
+  /**
+   * 视频背景分辨率（B站 qn，0=自动跟随账号默认档）。CLI DASH 与服务器
+   * DASH 双轨均生效；MP4 直链路径忽略（固定 720P）。
+   */
+  qn = 0,
+  /**
+   * 服务器解析 DASH 模式：true 走服务器 DASH 双轨解析（清晰度由 qn
+   * 参数决定，0=账号默认档），false 保持 720P MP4 直链。CLI 开关启用时
+   * 本参数被绕过（已连接走 CLI DASH，未连接回退服务器 MP4）。
+   */
+  serverDash = false
 ): MusicVideoBackgroundState {
+  const dashDisabled = useSystemSettingsStore(s => s.dashDisabled)
+  const proxySession = useSyncExternalStore(subscribeEmbeddedProxy, () => `${getEmbeddedProxyStatus().sessionVersion}:${getEmbeddedProxyStatus().ready}:${getEmbeddedProxyStatus().loggedIn}`)
   // 关联变化（弹窗保存/删除）即时感知：外部 store 快照经 useSyncExternalStore
   // 订阅（getMusicVideo 引用稳定，见 musicVideoStore 的解析缓存）
   const getBindingSnapshot = useCallback(
@@ -124,8 +137,8 @@ export function useMusicVideoBackground(
             true
           )
           resolved = {
-            url: r.videoUrl,
-            audioUrl: r.audioUrl,
+            url: buildCliProxyUrl(proxyUrl, r.videoUrl),
+            audioUrl: r.audioUrl ? buildCliProxyUrl(proxyUrl, r.audioUrl) : undefined,
             format: (r.format as MusicVideoSource['format']) ?? 'dash',
             videoCodec: r.videoCodec,
             audioCodec: r.audioCodec,
@@ -135,24 +148,47 @@ export function useMusicVideoBackground(
           }
           via = 'cli'
         } else {
+          // 与一起看同语义：CLI 开关启用但未连接本地代理时回退服务器
+          // MP4 直链（用户指定：CLI 未连接就回退 MP4，不回退 DASH）；
+          // 仅 CLI 关闭时才按 serverDash 设置选择服务器 DASH/MP4 双轨。
+          const useServerDash = !cliEnabled && serverDash && !dashDisabled
           if (cliEnabled) {
             console.warn(
-              '[useMusicVideoBackground] CLI 未连接，回退 720P 直链解析'
+              '[useMusicVideoBackground] CLI 未连接，回退服务器 MP4 解析'
             )
           }
-          const r = await resolveBilibiliWithOptions(
-            pageUrl,
-            DEFAULT_QN,
-            undefined,
-            { preferMp4: true }
-          )
-          resolved = {
-            url: r.videoUrl,
-            audioUrl: r.audioUrl,
-            format: (r.format as MusicVideoSource['format']) ?? 'mp4',
-            videoCodec: r.videoCodec,
-            audioCodec: r.audioCodec,
-            duration: r.duration,
+          if (useServerDash) {
+            // 服务器 DASH 双轨：qn>0 请求指定档（超出账号权限时 B站 自动
+            // 降档），0/未选=后端按账号权限默认档（大会员可获高画质）
+            const r = await resolveBilibiliWithOptions(
+              pageUrl,
+              qn > 0 ? qn : undefined,
+              undefined,
+              { forceDash: true }
+            )
+            resolved = {
+              url: r.videoUrl,
+              audioUrl: r.audioUrl,
+              format: (r.format as MusicVideoSource['format']) ?? 'dash',
+              videoCodec: r.videoCodec,
+              audioCodec: r.audioCodec,
+              duration: r.duration,
+            }
+          } else {
+            const r = await resolveBilibiliWithOptions(
+              pageUrl,
+              DEFAULT_QN,
+              undefined,
+              { preferMp4: true }
+            )
+            resolved = {
+              url: r.videoUrl,
+              audioUrl: r.audioUrl,
+              format: (r.format as MusicVideoSource['format']) ?? 'mp4',
+              videoCodec: r.videoCodec,
+              audioCodec: r.audioCodec,
+              duration: r.duration,
+            }
           }
           via = 'server'
         }
@@ -172,7 +208,7 @@ export function useMusicVideoBackground(
     return () => {
       cancelled = true
     }
-  }, [songId, binding, cliEnabled, qn])
+  }, [songId, binding, cliEnabled, qn, serverDash, dashDisabled, proxySession])
 
   return state
 }

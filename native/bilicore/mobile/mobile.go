@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -238,7 +239,37 @@ func allowedCDN(raw string) bool {
 		return false
 	}
 	h := strings.ToLower(u.Hostname())
-	return (strings.HasSuffix(h, ".bilivideo.com") || strings.HasSuffix(h, ".bilivideo.cn") || strings.HasSuffix(h, ".bilivideo.net")) && (u.Port() == "" || u.Port() == "443" || u.Port() == "80")
+	edge := strings.HasSuffix(h, ".mountaintoys.cn")
+	trusted := strings.HasSuffix(h, ".bilivideo.com") || strings.HasSuffix(h, ".bilivideo.cn") || strings.HasSuffix(h, ".bilivideo.net") || edge || h == "upos-hz-mirrorakam.akamaized.net"
+	// B 站返回的 HTTPS edge 链接还使用 4483；不放宽其他域名或端口。
+	portAllowed := u.Port() == "" || u.Port() == "443" || u.Port() == "80" || (edge && u.Scheme == "https" && u.Port() == "4483")
+	return trusted && portAllowed
+}
+
+func mediaCandidates(target string, backups []string) []string {
+	seen := make(map[string]bool)
+	result := make([]string, 0, len(backups)+1)
+	for _, candidate := range append([]string{target}, backups...) {
+		if seen[candidate] || !allowedCDN(candidate) {
+			continue
+		}
+		seen[candidate] = true
+		result = append(result, candidate)
+	}
+	// mcdn/edge 节点经常无法连接或首包很慢；优先使用解析响应中同轨的普通 CDN。
+	priority := func(raw string) int {
+		u, _ := url.Parse(raw)
+		host := strings.ToLower(u.Hostname())
+		if strings.HasSuffix(host, ".mcdn.bilivideo.cn") {
+			return 2
+		}
+		if strings.HasSuffix(host, ".mountaintoys.cn") {
+			return 1
+		}
+		return 0
+	}
+	sort.SliceStable(result, func(i, j int) bool { return priority(result[i]) < priority(result[j]) })
+	return result
 }
 
 var streamClient = &http.Client{
@@ -260,7 +291,7 @@ func (a *session) proxy(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unissued media URL", http.StatusForbidden)
 		return
 	}
-	candidates := append([]string{target}, backups...)
+	candidates := mediaCandidates(target, backups)
 	for i, u := range candidates {
 		if !allowedCDN(u) {
 			continue

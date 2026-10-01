@@ -2,6 +2,7 @@ import { abilityAccessCtrl, common } from '@kit.AbilityKit';
 import { webview } from '@kit.ArkWeb';
 import { window } from '@kit.ArkUI';
 import { BilibiliLocalProxy } from '../services/BilibiliLocalProxy';
+import { DEBUG } from 'BuildProfile';
 
 const LOCAL_ORIGIN = 'https://zviewer.local';
 const LOCAL_PAGE = `${LOCAL_ORIGIN}/index.html`;
@@ -106,6 +107,11 @@ class HarmonyHost {
 struct Index {
   private controller: webview.WebviewController = new webview.WebviewController();
   private host: HarmonyHost = new HarmonyHost(getContext(this) as common.UIAbilityContext, this.controller);
+
+  aboutToAppear(): void {
+    // Inspect the packaged ArkWeb app during development; release builds disable it.
+    webview.WebviewController.setWebDebuggingAccess(DEBUG);
+  }
 
   private localResource(url: string): WebResourceResponse | null {
     if (!url.startsWith(`${LOCAL_ORIGIN}/`)) return null;

@@ -9,12 +9,12 @@
  * 3. appliedSourceUrl 跟踪：避免同一源被重复加载
  * 4. 全量操作串行化：attach / forceReload 进入同一条 Promise 队列，
  *    天然消除并发 attach 互相 abort 的问题
- * 5. MKV 快速路径回退（原生 → playsvideo 管线）与播放期错误提示
+ * 5. 播放期错误提示（无任何原生 ↔ playsvideo 回退链）
  *
  * 相比 v1 的改进：
  * - Promise 队列替代 isAttaching/isReloading 双锁与 5s 等待循环；
  * - 不再读写 video._mseAbortController：引擎的下载中断由
- *   engine cleanup（DashPlayer.cleanup 内部 abort attach 请求）负责；
+ *   engine cleanup（DASH 引擎 cleanup 内部 abort attach 请求）负责；
  * - forceReload 多次调用合并为最新 source 的一次重载。
  *
  * 错误提示分工（attach 期 / 播放期）：
@@ -40,6 +40,7 @@ import type {
   PlayerSource,
   PlayerController,
   EngineAttachResult,
+  EngineType,
 } from '@/modules/player'
 import { refreshAccessToken } from '@/lib/api'
 import { formatVideoLoadError } from '@/modules/player/utils'
@@ -113,11 +114,32 @@ function onceDispose(dispose: (() => void) | undefined): () => void {
   }
 }
 
+/**
+ * video 级活跃引擎类型登记表（供统计面板查询）。
+ *
+ * 按 video 元素记录而非全局单值：背景视频同步（音乐模块）与主播放页
+ * 可能并发持有各自的 usePlayerSource 实例与 video 元素，全局单值会
+ * 互相覆盖；WeakMap 键为 video 元素，元素销毁后自动 GC。
+ * 写入点：applyAttachResult（引擎落地成功）；清除点：cleanup /
+ * terminateForeignEngineSession（引擎销毁，面板回落 '-'）。
+ */
+const activeEngineTypes = new WeakMap<HTMLVideoElement, EngineType>()
+
+/** 读取 video 元素当前活跃引擎的类型（统计面板用），无活跃会话返回 null */
+export function getActiveEngineType(
+  video: HTMLVideoElement | null
+): EngineType | null {
+  if (!video) return null
+  return activeEngineTypes.get(video) ?? null
+}
+
 /** 终结登记在 video 上的其他来源引擎会话（跨实例互斥） */
 function terminateForeignEngineSession(video: HTMLVideoElement): void {
   const prev = activeEngineSessions.get(video)
   if (prev) {
     activeEngineSessions.delete(video)
+    // 同步清掉引擎类型登记：该 video 的引擎已被终结
+    activeEngineTypes.delete(video)
     try {
       prev.dispose()
     } catch {
@@ -178,19 +200,10 @@ export interface UsePlayerSourceReturn {
   forceReload: (video: HTMLVideoElement, source: PlayerSource) => Promise<void>
 }
 
-/** MKV 快速路径回退 playsvideo 管线的结果 */
-type PlaysVideoFallbackOutcome =
-  | { kind: 'attached' }
-  /** 引擎被两级开关禁用（系统级 / 影片级任一关闭） */
-  | { kind: 'disabled' }
-  /** 组件已卸载（影片切换重挂载），无需任何处理 */
-  | { kind: 'unmounted' }
-  /** 管线 attach 失败 */
-  | { kind: 'error'; error: unknown }
-
 export function usePlayerSource(
   options: UsePlayerSourceOptions
 ): UsePlayerSourceReturn {
+  const attachAbortRef = useRef<AbortController | null>(null)
   const blobUrlRef = useRef<string | null>(null)
   // 当前实例活跃引擎会话的登记条目（video + 序号 + once 包装的清理函数）
   const engineCleanupRef = useRef<
@@ -217,16 +230,6 @@ export function usePlayerSource(
       authRetried?: boolean
     ) => Promise<void>
   >(async () => {})
-  // attachPlaysVideoFallback 的稳定自引用：播放期 error 监听器（经
-  // registerPlaybackErrorWatch 创建）需要引用它，两者 useCallback 相互
-  // 依赖，以 ref 断开循环
-  const attachPlaysVideoFallbackRef = useRef<
-    (
-      video: HTMLVideoElement,
-      source: PlayerSource,
-      resume?: { time: number; playing: boolean }
-    ) => Promise<PlaysVideoFallbackOutcome>
-  >(async () => ({ kind: 'disabled' }))
   // 播放期错误回调的稳定引用（调用方可能每次渲染传入新函数）
   const onPlaybackErrorRef = useRef(options.onPlaybackError)
   // 卸载标记：切换影片时 WatchTogetherPanel 按 key 整体重挂载
@@ -256,6 +259,8 @@ export function usePlayerSource(
   }, [])
 
   const cleanup = useCallback(() => {
+    attachAbortRef.current?.abort()
+    attachAbortRef.current = null
     if (blobUrlRef.current) {
       URL.revokeObjectURL(blobUrlRef.current)
       blobUrlRef.current = null
@@ -269,7 +274,7 @@ export function usePlayerSource(
     engineCleanupRef.current = null
     if (registered) {
       try {
-        // 引擎 cleanup（如 DashPlayer）内部中断下载并释放资源；
+        // 引擎 cleanup（如 DASH 引擎控制器）内部中断下载并释放资源；
         // hls/flv 引擎销毁实例。放在 try 中避免清理异常阻断后续 attach。
         registered.dispose()
       } catch {
@@ -279,6 +284,8 @@ export function usePlayerSource(
       const active = activeEngineSessions.get(registered.video)
       if (active && active.seq === registered.seq) {
         activeEngineSessions.delete(registered.video)
+        // 同步清掉引擎类型登记（get/delete 幂等，无需 seq 校验）
+        activeEngineTypes.delete(registered.video)
       }
     }
     playerRef.current = null
@@ -292,8 +299,8 @@ export function usePlayerSource(
 
   /**
    * attach 结果落地：卸载时立即销毁引擎（防游离 video 持续出声），
-   * 正常时记录 blobUrl / 清理句柄 / 控制器，并向 video 级登记表注册
-   * 本会话（跨实例互斥，防偶发双声）。
+   * 正常时记录 blobUrl / 清理句柄 / 控制器 / 引擎类型，并向 video 级
+   * 登记表注册本会话（跨实例互斥，防偶发双声）。
    *
    * @returns 是否落地成功（false = 组件已卸载或被更新的会话取代，
    *          调用方应直接终止）
@@ -302,14 +309,25 @@ export function usePlayerSource(
     (
       result: EngineAttachResult,
       video: HTMLVideoElement,
-      sessionSeq: number
+      sessionSeq: number,
+      engineType: EngineType
     ): boolean => {
-      if (!mountedRef.current) {
+      if (!mountedRef.current || !video.isConnected) {
         try {
           result.cleanup?.()
         } catch {
           /* ignore */
         }
+        // 实例已卸载：元素已脱离文档树（或即将随 React 移除）。引擎清理
+        // 不一定复位元素（如 v10 media.detach 只解绑不载 src），残留 src
+        // 的游离元素被迟到的 play() 唤醒即成幽灵声源——这里 pause + reset
+        // 兜底，保证落地失败/作废的引擎绝不留下可发声的媒体元素。
+        try {
+          video.pause()
+        } catch {
+          /* ignore */
+        }
+        resetVideoElement(video)
         return false
       }
       // 跨实例互斥兜底：本会话 attach 期间，同一 video 上有更新的会话
@@ -338,6 +356,8 @@ export function usePlayerSource(
       const dispose = onceDispose(result.cleanup)
       engineCleanupRef.current = { video, seq: sessionSeq, dispose }
       activeEngineSessions.set(video, { seq: sessionSeq, dispose })
+      // 登记活跃引擎类型（统计面板经 getActiveEngineType 读取）
+      activeEngineTypes.set(video, engineType)
       playerRef.current = result.player ?? null
       return true
     },
@@ -347,17 +367,11 @@ export function usePlayerSource(
   /**
    * 注册播放期 error 监听（一次性）。
    *
-   * attach 成功（含 MKV 回退成功）后调用。播放期 video.error 没有
-   * 引擎层恢复路径时经 onPlaybackError 回调提示；MKV 快速路径的
-   * direct 源例外——原生播放失败先尝试回退 playsvideo 管线，
-   * 回退不可用或失败时才提示。
+   * attach 成功后调用。播放期 video.error 没有引擎层恢复路径时经
+   * onPlaybackError 回调提示。无任何回退链：失败即提示。
    */
   const registerPlaybackErrorWatch = useCallback(
-    (
-      video: HTMLVideoElement,
-      watchedSource: PlayerSource,
-      engineType: string
-    ) => {
+    (video: HTMLVideoElement, watchedSource: PlayerSource) => {
       const onVideoError = () => {
         // 源已被后续操作切换：本监听器过期，静默自移除
         if (appliedSourceUrlRef.current !== watchedSource.url) return
@@ -365,52 +379,7 @@ export function usePlayerSource(
         if (playbackErrorCleanupRef.current === removeListener) {
           playbackErrorCleanupRef.current = null
         }
-        // 同步快照错误详情：回退重挂载会 reset video，error 对象随之失效
         const reason = formatVideoLoadError(video.error?.code)
-
-        // MKV 快速路径：原生播放失败（video.error，如编码变体不受支持）
-        // → 回退 playsvideo 管线，恢复播放位置与播放状态
-        if (
-          watchedSource.mkvFastPath &&
-          engineType === 'direct' &&
-          !watchedSource.forcePlaysVideo
-        ) {
-          const atTime = video.currentTime
-          const wasPlaying = !video.paused
-          console.warn(
-            '[usePlayerSource] MKV 原生播放失败（video error），回退 playsvideo 管线'
-          )
-          void enqueue(async () => {
-            if (appliedSourceUrlRef.current !== watchedSource.url) return
-            if (!mountedRef.current) return
-            const outcome = await attachPlaysVideoFallbackRef.current(
-              video,
-              watchedSource,
-              { time: atTime, playing: wasPlaying }
-            )
-            if (outcome.kind === 'disabled') {
-              // 引擎被两级开关禁用：无回退路径，提示开启引导
-              onPlaybackErrorRef.current?.(
-                new Error(
-                  `原生播放中断：${reason}。` +
-                    '可在「系统设置」或该影片的解析设置中开启「浏览器转码引擎」后重试'
-                )
-              )
-            } else if (outcome.kind === 'error') {
-              onPlaybackErrorRef.current?.(
-                new Error(
-                  `回退浏览器转码引擎失败：${
-                    outcome.error instanceof Error
-                      ? outcome.error.message
-                      : String(outcome.error)
-                  }。可尝试重载影片`
-                )
-              )
-            }
-            // attached / unmounted：无需提示
-          })
-          return
-        }
 
         // 无恢复路径：直接提示（直链模式给出更具体的修复指引）
         if (watchedSource.noProxyFallback) {
@@ -426,82 +395,13 @@ export function usePlayerSource(
       const removeListener = () => {
         video.removeEventListener('error', onVideoError)
       }
-      // 移除旧监听（连续 attach / 回退重挂载场景，防累积）
+      // 移除旧监听（连续 attach / 重挂载场景，防累积）
       playbackErrorCleanupRef.current?.()
       video.addEventListener('error', onVideoError)
       playbackErrorCleanupRef.current = removeListener
     },
-    [enqueue]
+    []
   )
-
-  /**
-   * MKV 快速路径回退：改由 playsvideo 管线重挂载（attach 期与播放期共用）。
-   *
-   * 调用方负责解读结果：attach 期 disabled 抛开启引导、error 向上抛；
-   * 播放期经 onPlaybackError 回调提示。
-   */
-  const attachPlaysVideoFallback = useCallback(
-    async (
-      video: HTMLVideoElement,
-      source: PlayerSource,
-      resume?: { time: number; playing: boolean }
-    ): Promise<PlaysVideoFallbackOutcome> => {
-      // 置位运行时回退标记：后续同源重载（forceReload）直接走管线，
-      // 避免重复原生失败；亦防止回退后的播放期监听再次进入回退分支
-      source.forcePlaysVideo = true
-      const pipelineSource: PlayerSource = { ...source, forcePlaysVideo: true }
-      const pipelineEngine = selectEngine(pipelineSource)
-      if (pipelineEngine.type === 'direct') {
-        // 引擎被两级开关（系统级 / 影片级）禁用：尊重用户选择不启动管线
-        return { kind: 'disabled' }
-      }
-      cleanup()
-      // video 级跨实例互斥：终结其他实例登记在 video 上的活跃会话
-      terminateForeignEngineSession(video)
-      // 取本会话序号（后发起者赢）与 attach 世代基准
-      const sessionSeq = ++engineSessionSeq
-      const epoch = attachEpochRef.current
-      resetVideoElement(video)
-      appliedSourceUrlRef.current = source.url
-      try {
-        const result = await pipelineEngine.attach(video, pipelineSource)
-        if (attachEpochRef.current !== epoch) {
-          // 等待期间被新加载/卸载取代：本次落地作废，立即释放引擎，
-          // 复用 unmounted 语义让调用方静默处理
-          try {
-            result.cleanup?.()
-          } catch {
-            /* ignore */
-          }
-          return { kind: 'unmounted' }
-        }
-        if (!applyAttachResult(result, video, sessionSeq)) {
-          return { kind: 'unmounted' }
-        }
-        // 恢复回退前的播放位置与播放状态（播放期回退传入 resume）
-        if (resume && resume.time > 0) {
-          try {
-            video.currentTime = resume.time
-          } catch {
-            /* ignore */
-          }
-        }
-        if (resume?.playing && mountedRef.current) {
-          void video.play().catch(() => {})
-        }
-        registerPlaybackErrorWatch(video, pipelineSource, pipelineEngine.type)
-        return { kind: 'attached' }
-      } catch (err) {
-        // 等待期间被取代：静默放弃（错误属于已过期的会话，不再向上传递）
-        if (attachEpochRef.current !== epoch) return { kind: 'unmounted' }
-        return { kind: 'error', error: err }
-      }
-    },
-    [cleanup, applyAttachResult, registerPlaybackErrorWatch]
-  )
-  useEffect(() => {
-    attachPlaysVideoFallbackRef.current = attachPlaysVideoFallback
-  }, [attachPlaysVideoFallback])
 
   /**
    * attach 的内部实现（不入队）。调用方必须已处于串行上下文中。
@@ -513,6 +413,7 @@ export function usePlayerSource(
       source: PlayerSource,
       authRetried = false
     ): Promise<void> => {
+      if (!mountedRef.current || !video.isConnected) return
       const previousUrl = appliedSourceUrlRef.current
       // attach 世代基准：cleanup 之后的值才是本次会话的起点（初始 -1 仅
       // 兜底 cleanup 前的异常路径，正常流程必然被 cleanup 后的赋值覆盖）
@@ -529,12 +430,14 @@ export function usePlayerSource(
         epoch = attachEpochRef.current
         resetVideoElement(video)
         appliedSourceUrlRef.current = source.url
-        // playsvideo 的启用由 shouldUsePlaysVideo 依据容器/音轨与浏览器
-        // 能力决定，不受任何开关门控（自研引擎已移除，playsvideo 是唯一
-        // 的浏览器端重封装与转码路径）。
+        // playsvideo 的启用由 shouldUsePlaysVideo 依据影片级开关、容器/
+        // 音轨与浏览器能力决定；开启后 MKV/avi/ts/wmv 等一律走管线，
+        // 无原生快速路径，失败也不回退原生。
         const engine = selectEngine(source)
         try {
-          const result = await engine.attach(video, source)
+          const abort = new AbortController()
+          attachAbortRef.current = abort
+          const result = await engine.attach(video, { ...source, signal: abort.signal })
           if (attachEpochRef.current !== epoch) {
             // 等待期间被新加载/卸载取代：本次落地作废，立即释放引擎
             // 并静默退出——错误与状态都不属于本次会话
@@ -545,11 +448,11 @@ export function usePlayerSource(
             }
             return
           }
-          if (!applyAttachResult(result, video, sessionSeq)) return
+          if (!applyAttachResult(result, video, sessionSeq, engine.type)) return
         } catch (err) {
           if (attachEpochRef.current !== epoch) {
             // 等待期间被取代：静默放弃。不触发 token 刷新重试、不走
-            // MKV 回退链、不回滚 appliedSourceUrlRef（新会话已接管）
+            // 任何回退链、不回滚 appliedSourceUrlRef（新会话已接管）
             return
           }
           // 鉴权失效：媒体 URL（appendAuthToken）嵌入的 access token 过期，
@@ -567,48 +470,12 @@ export function usePlayerSource(
               return attachInnerRef.current(video, source, true)
             }
           }
-          if (
-            source.mkvFastPath &&
-            engine.type === 'direct' &&
-            !source.forcePlaysVideo
-          ) {
-            // MKV 快速路径：原生 attach 失败（metadata 就绪前 error 事件，
-            // 如 HEVC-10bit 视频编码 Chrome 原生不支持）时回退 playsvideo
-            // 重封装管线。与播放期监听器（registerPlaybackErrorWatch）
-            // 互补：那个覆盖 attach 成功后的 error，这里覆盖 attach 期间的
-            // error。
-            console.warn(
-              '[usePlayerSource] MKV 原生 attach 失败，回退 playsvideo 管线:',
-              err
-            )
-            const outcome = await attachPlaysVideoFallback(video, source)
-            if (outcome.kind === 'disabled') {
-              // 引擎被两级开关禁用（系统级/影片级任一关闭）：尊重用户
-              // 选择不启动管线，回退路径不存在，直接抛出带开启引导的
-              // 错误（经调用方 message.error 展示），而非静默黑屏。
-              // fallback 内部的 cleanup 属于本会话的内部操作（非被外部
-              // 取代），throw 前同步世代，防止外层 catch 误吞该引导错误。
-              epoch = attachEpochRef.current
-              throw new Error(
-                `原生播放失败：${formatVideoLoadError(video.error?.code)}。` +
-                  '可在「系统设置」或该影片的解析设置中开启「浏览器转码引擎」后重试',
-                { cause: err }
-              )
-            }
-            if (outcome.kind === 'error') {
-              // 同上：error 结果已经过 fallback 内部的世代校验（未被取代），
-              // 同步世代让外层 catch 正常上抛而非静默吞掉
-              epoch = attachEpochRef.current
-              throw outcome.error
-            }
-            // attached / unmounted：结束本次 attach
-            return
-          }
           if (engine.type === 'playsvideo') {
-            // playsvideo 引擎失败（容器不支持 / 探测超时 / 媒体流不可达
-            // 等）：不再静默回退原生播放——回退原生会造成无声（DTS 等编
-            // 码）或再次解码失败的困惑体验，直接抛错由调用方提示，用户
-            // 可选择重载影片或关闭引擎改用原生。
+            // playsvideo 引擎失败（容器不支持 / 60s 就绪超时 / 媒体流
+            // 不可达等）：不降级原生播放——回退原生会造成无声（DTS 等
+            // 编码）或再次解码失败的困惑体验，直接抛错由调用方提示。
+            // 用户可通过重载影片，或在影片设置中调整「浏览器转码引擎」
+            // 开关后重试。
             throw new Error(
               `浏览器转码引擎（playsvideo）播放失败：${
                 err instanceof Error ? err.message : String(err)
@@ -619,8 +486,8 @@ export function usePlayerSource(
           throw err
         }
 
-        // attach 成功：注册播放期 error 监听（回退 / 提示的统一入口）
-        registerPlaybackErrorWatch(video, source, engine.type)
+        // attach 成功：注册播放期 error 监听（提示的统一入口）
+        registerPlaybackErrorWatch(video, source)
       } catch (err) {
         // 等待期间（回退链 / registerPlaybackErrorWatch）被新加载取代：
         // 静默退出，不回滚标记、不向上报错（调用方的错误提示会误导用户）
@@ -630,12 +497,7 @@ export function usePlayerSource(
         throw err
       }
     },
-    [
-      cleanup,
-      applyAttachResult,
-      attachPlaysVideoFallback,
-      registerPlaybackErrorWatch,
-    ]
+    [cleanup, applyAttachResult, registerPlaybackErrorWatch]
   )
   // 更新稳定自引用（commit 后同步，供 token 刷新重试递归调用；
   // attach 由用户交互触发，晚于首次 effect 执行，无空窗）

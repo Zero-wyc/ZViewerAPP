@@ -65,6 +65,7 @@ export function useMobileRoom(socket: Socket | null, roomId: string, options: { 
       apply(data)
       setError('')
       setPhase('ready')
+      window.dispatchEvent(new CustomEvent('zviewer:room-ready', { detail: { roomId } }))
       retries = 0
       const danmaku = useDanmakuStore.getState()
       void danmaku.loadTracks(roomId)

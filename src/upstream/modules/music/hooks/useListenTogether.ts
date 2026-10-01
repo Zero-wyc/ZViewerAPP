@@ -1,3 +1,4 @@
+import { getEmbeddedProxyStatus, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Socket } from 'socket.io-client'
 import { useShallow } from 'zustand/react/shallow'
@@ -10,7 +11,7 @@ import { apiGet, getApiUrl } from '@/lib/api'
 import { appendAuthToken } from '@/modules/player/services/url-proxy'
 import { buildProxyUrl } from '@/modules/player/services/url-proxy'
 import { resolveBilibiliWithOptions } from '@/modules/bilibili/bilibiliApi'
-import { resolveBilibiliViaCli } from '@/modules/bilibili/cliApi'
+import { resolveBilibiliViaCli, buildCliProxyUrl } from '@/modules/bilibili/cliApi'
 import { getActiveCliProxyUrl } from '@/modules/room/watch-together/movie-source-resolver'
 import {
   buildBilibiliImageProxyUrl,
@@ -175,7 +176,7 @@ function buildStreamUrl(
 ): string {
   // B站 本地插播条目：地址在 playBiliSong 解析时写入缓存
   if (isBiliItem(item)) {
-    const mapKey = `${item.biliBvid}:${item.biliCid ?? 0}`
+    const mapKey = biliAudioCacheKey(item)
     return getCachedBiliAudioUrl(mapKey) ?? ''
   }
   const roomParam = roomId ? `&roomId=${encodeURIComponent(roomId)}` : ''
@@ -214,6 +215,10 @@ function isBiliItem(item: MusicQueueItem): boolean {
 const BILI_AUDIO_URL_TTL_MS = 2 * 60 * 60 * 1000
 const biliAudioUrlMap = new Map<string, { url: string; at: number }>()
 
+function biliAudioCacheKey(item: MusicQueueItem): string {
+  return `${item.biliBvid}:${item.biliCid ?? 0}|${useMusicSettingsStore.getState().musicVideoCli}|${getEmbeddedProxyStatus().sessionVersion}|${getApiUrl()}`
+}
+
 /** 读取缓存（未过期返回 URL，过期/不存在返回 null 并清除条目） */
 function getCachedBiliAudioUrl(mapKey: string): string | null {
   const cached = biliAudioUrlMap.get(mapKey)
@@ -225,8 +230,10 @@ function getCachedBiliAudioUrl(mapKey: string): string | null {
   return cached.url
 }
 
-/** 正在懒解析中的 B站 条目 key（同 key 重复触发直接忽略） */
-const biliResolvingKeys = new Set<string>()
+/** 正在懒解析中的 B站 条目（key → 解析 Promise；同 key 并发请求挂起等待） */
+const biliResolvingPromises = new Map<string, Promise<void>>()
+
+subscribeEmbeddedProxy(() => { biliAudioUrlMap.clear(); biliResolvingPromises.clear() })
 
 /** B站 解析默认清晰度（无 CLI 时取 720P MP4 直链，audio 元素仅出声） */
 const BILI_DEFAULT_QN = 64
@@ -240,9 +247,10 @@ async function resolveBiliAudio(
   item: MusicQueueItem
 ): Promise<{ playUrl: string; durationMs: number }> {
   if (!item.biliBvid) throw new Error('缺少 B站 视频信息')
-  const mapKey = `${item.biliBvid}:${item.biliCid ?? 0}`
+  const mapKey = biliAudioCacheKey(item)
   const cached = getCachedBiliAudioUrl(mapKey)
   if (cached) return { playUrl: cached, durationMs: item.durationMs }
+  const session = getEmbeddedProxyStatus().sessionVersion
   const pageUrl = `https://www.bilibili.com/video/${item.biliBvid}`
   const proxyUrl = useMusicSettingsStore.getState().musicVideoCli
     ? getActiveCliProxyUrl()
@@ -262,11 +270,11 @@ async function resolveBiliAudio(
     if (!r.audioUrl && !r.videoUrl) {
       throw new Error('未获取到音频地址')
     }
-    playUrl = (r.audioUrl ?? r.videoUrl) as string
+    playUrl = buildCliProxyUrl(proxyUrl, (r.audioUrl ?? r.videoUrl) as string)
     if (r.duration) durationMs = Math.round(r.duration * 1000)
   } else {
-    // 服务器端解析 720P MP4 直链（音视频合一，audio 元素仅出声），
-    // 经后端媒体代理注入 Referer 绕过防盗链
+    // CLI 未开启或未连接：服务器端解析 720P MP4 直链（音视频合一，
+    // audio 元素仅出声），经后端媒体代理注入 Referer 绕过防盗链
     const r = await resolveBilibiliWithOptions(
       pageUrl,
       BILI_DEFAULT_QN,
@@ -277,6 +285,7 @@ async function resolveBiliAudio(
     playUrl = buildProxyUrl(r.videoUrl)
     if (r.duration) durationMs = Math.round(r.duration * 1000)
   }
+  if (session !== getEmbeddedProxyStatus().sessionVersion || mapKey !== biliAudioCacheKey(item)) throw new Error('B 站解析设置或账号已切换，请重试')
   biliAudioUrlMap.set(mapKey, { url: playUrl, at: Date.now() })
   return { playUrl, durationMs }
 }
@@ -387,6 +396,59 @@ function mountMediaElement(el: HTMLAudioElement): void {
 /** 把音频元素从 DOM 移除（与 mountMediaElement 配对；防替换/卸载后残留） */
 function unmountMediaElement(el: HTMLAudioElement): void {
   el.remove()
+}
+
+/**
+ * 带有界退避重试的播放启动（后台切歌健壮性的核心）。
+ *
+ * 手机端页面处于后台时，部分浏览器/WebView 对 play() 的首次调用返回
+ * NotAllowedError（hidden 态自动播放策略收紧）——静默吞掉会让「通知栏
+ * 切歌 / 歌曲结束自动连播 / 观众跟随房主播放」彻底停摆：音频不再播放、
+ * 系统媒体通知随之消失，用户感知即「后台无法切下一首」。改为退避重试
+ * （1s/2s/3s 共 4 次尝试）：后台定时器被节流时重试只会推迟不会丢失
+ * （渲染进程解冻/回前台后立即补跑），给受限环境自愈机会。
+ *
+ * 安全护栏：重试前校验元素仍在 DOM 且 src 未变——预载升格/退役路径会
+ * 接替或移除元素（isConnected=false / src 变化），此时放弃重试，防止
+ * 僵尸元素出声。
+ */
+const audioRetryCancels = new WeakMap<HTMLAudioElement, () => void>()
+function pauseAudioWithCancel(el: HTMLAudioElement): void {
+  audioRetryCancels.get(el)?.()
+  el.pause()
+}
+
+function playAudioWithRetry(el: HTMLAudioElement, onGiveUp?: () => void): void {
+  audioRetryCancels.get(el)?.()
+  const startSrc = el.src
+  let cancelled = false
+  let timer: number | undefined
+  const cancel = () => {
+    cancelled = true
+    clearTimeout(timer)
+    if (audioRetryCancels.get(el) === cancel) audioRetryCancels.delete(el)
+  }
+  audioRetryCancels.set(el, cancel)
+  const attempt = (attemptsLeft: number): void => {
+    if (cancelled || !el.isConnected || el.src !== startSrc) { cancel(); return }
+    void el.play().then(cancel).catch(() => {
+      if (cancelled) return
+      // 已在播放（前一次调用实际生效）或流加载失败（error 置位，重试无意义）
+      if (!el.paused || el.error) { cancel(); return }
+      if (attemptsLeft <= 0) {
+        onGiveUp?.()
+        cancel()
+        return
+      }
+      // 元素已被接替/退役（升格换主元素、resetAudioElement 清 src）
+      if (!el.isConnected || el.src !== startSrc) return
+      timer = window.setTimeout(
+        () => attempt(attemptsLeft - 1),
+        1000 * (4 - attemptsLeft)
+      )
+    })
+  }
+  attempt(3)
 }
 
 /**
@@ -583,6 +645,37 @@ export function useListenTogether({
   }, [])
 
   /**
+   * 当前播放条目在活动队列中的位置锚点（-1 未知/不在队列）。
+   * 队列可含重复条目（同 key 多个位置），currentKey 只能锚定首个出现位置；
+   * 以索引锚点记录实际播放实例，切歌按位置推进才能越过重复条目
+   * （key 匹配的旧行为会让「下一首」永远回到第一个重复实例）。
+   */
+  const currentQueueIdxRef = useRef(-1)
+
+  /**
+   * 解析当前播放位置：优先信任索引锚点（校验该位置 key 与 currentKey
+   * 一致），锚点失效（队列变动/未初始化）时回落 key 首个匹配（与旧逻辑
+   * 一致），并把结果写回锚点。
+   */
+  const resolveCurrentIndex = useCallback((): number => {
+    const { currentKey } = useMusicStore.getState()
+    const queue = activeQueueOf(useMusicStore.getState())
+    const keys = queue.map((item) => musicItemKey(item))
+    const anchored = currentQueueIdxRef.current
+    if (
+      currentKey != null &&
+      anchored >= 0 &&
+      anchored < keys.length &&
+      keys[anchored] === currentKey
+    ) {
+      return anchored
+    }
+    const idx = currentKey == null ? -1 : keys.indexOf(currentKey)
+    currentQueueIdxRef.current = idx
+    return idx
+  }, [])
+
+  /**
    * 按播放模式计算切歌目标条目（next/prev 共用）。
    * - sequence / repeat-one：手动切歌按队列顺序循环
    *   （repeat-one 仅影响 ended 自动重播当前曲目）
@@ -601,30 +694,52 @@ export function useListenTogether({
           ? null
           : (queue.find((item) => musicItemKey(item) === key) ?? null)
 
+      // 随机模式路径按 key 解析目标（洗牌序列以 key 为元素），
+      // 解析成功后把位置锚点对齐到返回实例
+      const anchorTo = (item: MusicQueueItem | null): MusicQueueItem | null => {
+        if (item != null) currentQueueIdxRef.current = queue.indexOf(item)
+        return item
+      }
+
       if (playMode !== 'shuffle') {
-        const keys = queue.map((item) => musicItemKey(item))
-        if (keys.length === 1) return queue[0]
-        const idx = currentKey == null ? -1 : keys.indexOf(currentKey)
-        if (idx === -1) return queue[0]
+        // 顺序推进按「位置」而非 key：重复条目（同 key 多位置）只有按
+        // 位置推进才能越过自身到达后续条目，key 匹配会永远折回首个实例
+        if (queue.length === 1) {
+          currentQueueIdxRef.current = 0
+          return queue[0]
+        }
+        const idx = resolveCurrentIndex()
+        if (idx === -1) {
+          currentQueueIdxRef.current = 0
+          return queue[0]
+        }
         // 按顺序播放（不循环）：到末尾不再前进、到头不再后退
         if (playMode === 'order') {
           if (direction === 'next') {
-            return idx + 1 < keys.length ? findByKey(keys[idx + 1]) : null
+            if (idx + 1 >= queue.length) return null
+            currentQueueIdxRef.current = idx + 1
+            return queue[idx + 1]
           }
-          return idx - 1 >= 0 ? findByKey(keys[idx - 1]) : findByKey(keys[0])
+          if (idx - 1 >= 0) {
+            currentQueueIdxRef.current = idx - 1
+            return queue[idx - 1]
+          }
+          currentQueueIdxRef.current = 0
+          return queue[0]
         }
-        const targetKey =
+        const targetIdx =
           direction === 'next'
-            ? keys[(idx + 1) % keys.length]
-            : keys[(idx - 1 + keys.length) % keys.length]
-        return findByKey(targetKey)
+            ? (idx + 1) % queue.length
+            : (idx - 1 + queue.length) % queue.length
+        currentQueueIdxRef.current = targetIdx
+        return queue[targetIdx]
       }
 
       // 随机模式
       ensureShuffleList()
       const list = shuffleListRef.current
       if (!list || list.length === 0) return null
-      if (list.length === 1) return findByKey(list[0])
+      if (list.length === 1) return anchorTo(findByKey(list[0]))
       if (direction === 'next') {
         if (shufflePosRef.current >= list.length - 1) {
           // 一轮结束：重新洗牌，避免新一轮以刚播放的曲目开头
@@ -639,19 +754,19 @@ export function useListenTogether({
           }
           shuffleListRef.current = nextList
           shufflePosRef.current = 0
-          return findByKey(nextList[0])
+          return anchorTo(findByKey(nextList[0]))
         }
         shufflePosRef.current += 1
-        return findByKey(list[shufflePosRef.current])
+        return anchorTo(findByKey(list[shufflePosRef.current]))
       }
       // prev：沿序列回退；已在序列头部时回到当前曲目开头
       if (shufflePosRef.current > 0) {
         shufflePosRef.current -= 1
-        return findByKey(list[shufflePosRef.current])
+        return anchorTo(findByKey(list[shufflePosRef.current]))
       }
-      return findByKey(currentKey)
+      return anchorTo(findByKey(currentKey))
     },
-    [ensureShuffleList]
+    [ensureShuffleList, resolveCurrentIndex]
   )
 
   /**
@@ -660,23 +775,20 @@ export function useListenTogether({
    * （下一首需重新洗牌，peek 结果不稳定）。
    */
   const peekNextSong = useCallback((): MusicQueueItem | null => {
-    const { currentKey, playMode } = useMusicStore.getState()
+    const { playMode } = useMusicStore.getState()
     const queue = activeQueueOf(useMusicStore.getState())
     if (queue.length === 0) return null
     if (playMode === 'repeat-one') return null
     if (playMode !== 'shuffle') {
-      const keys = queue.map((item) => musicItemKey(item))
-      if (keys.length === 1) return queue[0]
-      const idx = currentKey == null ? -1 : keys.indexOf(currentKey)
+      // 与 computeTargetSong 相同的位置推进语义（重复条目按位置越过）
+      if (queue.length === 1) return queue[0]
+      const idx = resolveCurrentIndex()
       if (idx === -1) return queue[0]
       // 按顺序播放（不循环）：末尾无下一首，不预载
       if (playMode === 'order') {
-        return idx + 1 < keys.length
-          ? (queue.find((item) => musicItemKey(item) === keys[idx + 1]) ?? null)
-          : null
+        return idx + 1 < queue.length ? queue[idx + 1] : null
       }
-      const targetKey = keys[(idx + 1) % keys.length]
-      return queue.find((item) => musicItemKey(item) === targetKey) ?? null
+      return queue[(idx + 1) % queue.length]
     }
     const list = shuffleListRef.current
     if (!list || list.length === 0) return null
@@ -686,7 +798,7 @@ export function useListenTogether({
     if (shufflePosRef.current >= list.length - 1) return null
     const nextKey = list[shufflePosRef.current + 1]
     return queue.find((item) => musicItemKey(item) === nextKey) ?? null
-  }, [])
+  }, [resolveCurrentIndex])
 
   /** 无缝衔接（设置：歌曲无缝衔接）的预缓冲 audio 元素 */
   const preloadRef = useRef<HTMLAudioElement | null>(null)
@@ -777,7 +889,7 @@ export function useListenTogether({
   /** 复位指定音频元素：停止并释放已缓冲的流资源（Hydrogen unload 等价），
    *  同时从 DOM 移除（挂载与退役配对，防隐藏元素残留堆积） */
   const resetAudioElement = useCallback((el: HTMLAudioElement) => {
-    el.pause()
+    pauseAudioWithCancel(el)
     el.removeAttribute('src')
     try {
       // 空源 load()：中止当前加载并释放缓冲（MDN 推荐的资源释放方式）
@@ -833,7 +945,7 @@ export function useListenTogether({
     return () => {
       // 该元素已被升格为主播放元素时（preloadRef 不再指向它），绝不能暂停
       if (preloadRef.current === el) {
-        el.pause()
+        pauseAudioWithCancel(el)
         preloadRef.current = null
       }
     }
@@ -855,20 +967,33 @@ export function useListenTogether({
   const loadAndPlaySongRef = useRef<
     (item: MusicQueueItem, positionSec: number, shouldPlay: boolean) => void
   >(() => {})
+  const loadRequestRef = useRef(0)
 
   const loadAndPlaySong = useCallback(
     (item: MusicQueueItem, positionSec: number, shouldPlay: boolean) => {
+      const request = ++loadRequestRef.current
       // ===== B站 条目懒解析：队列/同步场景下音源可能尚未解析（内存缓存
       // 为空），先解析完成后再继续加载；同 key 去重防止重复触发 =====
       if (isBiliItem(item) && item.biliBvid) {
-        const mapKey = `${item.biliBvid}:${item.biliCid ?? 0}`
+        const mapKey = biliAudioCacheKey(item)
         if (getCachedBiliAudioUrl(mapKey) == null) {
-          if (biliResolvingKeys.has(mapKey)) return
-          biliResolvingKeys.add(mapKey)
+          const inflight = biliResolvingPromises.get(mapKey)
+          if (inflight) {
+            // 并发解析中（如 playBiliSong 先点了同一首）：解析完成后重放
+            // 本请求——后台自动连播依赖这里，静默丢弃会让切歌停摆；
+            // 解析失败（缓存仍空）时静默放弃，错误已由首次请求提示
+            void inflight.then(() => {
+              if (request === loadRequestRef.current && getCachedBiliAudioUrl(mapKey) != null) {
+                loadAndPlaySongRef.current(item, positionSec, shouldPlay)
+              }
+            })
+            return
+          }
           const notice = useMusicStore.getState().setSyncNotice
           notice('正在解析 B站 视频音频…')
-          void resolveBiliAudio(item)
+          const resolving = resolveBiliAudio(item)
             .then(() => {
+              if (request !== loadRequestRef.current) return
               notice(null)
               loadAndPlaySongRef.current(item, positionSec, shouldPlay)
             })
@@ -879,14 +1004,22 @@ export function useListenTogether({
               )
             })
             .finally(() => {
-              biliResolvingKeys.delete(mapKey)
+              if (biliResolvingPromises.get(mapKey) === resolving) biliResolvingPromises.delete(mapKey)
             })
+          biliResolvingPromises.set(mapKey, resolving)
           return
         }
       }
       const audio = getAudio()
       const url = buildStreamUrl(item, roomIdRef.current)
       useMusicStore.getState().setCurrentKey(musicItemKey(item))
+      // 位置锚点：按引用在活动队列中定位本次播放的实例（重复条目可区分
+      // 具体位置）；非队列条目（B站 本地插播等）置 -1，切歌时回落 key
+      // 首个匹配。注意 setCurrentKey 已生效，activeQueueOf 的源过滤与新
+      // 曲目一致。
+      currentQueueIdxRef.current = activeQueueOf(
+        useMusicStore.getState()
+      ).indexOf(item)
 
       // ===== 预载升格路径 =====
       // 条件：同一 URL（流地址稳定：同 songId/level/roomId/token）、
@@ -903,7 +1036,7 @@ export function useListenTogether({
         detachAudioHandlers(audio)
         // 2) 停止旧播放（事件已摘除，不会误镜像暂停状态）并从 DOM 移除
         //    （元素角色已被预载元素接替，残留隐藏元素会堆积）
-        audio.pause()
+        pauseAudioWithCancel(audio)
         unmountMediaElement(audio)
         // 3) 挂载事件并接管角色；预载槽消费置空（预载 effect 会重新预载下一首）
         attachAudioHandlers(preloaded)
@@ -921,11 +1054,9 @@ export function useListenTogether({
           }
         }
         if (shouldPlay) {
-          void preloaded.play().catch(() => {
-            // 自动播放策略拒绝等：静默处理，播放状态由 audio 事件镜像
-          })
+          playAudioWithRetry(preloaded)
         } else {
-          preloaded.pause()
+          pauseAudioWithCancel(preloaded)
         }
         return
       }
@@ -947,11 +1078,9 @@ export function useListenTogether({
         }
       }
       if (shouldPlay) {
-        void audio.play().catch(() => {
-          // 自动播放策略拒绝等：静默处理，播放状态由 audio 事件镜像
-        })
+        playAudioWithRetry(audio)
       } else {
-        audio.pause()
+        pauseAudioWithCancel(audio)
       }
     },
     [getAudio, attachAudioHandlers, detachAudioHandlers]
@@ -1114,11 +1243,12 @@ export function useListenTogether({
     const audio = getAudio()
     const wantPlay = audio.paused
     if (wantPlay) {
-      void audio.play().catch(() => {
+      // 通知栏 play 按钮在后台触发时同样可能被自动播放策略拒绝，走重试
+      playAudioWithRetry(audio, () => {
         message.error('播放失败，请重试')
       })
     } else {
-      audio.pause()
+      pauseAudioWithCancel(audio)
     }
     if (isHostRef.current) {
       broadcastSyncState({
@@ -1304,7 +1434,7 @@ export function useListenTogether({
       const audio = getAudio()
       switch (action) {
         case 'pause':
-          audio.pause()
+          pauseAudioWithCancel(audio)
           broadcastSyncState({
             isPlaying: false,
             positionSec: audio.currentTime,
@@ -1312,9 +1442,8 @@ export function useListenTogether({
           break
         case 'play':
           if (useMusicStore.getState().currentKey == null) return
-          void audio.play().catch(() => {
-            // ignore：自动播放策略拒绝
-          })
+          // 房主可能在后台收到观众的播放申请，同样走重试
+          playAudioWithRetry(audio)
           broadcastSyncState({
             isPlaying: true,
             positionSec: audio.currentTime,
@@ -1358,12 +1487,10 @@ export function useListenTogether({
       const audio = getAudio()
       switch (action) {
         case 'play':
-          void audio.play().catch(() => {
-            // ignore
-          })
+          playAudioWithRetry(audio)
           break
         case 'pause':
-          audio.pause()
+          pauseAudioWithCancel(audio)
           break
         case 'next':
           switchSong('next')
@@ -1451,7 +1578,7 @@ export function useListenTogether({
       if (trackKey !== store.currentKey) {
         if (trackKey == null) {
           // 房主停止/清空播放
-          audio.pause()
+          pauseAudioWithCancel(audio)
           store.setCurrentKey(null)
           return
         }
@@ -1478,11 +1605,11 @@ export function useListenTogether({
       // 2. 同曲目：播放状态对齐
       if (store.isPlaying !== payload.isPlaying) {
         if (payload.isPlaying) {
-          void audio.play().catch(() => {
-            // 自动播放策略拒绝：保持暂停，等待后续心跳或用户交互
-          })
+          // 观众端多处于后台：跟随房主恢复播放被拒时重试，否则会一直停在
+          // 暂停态等下一次心跳
+          playAudioWithRetry(audio)
         } else {
-          audio.pause()
+          pauseAudioWithCancel(audio)
         }
       }
 
@@ -1600,15 +1727,13 @@ export function useListenTogether({
     if (!isHostRef.current && !hostOffline) return
     const audio = getAudio()
     if (playMode === 'repeat-one') {
-      // 单曲循环：回到开头重播
+      // 单曲循环：回到开头重播（后台场景 play 可能被拒，走重试）
       try {
         audio.currentTime = 0
       } catch {
         // ignore
       }
-      void audio.play().catch(() => {
-        // ignore
-      })
+      playAudioWithRetry(audio)
       if (isHostRef.current) {
         broadcastSyncState({ positionSec: 0, isPlaying: true })
       }
@@ -1791,7 +1916,7 @@ export function useListenTogether({
         prevQueue.some((q) => musicItemKey(q) === store.currentKey)
       ) {
         const audio = getAudio()
-        audio.pause()
+        pauseAudioWithCancel(audio)
         try {
           audio.currentTime = 0
         } catch {
@@ -2020,9 +2145,10 @@ export function useListenTogether({
   //（store 不在此重置，由 Task 6 的离开房间流程统一调用 reset）
   useEffect(() => {
     return () => {
+      loadRequestRef.current++
       const audio = audioRef.current
       if (audio) {
-        audio.pause()
+        pauseAudioWithCancel(audio)
         audio.srcObject = null
         audio.removeAttribute('src')
         audio.load()
@@ -2031,7 +2157,7 @@ export function useListenTogether({
       audioRef.current = null
       const preload = preloadRef.current
       if (preload) {
-        preload.pause()
+        pauseAudioWithCancel(preload)
         preload.removeAttribute('src')
         try {
           preload.load()
@@ -2054,10 +2180,11 @@ export function useListenTogether({
   // full=false（断线）仅暂停，保留 src，重连后由同步流程恢复。
   useEffect(() => {
     const handleTeardown = (e: Event) => {
+      loadRequestRef.current++
       const detail = (e as CustomEvent<RoomMediaTeardownDetail>).detail
       const full = detail?.full ?? true
       const stopEl = (el: HTMLAudioElement) => {
-        el.pause()
+        pauseAudioWithCancel(el)
         if (full) {
           el.removeAttribute('src')
           el.load()

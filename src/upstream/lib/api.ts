@@ -248,6 +248,10 @@ export function resetSessionExpired(): void {
   sessionExpired = false
 }
 
+export function hasExpiredSession(): boolean {
+  return sessionExpired
+}
+
 export async function refreshAccessToken(): Promise<boolean> {
   // session 已知过期 → 不再尝试 refresh，避免级联失败
   if (sessionExpired) return false
@@ -284,7 +288,7 @@ export async function refreshAccessToken(): Promise<boolean> {
 
       // refresh 接口明确拒绝（401/403）→ refresh token 也过期
       // 标记 session 已过期，阻止后续请求反复尝试 refresh
-      if (res.status === 401 || res.status === 403) sessionExpired = true
+      if (getApiUrl() === server && (res.status === 401 || res.status === 403)) sessionExpired = true
       return false
     } catch {
       // 网络错误（服务器重启中）→ 不登出，让上层重试

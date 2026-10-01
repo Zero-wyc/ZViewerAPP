@@ -16,3 +16,9 @@ export function getRuntimePlatform(): RuntimePlatform {
 export function isNativeRuntime(): boolean {
   return getRuntimePlatform() !== 'web'
 }
+
+/** Hosts that share the mobile appearance shell across the lobby and rooms. */
+export function isGlobalAppearanceRuntime(): boolean {
+  const platform = getRuntimePlatform()
+  return platform === 'android' || platform === 'harmony'
+}
