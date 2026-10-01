@@ -112,25 +112,24 @@ function allowedCdn(raw: string): boolean {
   if (authority.includes('@')) return false;
   const host = authority.split(':')[0];
   const port = authority.split(':')[1] || '';
-  if (port !== '' && port !== '80' && port !== '443' && port !== '8082') return false;
-  return host.endsWith('.bilivideo.com') || host.endsWith('.bilivideo.cn') || host.endsWith('.bilivideo.net');
+  const edge = host.endsWith('.mountaintoys.cn');
+  if (port !== '' && port !== '80' && port !== '443' &&
+    !(edge && raw.toLowerCase().startsWith('https://') && port === '4483')) return false;
+  return host.endsWith('.bilivideo.com') || host.endsWith('.bilivideo.cn') || host.endsWith('.bilivideo.net') ||
+    edge || host === 'upos-hz-mirrorakam.akamaized.net';
 }
 
 function trustedMediaCandidates(primary: string, backups: string[]): string[] {
   const result: string[] = [];
   for (const url of [primary, ...backups]) {
     if (!allowedCdn(url)) continue;
-    const cleaned = removeNbsParameter(url);
-    if (!result.includes(cleaned)) result.push(cleaned);
+    if (!result.includes(url)) result.push(url);
   }
-  return result;
-}
-
-function removeNbsParameter(url: string): string {
-  const question = url.indexOf('?');
-  if (question < 0) return url;
-  const query = url.slice(question + 1).split('&').filter((part: string) => part.split('=')[0].toLowerCase() !== 'nbs');
-  return query.length > 0 ? `${url.slice(0, question)}?${query.join('&')}` : url.slice(0, question);
+  const priority = (url: string): number => {
+    const host = url.match(/^https?:\/\/([^/:?#]+)/i)?.[1].toLowerCase() || '';
+    return host.endsWith('.mcdn.bilivideo.cn') ? 2 : host.endsWith('.mountaintoys.cn') ? 1 : 0;
+  };
+  return result.sort((a: string, b: string) => priority(a) - priority(b));
 }
 
 function allowedBilibiliSso(raw: string): boolean {
@@ -366,7 +365,7 @@ export class BilibiliLocalProxy {
       this.reply(connection, 416, 'Range Not Satisfiable', '');
       return;
     }
-    const candidates = [target, ...backups];
+    const candidates = trustedMediaCandidates(target, backups);
     for (const candidate of candidates) {
       if (!allowedCdn(candidate)) continue;
       const request = http.createHttp();
@@ -396,7 +395,7 @@ export class BilibiliLocalProxy {
           const statusLine = headerValue(headers, 'status-line');
           const match = statusLine.match(/\s(\d{3})(?:\s|$)/);
           const status = match ? Number(match[1]) : range !== '' ? 206 : 200;
-          if (status === 403 || status >= 500 || status >= 300 && status < 400) {
+          if (status < 200 || status >= 300) {
             rejected = true;
             return;
           }
@@ -432,8 +431,8 @@ export class BilibiliLocalProxy {
           forwardChunk(data);
         });
         const header: Record<string, string> = {
-          'User-Agent': BILIBILI_USER_AGENT,
-          'Referer': BILIBILI_REFERER,
+          'User-Agent': 'Mozilla/5.0',
+          'Referer': `${BILIBILI_REFERER}/`,
           'Origin': 'https://www.bilibili.com',
         };
         if (range !== '') header['Range'] = range;
@@ -446,8 +445,8 @@ export class BilibiliLocalProxy {
           readTimeout: 30000,
         });
         await chain;
-        if (!rejected && expectedBytes > 0 && receivedBytes !== expectedBytes) throw new Error('Incomplete CDN stream');
-        if (rejected || status === 403 || status >= 500 || status >= 300 && status < 400) continue;
+        if (!rejected && method !== 'HEAD' && expectedBytes > 0 && receivedBytes !== expectedBytes) throw new Error('Incomplete CDN stream');
+        if (rejected || status < 200 || status >= 300) continue;
         if (!sentHeaders) throw new Error('CDN response missing headers');
         await connection.close();
         request.destroy();

@@ -38,6 +38,7 @@
     toggleOrientation: (isLandscape) => request('toggleOrientation', isLandscape),
     unlockOrientation: () => request('unlockOrientation', null),
     setImmersive: (enabled) => request('setImmersive', enabled),
+    setSystemBarStyle: (dark) => request('setSystemBarStyle', dark),
     requestMicrophonePermission: () => request('requestMicrophonePermission', null).then(() => true, () => false),
     bilibiliStart: () => request('bilibiliStart', null),
     bilibiliStatus: () => request('bilibiliStatus', null),

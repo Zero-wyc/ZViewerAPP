@@ -6,7 +6,7 @@
 
 | 客户端 | 当前状态 | 维护结论 |
 | --- | --- | --- |
-| Android | 已完成开发，当前发布版本 1.3.0（versionCode 130） | 以后优先在共享前端实现产品行为，再同步 Android 原生宿主和发布包 |
+| Android | 已完成开发，当前发布版本 1.3.2（versionCode 132） | 以后优先在共享前端实现产品行为，再同步 Android 原生宿主和发布包 |
 | HarmonyOS | 已完成开发并已有 ArkWeb/HAP 发布线 | 与 Android 共享网页业务，但原生桥接、B 站代理和打包链路独立维护 |
 | iOS | Expo/React Native 已完成服务端登录、房间和基础直链播放；等待开发者修复媒体截断问题后继续 | 不把 iOS 当前实现当作 Android/HarmonyOS 功能等效版；继续遵循 `docs/ios-continuation-plan.md` |
 
@@ -94,13 +94,16 @@ HarmonyOS 代码见 [HarmonyOS 应用维护架构](harmonyos-maintenance-archite
 - 全局外观由 `isGlobalAppearanceRuntime()` 在 Android/HarmonyOS 同时启用；`appearance.css` 是两端颜色、玻璃与移动布局的共同来源。浅色设置 dialog 重新绑定主题变量并取消文字阴影；内部 main/side 不叠加模糊，弹幕分组透明；B 站账号入口使用主题强调色。
 - 原生桥接改动：检查插件/代理名称、方法名、错误返回和生命周期。
 - B 站改动：确认 Cookie 不出原生侧，代理仍只监听回环地址，房间不广播本机代理 URL。
+- 原生安全区：Android `MainActivity` 用 WindowInsets、HarmonyOS `Index.ets` 用 WindowAvoidArea 同步动态 CSS 安全区；检查全屏/横竖屏、主题系统栏图标及恢复状态。
+- B 站播放时序：媒体状态、current-movie 与 movie-list 到达次序不固定。移动端需等当前影片 DTO 到达再解析；房主 `127.0.0.1:9333` 是房主设备本机 CLI 地址，不可交给其他设备播放。客户端本机代理使用独立随机端口，并保留 CDN 签名查询参数与 Range。
+- 设备回归：检查本机 B 站登录、高画质/实际编解码、真实 CDN Range/206、延迟列表竞态且无远端 CLI 回环请求；浅色文字对比与播放器设置不能出现第二层淡白色 blur。
 - 播放器改动：分别检查单轨、DASH 双轨、Range、seek、暂停恢复和前后台切换。
 - 发布改动：核对 `CHANGELOG.md`、`docs/releases/`、版本号和签名，不提交 APK、AAR、密钥或日志。
 
 ## 6. 文档入口
 
 - 双端版本、清理与发布步骤：[`mobile-release-maintenance.md`](mobile-release-maintenance.md)
-- 1.3.0 发布记录：[`releases/client-1.3.0.md`](releases/client-1.3.0.md)
+- 当前 1.3.2 发布记录：[`releases/client-1.3.2.md`](releases/client-1.3.2.md)
 
 - 共享移植边界：[`PORTING.md`](../PORTING.md)
 - Android v4.2.1 适配记录：[`android-v4.2.1-adaptation-report.md`](android-v4.2.1-adaptation-report.md)

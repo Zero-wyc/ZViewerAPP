@@ -36,4 +36,12 @@ public class PlayerDisplayPlugin extends Plugin {
             call.resolve();
         });
     }
+
+    @PluginMethod
+    public void setSystemBarStyle(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            ((MainActivity) getActivity()).setSystemBarStyle(call.getBoolean("dark", true));
+            call.resolve();
+        });
+    }
 }

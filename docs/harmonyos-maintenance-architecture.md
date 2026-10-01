@@ -6,8 +6,8 @@
 
 | 客户端 | 当前状态 | 维护结论 |
 | --- | --- | --- |
-| Android | 已完成开发，当前发布版本 1.3.0（versionCode 130） | Android 是共享网页功能和 B 站行为的主要参考宿主之一 |
-| HarmonyOS | 已同步当前 Android 的 v4.2.1 共享业务代码和全局外观，API 26 手机模拟器外观验收完成；客户端包版本为 1.3.0/130 | 维护重点是共享网页同步、ArkWeb 桥接和 ArkTS 本地代理；HEVC Main 10 解码限制单独记录 |
+| Android | 已完成开发，当前发布版本 1.3.2（versionCode 132） | Android 是共享网页功能和 B 站行为的主要参考宿主之一 |
+| HarmonyOS | 已同步当前 Android 的 v4.2.1 共享业务代码和全局外观，API 26 手机模拟器外观验收完成；客户端包版本为 1.3.2/132 | 维护重点是共享网页同步、ArkWeb 桥接和 ArkTS 本地代理；HEVC Main 10 解码限制单独记录 |
 | iOS | Expo/React Native 已完成服务端登录、房间和基础直链播放；等待开发者修复媒体截断问题后继续 | 当前不复用 HarmonyOS ArkWeb 宿主代码；继续遵循 `docs/ios-continuation-plan.md` |
 
 HarmonyOS 应用不是另写一套业务前端。它将根项目构建出的 `dist/` 放入 `entry/src/main/resources/rawfile/web/`，由 ArkWeb 以固定本地来源加载；平台能力通过 `zviewerHost` 注入，再由 `bridge-bootstrap.js` 暴露为共享前端识别的 `window.zviewerNative`。
@@ -91,10 +91,22 @@ npm run harmony:web
 - 播放设置 dialog 位于深色播放器 DOM 内，需在 dialog 边界重新绑定主题文字、表面与玻璃变量并移除继承的文字阴影。仅外层 dialog card 提供玻璃模糊；内部 main/side 面板取消 backdrop-filter，弹幕滑块分组保持透明，避免叠出淡白色矩形。首页 B 站账号等 mobile-text-button 使用主题强调色，不能固定为浅绿色。回归需看横屏全屏截图，同时检查内部 blur 为 none。
 - 本轮 Pura 90 Pro（HarmonyOS 7/API 26）实测 H.264 MP4 与 H.264 MKV 可播放；用户的两部 HEVC Main 10 MKV 解封装和字幕提取成功，但视频零帧并报 `PIPELINE_ERROR_DECODE`。保留视频编码、移除音轨并换为 MP4 后仍失败，不应把 MIME 支持或解封装成功记作解码通过。详见本轮适配记录。
 
+## 2026-10-01 B 站代理、影片时序与全面屏修复
+
+在用户当前 DevEco MatePad Pro 模拟器原房间验证 HarmonyOS B 站影片：本机登录有效；native `/resolve` 返回 200、本次实际选择 1080P (qn 80)、H.264/AAC；Range 请求返回 206，视频为 1920×1080、readyState 4 且视频帧持续解码。本机媒体请求使用随机端口 33745，没有请求房主桌面 CLI 的 9333。HarmonyOS 横屏播放器全屏覆盖 WebView viewport，退出后恢复系统栏与安全区。
+
+播放状态早于 current-movie 和影片列表到达时，观众端等候对应影片资料后再解析/attach；读取 local movieId 时须在异步等待后使用最新 store 值，并在影片已切换时取消过期解析。嵌入式客户端不能将房主 `127.0.0.1:9333` CLI 地址当作设备可达源；客户端本地代理仍使用独立随机回环端口，不需改成 9333。
+
+ArkTS CDN 代理须原样转发 DASH 签名 URL 查询参数，包括 `nbs`。此 B 站 CDN 对常见完整移动 User-Agent 拒绝请求，使用 `Mozilla/5.0` 和尾斜杠 B 站 Referer 后成功取得 Range/206。只放行实际解析返回并核验过的 bilibili/Akamai/mountaintoys CDN 和受限 HTTPS 端口；Cookie 不发给 CDN。
+
+Android `MainActivity` 使用原生 WindowInsets，HarmonyOS `Index.ets` 使用 WindowAvoidArea，把系统栏和 cutout 安全区同步到根 CSS `--native-safe-*`；共享 `appearance.css` 以 `--app-safe-*` 合并浏览器 safe-area。浅色访客标题/正文分别使用 `#1c293a`、`#43566b`，系统栏图标随主题切换。Android 手机模拟 viewport 411×914、HarmonyOS 首页横竖屏的浅/深色实测安全区内显示且无水平溢出。两端播放设置弹窗的内部模糊为 none、分组透明且文字阴影为 none，避免重复淡白色背景框。
+
+Android 模拟器本机 B 站账号有效；隔离房间真实 CDN 播放连续 16 秒且帧数持续增加，延迟影片列表后解析正常，测试中收到 25 个 Range/206 响应并确认没有 9333 请求。用户原房间另行确认 1080P+ 高画质解析与 CDN 数据加载，无改动原房间播放状态。HarmonyOS 横屏全屏已验收。暂停/拖动与 Android 原生全屏专项操作脚本未最终通过，不将其记录为已验收。HEVC Main 10 在既有模拟器的解码限制不属于本次 B 站/界面修复，不应把轨道解析或解封装成功当作可播放。
+
 ## 6. 文档入口
 
 - 双端版本、清理与发布步骤：[`mobile-release-maintenance.md`](mobile-release-maintenance.md)
-- 1.3.0 发布记录：[`releases/client-1.3.0.md`](releases/client-1.3.0.md)
+- 当前 1.3.2 发布记录：[`releases/client-1.3.2.md`](releases/client-1.3.2.md)
 
 - 共享移植边界：[`PORTING.md`](../PORTING.md)
 - HarmonyOS 发布说明：[`ZV-HarmonyOS/README.md`](../ZV-HarmonyOS/README.md)

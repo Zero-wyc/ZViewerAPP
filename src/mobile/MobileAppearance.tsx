@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { Check, ImagePlus, Palette, RotateCcw, X } from 'lucide-react'
 import { radiusPresetToPx, RADIUS_PRESETS, useThemeStore } from '@/store/themeStore'
+import { setSystemBarStyle } from '../platform/playerDisplay'
 
 const DEFAULT_WALLPAPER = `${import.meta.env.BASE_URL}Nacho3.jpg`
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024
@@ -49,6 +50,7 @@ export function MobileAppearance({ children, global = false, room = false }: {
     }
   }, [open])
   const isDark = theme.mode === 'auto' ? systemDark : theme.isDark
+  useEffect(() => { if (global) void setSystemBarStyle(isDark).catch(() => {}) }, [global, isDark])
   const appearance = {
     '--appearance-radius': `${radiusPresetToPx(theme.radius)}px`,
     '--appearance-glass': isDark

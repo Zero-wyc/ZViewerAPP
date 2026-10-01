@@ -82,9 +82,18 @@ class HarmonyHost {
     if (action === 'setImmersive') {
       if (argument !== 'true' && argument !== 'false') throw new Error('Invalid immersive argument');
       const enabled = argument === 'true';
-      await mainWindow.setWindowLayoutFullScreen(enabled);
+      await mainWindow.setWindowLayoutFullScreen(true);
       await mainWindow.setSpecificSystemBarEnabled('status', !enabled);
       await mainWindow.setSpecificSystemBarEnabled('navigation', !enabled);
+      return null;
+    }
+    if (action === 'setSystemBarStyle') {
+      if (argument !== 'true' && argument !== 'false') throw new Error('Invalid system bar style');
+      const content = argument === 'true' ? '#FFFFFF' : '#1C293A';
+      await mainWindow.setWindowSystemBarProperties({
+        statusBarColor: '#00000000', navigationBarColor: '#00000000',
+        statusBarContentColor: content, navigationBarContentColor: content
+      });
       return null;
     }
     if (action === 'requestMicrophonePermission') {
@@ -107,10 +116,39 @@ class HarmonyHost {
 struct Index {
   private controller: webview.WebviewController = new webview.WebviewController();
   private host: HarmonyHost = new HarmonyHost(getContext(this) as common.UIAbilityContext, this.controller);
+  private mainWindow: window.Window | null = null;
+  private areaChanged = (): void => { this.syncSafeArea(); };
+
+  private syncSafeArea(): void {
+    if (this.mainWindow === null) return;
+    const types = [window.AvoidAreaType.TYPE_SYSTEM, window.AvoidAreaType.TYPE_CUTOUT,
+      window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR];
+    let top = 0; let bottom = 0; let left = 0; let right = 0;
+    for (const type of types) {
+      const area = this.mainWindow.getWindowAvoidArea(type);
+      top = Math.max(top, area.topRect.height); bottom = Math.max(bottom, area.bottomRect.height);
+      left = Math.max(left, area.leftRect.width); right = Math.max(right, area.rightRect.width);
+    }
+    this.controller.runJavaScript(`(() => {const d=window.devicePixelRatio||1;const s=document.documentElement.style;
+      s.setProperty('--native-safe-top', '${top}'/d+'px');s.setProperty('--native-safe-bottom', '${bottom}'/d+'px');
+      s.setProperty('--native-safe-left', '${left}'/d+'px');s.setProperty('--native-safe-right', '${right}'/d+'px');})()`)
+      .catch(() => {});
+  }
 
   aboutToAppear(): void {
     // Inspect the packaged ArkWeb app during development; release builds disable it.
     webview.WebviewController.setWebDebuggingAccess(DEBUG);
+    window.getLastWindow(getContext(this) as common.UIAbilityContext).then((mainWindow: window.Window) => {
+      this.mainWindow = mainWindow;
+      mainWindow.on('avoidAreaChange', this.areaChanged);
+      mainWindow.on('windowSizeChange', this.areaChanged);
+    }).catch(() => console.error('Unable to observe window safe areas'));
+  }
+
+  aboutToDisappear(): void {
+    this.mainWindow?.off('avoidAreaChange', this.areaChanged);
+    this.mainWindow?.off('windowSizeChange', this.areaChanged);
+    this.mainWindow = null;
   }
 
   private localResource(url: string): WebResourceResponse | null {
@@ -178,6 +216,7 @@ struct Index {
           request.grant(resources);
         })
         .onPageEnd(() => {
+          this.syncSafeArea();
           this.controller.runJavaScript("window.zviewerNative?.platform || 'missing'")
             .then((platform: string) => console.info(`ZViewer bridge platform: ${platform}`))
             .catch(() => console.error('Unable to verify ZViewer bridge'));
@@ -186,6 +225,7 @@ struct Index {
     .width('100%')
     .height('100%')
     .backgroundColor('#111417')
-    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM]);
+    .expandSafeArea([SafeAreaType.SYSTEM, SafeAreaType.CUTOUT],
+      [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM, SafeAreaEdge.START, SafeAreaEdge.END]);
   }
 }

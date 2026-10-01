@@ -6,9 +6,15 @@ interface CapacitorPlayerDisplay {
   toggleOrientation(): Promise<void>
   setImmersive(options: { enabled: boolean }): Promise<void>
   unlockOrientation(): Promise<void>
+  setSystemBarStyle(options: { dark: boolean }): Promise<void>
 }
 
 const capacitorDisplay = registerPlugin<CapacitorPlayerDisplay>('PlayerDisplay')
+
+export async function setSystemBarStyle(dark: boolean): Promise<void> {
+  if (getRuntimePlatform() === 'harmony') await getHarmonyBridge()?.setSystemBarStyle?.(dark)
+  else if (getRuntimePlatform() === 'android') await capacitorDisplay.setSystemBarStyle({ dark })
+}
 
 async function toggleWebOrientation(isLandscape: boolean): Promise<void> {
   const orientation = screen.orientation as ScreenOrientation & {

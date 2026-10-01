@@ -1,6 +1,6 @@
 # Android / HarmonyOS 维护与发布
 
-更新日期：2026-10-01。当前双端版本为 1.3.0 / 130，目标服务端 v4.2.1。iOS 是未完善的独立工程，本次保持 GitHub 主分支已有源码不变，不同步资源或发布 iOS 安装包。
+更新日期：2026-10-01。当前双端版本为 1.3.2 / 132，目标服务端 v4.2.1。iOS 是未完善的独立工程，本次保持 GitHub 主分支已有源码不变，不同步资源或发布 iOS 安装包。
 
 ## 源码与资源
 
@@ -26,8 +26,10 @@ HarmonyOS 使用 DevEco Studio 的本机签名配置，运行 release `assembleH
 
 ## GitHub 发布
 
-本仓库沿用一个双端 Release：`client-v1.3.0`，包含签名 APK、签名 HAP、对应提交源码 ZIP 和 `SHA256SUMS.txt`。不上传 APP 上架包、AAR、私钥、服务器数据或 iOS 安装包。发布说明列出设备实测和已知限制；不能把解析成功当作媒体解码通过。
+本仓库沿用一个双端 Release：`client-v1.3.2`，包含签名 APK、签名 HAP、对应提交源码 ZIP 和 `SHA256SUMS.txt`。不上传 APP 上架包、AAR、私钥、服务器数据或 iOS 安装包。发布说明列出设备实测和已知限制；不能把解析成功当作媒体解码通过。
 
 CI 只执行现有的依赖安装、共享前端同步和 Android debug 构建；已删除的测试命令不能继续留在 workflow。源码发布应核对目标提交、附件版本与 SHA-256 一致。
 
 Android SDK setup 的 packages 显式指定 `platform-tools`。旧 setup-android v3 默认还安装 Google 已移除的 `tools` 包，2026-10-01 发布后的 CI 因 `Failed to find package 'tools'` 中止；此环境修复作为后续维护提交进入 main，不修改 1.3.0 安装包或已发布标签。
+
+B 站移动端回归使用隔离数据库与测试房间，确认本机扫码账号、最高可用画质、真实 CDN Range/206 和影片列表延迟时序。房主桌面 CLI `127.0.0.1:9333` 只能由房主电脑访问，不是客户端代理端口；Android/HarmonyOS 分别启动自己的随机本机回环代理，并保留 CDN 已签名查询参数。测试结束恢复 Android 模拟器分辨率/密度和客户端原房间会话，关闭测试服务并撤销 adb/hdc 转发。

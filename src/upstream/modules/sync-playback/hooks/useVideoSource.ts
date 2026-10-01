@@ -36,7 +36,7 @@ import type { ResolvedSource } from '@/modules/bilibili/types'
 import { safePlay } from '../safePlay'
 import { executeSeek } from '../services'
 import type { SeekToResult } from '../services'
-import { getEmbeddedProxyStatus, isEmbeddedBilibiliHost, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
+import { getEmbeddedProxyStatus, isEmbeddedBilibiliHost, startEmbeddedProxy, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
 import { fallbackNativeQuality, getNativeQualityPolicy, getQualitySelectionRevision, recordNativeQuality, restoreNativeQuality, type NativeQualityPolicy } from '@/modules/bilibili/nativeQualityPolicy'
 
 interface ViewerLocalOverride {
@@ -62,6 +62,20 @@ interface NativeRecoverySnapshot { time: number; playing: boolean; rate: number 
 async function ensureViewerLocalOverride(
   state: WatchTogetherState
 ): Promise<ViewerLocalOverride | null> {
+  // Playback state can arrive before current-movie and the REST movie list.
+  // Native viewers must resolve with their own account, never attach the host's loopback URL.
+  if (isEmbeddedBilibiliHost() && state.sourceType === 'bilibili' && state.sourceUrl) {
+    const roomId = useRoomStore.getState().roomId
+    const initialMovieId = useRoomStore.getState().currentMovieId
+    await startEmbeddedProxy()
+    const deadline = Date.now() + 12000
+    while (!useRoomStore.getState().movies.some(movie => movie.id === useRoomStore.getState().currentMovieId)) {
+      if (useRoomStore.getState().roomId !== roomId || (initialMovieId !== null && useRoomStore.getState().currentMovieId !== initialMovieId)) throw new DOMException('Source changed', 'AbortError')
+      if (Date.now() >= deadline) throw new Error('当前影片信息尚未加载，请重载视频')
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    if (useRoomStore.getState().roomId !== roomId || (initialMovieId !== null && useRoomStore.getState().currentMovieId !== initialMovieId)) throw new DOMException('Source changed', 'AbortError')
+  }
   const storeState = useRoomStore.getState()
   const movieId = storeState.currentMovieId
   if (movieId == null || state.sourceType !== 'bilibili' || !state.sourceUrl) {
@@ -390,11 +404,12 @@ export function useVideoSource({
   const resolveViewerEffectiveState = useCallback(
     async (state: WatchTogetherState): Promise<WatchTogetherState> => {
       if (isHostRef.current || !state.sourceUrl) return state
-      const storeState = useRoomStore.getState()
-      const currentMovieId = storeState.currentMovieId
       const override = await ensureViewerLocalOverride(state)
-      if (override && override.movieId === currentMovieId) {
+      if (override && override.movieId === useRoomStore.getState().currentMovieId) {
         return withViewerOverride(state, override.resolved)
+      }
+      if (isEmbeddedBilibiliHost() && state.sourceType === 'bilibili' && isCliProxyUrl(state.sourceUrl)) {
+        throw new Error('房主的本地播放地址不可用于当前设备，请重载视频')
       }
       return state
     },
