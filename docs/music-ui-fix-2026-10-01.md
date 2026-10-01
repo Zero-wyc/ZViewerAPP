@@ -11,11 +11,11 @@
 
 使用真实的 `MusicTopNav`、`PlayerBackgroundLayer`、`useImmersiveMode` 和移动外观容器构建临时回归界面；测试脚本、合成视频及截图保存在被忽略的本地验证目录，不加入产品资源。
 
-- 浏览器与 Android 手机模拟器 WebView：浅/深色菜单背景、正文颜色、选择条目关闭菜单通过。
+- 浏览器、Android 手机模拟器 WebView 与鸿蒙 Pura 90 Pro 模拟器 ArkWeb：浅/深色菜单背景、正文颜色、选择条目关闭菜单通过。
 - `cover`、`fill`、`contain` 三种背景偏好分别验证：纯净模式使用 `contain`，无 blur/scale，竖屏 412×892、横屏 892×412 均覆盖整个 CSS 视口。
 - 同一视频元素持续播放，退出恢复原背景偏好；单击暂停/继续、双击退出、Escape 退出通过。
 - TypeScript/Vite 构建、鸿蒙前端资源同步、Android Capacitor 同步通过；两端生成的共享 JS/CSS 资源按 SHA-256 比较一致。
 - Android `assembleDebug`、HarmonyOS debug `assembleHap` 构建通过。鸿蒙构建因本机虚拟内存不足首次失败，限制 JVM/V8 内存和构建并行度后成功。
-- 鸿蒙 Pura 90 Pro 模拟器成功安装并启动本次签名 debug HAP；完整 ArkWeb 回归受本机剩余虚拟内存不足影响未完成，不计作通过。临时调整的模拟器内存配置和调试转发已恢复/撤销。仍需鸿蒙真机确认菜单和视频显示。
+- 鸿蒙 Pura 90 Pro 模拟器成功安装并启动本次签名 debug HAP。在实际 ArkWeb 中加载由同一源码编译的临时回归界面，完整菜单/视频回归通过；额外通过原生桥切换横屏（789×359 CSS px）和竖屏（359×789 CSS px），确认视频完整显示并保持同一元素。初次验收受虚拟内存不足影响，释放后在原 4096 MB 配置下完成回归。临时调整的模拟器配置、本地存储和调试转发已恢复/撤销。
 
 验证范围是界面布局、主题与视频元素连续性。合成视频用于布局验收；未重新验证真实账号的 B 站 CDN、DASH 解码、真机及平板行为。本次为本地 UI 修复构建，包版本保持 1.3.0 / 130，未发布 GitHub Release。
