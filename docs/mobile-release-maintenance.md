@@ -29,3 +29,5 @@ HarmonyOS 使用 DevEco Studio 的本机签名配置，运行 release `assembleH
 本仓库沿用一个双端 Release：`client-v1.3.0`，包含签名 APK、签名 HAP、对应提交源码 ZIP 和 `SHA256SUMS.txt`。不上传 APP 上架包、AAR、私钥、服务器数据或 iOS 安装包。发布说明列出设备实测和已知限制；不能把解析成功当作媒体解码通过。
 
 CI 只执行现有的依赖安装、共享前端同步和 Android debug 构建；已删除的测试命令不能继续留在 workflow。源码发布应核对目标提交、附件版本与 SHA-256 一致。
+
+Android SDK setup 的 packages 显式指定 `platform-tools`。旧 setup-android v3 默认还安装 Google 已移除的 `tools` 包，2026-10-01 发布后的 CI 因 `Failed to find package 'tools'` 中止；此环境修复作为后续维护提交进入 main，不修改 1.3.0 安装包或已发布标签。
