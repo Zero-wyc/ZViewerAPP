@@ -6,11 +6,13 @@
 
 | 客户端 | 当前状态 | 维护结论 |
 | --- | --- | --- |
-| Android | 已完成开发，当前发布版本 1.3.2（versionCode 132） | 以后优先在共享前端实现产品行为，再同步 Android 原生宿主和发布包 |
+| Android | 已完成开发，当前发布版本 1.3.5（versionCode 135） | 以后优先在共享前端实现产品行为，再同步 Android 原生宿主和发布包 |
 | HarmonyOS | 已完成开发并已有 ArkWeb/HAP 发布线 | 与 Android 共享网页业务，但原生桥接、B 站代理和打包链路独立维护 |
 | iOS | Expo/React Native 已完成服务端登录、房间和基础直链播放；等待开发者修复媒体截断问题后继续 | 不把 iOS 当前实现当作 Android/HarmonyOS 功能等效版；继续遵循 `docs/ios-continuation-plan.md` |
 
 当前 Android 的发布入口是 `ZV-Android/`，网页入口是仓库根目录的 `src/`。`ZV-HarmonyOS/` 不应复制 Android Gradle 或 Java 代码；它通过 ArkWeb 加载同一份 `dist/`。
+
+1.3.5 的一起听导航在 Android 手机、横屏和平板固定折叠，忽略旧的展开偏好；播放器下箭头增加浅色圆形底板。修改共享组件后同步两端，维护位置与回归清单见 [双端维护与发布](mobile-release-maintenance.md#一起听界面维护135)。
 
 ## 2. 代码归属边界
 
@@ -103,7 +105,7 @@ HarmonyOS 代码见 [HarmonyOS 应用维护架构](harmonyos-maintenance-archite
 ## 6. 文档入口
 
 - 双端版本、清理与发布步骤：[`mobile-release-maintenance.md`](mobile-release-maintenance.md)
-- 当前 1.3.2 发布记录：[`releases/client-1.3.2.md`](releases/client-1.3.2.md)
+- 当前 1.3.5 发布记录：[`releases/client-1.3.5.md`](releases/client-1.3.5.md)
 
 - 共享移植边界：[`PORTING.md`](../PORTING.md)
 - Android v4.2.1 适配记录：[`android-v4.2.1-adaptation-report.md`](android-v4.2.1-adaptation-report.md)

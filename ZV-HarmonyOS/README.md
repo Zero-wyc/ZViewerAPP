@@ -11,9 +11,11 @@ microphone permission handling, and secure local credential storage.
 
 Initial build used DevEco Studio 26.0.0.851, HarmonyOS SDK 26.0.0.105,
 Hvigor 6.26.8, ohpm 26.0.0.630, and DevEco's Node 24.14.1 on Windows.
-The project currently targets API 26 for both compatibility and target level.
-Lower API support has not been tested. The bundle name is provisionally
-`com.zviewer.mobile`; confirm its registration before release signing.
+Version 1.3.5 (versionCode 135) targets API 26 and requires HarmonyOS 6.1 /
+API 23 or later. The release bundle is `com.zviewer.mobile`. Lower API device
+behavior has not received additional testing in this release. Local release
+signing must use the existing registered bundle and certificate; credentials
+are kept outside the published source archive.
 
 ## Build
 
@@ -61,7 +63,11 @@ global mobile appearance. `isGlobalAppearanceRuntime()` enables the same
 appearance shell on Android and HarmonyOS across connection, lobby, watch
 and music rooms. Room settings expose Appearance; document-level variables
 also theme body Portals. Theme changes preserve the active video/audio
-element. Client package version is 1.3.0 (130).
+element. Client package version is 1.3.5 (135). Music navigation stays compact
+on native hosts in either orientation; the player collapse arrow has a light
+circular backing. See the [release record](../docs/releases/client-1.3.5.md)
+for this version's UI checks and the [maintenance guide](../docs/mobile-release-maintenance.md)
+for shared component ownership and signing procedures.
 
 DevEco Studio's Pura 90 Pro API 26 emulator passed appearance, native Back,
 orientation, fullscreen, persistence and H.264 MP4/MKV checks. The two user

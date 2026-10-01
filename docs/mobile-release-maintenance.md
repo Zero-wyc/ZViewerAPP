@@ -1,6 +1,6 @@
 # Android / HarmonyOS 维护与发布
 
-更新日期：2026-10-01。当前双端版本为 1.3.2 / 132，目标服务端 v4.2.1。iOS 是未完善的独立工程，本次保持 GitHub 主分支已有源码不变，不同步资源或发布 iOS 安装包。
+更新日期：2026-10-01。当前双端版本为 1.3.5 / 135，目标服务端 v4.2.1。iOS 是未完善的独立工程，本次保持 GitHub 主分支已有源码不变，不同步资源或发布 iOS 安装包。
 
 ## 源码与资源
 
@@ -14,11 +14,23 @@
 
 同时更新根 `package.json`、`package-lock.json`、Android `app/build.gradle` 和鸿蒙 `AppScope/app.json5`，两端 versionCode 必须高于旧版。iOS 版本与依赖不属于本次发布范围。
 
+1.3.5 从 GitHub 的 1.3.2 主分支创建独立发布工作树，再合入已验证的一起听修复。原开发目录中的未提交改动保持原样；发布前确认 `ZV-iOS/` 相对上一版没有变化。每次完成一个版本的构建后，本地提交 Git，源码 ZIP 从该发布提交生成。
+
 Android 使用仓库外持久发布密钥，通过 `ZVIEWER_KEYSTORE`、`ZVIEWER_STORE_PASSWORD`、`ZVIEWER_KEY_ALIAS`、`ZVIEWER_KEY_PASSWORD` 注入 Gradle，运行 `assembleRelease`。发布前以 apksigner 验证签名，并与上一版证书 SHA-256 比较。
 
 HarmonyOS 使用 DevEco Studio 的本机签名配置，运行 release `assembleHap`，保持最低兼容 6.1 / API 23。仓库中的 `build-profile.json5` 保持无私钥和密码的模板；本机签名材料与路径仅用于本地构建，不进入提交或源码 ZIP。release 禁用 ArkWeb 调试。
 
 ## 验收与清理
+
+### 一起听界面维护（1.3.5）
+
+- `MusicTopNav.tsx` 使用 `isGlobalAppearanceRuntime()` 与窄屏判断固定移动端折叠导航。Android/HarmonyOS 的横屏与平板也不能展开；旧偏好 `musicNavCollapsed=false` 不能恢复完整导航。保留网易云的首页、私人漫游、云盘、我的音乐，以及哔哩哔哩入口；桌面网页仍可切换完整导航。
+- `MusicAppShell.tsx` 的下箭头使用 `music-player-collapse-button` 样式：44px 触控区、浅色圆形底板、深色图标、描边和阴影。保持触屏唤出后三秒自动隐藏和桌面悬停逻辑，避免在黑色视频中丢失操作入口。
+- 房间 `.glass-strong` 背景使用 `var(--glass-bg)`，避免硬编码深色底板与浅色主题深色文字组合。纯净视频使用 `contain`，关闭装饰性模糊和缩放；覆盖层通过 `data-music-immersive` 固定到视口，切换时保持同一视频元素。原生返回先退出纯净模式。
+- `useSongQuality.ts` 对无歌曲的状态统一用 `null` 比较，避免保存 `-1` 却与 `undefined` 比较，导致空队列打开播放器无限重渲染。保留空队列打开、收起的回归检查。
+- 回归至少覆盖：旧展开偏好、手机横竖屏、原生宽屏、深浅主题菜单、黑色视频上的下箭头和点击关闭；纯净模式继续检查视频边界、媒体元素连续性与原生返回。记录实际检查范围，不能以模拟器 UI 检查代替真机解码和后台专项验收。
+
+本版结果与安装附件见 [1.3.5 发布记录](releases/client-1.3.5.md)。
 
 优先通过 adb / hdc 命令行安装，使用 debug 包的 WebView/ArkWeb CDP 检查实际打包界面。Android 手机模拟器与 DevEco Pura 90 Pro 手机模拟器分别检查浅/深色连接与列表、播放设置、弹幕字体页、横竖屏、全屏、原生返回、主题持久化及切换后的媒体 DOM 持续性。测试服务器使用隔离数据库和只读用户视频；结束恢复原连接与偏好，关闭服务器并撤销转发。
 
@@ -26,7 +38,7 @@ HarmonyOS 使用 DevEco Studio 的本机签名配置，运行 release `assembleH
 
 ## GitHub 发布
 
-本仓库沿用一个双端 Release：`client-v1.3.2`，包含签名 APK、签名 HAP、对应提交源码 ZIP 和 `SHA256SUMS.txt`。不上传 APP 上架包、AAR、私钥、服务器数据或 iOS 安装包。发布说明列出设备实测和已知限制；不能把解析成功当作媒体解码通过。
+本仓库沿用一个双端 Release：`client-v1.3.5`，包含签名 APK、签名 HAP、对应提交源码 ZIP 和 `SHA256SUMS.txt`。不上传 APP 上架包、AAR、私钥、服务器数据或 iOS 安装包。发布说明列出设备实测和已知限制；不能把解析成功当作媒体解码通过。
 
 CI 只执行现有的依赖安装、共享前端同步和 Android debug 构建；已删除的测试命令不能继续留在 workflow。源码发布应核对目标提交、附件版本与 SHA-256 一致。
 

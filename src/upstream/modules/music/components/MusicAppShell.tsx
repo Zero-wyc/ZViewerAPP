@@ -459,12 +459,12 @@ function ShellInner({
           />
           {/* 右上角收起按钮（滑出动画结束后卸载）：手机上默认完全隐藏
               （触摸屏幕任意处亮起 3s——触屏无 hover 且常显会压在歌词
-              首行上），桌面保持 hover 区域显形；纯图标无玻璃底无模糊 */}
+              首行上），桌面保持 hover 区域显形；浅色底板保证黑色视频上的对比度 */}
           <div className="music-player-collapse group/hide absolute right-3 top-3 z-[70] h-16 w-16 max-md:right-2 max-md:top-2">
             <button
               type="button"
               className={cn(
-                'flex h-9 w-9 items-center justify-center text-[var(--md-sys-color-on-surface)] transition-[opacity,transform] duration-200 active:scale-90',
+                'music-player-collapse-button flex h-11 w-11 items-center justify-center transition-[opacity,transform] duration-200 active:scale-90',
                 overlayCloseVisible
                   ? 'pointer-events-auto opacity-100'
                   : 'pointer-events-none opacity-0 group-hover/hide:pointer-events-auto group-hover/hide:opacity-100'

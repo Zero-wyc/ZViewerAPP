@@ -1614,6 +1614,13 @@ body[data-no-hover-transform='true'] .zen-avatar-hover:hover {
 .music-player-overlay:has([data-music-immersive='true']) .music-player-collapse {
   display: none;
 }
+.music-player-collapse .music-player-collapse-button {
+  background: rgba(247, 249, 255, 0.94);
+  color: #1c293a;
+  border: 1px solid rgba(28, 41, 58, 0.28);
+  border-radius: 50%;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
 
 /* 播放卡入场（Player.vue .player-in）：先展开宽度（35% 处达到目标宽），
    再纵向展开至满高并淡入；0.7s 延迟 0.2s。
