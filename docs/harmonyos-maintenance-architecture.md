@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | Android | 已完成开发，当前发布版本 1.5.0（versionCode 150） | Android 是共享网页功能和 B 站行为的主要参考宿主之一 |
 | HarmonyOS | 已同步当前 Android 的 v4.2.1 共享业务代码和全局外观，API 26 手机模拟器外观验收完成；客户端包版本为 1.5.0/150 | 维护重点是共享网页同步、ArkWeb 桥接和 ArkTS 本地代理；HEVC Main 10 解码限制单独记录 |
-| iOS | 1.5.0 / b13 unsigned 集中候选版：房间/B站/语音恢复、外观、队列歌词、系统媒体、关联视频和手势已实现 | 对接隔离官方 v4.2.1，待用户签名及 iPhone/iPad 验收；后台独立 Socket 心跳/切歌/审批未闭环，不宣称双端等效。见 [b13 交付记录](releases/ios-1.5.0-13-unsigned.md) |
+| iOS | 1.5.0 / b15 源码 Expo Go 预览：共享移动端主题/背景、首页/大厅、房间/竖屏下方面板、片单/集中选集、音乐/弹窗已移植；原生对齐待复验 | 用户要求先原生 UI 预览，待中的 b14 EAS 已取消，未构建 b15 IPA。界面确认后才再次构建；I13 后台独立业务 Socket 等仍未闭环。见 [b15 预览](releases/ios-1.5.0-15-preview.md) |
 
 HarmonyOS 应用不是另写一套业务前端。它将根项目构建出的 `dist/` 放入 `entry/src/main/resources/rawfile/web/`，由 ArkWeb 以固定本地来源加载；平台能力通过 `zviewerHost` 注入，再由 `bridge-bootstrap.js` 暴露为共享前端识别的 `window.zviewerNative`。
 
@@ -135,3 +135,7 @@ Android 模拟器本机 B 站账号有效；隔离房间真实 CDN 播放连续 
 - HarmonyOS v4.2.1 同步与模拟器验收：[`harmonyos-v4.2.1-adaptation-report.md`](harmonyos-v4.2.1-adaptation-report.md)
 - Android 对照架构：[`android-maintenance-architecture.md`](android-maintenance-architecture.md)
 - iOS 后续开发：[`ios-continuation-plan.md`](ios-continuation-plan.md)
+
+## 2026-10-02 iOS 界面对齐交接
+
+双端继续共用 src/，iOS 使用 RN + VLC。mobileDesign、Surface/AppDialog、来源下拉/集中选集移植产品布局与字段；默认背景复用 public/Nacho3.jpg，首页 B站账号改为可见文字，标题/提示有主题底色，竖屏评论位于视频下方。59 单测、29 首页/59 房间/21 来源 Web、24 Yoga 通过；只修改 iOS 与维护文档，未改双端程序。本轮无新增 EAS Build/Update 或 IPA，继续 Expo Go 预览；I13 后台业务 Socket 和原生等效验收保持待完成。详见 [b15 预览](releases/ios-1.5.0-15-preview.md)。

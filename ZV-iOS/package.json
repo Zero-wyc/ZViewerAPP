@@ -9,6 +9,7 @@
     "@react-native-community/slider": "5.2.0",
     "base64-js": "^1.5.1",
     "expo": "~57.0.26",
+    "expo-blur": "~57.0.3",
     "expo-constants": "~57.0.19",
     "expo-dev-client": "~57.0.19",
     "expo-device": "~57.0.2",

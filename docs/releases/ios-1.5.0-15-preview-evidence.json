@@ -1,0 +1,871 @@
+{
+  "date": "2026-10-02",
+  "version": "1.5.0",
+  "sourceBuildNumber": "15",
+  "scope": "Expo Go UI preview only; no b15 IPA or device acceptance",
+  "easBuilds": [
+    {
+      "id": "0665bfa3-11d9-44bf-a2f9-317f1f68e9dd",
+      "status": "FINISHED",
+      "finalArtifact": false,
+      "reason": "Early b14 downloaded by user, missing subsequent room/media and 403 fixes"
+    },
+    {
+      "id": "95eec7cf-90b7-421f-91d1-e759ef2c794e",
+      "status": "CANCELED",
+      "completedAt": "2026-10-02T09:02:31Z",
+      "reason": "User requested Expo Go UI approval before further EAS Build"
+    }
+  ],
+  "validation": {
+    "unitTests": 59,
+    "lint": "passed with cache disabled",
+    "typecheck": "passed",
+    "webExport": "passed",
+    "expoGo": {
+      "mode": "expo",
+      "sdkVersion": "57.0.0",
+      "manifestHttpStatus": 200,
+      "iosDevBundleHttpStatus": 200,
+      "iosDevBundleBytes": 6593676,
+      "iosDevBundleSha256": "28550de5b67a9ff783d3a2aa8659268ad1099f495d7adaa52cd502d40daccd27",
+      "wallpaperHttpStatus": 200,
+      "wallpaperBytes": 139152,
+      "wallpaperSha256": "6bb9ed6974b6cff4be259d6441c227228b9efab190c48b33b6540ac23b97ab25",
+      "wallpaperInBundle": true,
+      "blurInBundle": true,
+      "serviceKeptRunning": true,
+      "isEasUpdate": false
+    },
+    "roomYoga": {
+      "scope": "Yoga 3.2.1, Fabric ErrataAll; actual roomLayout; not device acceptance",
+      "checks": [
+        {
+          "size": "1390x970",
+          "mode": "watch-together",
+          "sideVisible": false,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 1358,
+            "height": 786
+          }
+        },
+        {
+          "size": "1390x970",
+          "mode": "watch-together",
+          "sideVisible": true,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 1026,
+            "height": 786
+          },
+          "sidebar": {
+            "left": 1038,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 320,
+            "height": 786
+          }
+        },
+        {
+          "size": "1390x970",
+          "mode": "listen-together",
+          "sideVisible": false,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 1358,
+            "height": 786
+          }
+        },
+        {
+          "size": "1390x970",
+          "mode": "listen-together",
+          "sideVisible": true,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 1026,
+            "height": 786
+          },
+          "sidebar": {
+            "left": 1038,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 320,
+            "height": 786
+          }
+        },
+        {
+          "size": "1180x820",
+          "mode": "watch-together",
+          "sideVisible": false,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 1148,
+            "height": 636
+          }
+        },
+        {
+          "size": "1180x820",
+          "mode": "watch-together",
+          "sideVisible": true,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 816,
+            "height": 636
+          },
+          "sidebar": {
+            "left": 828,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 320,
+            "height": 636
+          }
+        },
+        {
+          "size": "1180x820",
+          "mode": "listen-together",
+          "sideVisible": false,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 1148,
+            "height": 636
+          }
+        },
+        {
+          "size": "1180x820",
+          "mode": "listen-together",
+          "sideVisible": true,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 816,
+            "height": 636
+          },
+          "sidebar": {
+            "left": 828,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 320,
+            "height": 636
+          }
+        },
+        {
+          "size": "820x1180",
+          "mode": "watch-together",
+          "sideVisible": false,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 788,
+            "height": 996
+          }
+        },
+        {
+          "size": "820x1180",
+          "mode": "watch-together",
+          "sideVisible": true,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 788,
+            "height": 478
+          },
+          "sidebar": {
+            "left": 0,
+            "right": 0,
+            "top": 490,
+            "bottom": 0,
+            "width": 788,
+            "height": 506
+          }
+        },
+        {
+          "size": "820x1180",
+          "mode": "listen-together",
+          "sideVisible": false,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 788,
+            "height": 996
+          }
+        },
+        {
+          "size": "820x1180",
+          "mode": "listen-together",
+          "sideVisible": true,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 788,
+            "height": 478
+          },
+          "sidebar": {
+            "left": 0,
+            "right": 0,
+            "top": 490,
+            "bottom": 0,
+            "width": 788,
+            "height": 506
+          }
+        },
+        {
+          "size": "390x844",
+          "mode": "watch-together",
+          "sideVisible": false,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 358,
+            "height": 660
+          }
+        },
+        {
+          "size": "390x844",
+          "mode": "watch-together",
+          "sideVisible": true,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 358,
+            "height": 317
+          },
+          "sidebar": {
+            "left": 0,
+            "right": 0,
+            "top": 329,
+            "bottom": 0,
+            "width": 358,
+            "height": 331
+          }
+        },
+        {
+          "size": "390x844",
+          "mode": "listen-together",
+          "sideVisible": false,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 358,
+            "height": 660
+          }
+        },
+        {
+          "size": "390x844",
+          "mode": "listen-together",
+          "sideVisible": true,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 358,
+            "height": 317
+          },
+          "sidebar": {
+            "left": 0,
+            "right": 0,
+            "top": 329,
+            "bottom": 0,
+            "width": 358,
+            "height": 331
+          }
+        },
+        {
+          "size": "844x390",
+          "mode": "watch-together",
+          "sideVisible": false,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 812,
+            "height": 206
+          }
+        },
+        {
+          "size": "844x390",
+          "mode": "watch-together",
+          "sideVisible": true,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 812,
+            "height": 206
+          }
+        },
+        {
+          "size": "844x390",
+          "mode": "listen-together",
+          "sideVisible": false,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 812,
+            "height": 206
+          }
+        },
+        {
+          "size": "844x390",
+          "mode": "listen-together",
+          "sideVisible": true,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 812,
+            "height": 206
+          }
+        },
+        {
+          "size": "320x568",
+          "mode": "watch-together",
+          "sideVisible": false,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 288,
+            "height": 384
+          }
+        },
+        {
+          "size": "320x568",
+          "mode": "watch-together",
+          "sideVisible": true,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 288,
+            "height": 184
+          },
+          "sidebar": {
+            "left": 0,
+            "right": 0,
+            "top": 196,
+            "bottom": 0,
+            "width": 288,
+            "height": 188
+          }
+        },
+        {
+          "size": "320x568",
+          "mode": "listen-together",
+          "sideVisible": false,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 288,
+            "height": 384
+          }
+        },
+        {
+          "size": "320x568",
+          "mode": "listen-together",
+          "sideVisible": true,
+          "media": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+            "width": 288,
+            "height": 184
+          },
+          "sidebar": {
+            "left": 0,
+            "right": 0,
+            "top": 196,
+            "bottom": 0,
+            "width": 288,
+            "height": 188
+          }
+        }
+      ]
+    },
+    "roomWeb": {
+      "scope": "Expo web UI + official isolated v4.2.1; not device media acceptance",
+      "checks": [
+        "local account login + Socket connection",
+        "create room + restore host",
+        "浅色 appearance switches without leaving room",
+        "深色 appearance switches without leaving room",
+        "add movie through UI persists canonical source",
+        "watch media frame and empty player stay visible at 1180x820",
+        "source picker opens/closes three times without layout changes at 1180x820",
+        "watch media frame and empty player stay visible at 820x1180",
+        "portrait panels stay below video at 820x1180",
+        "source picker opens/closes three times without layout changes at 820x1180",
+        "watch media frame and empty player stay visible at 390x844",
+        "portrait panels stay below video at 390x844",
+        "source picker opens/closes three times without layout changes at 390x844",
+        "watch media frame and empty player stay visible at 1390x970",
+        "source picker opens/closes three times without layout changes at 1390x970",
+        "playback settings fit 1180x820 with a fixed close control",
+        "playback settings fit 390x844 with a fixed close control",
+        "member join follows server viewer-joined event",
+        "member leave follows server viewer-left event",
+        "rename room follows actual server protocol",
+        "Android music navigation and floating player are present",
+        "empty music player opens/closes three times without update loops",
+        "actual raw NCM status DTO shows logged-out gate without envelope error",
+        "NCM menu stays anchored below its button after resizing to 1180x820",
+        "NCM menu stays anchored below its button after resizing to 820x1180",
+        "NCM menu stays anchored below its button after resizing to 390x844",
+        "menu selection closes dropdown and switches music page",
+        "music surface fills media frame at 1180x820",
+        "music ipad-landscape has no horizontal page overflow",
+        "music surface fills media frame at 820x1180",
+        "music ipad-portrait has no horizontal page overflow",
+        "music surface fills media frame at 390x844",
+        "music iphone has no horizontal page overflow",
+        "music surface fills media frame at 1390x970",
+        "music reported-ipad has no horizontal page overflow",
+        "music surface fills media frame at 844x390",
+        "music phone-landscape has no horizontal page overflow",
+        "successful QR polling refreshes existing My Music page",
+        "real NCM logout returns to Android login gate",
+        "listen mode mounts music search UI",
+        "fixture NCM result + real server music queue upsert/broadcast",
+        "music video picker stays in viewport at 1180x820",
+        "music video picker stays in viewport at 820x1180",
+        "music video picker stays in viewport at 390x844",
+        "song comment modal renders fixture and failed-avatar placeholder",
+        "real server music queue remove/broadcast",
+        "screen sharing missing-module preview remains usable",
+        "fullscreen fills 1180x820 viewport",
+        "video controls remain within 1180x820",
+        "fullscreen fills 820x1180 viewport",
+        "video controls remain within 820x1180",
+        "fullscreen fills 390x844 viewport",
+        "video controls remain within 390x844",
+        "rotation does not toggle fullscreen",
+        "ipad-landscape has no horizontal page overflow",
+        "ipad-portrait has no horizontal page overflow",
+        "iphone has no horizontal page overflow",
+        "leave room returns to lobby",
+        "no JS runtime exceptions"
+      ],
+      "errors": []
+    },
+    "homeYoga": {
+      "scope": "Historical b14 Yoga 3.2.1/Fabric model for the startup fix; does not model the whole redesigned b15 home",
+      "checks": [
+        {
+          "name": "old column/growing button reproduces blank native screen",
+          "button": 796,
+          "content": 0
+        },
+        {
+          "name": "390x844, text 1, restoring false",
+          "button": 44,
+          "scroll": 736
+        },
+        {
+          "name": "390x844, text 1, restoring true",
+          "button": 44,
+          "scroll": 688
+        },
+        {
+          "name": "390x844, text 1.5, restoring false",
+          "button": 50,
+          "scroll": 730
+        },
+        {
+          "name": "390x844, text 1.5, restoring true",
+          "button": 50,
+          "scroll": 682
+        },
+        {
+          "name": "390x844, text 2, restoring false",
+          "button": 60,
+          "scroll": 720
+        },
+        {
+          "name": "390x844, text 2, restoring true",
+          "button": 60,
+          "scroll": 672
+        },
+        {
+          "name": "844x390, text 1, restoring false",
+          "button": 44,
+          "scroll": 282
+        },
+        {
+          "name": "844x390, text 1, restoring true",
+          "button": 44,
+          "scroll": 234
+        },
+        {
+          "name": "844x390, text 1.5, restoring false",
+          "button": 50,
+          "scroll": 276
+        },
+        {
+          "name": "844x390, text 1.5, restoring true",
+          "button": 50,
+          "scroll": 228
+        },
+        {
+          "name": "844x390, text 2, restoring false",
+          "button": 60,
+          "scroll": 266
+        },
+        {
+          "name": "844x390, text 2, restoring true",
+          "button": 60,
+          "scroll": 218
+        },
+        {
+          "name": "820x1180, text 1, restoring false",
+          "button": 44,
+          "scroll": 1072
+        },
+        {
+          "name": "820x1180, text 1, restoring true",
+          "button": 44,
+          "scroll": 1024
+        },
+        {
+          "name": "820x1180, text 1.5, restoring false",
+          "button": 50,
+          "scroll": 1066
+        },
+        {
+          "name": "820x1180, text 1.5, restoring true",
+          "button": 50,
+          "scroll": 1018
+        },
+        {
+          "name": "820x1180, text 2, restoring false",
+          "button": 60,
+          "scroll": 1056
+        },
+        {
+          "name": "820x1180, text 2, restoring true",
+          "button": 60,
+          "scroll": 1008
+        },
+        {
+          "name": "1180x820, text 1, restoring false",
+          "button": 44,
+          "scroll": 712
+        },
+        {
+          "name": "1180x820, text 1, restoring true",
+          "button": 44,
+          "scroll": 664
+        },
+        {
+          "name": "1180x820, text 1.5, restoring false",
+          "button": 50,
+          "scroll": 706
+        },
+        {
+          "name": "1180x820, text 1.5, restoring true",
+          "button": 50,
+          "scroll": 658
+        },
+        {
+          "name": "1180x820, text 2, restoring false",
+          "button": 60,
+          "scroll": 696
+        },
+        {
+          "name": "1180x820, text 2, restoring true",
+          "button": 60,
+          "scroll": 648
+        },
+        {
+          "name": "1390x970, text 1, restoring false",
+          "button": 44,
+          "scroll": 862
+        },
+        {
+          "name": "1390x970, text 1, restoring true",
+          "button": 44,
+          "scroll": 814
+        },
+        {
+          "name": "1390x970, text 1.5, restoring false",
+          "button": 50,
+          "scroll": 856
+        },
+        {
+          "name": "1390x970, text 1.5, restoring true",
+          "button": 50,
+          "scroll": 808
+        },
+        {
+          "name": "1390x970, text 2, restoring false",
+          "button": 60,
+          "scroll": 846
+        },
+        {
+          "name": "1390x970, text 2, restoring true",
+          "button": 60,
+          "scroll": 798
+        },
+        {
+          "name": "320x568, text 1, restoring false",
+          "button": 44,
+          "scroll": 460
+        },
+        {
+          "name": "320x568, text 1, restoring true",
+          "button": 44,
+          "scroll": 412
+        },
+        {
+          "name": "320x568, text 1.5, restoring false",
+          "button": 50,
+          "scroll": 454
+        },
+        {
+          "name": "320x568, text 1.5, restoring true",
+          "button": 50,
+          "scroll": 406
+        },
+        {
+          "name": "320x568, text 2, restoring false",
+          "button": 60,
+          "scroll": 444
+        },
+        {
+          "name": "320x568, text 2, restoring true",
+          "button": 60,
+          "scroll": 396
+        }
+      ]
+    },
+    "homeWeb": {
+      "scope": "Expo Web with isolated official v4.2.1; not native device acceptance",
+      "checks": [
+        "home content and intrinsic appearance button 390x844",
+        "guest form 390x844",
+        "home content and intrinsic appearance button 844x390",
+        "guest form 844x390",
+        "home content and intrinsic appearance button 820x1180",
+        "guest form 820x1180",
+        "home content and intrinsic appearance button 1180x820",
+        "guest form 1180x820",
+        "home content and intrinsic appearance button 1390x970",
+        "guest form 1390x970",
+        "home content and intrinsic appearance button 320x568",
+        "guest form 320x568",
+        "Bilibili account entry has a visible text label",
+        "connection-heading contrast >= 4.5 with light/black/low opacity",
+        "connection-help contrast >= 4.5 with light/black/low opacity",
+        "connection-heading contrast >= 4.5 with light/white/low opacity",
+        "connection-help contrast >= 4.5 with light/white/low opacity",
+        "connection-heading contrast >= 4.5 with dark/black/low opacity",
+        "connection-help contrast >= 4.5 with dark/black/low opacity",
+        "connection-heading contrast >= 4.5 with dark/white/low opacity",
+        "connection-help contrast >= 4.5 with dark/white/low opacity",
+        "light theme survives reload without losing login form",
+        "wrong password keeps retry enabled",
+        "official v4.2.1 account login + room list",
+        "saved server can be fully cleared after logout",
+        "official guest login omits room creation",
+        "a stalled login times out and releases form interaction",
+        "corrupt saved appearance falls back without a render error",
+        "no unhandled JavaScript errors"
+      ],
+      "errors": []
+    },
+    "sessionProvider": {
+      "scope": "Historical b14 actual provider + simulated native storage/transport; unchanged session source, not real Keychain acceptance",
+      "checks": [
+        "fresh install releases startup gate",
+        "corrupt saved JSON releases startup gate",
+        "storage rejection releases startup gate",
+        "storage never settles releases startup gate",
+        "offline verification does not gate restored session",
+        "logout remains available while verification hangs",
+        "late verification cannot revive logout or overwrite persisted logout",
+        "late refresh cannot revive logout or persist old credentials",
+        "expired 401 access token refreshes and persists a usable session",
+        "expired 403 access token refreshes and persists a usable session",
+        "invalid refresh clears session for fresh login",
+        "permission-denied 403 neither refreshes nor logs out",
+        "no unhandled provider errors"
+      ],
+      "errors": []
+    },
+    "iosExport": {
+      "status": "passed",
+      "assetCount": 25,
+      "wallpaperIncluded": true,
+      "scope": "Hermes export only, not native compilation"
+    },
+    "expoDoctor": {
+      "passed": 20,
+      "total": 21,
+      "warnings": [
+        "react-native-webrtc New Architecture untested",
+        "zviewer-native no React Native Directory metadata"
+      ],
+      "warningsSuppressed": false
+    },
+    "sourceAndEpisodeWeb": {
+      "scope": "Expo Web native UI export; fixtures + isolated official v4.2.1; not native device acceptance",
+      "checks": [
+        "bundled shared default wallpaper loads",
+        "password visibility control follows other mobile clients",
+        "lobby toolbar and count heading",
+        "create dialog supports capacity and approval",
+        "source sections replace the all-in-one page",
+        "60 sources use a bounded dropdown",
+        "dropdown scrolls to its last source and closes",
+        "80 episodes stay grouped in a 200px scroller",
+        "tablet episodes use two columns",
+        "single episode adds without dismissing selection",
+        "bulk partial failure retains only failed episode",
+        "failed episode retry succeeds against real server",
+        "selection dialog and nested episode scroller fit 1180x820",
+        "selection dialog and nested episode scroller fit 820x1180",
+        "selection dialog and nested episode scroller fit 390x844",
+        "selection dialog and nested episode scroller fit 844x390",
+        "phone grid becomes one column",
+        "select all and clear use the complete episode group",
+        "compact playlist supports filtering",
+        "real playlist preserves selected data source metadata",
+        "no JavaScript runtime exceptions"
+      ],
+      "errors": []
+    }
+  },
+  "sourceHashes": {
+    "ZV-iOS/README.md": "18a22079e432b5acc105f36c21abee7f806a46f3ebc3958e7b8584eb3b2fd34a",
+    "ZV-iOS/app.json": "1fd946a7d0b9fc9d193d0dae1632e04368bbf3310b2862b1cd8aa7ce099d51fa",
+    "ZV-iOS/assets/images/mobile-wallpaper.jpg": "6bb9ed6974b6cff4be259d6441c227228b9efab190c48b33b6540ac23b97ab25",
+    "ZV-iOS/package-lock.json": "513455d364f1a2be806fe35cc0745017d20008d0507373617bef8d28cfcd3ad3",
+    "ZV-iOS/package.json": "d0865b5120722382a793e6fd83800b51b49821d72e3262aa49d27b30f8463d8b",
+    "ZV-iOS/scripts/check-continuation-ui.cjs": "7e869ac862fc62c63d07615b737d75c5665f911f841650e03d8047f63e49fc17",
+    "ZV-iOS/scripts/check-home-ui.cjs": "404e9daff1fdb940f9af3e557544dffc12cc907872bc2e555c153ecc20acd4b6",
+    "ZV-iOS/scripts/check-home-yoga.mjs": "e7e70a4fd34602314ed55c934b2d749dd0a53f6cce25107203a061314694826c",
+    "ZV-iOS/scripts/check-native-parity.cjs": "04f35053e0b214b2066a98134e3980e265a7eb0a5975a1a03e40f4f01ee07a1f",
+    "ZV-iOS/scripts/check-room-yoga.mjs": "77344708563cdff42f56d28c5dda9841e08c62291d4142b4e1b92fd4a0a305ef",
+    "ZV-iOS/scripts/check-session-startup.cjs": "198d155c018a14d36823964d71e72aa311ac313a67cf5031aa3d122f1389ceef",
+    "ZV-iOS/src/app/_layout.tsx": "af2e577151b7d185635afaac6c0796d926ae17d010bca0debb5dd78a729044c7",
+    "ZV-iOS/src/app/index.tsx": "06302d32bb86d6bbc4cbfc833923367b02c0dc9eb6187b32d42aa6d20f72f00b",
+    "ZV-iOS/src/app/room/[roomId].tsx": "726cf935b660efc17f8d9b7f951b382b950f80f587f0cfe932dbb8405a3aa8f4",
+    "ZV-iOS/src/components/AnimePicker.tsx": "3e21a1482fe86588bfe2f3dead39eeb5158b081e013b496f884374c688e0260c",
+    "ZV-iOS/src/components/AppDialog.tsx": "62209a67d406cfa4381939bc420cb3a50823c7e68317c59d6b663d8682bf7bd3",
+    "ZV-iOS/src/components/AppearanceSettings.tsx": "284496607207305558293063b80c1796fab61383aa3fc447dcebe3e7325a8314",
+    "ZV-iOS/src/components/BiliMovieSettings.tsx": "b319ab86b070fa3efa94fd85929c0aa588582069bcc9c2a182624192d8adc880",
+    "ZV-iOS/src/components/EpisodePicker.tsx": "df27a1b65c5d65b3a30b529129c42c9c59e77b875ed65107f68aec1e84f2228e",
+    "ZV-iOS/src/components/MoviePanel.tsx": "cc771c92507edd301a79b0b095c2d85c65d9197628f293c9aa445a23db98b5d8",
+    "ZV-iOS/src/components/MusicPanel.tsx": "fd23ffc32e6877a10201ab952c7899360613dc5e13aa8e792f31dcd5a9a7b9c5",
+    "ZV-iOS/src/components/MusicVideo.tsx": "ee655c3e6107de54b7a739934ea89ceb7462bee4fb47ffba454b50f624aa4456",
+    "ZV-iOS/src/components/NativePreviewNotice.tsx": "1b4c2ef78622e25c371ff3f83cd864b7495ba8d1febaef7ad258fc79bda65bf1",
+    "ZV-iOS/src/components/PlaybackControls.tsx": "4daf7cbcc75323bd284eb1624dec071e9771f77548c99dbd0dc55533a6af0bb4",
+    "ZV-iOS/src/components/RoomSettings.tsx": "7f86e29b422b2c856a1c06724924fa30702220b0dc66b248d302a2ac35694f24",
+    "ZV-iOS/src/components/SongComments.tsx": "3a22d2a4464cc0e249cbbe53dde3b0f97ca81925120128cb3560ed0b8f5fc10f",
+    "ZV-iOS/src/components/SourceDropdown.tsx": "434b752e9501274c931ae426046b291bbb24594894cde57b35dfb4c8bea48dfb",
+    "ZV-iOS/src/components/SourcePicker.tsx": "320e4904b87248860026add0b9089893d6463b3d4be2afdc0efe32096277d3a7",
+    "ZV-iOS/src/components/Surface.tsx": "7d175bfd4353a7301ff0f26ae3e98c9136344a980c75fd38f3915d4e018c4aa8",
+    "ZV-iOS/src/components/VoicePanel.tsx": "f0b022aec9d072bf5c1b71dbd351e90413012cb44749ca6ac9dd602eb64338b0",
+    "ZV-iOS/src/lib/appearancePreferences.ts": "f010cb70e6b03c37e61ac0ba8bda8c76fe41d1752e3ad7c36846db515317f654",
+    "ZV-iOS/src/lib/deadline.ts": "626821a809de3219f289faa6ef7e6b271aa20176dd5d61af3a21039d3e680685",
+    "ZV-iOS/src/lib/homeLayout.ts": "86f36cd87778cb1b790ff4b5378b55625a4ee02544e98c65bd62c43fadc3eb64",
+    "ZV-iOS/src/lib/httpAuth.ts": "ca6403a165c4889934238f916addc31f858c36a665a737acc58ffb49fccb9a52",
+    "ZV-iOS/src/lib/mobileDesign.ts": "447f9fc3cf8e927d542007c2c6752065465ab6621f6728df15baed8c8068acb8",
+    "ZV-iOS/src/lib/roomLayout.ts": "dbd4488e361073f8f967c426209a02a551e223740f5bae0af54ad4e399836f2c",
+    "ZV-iOS/src/lib/server.ts": "517f1cf0c2e290eaa2d934c23dcc0772112fc16fef0167242bc9ff33abb586b0",
+    "ZV-iOS/src/lib/sessionLease.ts": "82ea6ff47c731debcee2dc897a89d2f8125bae7b0ece42fba893296722f7a5af",
+    "ZV-iOS/src/state/appearance.tsx": "79a794e40a55f082c6482cd44cc01c7e3f5f09ec08336f3f1de70f96de481061",
+    "ZV-iOS/src/state/session.tsx": "a3cd846e986a946ebf73506b5c97e24d364c3d855d85d4c368cd433d57e04ddd",
+    "ZV-iOS/tests/startup.test.mjs": "76aaad429456b2487381dcc20034b4c8cd010cd878a2ba1767e98c85b6f78d87"
+  },
+  "limits": [
+    "Native全应用/键盘/大字体/方向/玻璃验收待用户，不能宣称完全对齐",
+    "Expo Go缺少VLC/本机B站/语音/系统媒体桥接",
+    "I13原生独立房间心跳、后台切歌和审批尚未闭环",
+    "I14系统完整歌词页有平台差异",
+    "长时媒体/HLS子资源、真实账号/CDN和跨端真人语音待设备"
+  ],
+  "buildPolicy": "No EAS Build until user confirms UI and requests build",
+  "sourceHashScope": "SHA-256 of current working-tree file bytes; no ignored/template files or credentials",
+  "screenshots": {
+    "home-ipad.png": {
+      "scope": "RN Web exported UI, not native screenshot",
+      "sha256": "39d7291722e89649dac025fe133532b4198d6e15f0c5790b0d1b16cdfd0c8d8b"
+    },
+    "home-small-phone.png": {
+      "scope": "RN Web exported UI, not native screenshot",
+      "sha256": "c37e1a19772f8917f7956860bed36b9019d5bb7ba29005debc5e3a3f50aee4c6"
+    },
+    "music-ipad.png": {
+      "scope": "RN Web exported UI, not native screenshot",
+      "sha256": "3afd7677a31508b0a0dd1addfa3fb9e6d4fabb8b5bd9222a7a2bf8d6dadd18a6"
+    },
+    "music-phone-landscape.png": {
+      "scope": "RN Web exported UI, not native screenshot",
+      "sha256": "f3f076013a66826e40370fc483a5d416b19a02d6ce58e17cf83d9ad9ccb23659"
+    },
+    "source-phone.png": {
+      "scope": "RN Web exported UI, not native screenshot",
+      "sha256": "44509d4b9cc98b33b7a10f4a06301ac8ea6cbda08038687c3ff0cf983118c47a"
+    },
+    "source-tablet.png": {
+      "scope": "RN Web exported UI, not native screenshot",
+      "sha256": "30605bf7a6c2e9fae639da8bb9edfd97e52242dafa812b8df17a9f0d68aa0848"
+    },
+    "watch-portrait.png": {
+      "scope": "RN Web exported UI, not native screenshot",
+      "sha256": "9653b2e1137722a01e62301da7e08955d89db9e314722440d64c2478a7c4d828"
+    }
+  }
+}

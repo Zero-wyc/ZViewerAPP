@@ -3,8 +3,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState, Platform } from 'react-native';
 import type { Socket } from 'socket.io-client';
 
-import { fetchJson, normalizeServerUrl, type AuthUser, type Session } from '@/lib/server';
+import { fetchJson, HttpError, normalizeServerUrl, type AuthUser, type Session } from '@/lib/server';
 import { openSocket } from '@/lib/socket';
+import { withDeadline } from '@/lib/deadline';
+import { SessionLease } from '@/lib/sessionLease';
+import { authenticationFailure } from '@/lib/httpAuth';
 
 const SESSION_KEY = 'zviewer-ios-session';
 const SERVER_KEY = 'zviewer-ios-server';
@@ -12,7 +15,7 @@ const webPreviewStore = new Map<string, string>();
 
 async function readSaved(key: string): Promise<string | null> {
   if (Platform.OS === 'web') return webPreviewStore.get(key) || null;
-  return SecureStore.getItemAsync(key);
+  return withDeadline(() => SecureStore.getItemAsync(key), 5000);
 }
 
 async function save(key: string, value: string | null): Promise<void> {
@@ -21,8 +24,7 @@ async function save(key: string, value: string | null): Promise<void> {
     else webPreviewStore.set(key, value);
     return;
   }
-  if (value === null) await SecureStore.deleteItemAsync(key);
-  else await SecureStore.setItemAsync(key, value);
+  await withDeadline(() => value === null ? SecureStore.deleteItemAsync(key) : SecureStore.setItemAsync(key, value), 5000);
 }
 
 type AuthPayload = { accessToken: string; refreshToken?: string; user: AuthUser };
@@ -55,43 +57,55 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [restoring, setRestoring] = useState(true);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
-  const current = useRef<Session | null>(null);
-  const refreshInFlight = useRef<Promise<Session> | null>(null);
+  const current = useRef(new SessionLease<Session>());
+  const refreshInFlight = useRef<{ previous: Session; promise: Promise<Session> } | null>(null);
+  const persistence = useRef<Promise<void>>(Promise.resolve());
 
   const update = useCallback(async (next: Session | null) => {
-    current.current = next;
+    current.current.replace(next);
     setSession(next);
-    await persist(next);
-  }, []);
+    // Serialize writes so logout is persisted after an already-running save.
+    const pending = persistence.current.catch(() => {}).then(() => persist(next));
+    persistence.current = pending;
+    await pending;
+  }, [current]);
 
   const refresh = useCallback(async (previous: Session): Promise<Session> => {
-    if (!previous.refreshToken) throw new Error('登录状态已过期，请重新登录');
-    if (!refreshInFlight.current) {
-      refreshInFlight.current = (async () => {
+    if (!previous.refreshToken) throw new HttpError('登录状态已过期，请重新登录', 401);
+    if (refreshInFlight.current?.previous === previous) return refreshInFlight.current.promise;
+    if (current.current.value !== previous) throw new Error('登录状态已改变，请重试');
+    const lease = current.current.capture();
+    const pending = (async () => {
         const data = await fetchJson<AuthPayload>(`${previous.serverUrl}/api/auth/refresh`, {
           method: 'POST',
           body: JSON.stringify({ refreshToken: previous.refreshToken }),
         });
+        if (!data.accessToken) throw new HttpError('服务器未返回完整刷新信息', 502);
         const next = {
           ...previous,
           accessToken: data.accessToken,
           refreshToken: data.refreshToken || previous.refreshToken,
           user: data.user || previous.user,
         };
+        if (!current.current.accepts(lease)) throw new Error('登录状态已改变，请重试');
         await update(next);
         return next;
-      })().finally(() => { refreshInFlight.current = null; });
-    }
-    return refreshInFlight.current;
-  }, [update]);
+      })().finally(() => { if (refreshInFlight.current?.promise === pending) refreshInFlight.current = null; });
+    refreshInFlight.current = { previous, promise: pending };
+    return pending;
+  }, [current, update]);
 
   const requestText = useCallback(async (path: string, init: RequestInit = {}) => {
     if (!path.startsWith('/api/') || path.startsWith('//') || path.includes('\\')) throw new Error('无效的服务端接口');
-    let active = current.current;
+    let active = current.current.value;
     if (!active) throw new Error('请先登录');
+    let lease = current.current.capture();
     const execute = async (token: string) => {
+      if (!current.current.accepts(lease)) throw new Error('登录状态已改变，请重试');
+      return withDeadline(async signal => {
       const response = await fetch(`${active!.serverUrl}${path}`, {
         ...init,
+        signal,
         headers: {
           Accept: 'application/json',
           ...(init.body ? { 'Content-Type': 'application/json' } : {}),
@@ -99,22 +113,31 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           ...init.headers,
         },
       });
-      return response;
+      const text = await response.text();
+      if (!current.current.accepts(lease)) throw new Error('登录状态已改变，请重试');
+      return { status: response.status, ok: response.ok, text };
+      }, 15000, init.signal);
     };
     let response = await execute(active.accessToken);
-    if (response.status === 401 || response.status === 403) {
+    if (authenticationFailure(response.status, response.text)) {
       try {
         active = await refresh(active);
+        if (current.current.value !== active) throw new Error('登录状态已改变，请重试');
+        lease = current.current.capture();
         response = await execute(active.accessToken);
       } catch (error) {
-        await update(null);
+        if (current.current.value === active && error instanceof HttpError && [401, 403].includes(error.status)) await update(null);
         throw error;
       }
     }
-    const text = await response.text();
-    if (!response.ok) { let message = ''; try { message = JSON.parse(text).message; } catch {} throw new Error(message || `请求失败 (${response.status})`); }
+    const text = response.text;
+    if (!response.ok) {
+      if (authenticationFailure(response.status, text) && current.current.value === active) await update(null);
+      let message = ''; try { message = JSON.parse(text).message; } catch {}
+      throw new HttpError(message || `请求失败 (${response.status})`, response.status);
+    }
     return text;
-  }, [refresh, update]);
+  }, [current, refresh, update]);
   const request = useCallback(async <T,>(path: string, init: RequestInit = {}) => {
     const data = JSON.parse(await requestText(path, init)) as T & { success: boolean; message?: string };
     if (!data.success) throw new Error(data.message || '服务器未返回成功结果');
@@ -123,35 +146,44 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    const lease = current.current.capture();
     void (async () => {
+      let parsed: Session | null = null;
       try {
-        const server = await readSaved(SERVER_KEY);
+        const [server, raw] = await Promise.all([readSaved(SERVER_KEY).catch(() => null), readSaved(SESSION_KEY).catch(() => null)]);
+        if (!mounted || !current.current.accepts(lease)) return;
         if (mounted && server) setSavedServer(server);
-        const raw = await readSaved(SESSION_KEY);
         if (!raw) return;
-        const parsed = JSON.parse(raw) as Session;
+        parsed = JSON.parse(raw) as Session;
         if (!parsed.serverUrl || !parsed.accessToken || !parsed.user) return;
-        current.current = parsed;
-        if (mounted) setSession(parsed);
+        parsed.serverUrl = normalizeServerUrl(parsed.serverUrl);
+        current.current.replace(parsed);
+        setSession(parsed);
+      } catch {
+        // A damaged local session should not prevent a fresh login.
+        parsed = null;
+      } finally {
+        if (mounted) setRestoring(false);
+      }
+      // Only keychain reads gate the form. Offline verification stays bounded
+      // and may finish after the user has chosen logout or another server.
+      if (parsed && mounted && current.current.value === parsed) {
         try {
           const response = await request<{ user: AuthUser }>('/api/auth/me');
-          if (mounted) {
-            const verified = { ...current.current!, user: response.user };
+          if (mounted && current.current.value === parsed && JSON.stringify(parsed.user) !== JSON.stringify(response.user)) {
+            const verified = { ...parsed, user: response.user };
             await update(verified);
           }
         } catch {
           // Keep the stored session when offline. Auth failures are cleared by request().
         }
-      } catch {
-        // A damaged local session should not prevent a fresh login.
-      } finally {
-        if (mounted) setRestoring(false);
       }
     })();
     return () => { mounted = false; };
-  }, [request, update]);
+  }, [current, request, update]);
 
   const login = useCallback(async (server: string, mode: 'account' | 'guest', username = '', password = '') => {
+    const lease = current.current.capture();
     const serverUrl = normalizeServerUrl(server);
     if (mode === 'account' && (!username.trim() || !password)) throw new Error('请输入用户名和密码');
     const data = await fetchJson<AuthPayload>(`${serverUrl}/api/auth/${mode === 'guest' ? 'guest' : 'login'}`, {
@@ -159,9 +191,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify(mode === 'guest' ? {} : { username: username.trim(), password }),
     });
     if (!data.accessToken || !data.user) throw new Error('服务器未返回完整登录信息');
+    if (!current.current.accepts(lease)) throw new Error('登录状态已改变，请重试');
     await update({ serverUrl, accessToken: data.accessToken, refreshToken: data.refreshToken || '', user: data.user });
     setSavedServer(serverUrl);
-  }, [update]);
+  }, [current, update]);
 
   const logout = useCallback(async () => { await update(null); }, [update]);
 

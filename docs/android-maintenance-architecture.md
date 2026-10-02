@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | Android | 已完成开发，当前发布版本 1.5.0（versionCode 150） | 以后优先在共享前端实现产品行为，再同步 Android 原生宿主和发布包 |
 | HarmonyOS | 已完成开发并已有 ArkWeb/HAP 发布线 | 与 Android 共享网页业务，但原生桥接、B 站代理和打包链路独立维护 |
-| iOS | 1.5.0 / b13 unsigned 集中候选版：房间/B站/语音恢复、外观、队列歌词、系统媒体、关联视频和手势已实现 | 对接隔离官方 v4.2.1，待用户签名及 iPhone/iPad 验收；后台独立 Socket 心跳/切歌/审批未闭环，不宣称双端等效。见 [b13 交付记录](releases/ios-1.5.0-13-unsigned.md) |
+| iOS | 1.5.0 / b15 源码 Expo Go 预览：共享移动端主题/背景、首页/大厅、房间/竖屏下方面板、片单/集中选集、音乐/弹窗已移植；原生对齐待复验 | 用户要求先原生 UI 预览，待中的 b14 EAS 已取消，未构建 b15 IPA。界面确认后才再次构建；I13 后台独立业务 Socket 等仍未闭环。见 [b15 预览](releases/ios-1.5.0-15-preview.md) |
 
 当前 Android 的发布入口是 `ZV-Android/`，网页入口是仓库根目录的 `src/`。`ZV-HarmonyOS/` 不应复制 Android Gradle 或 Java 代码；它通过 ArkWeb 加载同一份 `dist/`。
 
@@ -133,3 +133,7 @@ Android 系统入口为 `SystemMediaSessionPlugin.java → PlaybackService.java`
 - 鸿蒙同步适配方案：[`harmonyos-global-appearance-sync-plan.md`](harmonyos-global-appearance-sync-plan.md)
 - HarmonyOS 维护架构：[`harmonyos-maintenance-architecture.md`](harmonyos-maintenance-architecture.md)
 - iOS 后续开发：[`ios-continuation-plan.md`](ios-continuation-plan.md)
+
+## 2026-10-02 iOS 界面对齐交接
+
+双端继续共用 src/，iOS 使用 RN + VLC。mobileDesign、Surface/AppDialog、来源下拉/集中选集移植产品布局与字段；默认背景复用 public/Nacho3.jpg，首页 B站账号改为可见文字，标题/提示有主题底色，竖屏评论位于视频下方。59 单测、29 首页/59 房间/21 来源 Web、24 Yoga 通过；只修改 iOS 与维护文档，未改双端程序。本轮无新增 EAS Build/Update 或 IPA，继续 Expo Go 预览；I13 后台业务 Socket 和原生等效验收保持待完成。详见 [b15 预览](releases/ios-1.5.0-15-preview.md)。

@@ -6,7 +6,7 @@ const { strict: assert } = require('node:assert');
 const dependency = createRequire(resolve(__dirname, '../../../ZViewer-source code/package.json'));
 const { chromium } = dependency('playwright');
 const { io } = dependency('socket.io-client');
-const output = resolve(__dirname, '../../../local-ios-validation/ios-150-b13');
+const output = resolve(process.env.IOS_TEST_OUTPUT || resolve(__dirname, '../../../local-ios-validation/ios-150-b13'));
 const backend = 'http://127.0.0.1:7343';
 (async () => {
   const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--host-resolver-rules=MAP zviewer.localtest 127.0.0.1', '--no-proxy-server'] });
@@ -15,15 +15,15 @@ const backend = 'http://127.0.0.1:7343';
   const check = (name, value = true) => { assert.ok(value, name); report.checks.push(name); };
   try {
     await page.goto('http://127.0.0.1:7347');
-    await page.getByPlaceholder('https://example.com').fill('http://zviewer.localtest:7343'); await page.getByPlaceholder('用户名', { exact: true }).fill('root'); await page.getByPlaceholder('密码', { exact: true }).fill('root');
+    await page.getByPlaceholder('https://example.com', { exact: true }).fill('http://zviewer.localtest:7343'); await page.getByPlaceholder('用户名', { exact: true }).fill('root'); await page.getByPlaceholder('密码', { exact: true }).fill('root');
     await page.getByRole('button', { name: '登录并选择房间', exact: true }).click(); await page.getByText('● 在线', { exact: true }).waitFor(); check('local account login + Socket connection');
     await page.getByRole('button', { name: '创建房间', exact: true }).click(); await page.getByPlaceholder('可留空').first().fill('iOS candidate UI check'); await page.getByRole('button', { name: '确认创建', exact: true }).click();
     await page.getByText('等待房主选择影片', { exact: true }).waitFor(); check('create room + restore host'); const roomId = new URL(page.url()).pathname.split('/').at(-1);
     for (const mode of ['浅色', '深色']) {
-      await page.getByRole('button', {name:'全局外观',exact:true}).click();
+      await page.getByRole('button', {name:'房间设置',exact:true}).click(); await page.getByRole('button', {name:'全局外观',exact:true}).click();
       await page.getByRole('button', {name:mode,exact:true}).click(); await page.waitForTimeout(400);
       await page.screenshot({path:resolve(output, `appearance-${mode === '浅色' ? 'light' : 'dark'}.png`)});
-      await page.getByRole('button', {name:'完成',exact:true}).click();
+      await page.getByTestId('dialog-外观设置').getByRole('button', {name:'关闭',exact:true}).click();
       check(`${mode} appearance switches without leaving room`, await page.getByText('等待房主选择影片',{exact:true}).isVisible());
     }
     const login = await (await fetch(backend + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'root', password: 'root' }) })).json(); const headers = { Authorization: `Bearer ${login.accessToken}`, 'Content-Type': 'application/json' };
@@ -32,28 +32,44 @@ const backend = 'http://127.0.0.1:7343';
     const movies = await (await fetch(`${backend}/api/rooms/${roomId}/movies`, { headers })).json(); check('add movie through UI persists canonical source', movies.movies.some(item => item.title === 'UI direct source' && !item.url.includes('token=')));
     // Exercise the reported landscape entry and repeated dismissal/resizing.
     // Web verifies layout/lifecycle only; UIKit rotation still needs the unsigned device build.
-    for (const [w,h] of [[1180,820],[820,1180],[390,844]]) {
+    for (const [w,h] of [[1180,820],[820,1180],[390,844],[1390,970]]) {
       await page.setViewportSize({width:w,height:h}); await page.waitForTimeout(200);
+      const frame = await page.getByTestId('room-media-frame').boundingBox();
+      const videoBox = await page.getByTestId('video-container').boundingBox();
+      check(`watch media frame and empty player stay visible at ${w}x${h}`, frame && videoBox && frame.width > 250 && frame.height > 170 && videoBox.width > 250 && videoBox.height > 100);
       if (await page.getByRole('button',{name:'展开侧栏',exact:true}).isVisible()) await page.getByRole('button',{name:'展开侧栏',exact:true}).click();
+      if (h > w) {
+        await page.waitForTimeout(200); const media = await page.getByTestId('room-media-frame').boundingBox(); const sidebar = await page.getByTestId('room-sidebar').boundingBox(); const video = await page.getByTestId('video-container').boundingBox();
+        check(`portrait panels stay below video at ${w}x${h}`, sidebar && media && video && sidebar.y >= media.y + media.height - 1 && video.y + video.height <= sidebar.y + 1);
+        await page.screenshot({path:resolve(output, `ios-watch-portrait-${w}x${h}.png`)});
+      }
       for (let attempt=0;attempt<3;attempt++) {
         await page.getByRole('button',{name:'添加影片',exact:true}).click(); await page.getByTestId('source-picker').waitFor();
         await page.waitForTimeout(400); const box=await page.getByTestId('source-picker').boundingBox();
-        assert.ok(box && Math.abs(box.width-w)<2 && Math.abs(box.height-h)<2, 'Source picker fills the current viewport');
+        assert.ok(box && box.width <= 720 && box.x >= 0 && box.y >= 0 && box.x + box.width <= w + 1 && box.y + box.height <= h + 1, 'Source picker is a bounded dialog within the current viewport');
         if (attempt===0) await page.screenshot({path:resolve(output,`ios-source-picker-${w}x${h}.png`)});
         await page.getByRole('button',{name:'完成',exact:true}).click(); await page.getByTestId('source-picker').waitFor({state:'hidden'});
       }
       check(`source picker opens/closes three times without layout changes at ${w}x${h}`);
+    }
+    for (const [width, height] of [[1180, 820], [390, 844]]) {
+      await page.setViewportSize({ width, height });
+      await page.getByRole('button', { name: '设置', exact: true }).click();
+      const dialog = page.getByTestId('dialog-播放设置'); await dialog.waitFor();
+      const box = await dialog.boundingBox();
+      check(`playback settings fit ${width}x${height} with a fixed close control`, box && box.x >= 0 && box.y >= 0 && box.x + box.width <= width + 1 && box.y + box.height <= height + 1 && await dialog.getByRole('button', { name: '关闭设置', exact: true }).isVisible());
+      await dialog.getByRole('button', { name: '关闭设置', exact: true }).click();
     }
     await page.setViewportSize({width:1180,height:820});
     const guest = await (await fetch(backend + '/api/auth/guest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).json();
     viewer = io(backend, { transports: ['websocket'], auth: { token: guest.accessToken }, reconnection: false });
     await new Promise((resolve, reject) => { viewer.once('connect', resolve); viewer.once('connect_error', reject); });
     await new Promise((resolve, reject) => viewer.timeout(10000).emit('request-join', { roomId }, (failure, data) => failure || !data?.success ? reject(new Error('Local guest join failed')) : resolve(data)));
-    await page.getByText('房间', { exact: true }).click(); await page.getByText(guest.user.username + ' · viewer', { exact: true }).waitFor(); check('member join follows server viewer-joined event');
+    await page.getByText('房间', { exact: true }).click(); await page.getByRole('button', { name: /^在线成员/ }).click(); await page.getByText(guest.user.username + ' · viewer', { exact: true }).waitFor(); check('member join follows server viewer-joined event');
     viewer.disconnect(); await page.getByText(guest.user.username + ' · viewer', { exact: true }).waitFor({ state: 'hidden' }); check('member leave follows server viewer-left event');
-    await page.getByPlaceholder('房间名称').fill('Updated iOS room'); await page.getByRole('button', { name: '保存名称', exact: true }).click(); await page.getByText('Updated iOS room', { exact: true }).filter({ visible: true }).first().waitFor(); check('rename room follows actual server protocol');
+    await page.getByRole('button', { name: '房间信息', exact: true }).click(); await page.getByPlaceholder('房间名称').fill('Updated iOS room'); await page.getByRole('button', { name: '保存名称', exact: true }).click(); await page.getByText('Updated iOS room', { exact: true }).filter({ visible: true }).first().waitFor(); check('rename room follows actual server protocol');
     const statusResponse = page.waitForResponse(response => response.url().endsWith('/api/music/login/status'));
-    await page.getByRole('button', { name: '一起听', exact: true }).first().click(); await page.getByRole('button', { name: '网易云音乐', exact: true }).waitFor(); check('Android music navigation and floating player are present');
+    await page.getByRole('button', { name: '房间设置', exact: true }).click(); await page.getByTestId('dialog-房间').getByRole('button', { name: '一起听', exact: true }).click(); await page.getByTestId('dialog-房间').getByRole('button', { name: '关闭', exact: true }).click(); await page.getByRole('button', { name: '网易云音乐', exact: true }).waitFor(); check('Android music navigation and floating player are present');
     const statusDto = await (await statusResponse).json(); assert.equal(statusDto.loggedIn, false); assert.equal(statusDto.success, undefined);
     for (let attempt=0; attempt<3; attempt++) { await page.getByRole('button',{name:'打开完整音乐播放器',exact:true}).click(); await page.getByRole('button',{name:'追加 / 更换视频',exact:true}).waitFor(); await page.getByRole('button',{name:'收起 / 关闭',exact:true}).click(); }
     check('empty music player opens/closes three times without update loops');
@@ -67,8 +83,11 @@ const backend = 'http://127.0.0.1:7343';
     }
     await page.getByText('我的音乐',{exact:true}).click(); await page.getByTestId('ncm-menu').waitFor({state:'hidden'}); await page.getByText('请先登录网易云音乐',{exact:true}).waitFor(); check('menu selection closes dropdown and switches music page');
     mkdirSync(output, { recursive: true });
-    for (const [device,w,h] of [['ipad-landscape',1180,820],['ipad-portrait',820,1180],['iphone',390,844]]) {
+    for (const [device,w,h] of [['ipad-landscape',1180,820],['ipad-portrait',820,1180],['iphone',390,844],['reported-ipad',1390,970],['phone-landscape',844,390]]) {
       await page.setViewportSize({width:w,height:h}); await page.waitForTimeout(200); await page.waitForTimeout(150);
+      const frame = await page.getByTestId('room-media-frame').boundingBox();
+      const music = await page.getByTestId('music-surface').boundingBox();
+      check(`music surface fills media frame at ${w}x${h}`, frame && music && frame.width > 250 && frame.height > 170 && Math.abs(music.width-frame.width)<2 && Math.abs(music.height-frame.height)<2);
       await page.screenshot({path:resolve(output,`ios-music-${device}.png`)});
       check(`music ${device} has no horizontal page overflow`, await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2));
     }
@@ -102,8 +121,8 @@ const backend = 'http://127.0.0.1:7343';
     check('song comment modal renders fixture and failed-avatar placeholder'); await page.getByRole('button',{name:'关闭',exact:true}).filter({visible:true}).last().click();
     await page.getByRole('button',{name:'队列',exact:true}).click();
     await page.getByRole('button', { name: '移除', exact: true }).click(); await page.getByText('播放队列 · 0', { exact: true }).waitFor(); check('real server music queue remove/broadcast'); await page.getByRole('button', { name: '收起 / 关闭', exact: true }).click();
-    await page.getByRole('button', { name: '投屏', exact: true }).click(); await page.getByText('共享观看需要原生安装包', { exact: true }).waitFor(); check('screen sharing missing-module preview remains usable');
-    await page.getByRole('button', { name: '一起看', exact: true }).click(); await page.getByText('等待房主选择影片', { exact: true }).waitFor();
+    await page.getByRole('button', { name: '账号', exact: true }).click(); await page.getByTestId('music-account-menu').getByRole('button', { name: '投屏', exact: true }).click(); await page.getByText('共享观看需要原生安装包', { exact: true }).waitFor(); check('screen sharing missing-module preview remains usable');
+    await page.getByRole('button', { name: '房间设置', exact: true }).click(); await page.getByTestId('dialog-房间').getByRole('button', { name: '同步观影', exact: true }).click(); await page.getByTestId('dialog-房间').getByRole('button', { name: '关闭', exact: true }).click(); await page.getByText('等待房主选择影片', { exact: true }).waitFor();
     const bounds = () => page.getByTestId('video-container').boundingBox();
     for (const [w,h] of [[1180,820],[820,1180],[390,844]]) {
       await page.setViewportSize({ width:w,height:h }); await page.getByRole('button', { name:'全屏',exact:true }).click();
@@ -120,7 +139,7 @@ const backend = 'http://127.0.0.1:7343';
       await page.setViewportSize({ width, height }); await page.waitForTimeout(700); await page.screenshot({ path: resolve(output, `ios-ui-${name}.png`) });
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2); check(`${name} has no horizontal page overflow`, !overflow);
     }
-    await page.getByText('‹ 返回', { exact: true }).click(); await page.getByRole('button', { name: '退出登录 / 更换服务器', exact: true }).waitFor(); check('leave room returns to lobby');
+    await page.getByRole('button', { name: '离开房间', exact: true }).click(); await page.getByRole('button', { name: '离开', exact: true }).click(); await page.getByRole('button', { name: '退出登录 / 更换服务器', exact: true }).waitFor(); check('leave room returns to lobby');
     await fetch(`${backend}/api/rooms/${roomId}`, { method: 'DELETE', headers }); check('no JS runtime exceptions', errors.length === 0);
   } catch (failure) { report.hitStack = await page.getByRole('button',{name:'歌曲评论',exact:true}).boundingBox().then(box => box ? page.evaluate(({x,y})=>document.elementsFromPoint(x,y).slice(0,6).map(el=>({tag:el.tagName,style:el.getAttribute('style'),label:el.getAttribute('aria-label'),text:el.textContent.slice(0,120)})),{x:box.x+box.width/2,y:box.y+box.height/2}) : null).catch(()=>null); report.failed = failure.message.replace(/https?:\/\/\S+/g, '[url]'); await page.screenshot({ path: resolve(output, 'ios-ui-failure.png') }); throw failure; }
   finally { viewer?.disconnect(); await browser.close(); writeFileSync(resolve(output, 'ios-ui-results.json'), JSON.stringify(report, null, 2)); }

@@ -1,3 +1,10 @@
+import { withDeadline } from './deadline';
+
+export class HttpError extends Error {
+  status: number;
+  constructor(message: string, status: number) { super(message); this.status = status; }
+}
+
 export type AuthUser = {
   id: number;
   username: string;
@@ -44,13 +51,16 @@ export function messageFor(error: unknown): string {
 }
 
 export async function fetchJson<T>(url: string, init: RequestInit = {}): Promise<ApiResult<T>> {
+  return withDeadline(async signal => {
   const response = await fetch(url, {
     ...init,
+    signal,
     headers: { Accept: 'application/json', ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...init.headers },
   });
   const data = await response.json().catch(() => ({})) as ApiResult<T>;
   if (!response.ok || !data.success) {
-    throw new Error(data.message || `服务器请求失败 (${response.status})`);
+    throw new HttpError(data.message || `服务器请求失败 (${response.status})`, response.status);
   }
   return data;
+  }, 15000, init.signal);
 }

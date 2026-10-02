@@ -1,0 +1,20 @@
+{
+  "version": "1.5.0",
+  "build": "14",
+  "scope": "Intermediate debugging, no final IPA delivered from canceled snapshot",
+  "easBuilds": [
+    {
+      "id": "0665bfa3-11d9-44bf-a2f9-317f1f68e9dd",
+      "status": "FINISHED",
+      "finalArtifact": false,
+      "reason": "Early b14 downloaded by user, missing subsequent room/media and 403 fixes"
+    },
+    {
+      "id": "95eec7cf-90b7-421f-91d1-e759ef2c794e",
+      "status": "CANCELED",
+      "completedAt": "2026-10-02T09:02:31Z",
+      "reason": "User requested Expo Go UI approval before further EAS Build"
+    }
+  ],
+  "currentPreview": "ios-1.5.0-15-preview.md"
+}
