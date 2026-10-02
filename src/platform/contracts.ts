@@ -68,6 +68,9 @@ export interface SystemMediaState {
   artist: string
   album: string
   artwork: string
+  /** Standard LRC and the current line; absent for video/no-lyric tracks. */
+  lyric?: string
+  lyricLine?: string
   playing: boolean
   position: number
   duration: number

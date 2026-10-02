@@ -250,6 +250,23 @@ html[data-mobile-reduced-motion="true"] *::after {
 }
 .app-shell.app-shell-room { padding: 0; }
 .app-shell-room .mobile-room { background: transparent; color: var(--appearance-text); padding: var(--app-safe-top) var(--app-safe-right) var(--app-safe-bottom) var(--app-safe-left); }
+/* Expanded landscape playback paints behind the cutout/navigation safe areas.
+   Only foreground content is inset, so artwork keeps its camera clearance. */
+@media (orientation: landscape) {
+  .app-shell-room .mobile-room-music:has(.music-player-overlay) { padding: 0; }
+  .app-shell-room .music-player-overlay .music-player-content {
+    padding: calc(95px + var(--app-safe-top)) calc(45px + var(--app-safe-right)) calc(60px + var(--app-safe-bottom)) calc(45px + var(--app-safe-left));
+  }
+  .app-shell-room .music-player-overlay .music-player-collapse {
+    top: calc(12px + var(--app-safe-top));
+    right: calc(12px + var(--app-safe-right));
+  }
+}
+@media (orientation: landscape) and (max-height: 540px) {
+  .app-shell-room .music-player-overlay .music-player-content {
+    padding: calc(36px + var(--app-safe-top)) calc(16px + var(--app-safe-right)) calc(20px + var(--app-safe-bottom)) calc(16px + var(--app-safe-left));
+  }
+}
 .app-shell-room .mobile-room-header,
 .app-shell-room .mobile-room-details,
 .app-shell-room .mobile-voice-panel,

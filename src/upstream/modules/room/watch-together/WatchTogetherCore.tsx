@@ -43,6 +43,7 @@ import {
 import type { MediaFormat } from '@/lib/mediaFormat'
 import { useVideoPlayingState } from '@/modules/art-player/useVideoPlayingState'
 import { systemArtworkUrl, useSystemMediaSession } from '../../../../mobile/useSystemMediaSession'
+import { useWatchGestures } from './useWatchGestures'
 import { SettingsPanel } from '@/components/VideoPlayer/SettingsPanel'
 import { SubtitleOverlay } from '@/components/VideoPlayer/SubtitleOverlay'
 import { isCliProxyUrl } from '@/modules/player/services/url-proxy'
@@ -1528,6 +1529,10 @@ export function WatchTogetherCore({
 
   // ── 观众申请按钮（渲染用）──────────────────────────────
   const isPlaying = useVideoPlayingState(video)
+
+  useWatchGestures({ art, video, stage: stageRef, fullscreen: Boolean(isWebFullscreen),
+    canControl: isHost || hostOffline, requestPlay: handleRequestPlay,
+    requestPause: handleRequestPause, requestSeek: handleRequestSeek })
 
   useSystemMediaSession({
     getSnapshot() {

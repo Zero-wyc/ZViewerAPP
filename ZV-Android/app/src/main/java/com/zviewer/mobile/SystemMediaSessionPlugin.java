@@ -14,7 +14,7 @@ public class SystemMediaSessionPlugin extends Plugin {
 
     @PluginMethod public void update(PluginCall call) {
         String state = call.getData().toString();
-        if (state.length() > 16384 || call.getString("sessionId", "").isEmpty()) {
+        if (state.length() > 262144 || call.getString("sessionId", "").isEmpty()) {
             call.reject("Invalid media session state");
             return;
         }

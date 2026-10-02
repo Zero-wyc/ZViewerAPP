@@ -91,6 +91,7 @@ import { usePlayerUiTone } from '../hooks/usePlayerUiTone'
 import { useLandscapeToolbarFlash } from '../hooks/useLandscapeToolbarFlash'
 import { useToolbarScrollable } from '../hooks/useToolbarScrollable'
 import { useFullscreenToggle } from '../hooks/useFullscreenToggle'
+import { isGlobalAppearanceRuntime } from '../../../../platform/runtime'
 
 export interface ListenTogetherPanelProps {
   socket: Socket | null
@@ -612,7 +613,7 @@ function ListenTogetherInner({
 
   return (
     <div
-      className="relative flex h-full min-w-0 flex-col overflow-hidden"
+      className="music-player-panel relative flex h-full min-w-0 flex-col overflow-hidden"
       data-music-immersive={immersive}
       // 提示条黑底 alpha 跟随滑块（zen-notice-bar 内 calc 引用）；
       // --lt-ui-blur 为冰霜层模糊半径（设置：UI 模糊浓度）；
@@ -722,7 +723,7 @@ function ListenTogetherInner({
         <div
           onPointerDown={isLandscapeShort ? flashLandscapeToolbar : undefined}
           className={cn(
-            'relative z-[1] flex h-full min-h-0 items-stretch justify-start',
+            'music-player-content relative z-[1] flex h-full min-h-0 items-stretch justify-start',
             'pb-[60px] pt-[95px]',
             isWebFullscreen ? 'px-[60px]' : 'px-[45px]',
             isPortraitMobile &&
@@ -867,6 +868,7 @@ function ListenTogetherInner({
               uiTone={uiTone}
               onToggleUiTone={togglePlayerUiTone}
               isFullscreen={isFullscreen}
+              showFullscreen={!isGlobalAppearanceRuntime()}
               onToggleFullscreen={toggleFullscreen}
               onClose={closePlayerOverlay}
             />
@@ -948,6 +950,7 @@ function ListenTogetherInner({
               uiTone={uiTone}
               onToggleUiTone={togglePlayerUiTone}
               isFullscreen={isFullscreen}
+              showFullscreen={!isGlobalAppearanceRuntime()}
               onToggleFullscreen={toggleFullscreen}
             />
           )}

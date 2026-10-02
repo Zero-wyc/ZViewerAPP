@@ -48,7 +48,7 @@ class HarmonyHost {
   }
 
   request(id: number, action: string, argument: string): void {
-    if (!Number.isSafeInteger(id) || id < 1 || id > 2147483647 || argument.length > 16384) return;
+    if (!Number.isSafeInteger(id) || id < 1 || id > 2147483647 || argument.length > 262144) return;
     this.perform(action, argument).then((result: string | null) => this.respond(id, null, result))
       .catch((error: Error) => {
         console.error(`ZViewer native ${action} failed: ${error.message}`);

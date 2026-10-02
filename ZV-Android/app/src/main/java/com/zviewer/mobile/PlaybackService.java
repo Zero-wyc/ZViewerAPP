@@ -130,7 +130,7 @@ public final class PlaybackService extends Service {
     private String currentMetadataKey() {
         return state.optString("mediaId") + "\n" + state.optString("title") + "\n" + state.optString("artist")
             + "\n" + state.optString("album") + "\n" + state.optDouble("duration") + "\n" + artworkUrl
-            + "\n" + (artwork == null ? 0 : artwork.getGenerationId());
+            + "\n" + (artwork == null ? 0 : artwork.getGenerationId()) + "\n" + state.optString("lyric") + "\n" + state.optString("lyricLine");
     }
     private void refreshNotification() {
         String key = currentMetadataKey() + "\n" + state.optBoolean("playing") + "\n" + state.optJSONArray("actions");
@@ -159,6 +159,10 @@ public final class PlaybackService extends Service {
             .putString(MediaMetadata.METADATA_KEY_TITLE, state.optString("title", "ZViewer"))
             .putString(MediaMetadata.METADATA_KEY_ARTIST, state.optString("artist"))
             .putString(MediaMetadata.METADATA_KEY_ALBUM, state.optString("album"))
+            // Android has no standard dedicated lyrics panel; compatible controllers
+            // can read the full LRC, while notifications expose the current line.
+            .putString("android.media.metadata.LYRICS", state.optString("lyric"))
+            .putString(MediaMetadata.METADATA_KEY_DISPLAY_DESCRIPTION, state.optString("lyricLine"))
             .putLong(MediaMetadata.METADATA_KEY_DURATION, Math.max(0, (long) (state.optDouble("duration") * 1000)));
         if (artwork != null) metadata.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, artwork).putBitmap(MediaMetadata.METADATA_KEY_ART, artwork).putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON, artwork);
         session.setMetadata(metadata.build());
@@ -174,6 +178,7 @@ public final class PlaybackService extends Service {
         Notification.Builder builder = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
         builder.setSmallIcon(R.drawable.ic_media_notification).setContentTitle(state.optString("title", "ZViewer"))
             .setContentText(state.optString("artist")).setContentIntent(openApp()).setLargeIcon(artwork)
+            .setSubText(state.optString("lyricLine"))
             .setOnlyAlertOnce(true).setVisibility(Notification.VISIBILITY_PUBLIC).setCategory(Notification.CATEGORY_TRANSPORT)
             .setOngoing(state.optBoolean("playing"));
         int count = 0;

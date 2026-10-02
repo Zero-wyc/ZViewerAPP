@@ -1,9 +1,11 @@
 import { useMusicPlayer } from './useMusicPlayer'
+import { useSystemLyrics } from './useSystemLyrics'
 import { systemArtworkUrl, useSystemMediaSession } from '../../../../mobile/useSystemMediaSession'
 
 /** Native hosts use a real media session and a playback background task. */
 export function useMediaSessionSync(): void {
   const { isPlaying, currentSong, canControl, togglePlay, next, prev, seek, requestControl, getAudio } = useMusicPlayer()
+  const lyrics = useSystemLyrics(currentSong)
   useSystemMediaSession({
     getSnapshot() {
       if (!currentSong) return null
@@ -13,6 +15,7 @@ export function useMediaSessionSync(): void {
         mediaId: `${currentSong.biliBvid || currentSong.songId}:${currentSong.biliCid || 0}`,
         kind: 'audio', title: currentSong.name, artist: currentSong.artist || '', album: currentSong.album || '',
         artwork: systemArtworkUrl(currentSong.cover), playing: isPlaying,
+        lyric: lyrics.lyric, lyricLine: lyrics.currentLine(audio?.currentTime || 0),
         position: Math.max(0, audio?.currentTime || 0),
         duration: duration && Number.isFinite(duration) ? duration : Math.max(0, currentSong.durationMs / 1000),
         playbackRate: audio?.playbackRate || 1,

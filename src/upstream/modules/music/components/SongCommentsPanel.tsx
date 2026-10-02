@@ -24,6 +24,7 @@ import { useMusicStore } from '../store'
 import { useMusicPlayer } from '../hooks/useMusicPlayer'
 import { cn } from '@/lib/utils'
 import { parseTextWithEmoji } from '../utils/neteaseEmoji'
+import { fallbackNcmAvatar, neteaseImageUrl, NCM_AVATAR_FALLBACK } from '../utils/neteaseImage'
 
 /** 评论条目（/comment/new 与 /comment/floor 通用的字段子集） */
 interface NcmComment {
@@ -125,10 +126,7 @@ const getUserName = (user: NcmComment['user']) =>
   (user && user.nickname) || '未知用户'
 
 const getUserAvatar = (user: NcmComment['user'], size = 40) => {
-  if (user && user.avatarUrl) {
-    return `${user.avatarUrl}?param=${size}y${size}`
-  }
-  return 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='
+  return neteaseImageUrl(user?.avatarUrl, size) || NCM_AVATAR_FALLBACK
 }
 
 /** 根评论 id：显式根 > parentCommentId > 自身（Hydrogen resolveReplyRootCommentId） */
@@ -1124,6 +1122,8 @@ function CommentCard({
         <div className="ac-user-avatar">
           <img
             src={getUserAvatar(comment.user, 40)}
+            referrerPolicy="no-referrer"
+            onError={fallbackNcmAvatar}
             alt={getUserName(comment.user)}
             loading="lazy"
             decoding="async"
@@ -1192,6 +1192,8 @@ function CommentCard({
                       <div className="ac-floor-avatar">
                         <img
                           src={getUserAvatar(reply.user, 24)}
+                          referrerPolicy="no-referrer"
+                          onError={fallbackNcmAvatar}
                           alt={getUserName(reply.user)}
                           loading="lazy"
                           decoding="async"

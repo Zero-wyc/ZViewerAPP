@@ -13,6 +13,8 @@ export interface MediaSessionState {
   artist: string;
   album: string;
   artwork: string;
+  lyric?: string;
+  lyricLine?: string;
   playing: boolean;
   position: number;
   duration: number;
@@ -144,11 +146,12 @@ export class NativeMediaSession {
   private async publishMetadata(): Promise<void> {
     if (this.state === null || this.session === null) return;
     const key = JSON.stringify([this.state.mediaId, this.state.title, this.state.artist, this.state.album,
-      this.state.duration, this.artworkUrl, this.artwork !== null]);
+      this.state.duration, this.artworkUrl, this.artwork !== null, this.state.lyric, this.state.lyricLine]);
     if (key === this.metadataKey) return;
     const metadata: avSession.AVMetadata = {
       assetId: this.state.mediaId, title: this.state.title, artist: this.state.artist, album: this.state.album,
       duration: Math.max(0, this.state.duration * 1000), mediaImage: this.artwork ?? this.fallbackArtwork!,
+      lyric: this.state.lyric ?? '', singleLyricText: this.state.lyricLine ?? '',
     };
     await this.session.setAVMetadata(metadata);
     this.metadataKey = key;
