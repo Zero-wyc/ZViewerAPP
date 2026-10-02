@@ -11,5 +11,11 @@ dist/
 .claude/
 .vscode/
 CLAUDE.md
+# Unused Expo template assets are not part of the reviewed application.
+assets/expo.icon/
+assets/images/*
+!assets/images/zviewer-icon.png
+!assets/images/mobile-wallpaper.jpg
+LICENSE
 # .native-staging is intentionally included: the upload stays scoped to this
 # Expo project while consuming an exact copy of the shared Go implementation.

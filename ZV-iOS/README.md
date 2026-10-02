@@ -1,12 +1,16 @@
 # ZViewer iOS
 
-独立 Expo SDK 57 / React Native 工程，当前 **1.5.0 / b15 源码 Expo Go 界面预览（未构建新 IPA）**。对照 client-v1.5.0 固定参考迁移产品行为，与隔离的官方服务端 v4.2.1 联调。保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，WebRTC 仅用于既有共享观看接收。
+独立 Expo SDK 57 / React Native 工程，当前 **1.5.0 / b15，真机 UI 已通过，正在构建未签名 IPA**。对照 client-v1.5.0 固定参考迁移产品行为，与隔离的官方服务端 v4.2.1 联调。保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，WebRTC 仅用于既有共享观看接收。
 
-按用户要求集中实现功能后交用户自行签名和验收。**候选版尚未完成真机验收，不能视为双端等效版**。功能、构建和逐项限制见 [b15 预览记录](../docs/releases/ios-1.5.0-15-preview.md)；历史 b12 证据保留在 [原计划](../docs/ios-continuation-plan.md)。
+按用户要求集中实现功能后交用户自行签名和验收。**2026-10-02 用户确认 iOS 真机 UI 检测通过，并授权构建与发布。音视频、语音和后台功能的完整真机矩阵仍待验收**。功能、构建和逐项限制见 [b15 预览记录](../docs/releases/ios-1.5.0-15-preview.md)；历史 b12 证据保留在 [原计划](../docs/ios-continuation-plan.md)。
 
 b14 修复开屏原生纵向布局增长、会话恢复等待和退出后旧请求回写，并校验损坏外观偏好；原 b13 功能继续保留。具体根因、回归与当前包见 [开屏复核](../docs/ios-openscreen-fix-summary.md)。
 
-最新 [b15 功能/布局补充](../docs/releases/ios-1.5.0-15-followup-preview.md)：整份歌单播放/追加、连续私人漫游、在线弹幕搜索弹窗和双列集名、横竖展开菜单、音乐首页与日推日期。当前 Metro 继续提供 Expo Go 预览；不提交 EAS Build/Update，设备复验和原 I13 限制保留。
+最新 [b15 功能/布局补充](../docs/releases/ios-1.5.0-15-followup-preview.md)：整份歌单播放/追加、连续私人漫游、在线弹幕搜索弹窗和双列集名、横竖展开菜单、音乐首页与日推日期。用户已完成真机 UI 复验，本轮提交一次 unsigned-device EAS Build；不提交 OTA 更新，原 I13 限制保留。
+
+**更新说明：** 由于 Expo Build 的额度限制，iOS 端更新与错误修复会出现延迟，不会与 Android/鸿蒙两端同步完成（除非有人有 Mac 帮忙编译）。
+
+正式包与校验见 [1.5.0 / b15 交付记录](../docs/releases/ios-1.5.0-15-unsigned.md)。
 
 ## b13 功能基线
 

@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | Android | 已完成开发，当前发布版本 1.5.0（versionCode 150） | Android 是共享网页功能和 B 站行为的主要参考宿主之一 |
 | HarmonyOS | 已同步当前 Android 的 v4.2.1 共享业务代码和全局外观，API 26 手机模拟器外观验收完成；客户端包版本为 1.5.0/150 | 维护重点是共享网页同步、ArkWeb 桥接和 ArkTS 本地代理；HEVC Main 10 解码限制单独记录 |
-| iOS | 1.5.0 / b15 源码 Expo Go 预览：共享移动端主题/背景、首页/大厅、房间/竖屏下方面板、片单/集中选集、音乐/弹窗已移植；原生对齐待复验 | 用户要求先原生 UI 预览，待中的 b14 EAS 已取消，未构建 b15 IPA。界面确认后才再次构建；I13 后台独立业务 Socket 等仍未闭环。见 [b15 预览](releases/ios-1.5.0-15-preview.md) |
+| iOS | 1.5.0 / b15，用户已确认真机 UI 检测通过，授权未签名 IPA 构建及单独 iOS Release | RN + VLC；I13 与完整音视频/语音验收边界见 [iOS 交付记录](releases/ios-1.5.0-15-unsigned.md) |
 
 HarmonyOS 应用不是另写一套业务前端。它将根项目构建出的 `dist/` 放入 `entry/src/main/resources/rawfile/web/`，由 ArkWeb 以固定本地来源加载；平台能力通过 `zviewerHost` 注入，再由 `bridge-bootstrap.js` 暴露为共享前端识别的 `window.zviewerNative`。
 
@@ -150,3 +150,7 @@ Android 模拟器本机 B 站账号有效；隔离房间真实 CDN 播放连续 
 
 iOS 横幅改为加载原始宽图并等比铺满，去掉仅用于专辑封面的 CDN 方图裁切；支持手动左右滑动、双向首尾循环和定位条，短拖动/竖向滚动不切图，手动操作避开自动轮播。70 单测、60 项 RN Web/CDP 触摸与既有功能检查、lint/typecheck、本地 iOS/Web 导出通过；这不是 UIKit 真机通过证明。只修改 iOS 与维护记录，双端程序未变；没有新增 EAS Build/Update 或 IPA，继续 Expo Go Reload。
 详见 [横幅补充](releases/ios-1.5.0-15-banner-preview.md)。
+
+### 2026-10-02 iOS 发布交接
+
+用户确认 iOS 真机 UI 通过；本轮 iOS 对齐版本 1.5.0，以未签名 IPA 独立发布。Android/鸿蒙源码已与现有 client-v1.5.0 发布提交核对一致，未重新构建双端包。由于 Expo Build 的额度限制，iOS 端更新与错误修复会出现延迟，不会与 Android/鸿蒙两端同步完成（除非有人有 Mac 帮忙编译）。

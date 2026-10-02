@@ -6,7 +6,7 @@
 
 **上一轮集中交付：iOS 1.5.0 / build 13 unsigned，2026-10-02。** 按用户“尽可能多的功能完成后再验收”要求完成本轮实现、官方 v4.2.1 隔离验证、设备 Release 构建与 IPA 核对。详见 [b13 交付记录及 I01～I17 状态](releases/ios-1.5.0-13-unsigned.md) 和 [脱敏证据](releases/ios-1.5.0-13-evidence.json)。以下开头关于 b12 的“当前”保留为原历史记录；后续修复转为 b15 源码预览，未交付 b15 新包。I13 后台独立 Socket 心跳/切歌/审批尚未闭环，其余真机矩阵待用户，不能宣称已完整对齐双端。
 
-更新：2026-10-02。工程：`ZV-iOS/`。已交付基线仍为 iOS 1.2.1 / build 12、服务端 v4.2.0；**后续开发必须对齐 client 1.5.0 / 150 的 Android/HarmonyOS 产品行为，服务端协议目标仍为 v4.2.1**。客户端版本与服务端版本分开记录，保留 RN + VLC 架构。
+更新：2026-10-02。工程：`ZV-iOS/`。历史交付基线为 iOS 1.2.1 / build 12、服务端 v4.2.0；当前 1.5.0 / build 15 已获真机 UI 通过确认及构建发布授权；**后续开发必须对齐 client 1.5.0 / 150 的 Android/HarmonyOS 产品行为，服务端协议目标仍为 v4.2.1**。客户端版本与服务端版本分开记录，保留 RN + VLC 架构。
 
 **对照基线固定为 client-v1.5.0，提交 `1ca96fd46963ff5cb89beb6c3d31e1d7b9f501fc`。** 最初核对时本地程序仍为 1.3.0、维护文档已在 5083d4b 更新；按用户补充要求，本轮已将 1.5.0 共享前端和 Android/HarmonyOS 源码同步到指定 ZViewer-client 仓库并完成本地构建验证。iOS 程序与 b12 交付证据保留，未新增 iOS 包或真机验收。见 [本地同步与验证](client-1.5.0-local-sync-2026-10-02.md)。第 1～6 节是 b12 历史记录，第 7～10 节是对齐 1.5.0 的执行计划；旧节中的“本轮/本版”均指 b12。
 
@@ -239,3 +239,10 @@ SDK57官方文档和AGENTS为准，expo install；CNG/config plugin/本地Expo M
 
 iOS 横幅改为加载原始宽图并等比铺满，去掉仅用于专辑封面的 CDN 方图裁切；支持手动左右滑动、双向首尾循环和定位条，短拖动/竖向滚动不切图，手动操作避开自动轮播。70 单测、60 项 RN Web/CDP 触摸与既有功能检查、lint/typecheck、本地 iOS/Web 导出通过；这不是 UIKit 真机通过证明。只修改 iOS 与维护记录，双端程序未变；没有新增 EAS Build/Update 或 IPA，继续 Expo Go Reload。
 详见 [横幅补充](releases/ios-1.5.0-15-banner-preview.md)。
+
+
+## 14. 1.5.0 / b15 真机 UI 验收与发布授权（2026-10-02）
+
+用户确认 iOS 真机 UI 检测通过，授权 Expo 构建未签名 IPA、更新 GitHub 源码并发布单独 iOS 1.5.0 Release。此授权取代前述阶段的“先不要云构建”，仅 UI 项据实更新；I13 后台独立业务 Socket 和原生音视频/语音矩阵仍保留限制。版本号与 Android/鸿蒙 1.5.0 对齐，iOS buildNumber 为 15；既有 client-v1.5.0 标签与双端附件保留。
+
+由于 Expo Build 的额度限制，iOS 端更新与错误修复会出现延迟，不会与 Android/鸿蒙两端同步完成（除非有人有 Mac 帮忙编译）。

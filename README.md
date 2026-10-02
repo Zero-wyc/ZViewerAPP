@@ -2,17 +2,17 @@
 
 <img src="public/favicon.jpg" alt="ZViewer" width="88" height="88" />
 
-面向手机和平板的 ZViewer 客户端工程。现有 Android 应用使用 React、TypeScript 和 Capacitor；`ZV-iOS/` 是独立的 Expo/React Native 工程，已接入服务端登录、房间与基础直链播放，HarmonyOS 保留独立宿主目录。Android 的播放、同步、音乐与语音模块已按 [Zero-wyc/ZViewer](https://github.com/Zero-wyc/ZViewer) v4.2.1 对齐，保留移动端与原生 B 站适配。
+面向手机和平板的 ZViewer 客户端工程。现有 Android 应用使用 React、TypeScript 和 Capacitor；`ZV-iOS/` 是独立的 Expo/React Native 工程，已接入登录、房间、VLC 媒体、本机 B站与语音，HarmonyOS 保留独立宿主目录。Android 的播放、同步、音乐与语音模块已按 [Zero-wyc/ZViewer](https://github.com/Zero-wyc/ZViewer) v4.2.1 对齐，保留移动端与原生 B 站适配。
 
 本仓库是 **移动客户端共享源码与原生宿主**，不是服务端，也不是直接加载远程网页的地址壳。应用界面与播放器随安装包打包，通过你填写的服务器地址连接 ZViewer 服务。
 
-现有共享前端已经按多平台边界整理：业务代码不直接依赖 Android 或 Capacitor，原生能力统一通过 `src/platform/` 调用。Expo iOS 工程已开始移植业务功能，尚未覆盖 B 站代理、语音与完整媒体能力；HarmonyOS 已通过 ArkWeb `JavaScriptProxy` 接入共享前端，详见 [移植指南](PORTING.md)。
+现有共享前端已经按多平台边界整理：业务代码不直接依赖 Android 或 Capacitor，原生能力统一通过 `src/platform/` 调用。Expo iOS 工程独立移植业务与原生能力，真机 UI 已通过用户验收；完整后台业务同步及部分原生媒体场景仍有待验收；HarmonyOS 已通过 ArkWeb `JavaScriptProxy` 接入共享前端，详见 [移植指南](PORTING.md)。
 
 [下载安装包](https://github.com/Zero-wyc/ZViewerAPP/releases) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md)
 
 ## 当前版本：1.5.0
 
-Android 和 HarmonyOS 同步 ZViewer 服务端 v4.2.1，使用同一套连接页、房间、全局背景与深浅主题。双端接入系统播放控件、封面与歌词，完善后台播放和自动旋转；一起听横屏背景铺满屏幕，曲绘避让摄像头，追加视频弹窗适配主题与窄屏。一起看使用中间双击播放/暂停、全屏左右双击各跳转15秒；一起听仅在视频全屏采用相同手势。两端包版本为 1.5.0，versionCode 为 150；iOS 本次不更新、不发布。
+Android 和 HarmonyOS 同步 ZViewer 服务端 v4.2.1，使用同一套连接页、房间、全局背景与深浅主题。双端接入系统播放控件、封面与歌词，完善后台播放和自动旋转；一起听横屏背景铺满屏幕，曲绘避让摄像头，追加视频弹窗适配主题与窄屏。一起看使用中间双击播放/暂停、全屏左右双击各跳转15秒；一起听仅在视频全屏采用相同手势。Android/鸿蒙包版本为 1.5.0，versionCode 为 150；iOS 对齐 1.5.0 / build 15，2026-10-02 用户确认真机 UI 通过，授权构建未签名 IPA 并单独发布 iOS Release。
 
 发布构建、源码清理边界与设备验收见 [双端维护与发布流程](docs/mobile-release-maintenance.md)，本版变更见 [1.5.0 发布记录](docs/releases/client-1.5.0.md)。
 
@@ -21,6 +21,10 @@ Android 内置 B 站登录与 Go 播放代理，无需另外安装 CLI。扫码�
 手机端弹幕默认开启“随屏幕缩放”，让字号随播放区域变化；可以在弹幕设置中关闭，关闭后的选择会保留。桌面网页的默认值不变。
 
 手动选择按影片保留，房主与观众独立选择本机画质；Cookie 在 Android Keystore 加密后保存在不可备份目录。正式版包名 `com.zviewer.mobile`；调试包使用独立包名 `com.zviewer.mobile.debug`。本轮模拟器验收范围见 [适配记录](docs/android-v4.2.1-adaptation-report.md)。
+
+**iOS 更新说明：** 由于 Expo Build 的额度限制，iOS 端更新与错误修复会出现延迟，不会与 Android/鸿蒙两端同步完成（除非有人有 Mac 帮忙编译）。
+
+iOS 包为未签名的 iPhone/iPad ARM64 Release，需要自行签名安装；内置 JS，无需运行 Metro。UI 验收不代表后台同步、音视频及语音所有真机场景通过。构建完成后的包与校验记录见 [iOS 1.5.0 发布记录](docs/releases/ios-1.5.0-15-unsigned.md)。
 
 ## 安装与连接
 
@@ -130,7 +134,7 @@ cd ZV-Android
 | `ZV-Android/` | Capacitor Android 工程、Gradle 配置与 Java 原生插件 |
 | `native/bilicore/` | 从 ZViewerCLI 4.1.2 提取的 Go 核心、移动代理与测试 |
 | `docs/` | 实施方案与验收报告 |
-| `ZV-iOS/` | Expo/React Native iOS 工程（开发中） |
+| `ZV-iOS/` | Expo/React Native iOS 1.5.0 与原生模块 |
 | `ZV-HarmonyOS/` | HarmonyOS ArkTS/ArkWeb 原生宿主（已完成） |
 | `public/` | 图标、字体及音频工作线程资源 |
 | `vendor/mediabunny/` | 媒体库本地副本及 DTS / FLAC 补丁 |
