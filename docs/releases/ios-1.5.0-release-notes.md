@@ -1,13 +1,3 @@
-# iOS 1.5.0 / build 15 未签名交付
-
-2026-10-02。用户已确认 iOS 真机 UI 检测通过，授权 EAS unsigned-device 构建；本次附件追加到现有 GitHub `client-v1.5.0` Release，不创建独立 iOS Release。版本与 Android/鸿蒙 1.5.0 对齐。
-
-构建前复核：70 单测、lint/typecheck 通过；Expo Doctor 20/21，保留 react-native-webrtc New Architecture 未测试与 zviewer-native 缺目录元数据提示。共享 Go 9 个来源文件与 client-v1.5.0 固定提交一致，原生源码在云端重建。
-
-EAS 构建 ID：`33178b6d-5852-4881-bc4c-d1a4a43d59b1`，状态 FINISHED，完成于 2026-10-02 12:58:32（UTC）。IPA 大小 45,090,410 bytes，SHA-256：`4004534ce2884618e90acf74396493aa6985a1b1d7a976872983a3c002814a95`。IPA 为 arm64 未签名设备包，bundle `com.zviewer.mobile`，最低 iOS 16.4，支持 iPhone/iPad；检查详情见 [最终 IPA 检查证据](ios-1.5.0-15-final-evidence.json)。
-
-UI 验收不替代实际音视频、语音及后台矩阵；I13 独立业务 Socket 尚未完成。由于 Expo Build 的额度限制，iOS 端更新与错误修复会出现延迟，不会与 Android/鸿蒙两端同步完成（除非有人有 Mac 帮忙编译）。
-
 ## 🚀 新特性 / Features
 
 - iOS 客户端版本与 Android/鸿蒙对齐为 **1.5.0（build 15）**，提供内置 JS 的 iPhone/iPad ARM64 未签名 Release IPA。
@@ -25,7 +15,7 @@ UI 验收不替代实际音视频、语音及后台矩阵；I13 独立业务 Soc
 
 ## ⚠️ 破坏性改动 / Breaking Changes
 
-- **IPA 未签名，需要自行签名后安装**，不是 App Store/TestFlight 包；iPad Split View 继续关闭。
+- **IPA 未签名，需要自行签名后安装**，不是 App Store/TestFlight 包。支持范围与最低系统版本见交付记录；iPad Split View 继续关闭。
 - 用户已确认 iOS 真机 **UI 检测通过**。本次不将此扩大为音视频、语音或后台完整功能的真机验收：JS 完全暂停时的独立房间 Socket 心跳/切歌/审批仍未闭环，系统完整歌词页与部分双端权限行为有差异。
 - 服务端目标 v4.2.1；媒体解码、真实账号/来源、蓝牙/来电和长期后台播放的验证边界见源码中的交付记录。
 
@@ -36,10 +26,11 @@ UI 验收不替代实际音视频、语音及后台矩阵；I13 独立业务 Soc
 
 ## 📖 文档与依赖更新 / Documentation & Dependencies
 
-- 更新 README、iOS 开发/交付记录及双端维护文档；iOS 附件追加到既有 `client-v1.5.0` Release，不创建独立 iOS 标签。
+- 更新 README、iOS 开发/交付记录及双端维护文档；保留既有 Android/鸿蒙 1.5.0 发布标签与安装附件。
 - 使用 Expo SDK 57 / React Native 与单一 VLC 内核；原生 Go 来源核对固定 client-v1.5.0 提交，原生依赖在 EAS 重建，随包保留来源摘要与许可证。
 - 发布前 70 项单测、lint/typecheck 通过；已有 60 项 RN Web/CDP 触摸检查通过。Expo Doctor 20/21，保留 WebRTC 新架构未测试、本地模块无 Directory 元数据提示。最终 IPA 校验结果见附件及交付记录。
-- 附件：未签名 IPA、IPA 检查 JSON、客户端源码 ZIP 与 `SHA256SUMS-ios-b15.txt`。源码 ZIP 不含登录信息、证书或本地构建缓存。
+- **更新说明：由于 Expo Build 的额度限制，iOS 端更新与错误修复会出现延迟，不会与 Android/鸿蒙两端同步完成（除非有人有 Mac 帮忙编译）。**
+- 附件：未签名 IPA、对应标签的完整客户端源码 ZIP、SHA256SUMS.txt 与 IPA 检查 JSON。源码 ZIP 不含登录信息、证书或本地构建缓存。
 
 ---
-**完整变更记录**：[client-v1.3.5…client-v1.5.0](https://github.com/Zero-wyc/ZViewerAPP/compare/client-v1.3.5...client-v1.5.0)。iOS 程序构建来源为提交 `fcf1423aeb24eb98f85ad3d9cb8239fda2e986bb`，最终文档随当前主分支提交。
+**完整变更记录**：[client-v1.5.0…client-v1.5.0](https://github.com/Zero-wyc/ZViewerAPP/compare/client-v1.5.0...client-v1.5.0)

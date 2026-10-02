@@ -1,6 +1,6 @@
 # Android / HarmonyOS 维护与发布
 
-更新日期：2026-10-02。当前双端版本为 1.5.0 / 150，目标服务端 v4.2.1。iOS 是未完善的独立工程，本次保持 GitHub 主分支已有源码不变，不同步资源或发布 iOS 安装包。
+更新日期：2026-10-02。当前双端版本为 1.5.0 / 150，目标服务端 v4.2.1。本篇记录 Android/HarmonyOS 与 iOS 的联合客户端发布；2026-10-02 将 iOS 1.5.0 / b15 未签名 IPA 追加到现有 `client-v1.5.0` Release，真机 UI 由用户确认通过，详见 [iOS 交付](releases/ios-1.5.0-15-unsigned.md)。
 
 ## 源码与资源
 
@@ -84,7 +84,7 @@ Android/HarmonyOS 的一起听工具栏隐藏浏览器全屏按钮，由原生�
 
 ## GitHub 发布
 
-本仓库沿用一个双端 Release：当前为 `client-v1.5.0`，包含签名 APK、签名 HAP、对应提交源码 ZIP 和 `SHA256SUMS.txt`。不上传 APP 上架包、AAR、私钥、服务器数据或 iOS 安装包。发布说明列出实际验收范围；不能把解析成功当作媒体解码通过。
+本仓库沿用一个双端 Release：当前为 `client-v1.5.0`，包含签名 APK、签名 HAP、对应提交源码 ZIP 和 `SHA256SUMS.txt`。不上传 APP 上架包、AAR、私钥、服务器数据；iOS 未签名 IPA 追加在同一 `client-v1.5.0` Release，不另建 iOS 标签。发布说明列出实际验收范围；不能把解析成功当作媒体解码通过。
 
 CI 只执行现有的依赖安装、共享前端同步和 Android debug 构建；已删除的测试命令不能继续留在 workflow。源码发布应核对目标提交、附件版本与 SHA-256 一致。
 

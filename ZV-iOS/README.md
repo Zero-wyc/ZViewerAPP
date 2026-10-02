@@ -1,6 +1,6 @@
 # ZViewer iOS
 
-独立 Expo SDK 57 / React Native 工程，当前 **1.5.0 / b15，真机 UI 已通过，正在构建未签名 IPA**。对照 client-v1.5.0 固定参考迁移产品行为，与隔离的官方服务端 v4.2.1 联调。保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，WebRTC 仅用于既有共享观看接收。
+独立 Expo SDK 57 / React Native 工程，当前 **1.5.0 / b15，真机 UI 已通过，未签名 IPA 已构建**。对照 client-v1.5.0 固定参考迁移产品行为，与隔离的官方服务端 v4.2.1 联调。保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，WebRTC 仅用于既有共享观看接收。
 
 按用户要求集中实现功能后交用户自行签名和验收。**2026-10-02 用户确认 iOS 真机 UI 检测通过，并授权构建与发布。音视频、语音和后台功能的完整真机矩阵仍待验收**。功能、构建和逐项限制见 [b15 预览记录](../docs/releases/ios-1.5.0-15-preview.md)；历史 b12 证据保留在 [原计划](../docs/ios-continuation-plan.md)。
 
@@ -10,7 +10,7 @@ b14 修复开屏原生纵向布局增长、会话恢复等待和退出后旧请�
 
 **更新说明：** 由于 Expo Build 的额度限制，iOS 端更新与错误修复会出现延迟，不会与 Android/鸿蒙两端同步完成（除非有人有 Mac 帮忙编译）。
 
-正式包与校验见 [1.5.0 / b15 交付记录](../docs/releases/ios-1.5.0-15-unsigned.md)。
+正式包与校验见 [1.5.0 / b15 交付记录](../docs/releases/ios-1.5.0-15-unsigned.md)；IPA、检查 JSON 与源码 ZIP 已追加到现有 `client-v1.5.0` Release，不另建 iOS 标签。
 
 ## b13 功能基线
 
@@ -27,7 +27,7 @@ b14 修复开屏原生纵向布局增长、会话恢复等待和退出后旧请�
 
 ## 预览和构建
 
-**用户要求先 Expo Go 验收界面。** 使用 `npx expo start --go --tunnel --port 8081`，当前服务保持运行；VLC/本机 B站/语音不可在 Expo Go 验收。b15 对齐全局主题/背景、首页/大厅、房间标签/竖屏视频下方评论、片单/集中选集、音乐/设置弹窗；B站入口显示文字，标题/提示有主题底色和对比度保护。图片及 expo-blur 可在 Expo Go 预览。原先待中的 b14 EAS 已取消，后续 EAS Build 必须待用户确认界面及再次构建。下面是届时构建操作，当前不要执行。
+用户已在 Expo Go 完成真机 UI 检测并确认通过，本轮按授权构建 unsigned-device IPA。Expo Go 可预览图片、expo-blur 和 RN 界面；VLC/本机 B站/语音仍需安装包测试。以后先完成界面与本地检查，再按维护者授权提交云构建。下面是复现本次构建的操作。
 
 ```powershell
 cd ZV-iOS
@@ -37,7 +37,7 @@ cd ZV-iOS
 
 上传脚本先规范 Bash 为 LF，再验证 9 个共享 Go/依赖/许可证文件与参考 `1ca96fd46963ff5cb89beb6c3d31e1d7b9f501fc` 一致、生成来源摘要。EAS archive 限定本工程；workflow 下载校验固定 Go/Opus、重建 ARM64 vendors、host Opus smoke、CNG/Pods、iphoneos Release 和 unsigned IPA。
 
-计划下一包：`release-assets/ZViewer-1.5.0-b15-unsigned.ipa`，**目前不存在、尚未构建**，不提交 Git；内置 JS，无需 Metro，**用户自行签名后安装**。Expo Go 不含 VLC/Go/语音桥接。当前仅 unsigned-device 准备 vendors，development/simulator 尚需相应流程。
+本次包：`release-assets/ZViewer-1.5.0-b15-unsigned.ipa`，构建及校验状态见交付记录，不提交 Git；内置 JS，无需 Metro，**用户自行签名后安装**。Expo Go 不含 VLC/Go/语音桥接。当前仅 unsigned-device 准备 vendors，development/simulator 尚需相应流程。
 
 ```sh
 npm ci

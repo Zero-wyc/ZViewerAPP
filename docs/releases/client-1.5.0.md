@@ -1,11 +1,12 @@
-# ZViewer-client 1.5.0 · Android / HarmonyOS
+# ZViewer-client 1.5.0 · Android / HarmonyOS / iOS
 
-发布日期：2026-10-02。标签：`client-v1.5.0`。双端正式包名 `com.zviewer.mobile`，versionName `1.5.0`，versionCode `150`，目标 ZViewer 服务端 v4.2.1。
+发布日期：2026-10-02。标签：`client-v1.5.0`。正式包名 `com.zviewer.mobile`，versionName `1.5.0`，versionCode `150`，目标 ZViewer 服务端 v4.2.1。
 
 ## 🚀 新特性 / Features
 
 - Android/HarmonyOS 一起听和一起看接入原生系统播放控件，同步播放状态、进度、时长和解码后的封面，支持系统播放/暂停、跳转及可用的切歌操作。
 - 一起听同步网易云 LRC 与哔哩哔哩 AI 字幕歌词。鸿蒙发布完整歌词与当前行；安卓发布兼容性歌词元数据及通知当前行，具体展示由系统媒体控件决定。
+- iOS 1.5.0 / build 15 对齐连接页、全局背景、房间、播放器、音乐发现、私人漫游、弹幕搜索与横竖屏菜单，并提供 iPhone/iPad 未签名 Release IPA。
 - 完善自动旋转：默认尊重系统自动旋转设置，手动锁定可解除，离开房间恢复自动策略。一起听展开横屏隐藏房间顶栏，收起或竖屏恢复。
 
 ## 🐛 错误修复 / Bug Fixes
@@ -16,25 +17,29 @@
 - 修复歌曲切换时旧歌词残留及歌词面板未打开时系统无歌词，切到无歌词歌曲清空系统歌词。
 - 追加 B站 视频弹窗适配窄屏、横竖屏、安全区和深浅主题，内容内部滚动，标题及关闭按钮完整可见。修复删除后重新追加相同视频源跳过加载。
 - 移除原生一起听工具栏重复的浏览器全屏按钮；保留纯净视频、收起箭头和退出入口。
+- iOS 修复开屏布局退化、房间内容缺失、横竖屏菜单越界、音乐横幅留白、弹幕搜索弹窗和批量导入状态问题；支持横幅手动左右滑动与首尾循环。
 
 ## ⚠️ 破坏性改动 / Breaking Changes
 
 - 视频表面手势调整：一起看中间双击播放/暂停，全屏左侧双击后退15秒、右侧双击前进15秒；单击只显示控件。
 - 一起听仅在视频全屏/纯净模式采用上述双击手势。普通音乐界面不触发；全屏单击唤出退出按钮，双击不再退出，仍可用按钮、Esc或原生返回退出。
 - 无服务端协议或数据迁移改动；观众播放和跳转继续遵守房主审批。
+- iOS IPA 为未签名设备包，需自行签名后安装；完整后台业务 Socket、音视频、语音和系统媒体矩阵仍按 iOS 交付记录的边界验收。
 
 ## ⚡ 性能优化 / Performance Improvements
 
 - 界面和系统会话共享歌词请求，合并并发请求并使用有限缓存，避免重复拉取。
 - 元数据按变化更新；播放期间保活，暂停/退出释放后台资源与封面图片，旧播放器不能清除新会话。
+- iOS 音乐首页使用满宽横幅、有限缓存和独立滚动区域；歌单批量操作与私人漫游按页处理，避免大列表一次性阻塞界面。
 - 双端视频复用同一触屏判定器，抑制合成鼠标事件造成的重复操作。一起听手势操作真实音频，静音视频跟随同步。
 
 ## 📖 文档与依赖更新 / Documentation & Dependencies
 
-- 更新 README、更新记录、双端维护架构、HarmonyOS 构建说明与播放器验收记录。双端升级为 1.5.0 / 150，沿用现有发布签名，依赖版本未新增调整；iOS 不改动、不发布。
+- 更新 README、更新记录、双端维护架构、HarmonyOS 构建说明与播放器验收记录。Android/HarmonyOS 升级为 1.5.0 / 150，iOS 对齐为 1.5.0 / build 15；iOS 未签名附件追加到本 Release，不创建独立 iOS 标签。
 - 用户确认双端功能测试全部通过，包括后台播放。此前命令行模拟器验收覆盖系统控件、封面、歌词、旋转、横屏安全区、头像、追加视频和真实触屏手势；详见 [系统媒体验收](../mobile-media-lifecycle-2026-10-01.md)、[界面与歌词验收](../mobile-player-ui-2026-10-02.md)及[追加视频验收](../mobile-music-video-2026-10-02.md)。
 - 本次正式构建验证共享前端和双端资源同步、Android/HarmonyOS release 构建、包版本与签名、相对1.3.5证书一致性，以及安装包内共享资源的 SHA-256 一致性。鸿蒙正式包 `debug=false`，关闭 ArkWeb 调试。
-- 发布附件为 `ZViewer-Android-1.5.0-release.apk`、`ZViewer-HarmonyOS-1.5.0-release.hap`、`ZViewer-client-1.5.0-source.zip` 和 `SHA256SUMS.txt`。安卓最低 API24，鸿蒙最低6.1/API23；源码从发布提交生成，排除私钥、账号会话、生成资源与测试数据。
+- 发布附件包括既有 `ZViewer-Android-1.5.0-release.apk`、`ZViewer-HarmonyOS-1.5.0-release.hap`、`ZViewer-client-1.5.0-source.zip`、`SHA256SUMS.txt`，以及追加的 `ZViewer-1.5.0-b15-unsigned.ipa`、IPA 检查 JSON、iOS 源码 ZIP 和 `SHA256SUMS-ios-b15.txt`。安卓最低 API24，鸿蒙最低6.1/API23；iOS 最低 iOS 16.4、支持 iPhone/iPad ARM64，源码 ZIP 排除私钥、账号会话、生成资源与测试数据。
+- 由于 Expo Build 的额度限制，iOS 端更新与错误修复会出现延迟，不会与 Android/鸿蒙两端同步完成（除非有人有 Mac 帮忙编译）。
 
 ---
 **完整变更记录**：[client-v1.3.5...client-v1.5.0](https://github.com/Zero-wyc/ZViewerAPP/compare/client-v1.3.5...client-v1.5.0)
