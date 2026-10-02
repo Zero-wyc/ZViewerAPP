@@ -1,0 +1,74 @@
+{
+  "bundleId": "com.zviewer.mobile",
+  "version": "1.5.0",
+  "build": "16",
+  "app": {
+    "arm64": true,
+    "platform": 2,
+    "signed": false,
+    "encrypted": false
+  },
+  "frameworks": [
+    "ExpoFileSystem.framework",
+    "ExpoFont.framework",
+    "ExpoImage.framework",
+    "ExpoModulesCore.framework",
+    "ExpoModulesJSI.framework",
+    "ExpoModulesWorklets.framework",
+    "React.framework",
+    "ReactNativeDependencies.framework",
+    "SDWebImage.framework",
+    "SDWebImageAVIFCoder.framework",
+    "SDWebImageSVGCoder.framework",
+    "SDWebImageWebPCoder.framework",
+    "VLCKit.framework",
+    "WebRTC.framework",
+    "hermesvm.framework",
+    "libavif.framework"
+  ],
+  "nativeBridges": {
+    "ZViewerNativeModule": true,
+    "ZVBiliBridge": true,
+    "ZVVoiceCodec": true
+  },
+  "jsBytes": 3198491,
+  "background": [
+    "audio"
+  ],
+  "ats": {
+    "NSAllowsLocalNetworking": true
+  },
+  "requiresFullScreen": true,
+  "orientations": [
+    "UIInterfaceOrientationPortrait",
+    "UIInterfaceOrientationPortraitUpsideDown",
+    "UIInterfaceOrientationLandscapeLeft",
+    "UIInterfaceOrientationLandscapeRight"
+  ],
+  "ipadOrientations": null,
+  "systemMedia": true,
+  "sharedSource": {
+    "reference": "client-v1.5.0",
+    "referenceCommit": "1ca96fd46963ff5cb89beb6c3d31e1d7b9f501fc",
+    "normalizedLineEndings": "LF",
+    "files": {
+      "core/bilibili.go": "3f62c642e16f2ee5c3e7dc8da07a5f5cd376ae00c9179fb898571bdb94277532",
+      "core/quality.go": "4f837cd1188134a79a06ab81b84007e49524a45e7042346d410feb9ad65a3341",
+      "core/resolver.go": "0176b34b0dc8a582ad969658cf245478da790984219334f52a8b87a8edb1bbf0",
+      "core/runtime.go": "e27429abd10503be3a500770ad09728e53c2277f9f95b999da0f8d52625db4c3",
+      "core/wbi.go": "cf515ccf69bb57c8179408f2749b2e95831024d1a01ede23f539ee3745741b33",
+      "mobile/mobile.go": "56c43e323f9aa89ac4e9f6f247d6cf95bd438d74915057902a122019bc39c2ed",
+      "go.mod": "f74c0187ee5d8f0e8d0363bc9790dda38d4d19b2561a242fb431314912641641",
+      "go.sum": "e91a44f02f39dde17809bfa6dcb65c216e5714135495b953ff6ac7671d7fa81c",
+      "UPSTREAM-LICENSE": "136c2b469a836851acabe53dad8b1c6371a39590bc35970411644da0eeae8977"
+    }
+  },
+  "deviceFamilies": [
+    1,
+    2
+  ],
+  "minimumOS": "16.4",
+  "interfaceStyle": "Automatic",
+  "bytes": 45094781,
+  "sha256": "1220bdd48cf9308eb98d2b71b32e95c365c8d3cfe312bdbb25ab92b0e3e28ac7"
+}

@@ -14,6 +14,7 @@ import { useSession } from '@/state/session';
 import { VlcVideo, useVlcVideo } from './VlcVideo';
 import { RoomButton, RoomIconButton, RoomInput, ui as baseUi } from './RoomUi';
 import { playbackSource, onBiliChange, biliFallback } from '@/lib/biliNative';
+import { MusicSyncReceipt } from '@/lib/musicSyncReceipt';
 import { MusicLibrary, musicPages, type MusicPage } from './MusicLibrary';
 import { ExpandedMusicPlayer } from './ExpandedMusicPlayer';
 import { SongComments } from './SongComments';
@@ -49,6 +50,7 @@ export function MusicPanel({ roomId, host, onExpandedLandscape, switchMode }: { 
   const [accountRevision, setAccountRevision] = useState(0);
   const [currentItemId, setCurrentItemId] = useState<number | null>(null);
   const cursor = useRef(new QueueCursor()); const endedAt = useRef(''); const endedRetryAt = useRef(0);
+  const syncReceipt = useRef(new MusicSyncReceipt());
   const [lyricError, setLyricError] = useState(''); const [lyricRetry, setLyricRetry] = useState(0);
   const [page, setPage] = useState<MusicPage>('mymusic'); const [queueOpen, setQueueOpen] = useState(false); const [playerOpen, setPlayerOpen] = useState(false); const [accountOpen, setAccountOpen] = useState(false); const [ncmMenu, setNcmMenu] = useState(false);
   const { width, height } = useWindowDimensions(); const compactLandscape = width > height && height < 500;
@@ -123,10 +125,25 @@ export function MusicPanel({ roomId, host, onExpandedLandscape, switchMode }: { 
       }
       const desired = { ...stream.current!.source, currentTime: roomTime(current.positionSec, current.isPlaying, current.updatedAt), isPlaying: current.isPlaying };
       await adapter.current?.apply(desired, session.serverUrl, session.accessToken, retry);
-      if (!cancel.signal.aborted && !hostRef.current) socket?.emit('music:sync-ack', { roomId });
     })().catch(failure => { if (!cancel.signal.aborted) { adapter.current?.invalidate(); setError(messageFor(failure)); } });
     return () => { cancel.abort(); media.cancelPending(); };
   }, [state, session, roomId, retry, requestText, socket, quality, accountRevision]);
+  useEffect(() => {
+    const identity = () => session && socket?.connected && !hostRef.current && stateRef.current.trackKey
+      ? JSON.stringify([session.serverUrl, session.user.id, roomId, socket.id, stateRef.current.trackKey]) : '';
+    const acknowledge = () => {
+      const key = identity(); syncReceipt.current.observe(key);
+      const expectedScope = session ? JSON.stringify([session.serverUrl, session.user.id, accountRevision, quality, stateRef.current.trackKey]) : '';
+      const ready = stream.current?.key === expectedScope && player.sourceIdentity === stream.current.source.sourceUrl && !adapter.current?.busy && !player.preparing && player.duration > 0;
+      if (syncReceipt.current.take(key, ready)) socket?.emit('music:sync-ack', { roomId });
+    };
+    const disconnect = () => syncReceipt.current.observe('');
+    const loaded = player.addListener('statusChange', acknowledge);
+    const progress = player.addListener('timeUpdate', acknowledge);
+    socket?.on('disconnect', disconnect);
+    acknowledge();
+    return () => { loaded.remove(); progress.remove(); socket?.off('disconnect', disconnect); };
+  }, [player, socket, session, roomId, state.trackKey, host, accountRevision, quality]);
   useEffect(() => {
     const progress = player.addListener('timeUpdate', event => setTime(event.currentTime)); const loaded = player.addListener('sourceLoad', event => setDuration(event.duration));
     const status = player.addListener('statusChange', event => { if (event.status === 'error') { adapter.current?.invalidate(); const current = stream.current?.source; if (current?.sourceType === 'bilibili' && biliFallback(current.sourceUrl)) { stream.current = null; setRetry(value => value + 1); } else setError(event.error?.message || '音频播放失败'); } });

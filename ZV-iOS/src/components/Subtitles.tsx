@@ -23,18 +23,27 @@ export function useSubtitles(roomId: string, player: VlcPlayer, host: boolean, r
     const receive = (raw: unknown) => { try { const incoming = cleanSubtitlePayload(raw); if (!incoming.tracks.length) touched.current = false; setState(old => touched.current ? { ...old, tracks: incoming.tracks, activeIndex: Math.min(old.activeIndex, incoming.tracks.length - 1) } : incoming); } catch { /* ignore invalid room payloads */ } };
     socket.on('subtitle-update', receive); socket.emit('subtitle-request', { roomId }); return () => { socket.off('subtitle-update', receive); };
   }, [socket, ready, host, roomId]);
+  // Enforce one renderer for host imports AND incoming viewer updates.
+  useEffect(() => {
+    if (state.enabled && state.tracks[state.activeIndex]) player.configure({ subtitleUri: undefined, tracks: { ...player.mediaSettings.tracks, subtitle: -1 } });
+  }, [state.enabled, state.activeIndex, state.tracks, player]);
   const change = (patch: Partial<SubtitleState>) => {
     const next = cleanSubtitlePayload({ ...stateRef.current, ...patch }); stateRef.current = next; setState(next); touched.current = true;
-    if (next.enabled) player.configure({ tracks: { ...player.mediaSettings.tracks, subtitle: -1 } });
+    if (next.enabled) player.configure({ subtitleUri: undefined, tracks: { ...player.mediaSettings.tracks, subtitle: -1 } });
     if (host && socket?.connected) socket.emit('subtitle-update', { roomId, ...next });
   };
-  return { state, change };
+  const selectNative = (subtitle: number | string) => {
+    change({ enabled: false });
+    const tracks = { ...player.mediaSettings.tracks }; delete tracks.subtitle;
+    player.configure(typeof subtitle === 'number' ? { tracks: { ...tracks, subtitle }, subtitleUri: undefined } : { tracks, subtitleUri: subtitle });
+  };
+  return { state, change, selectNative };
 }
 export function SubtitleOverlay({ subtitles, player }: { subtitles: ReturnType<typeof useSubtitles>; player: VlcPlayer }) {
   const theme = useAppearance();
 
   const [time, setTime] = useState(0); useEffect(() => { const subscription = player.addListener('timeUpdate', value => setTime(value.currentTime)); return () => { subscription.remove(); }; }, [player]);
-  const { state } = subtitles; const track = state.tracks[state.activeIndex]; if (!state.enabled || !track) return null;
+  const { state } = subtitles; const track = state.tracks[state.activeIndex]; if (!state.enabled || !track || player.mediaSettings.subtitleUri || (player.mediaSettings.tracks.subtitle ?? -1) >= 0) return null;
   const cues = activeCues(track.cues, time - state.offset);
   return <View pointerEvents="none" style={[StyleSheet.absoluteFill, { justifyContent: 'flex-end', alignItems: 'center', padding: 16, paddingBottom: 25 }]}>{cues.map((cue, index) => <Text key={index} style={{ color: theme.color('#fff', 'color'), backgroundColor: theme.color('#0006', 'backgroundColor'), fontSize: state.fontSize, textAlign: cue.align || 'center', textShadowColor: '#000', textShadowOffset: { width: state.strokeWidth, height: state.strokeWidth }, textShadowRadius: state.shadowBlur, maxWidth: '95%', ...(cue.line === undefined ? { transform: [{ translateX: state.shiftX * 3 }, { translateY: state.shiftY * 2 }] } : { position: 'absolute', top: `${cue.line}%`, left: `${Math.max(0, Math.min(90, (cue.position || 50) - 30))}%` }) }}>{subtitleText(cue.text)}</Text>)}</View>;
 }

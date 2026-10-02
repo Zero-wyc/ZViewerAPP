@@ -1,8 +1,10 @@
 import { nativeVideoSource, type PlaybackSource } from './media.ts';
+import { biliSelection } from './biliSelection.ts';
 export type AnimeMeta = { sourceId: string; originalTitle: string; episode: { id: string; title: string; episodeNumber: number; playbackParams: Record<string, unknown> } };
 export type Movie = { id: number; cid?: number; title: string; url: string; source?: string; sourceType?: string; format?: string; audioUrl?: string | null; roomId?: string; headers?: Record<string, string>; sourceMeta?: AnimeMeta };
 export type SourceSelection = { title: string; url: string; source: string; format?: string; audioUrl?: string; serverUrl?: string; path?: string; directLink?: boolean; sourceMeta?: AnimeMeta };
 export function canonicalSelection(value: SourceSelection, server: string, token: string): SourceSelection {
+  if (value.source === 'bilibili' && /(^BV[\w]+$|https?:\/\/(?:www\.|m\.)?bilibili\.com|https?:\/\/b23\.tv)/i.test(value.url.trim())) return { ...value, url: biliSelection(value.url).url };
   if (value.source === 'anime' && value.sourceMeta) {
     if (!value.url.startsWith('anisubs://') || JSON.stringify(value.sourceMeta).length > 32000 || typeof value.sourceMeta.sourceId !== 'string' || !value.sourceMeta.episode?.id) throw new Error('番剧元数据无效');
     return value;
@@ -13,7 +15,7 @@ export function canonicalSelection(value: SourceSelection, server: string, token
 }
 export function moviePlayback(movie: Movie): PlaybackSource {
   let url = movie.url;
-  if ((movie.source || movie.sourceType) === 'bilibili' && movie.cid) { const parsed = new URL(url); parsed.searchParams.set('cid', String(movie.cid)); url = parsed.toString(); }
+  if ((movie.source || movie.sourceType) === 'bilibili') { const parsed = new URL(biliSelection(url).url); if (movie.cid) parsed.searchParams.set('cid', String(movie.cid)); url = parsed.toString(); }
   return { movieId: movie.id, cid: movie.cid, sourceUrl: url, sourceType: movie.source || movie.sourceType || 'mp4', format: movie.format, audioUrl: movie.audioUrl, headers: movie.headers };
 }
 export function formatTime(time: number) {

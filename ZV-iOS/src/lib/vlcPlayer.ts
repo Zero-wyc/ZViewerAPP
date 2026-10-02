@@ -3,7 +3,7 @@ import type { nativeVideoSource } from './media.ts';
 
 export type VideoSource = ReturnType<typeof nativeVideoSource>;
 export type VlcViewPort = { play(): Promise<void>; pause(): Promise<void>; stop(): Promise<void>; seek(milliseconds: number, type?: 'time'): Promise<void>; startPictureInPicture?(): Promise<void> };
-export type VlcTrack = { id: number; name: string };
+export type VlcTrack = { id: number; name: string; selected?: boolean };
 export type VlcSettings = { tracks: { audio?: number; subtitle?: number }; volume: number; subtitleDelay: number; subtitleUri?: string };
 export type VlcSnapshot = { id: number; source: VideoSource; initialTime: number; rate: number; settings: VlcSettings; autoplay: boolean };
 type Events = {
@@ -12,6 +12,7 @@ type Events = {
   timeUpdate: { currentTime: number };
   sourceLoad: { duration: number; availableAudioTracks: unknown[]; availableVideoTracks: unknown[]; availableSubtitleTracks: unknown[] };
   statusChange: { status: string; error?: { message: string } };
+  settingsChange: VlcSettings;
 };
 
 // The sole VLC kernel exposes one room clock and control port. VLC times are milliseconds;
@@ -62,6 +63,10 @@ export class VlcPlayer implements NativePlayerPort {
   get duration() { return this.length; }
   get mediaTracks() { return this.availableTracks; }
   get mediaSettings() { return this.settings; }
+  get selectedTracks() {
+    const selected = (type: 'audio' | 'subtitle') => this.settings.tracks[type] ?? this.availableTracks[type].find(track => track.selected)?.id;
+    return { audio: selected('audio'), subtitle: selected('subtitle') };
+  }
   async startPictureInPicture() {
     if (this.disposed || !this.vlc?.startPictureInPicture) throw new Error('画中画暂不可用，请先开始播放');
     await this.vlc.startPictureInPicture();
@@ -70,6 +75,7 @@ export class VlcPlayer implements NativePlayerPort {
     if (this.disposed) return;
     this.settings = { ...this.settings, ...settings, ...(settings.volume !== undefined ? { volume: Number.isFinite(settings.volume) ? Math.min(100, Math.max(0, settings.volume)) : this.settings.volume } : {}), ...(settings.subtitleDelay !== undefined ? { subtitleDelay: Number.isFinite(settings.subtitleDelay) ? Math.min(60, Math.max(-60, settings.subtitleDelay)) : this.settings.subtitleDelay } : {}) };
     if (this.snapshot) { this.snapshot = { ...this.snapshot, settings: this.settings }; this.render(this.snapshot); }
+    this.emit('settingsChange', this.settings);
   }
   play() {
     if (this.disposed) return;
@@ -97,14 +103,15 @@ export class VlcPlayer implements NativePlayerPort {
     ++this.revision;
     const old = this.vlc; this.vlc = null; this.snapshot = null;
     this.prepared = false; this.pendingSeek = null; this.actualPlaying = false; this.desiredPlaying = false;
+    this.availableTracks = { audio: [], video: [], subtitle: [] };
+    this.settings = { ...this.settings, tracks: {}, subtitleUri: undefined, subtitleDelay: 0 };
+    this.emit('settingsChange', this.settings);
     this.render(null);
     if (old) await old.stop();
     if (this.disposed) return;
     if (!source) { this.position = 0; this.length = 0; this.emit('statusChange', { status: 'idle' }); return; }
     if (!this.available) throw new Error('VLC 原生模块不可用，请安装包含 VLCKit 的 development/preview 构建（Expo Go 不支持）');
     this.position = 0; this.length = 0; this.rate = 1;
-    this.availableTracks = { audio: [], video: [], subtitle: [] };
-    this.settings = { ...this.settings, tracks: {}, subtitleUri: undefined, subtitleDelay: 0 };
     this.snapshot = { id: this.revision, source, initialTime: 0, rate: 1, settings: this.settings, autoplay: false };
     this.render(this.snapshot);
     this.emit('statusChange', { status: 'loading' });
@@ -139,12 +146,14 @@ export class VlcPlayer implements NativePlayerPort {
   tracks(id: number, tracks: { audio: unknown[]; video: unknown[]; subtitle: unknown[] }) {
     if (!this.accepts(id)) return;
     const valid = (values: unknown[]) => values.filter((value): value is VlcTrack => !!value && typeof value === 'object' && Number.isFinite((value as VlcTrack).id) && typeof (value as VlcTrack).name === 'string');
-    this.availableTracks = { audio: valid(tracks.audio), video: valid(tracks.video), subtitle: valid(tracks.subtitle) };
+    const next = { audio: valid(tracks.audio), video: valid(tracks.video), subtitle: valid(tracks.subtitle) };
+    if (JSON.stringify(next) === JSON.stringify(this.availableTracks)) return;
+    this.availableTracks = next;
     this.emit('sourceLoad', { duration: this.length, availableAudioTracks: this.availableTracks.audio, availableVideoTracks: this.availableTracks.video, availableSubtitleTracks: this.availableTracks.subtitle });
   }
   fail(id: number, message: string) {
     if (!this.accepts(id)) return;
-    this.desiredPlaying = false; this.actualPlaying = false;
+    this.desiredPlaying = false; this.actualPlaying = false; this.prepared = false;
     this.emit('statusChange', { status: 'error', error: { message } });
   }
   private accepts(id: number) { return !this.disposed && id === this.revision; }

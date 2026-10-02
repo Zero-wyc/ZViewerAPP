@@ -64,6 +64,7 @@ async function fetchLimited<T>(url: string, init: RequestInit, milliseconds: num
   finally { clearTimeout(timeout); signal?.removeEventListener('abort', abort); }
 }
 export async function resolveServerBili(url: string, server: string, token: string, policy = defaultBiliPolicy, signal?: AbortSignal) {
+  url = biliSelection(url).url;
   // Public setting governs server DASH only; local CLI remains independent.
   let dashAllowed = false;
   try { const value = await fetchLimited(`${server.replace(/\/+$/, '')}/api/auth/public-settings`, {}, 10000, response => response.json(), signal); dashAllowed = value.settings?.dashDisabled === false; } catch {}
@@ -76,7 +77,7 @@ export async function resolveServerBili(url: string, server: string, token: stri
 }
 export async function playbackSource(source: PlaybackSource, server: string, token: string, signal?: AbortSignal): Promise<NativeVideoSource> {
   if (source.sourceType !== 'bilibili') return nativeVideoSource(source, server, token);
-  biliSelection(source.sourceUrl);
+  source = { ...source, sourceUrl: biliSelection(source.sourceUrl).url };
   const policy = source.biliPolicy ?? (source.movieId ? await readMovieBiliPolicy(server, source.movieId) : defaultBiliPolicy);
   let status: BiliStatus | null = null;
   if (policy.cliEnabled) try { status = await biliOperation<BiliStatus>('start'); } catch {}

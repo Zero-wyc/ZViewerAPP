@@ -1,0 +1,128 @@
+{
+  "date": "2026-10-03",
+  "version": "1.5.0",
+  "build": "16",
+  "checks": {
+    "tests": {
+      "passed": 74,
+      "total": 74
+    },
+    "lint": "passed",
+    "typecheck": "passed",
+    "iosExport": "passed",
+    "webExport": "passed"
+  },
+  "ui": {
+    "scope": "RN Web UI with isolated local backend; iOS VLC/rotation require device validation",
+    "checks": [
+      "watch room opens without standalone subtitle management button",
+      "subtitle tab is selected at 1180x820",
+      "subtitle management is reachable inside playback settings at 1180x820",
+      "rate selection updates immediately at 1180x820",
+      "settings stay within 1180x820",
+      "subtitle tab is selected at 820x1180",
+      "subtitle management is reachable inside playback settings at 820x1180",
+      "rate selection updates immediately at 820x1180",
+      "settings stay within 820x1180",
+      "subtitle tab is selected at 390x844",
+      "subtitle management is reachable inside playback settings at 390x844",
+      "rate selection updates immediately at 390x844",
+      "settings stay within 390x844",
+      "subtitle management remains accessible in fullscreen",
+      "imported synchronized subtitle renders once",
+      "selecting native external subtitle clears the synchronized overlay",
+      "switching back to synchronized subtitles clears native external selection",
+      "no JS page errors"
+    ],
+    "errors": []
+  },
+  "realMedia": {
+    "scope": "reported real MKV, ffprobe/ASS extraction and desktop libVLC 3 over local capped Range; NOT iOS VLCKit 4 rendering validation",
+    "file": "败犬女主太多了！ - S01E02 - 第2集.mkv",
+    "duration": 1441.117,
+    "subtitle_tracks": [
+      {
+        "index": 2,
+        "codec_name": "ass",
+        "codec_type": "subtitle",
+        "tags": {
+          "language": "chi",
+          "title": "简日双语[喵萌奶茶屋]"
+        }
+      },
+      {
+        "index": 3,
+        "codec_name": "ass",
+        "codec_type": "subtitle",
+        "tags": {
+          "language": "chi",
+          "title": "繁日双语[喵萌奶茶屋]"
+        }
+      }
+    ],
+    "font_attachments": 26,
+    "ass_content": [
+      {
+        "track": 0,
+        "dialogues": 2597,
+        "position_tags": 1775,
+        "move_tags": 0,
+        "drawing_tags": 1308
+      },
+      {
+        "track": 1,
+        "dialogues": 2597,
+        "position_tags": 1775,
+        "move_tags": 0,
+        "drawing_tags": 1308
+      }
+    ],
+    "checks": [
+      {
+        "selected_subtitle_id": 2
+      },
+      {
+        "selected_subtitle_id": 3
+      },
+      {
+        "selected_subtitle_id": -1
+      },
+      {
+        "selected_subtitle_id": 2
+      },
+      {
+        "seek_seconds": 55,
+        "actual_seconds": 55.0
+      },
+      {
+        "seek_seconds": 120,
+        "actual_seconds": 120.0
+      },
+      {
+        "seek_seconds": 700,
+        "actual_seconds": 700.0
+      },
+      {
+        "seek_seconds": 1300,
+        "actual_seconds": 1300.0
+      }
+    ],
+    "http_requests": 15,
+    "range_requests": 15
+  },
+  "deviceAcceptance": "pending",
+  "eas": {
+    "id": "a7973a7c-db58-437a-8957-81b05a759250",
+    "url": "https://expo.dev/accounts/fredqin2006/projects/zviewer-ios/builds/a7973a7c-db58-437a-8957-81b05a759250",
+    "status": "FINISHED",
+    "artifactUrl": "https://expo.dev/artifacts/eas/J-Bb1K9O9sMcYsQ2mRrnqzPN2Cq1GVDOJfOzyzmE9jM.ipa",
+    "completedAt": "2026-10-02T23:37:52.188Z"
+  },
+  "ipa": {
+    "path": "ZV-iOS/release-assets/ZViewer-iOS-1.5.0-build16-unsigned.ipa",
+    "bytes": 45094781,
+    "sha256": "1220bdd48cf9308eb98d2b71b32e95c365c8d3cfe312bdbb25ab92b0e3e28ac7",
+    "inspection": "ios-1.5.0-16-ipa-inspection.json",
+    "bundleMarkers": "passed"
+  }
+}

@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSession } from '@/state/session';
 import { messageFor } from '@/lib/server';
 import { canonicalSelection, type SourceSelection } from '@/lib/sources';
+import { biliSelection } from '@/lib/biliSelection';
 import { RoomButton, RoomInput, ui as baseUi } from './RoomUi';
 import { resolveLocalBili, type BiliMedia } from '@/lib/biliNative';
 import { BiliAccount } from './BiliAccount';
@@ -84,7 +85,7 @@ export function SourcePicker({ visible, onClose, onAdd }: { visible: boolean; on
     </> : null}
     {sourceType === 'bilibili' ? <>
     <BiliAccount /><BiliCatalog choose={item => { const next = `https://www.bilibili.com/video/${item.bvid}${item.cid ? `?cid=${item.cid}` : ''}`; setBiliUrl(next); setTitle(item.title); setBili(null); }} />
-    <Text style={ui.title}>B站视频</Text><RoomInput placeholder="B站视频链接 / BV 号（可附分 P）" value={biliUrl} onChangeText={value => { setBiliUrl(value); setBili(null); }} autoCapitalize="none" /><RoomButton label="解析分 P" secondary disabled={busy || !biliUrl.trim()} onPress={() => void task(async () => { const next = /^BV[\w]+$/.test(biliUrl.trim()) ? `https://www.bilibili.com/video/${biliUrl.trim()}` : biliUrl.trim(); setBiliUrl(next); setBili(await resolveLocalBili(next)); })} />{bili ? <><Text style={ui.muted}>{bili.title} · 当前画质 {bili.currentQn}</Text><EpisodePicker key={biliUrl} episodes={(bili.pages?.length ? bili.pages : [{ page: 1, cid: 0, part: bili.title }]).map(part => ({ id: String(part.page), title: `P${part.page} · ${part.part}` }))} disabled={busy} onAdd={async ids => {
+    <Text style={ui.title}>B站视频</Text><RoomInput placeholder="B站视频链接 / BV 号（可附分 P）" value={biliUrl} onChangeText={value => { setBiliUrl(value); setBili(null); }} autoCapitalize="none" /><RoomButton label="解析分 P" secondary disabled={busy || !biliUrl.trim()} onPress={() => void task(async () => { const next = biliSelection(biliUrl).url; setBiliUrl(next); setBili(await resolveLocalBili(next)); })} />{bili ? <><Text style={ui.muted}>{bili.title} · 当前画质 {bili.currentQn}</Text><EpisodePicker key={biliUrl} episodes={(bili.pages?.length ? bili.pages : [{ page: 1, cid: 0, part: bili.title }]).map(part => ({ id: String(part.page), title: `P${part.page} · ${part.part}` }))} disabled={busy} onAdd={async ids => {
       const added: string[] = []; setBusy(true);
       try { for (const id of ids) { const part = bili.pages?.find(item => String(item.page) === id) || { page: 1, cid: 0, part: bili.title }; try { const target = new URL(biliUrl); target.searchParams.set('p', String(part.page)); if (part.cid) target.searchParams.set('cid', String(part.cid)); await add({ title: `${bili.title} · ${part.part}`, url: target.toString(), source: 'bilibili' }, false); added.push(id); } catch { /* Keep failed P selections for retry. */ } } }
       finally { setBusy(false); } return added;

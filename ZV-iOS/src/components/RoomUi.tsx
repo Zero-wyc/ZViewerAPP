@@ -14,11 +14,11 @@ export const ui = StyleSheet.create({
   secondary: { backgroundColor: roomColors.surface, borderWidth: 1, borderColor: roomColors.line },
   buttonText: { color: roomColors.background, fontWeight: '700' }, input: { borderWidth: 1, borderColor: roomColors.line, borderRadius: 10, color: roomColors.text, minHeight: 44, padding: 10, backgroundColor: roomColors.surface },
 });
-export function RoomButton({ label, onPress, disabled, secondary }: { label: string; onPress: () => void; disabled?: boolean; secondary?: boolean }) {
+export function RoomButton({ label, onPress, disabled, secondary, selected }: { label: string; onPress: () => void; disabled?: boolean; secondary?: boolean; selected?: boolean }) {
   const theme = useAppearance();
   const localUi = theme.styles(ui);
 
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} style={[localUi.button, secondary && localUi.secondary, disabled && { opacity: 0.45 }]}><Text style={[localUi.buttonText, secondary && localUi.text]}>{label}</Text></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled, selected: !!selected }} disabled={disabled} onPress={onPress} style={[localUi.button, secondary && !selected && localUi.secondary, selected && { borderWidth: 2, borderColor: theme.color(roomColors.accent) }, disabled && { opacity: 0.45 }]}><Text style={[localUi.buttonText, secondary && !selected && localUi.text]}>{selected ? `✓ ${label}` : label}</Text></Pressable>;
 }
 export function RoomInput(props: TextInputProps) {
   const theme = useAppearance();

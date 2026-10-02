@@ -1,6 +1,5 @@
 import { useAppearance } from '@/state/appearance';
-import { SubtitleOverlay, SubtitlePanel, useSubtitles } from '@/components/Subtitles';
-import { DanmakuManager } from '@/components/DanmakuManager';
+import { SubtitleOverlay, useSubtitles } from '@/components/Subtitles';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
@@ -13,7 +12,8 @@ import { MoviePanel } from '@/components/MoviePanel';
 import { PlaybackControls } from '@/components/PlaybackControls';
 import { moviePlayback, type Movie } from '@/lib/sources';
 import { RoomSettings, type Viewer } from '@/components/RoomSettings';
-import { DanmakuOverlay, DanmakuSettings, useDanmaku } from '@/components/Danmaku';
+import { DanmakuOverlay, useDanmaku } from '@/components/Danmaku';
+import { DanmakuManager } from '@/components/DanmakuManager';
 import { MusicPanel } from '@/components/MusicPanel';
 import { ScreenShare, type ShareState } from '@/components/ScreenShare';
 import { playbackSource, onBiliChange, biliFallback, stopBiliPlayback } from '@/lib/biliNative';
@@ -80,7 +80,7 @@ export default function RoomScreen() {
   const [musicImmersive, setMusicImmersive] = useState(false);
   const [chatSection, setChatSection] = useState<'comments' | 'tracks' | 'realtime'>('comments');
   const [sideOpen, setSideOpen] = useState<boolean | null>(null);
-  const [playerOptions, setPlayerOptions] = useState<'danmaku' | 'subtitles' | 'diagnostics' | null>(null);
+  const [playerOptions, setPlayerOptions] = useState<'diagnostics' | null>(null);
   const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
   const priorOrientationLock = useRef<ScreenOrientation.OrientationLock | null>(null);
   const orientationOperation = useRef(0);
@@ -468,9 +468,9 @@ export default function RoomScreen() {
       <View testID="room-body" onLayout={event => setBodySize(event.nativeEvent.layout)} style={[roomLayout.body, wide && roomLayout.wide, fullScreen && { gap: 0 }]}>
         <View testID="room-media-frame" onLayout={event => setMediaSize(event.nativeEvent.layout)} style={[roomLayout.mediaFrame, wide && sideVisible && columns.media, stacked && roomLayout.stackedMedia, stacked && { height: stackedMediaHeight(bodySize.height || Math.max(0, height - 150)) }]}>
         {mode === 'listen-together' ? <MusicPanel roomId={roomId} host={host} onExpandedLandscape={setMusicImmersive} switchMode={value => { if (host && socket) void emitAck(socket, 'update-room-mode', { roomId, mode: value }).catch(failure => setError(messageFor(failure))); }} /> : <ScrollView ref={mediaColumn} scrollEnabled={!fullScreen} style={roomLayout.mediaScroll} contentContainerStyle={[styles.mediaContent, fullScreen && { flexGrow: 1, paddingBottom: 0, gap: 0 }]}>
-          {mode === 'watch-together' ? <View testID="video-container" onLayout={event => setVideoSize(event.nativeEvent.layout)} style={[styles.playerBox, fullScreen ? { flex: 1, borderRadius: 0, minHeight: 0 } : { height: playerHeight }]}>{source?.sourceUrl && !playbackError ? <VlcVideo video={video} style={styles.video} /> : <View style={styles.placeholder}><Text style={[styles.muted, { color: "#a8b3b6" }]}>{playbackError ? `播放失败（${classifyPlayerError(playbackError)}）：${playbackError}` : waitingMovie ? '正在等待当前影片资料…' : '等待房主选择影片'}</Text>{playbackError && source?.sourceUrl ? <Button label="重试播放" onPress={() => { adapterRef.current?.invalidate(); setPlaybackError(''); setRetryTick(value => value + 1); }} /> : null}</View>}<VideoGestures player={player} fullscreen={fullScreen} show={showControls} control={control} /><SubtitleOverlay subtitles={subtitles} player={player} /><DanmakuOverlay player={player} state={danmaku} width={videoSize.width || leftWidth} height={videoSize.height || playerHeight} /><View pointerEvents={controlsVisible || !fullScreen ? "auto" : "none"} style={[styles.videoControls, fullScreen && !controlsVisible && { opacity: 0 }]}><PlaybackControls player={player} host={host} control={control} fullscreen={fullScreen} toggleFullscreen={() => void toggleFullscreen()} /></View></View> : <ScreenShare roomId={roomId} share={share} height={playerHeight} />}
+          {mode === 'watch-together' ? <View testID="video-container" onLayout={event => setVideoSize(event.nativeEvent.layout)} style={[styles.playerBox, fullScreen ? { flex: 1, borderRadius: 0, minHeight: 0 } : { height: playerHeight }]}>{source?.sourceUrl && !playbackError ? <VlcVideo video={video} style={styles.video} /> : <View style={styles.placeholder}><Text style={[styles.muted, { color: "#a8b3b6" }]}>{playbackError ? `播放失败（${classifyPlayerError(playbackError)}）：${playbackError}` : waitingMovie ? '正在等待当前影片资料…' : '等待房主选择影片'}</Text>{playbackError && source?.sourceUrl ? <Button label="重试播放" onPress={() => { adapterRef.current?.invalidate(); setPlaybackError(''); setRetryTick(value => value + 1); }} /> : null}</View>}<VideoGestures player={player} fullscreen={fullScreen} show={showControls} control={control} /><SubtitleOverlay subtitles={subtitles} player={player} /><DanmakuOverlay player={player} state={danmaku} width={videoSize.width || leftWidth} height={videoSize.height || playerHeight} /><View pointerEvents={controlsVisible || !fullScreen ? "auto" : "none"} style={[styles.videoControls, fullScreen && !controlsVisible && { opacity: 0 }]}><PlaybackControls player={player} host={host} roomId={roomId} subtitles={subtitles} danmaku={danmaku} control={control} fullscreen={fullScreen} toggleFullscreen={() => void toggleFullscreen()} /></View></View> : <ScreenShare roomId={roomId} share={share} height={playerHeight} />}
           {mode === 'watch-together' && source?.sourceUrl && !fullScreen ? <View style={styles.controlPanel}>
-            <View style={styles.controls}><Button label="弹幕设置" onPress={() => setPlayerOptions('danmaku')} /><Button label="字幕管理" onPress={() => setPlayerOptions('subtitles')} /><Button label="播放诊断" onPress={() => setPlayerOptions('diagnostics')} /></View>
+            <View style={styles.controls}><Button label="播放诊断" onPress={() => setPlayerOptions('diagnostics')} /></View>
 
           </View> : null}
         </ScrollView>}
@@ -496,7 +496,7 @@ export default function RoomScreen() {
       <BiliAccount /><RoomSettings roomId={roomId} roomName={roomName} host={host} close={closeRoom} viewers={viewers} />
     </AppDialog>
     <AppDialog visible={leaveOpen} title="离开房间？" close={() => setLeaveOpen(false)}><Text style={styles.text}>{host ? '离开后将停止本机播放，房间按服务器的离线规则保留。' : '离开后将停止本机播放。'}</Text><View style={styles.controls}><Button label="取消" onPress={() => setLeaveOpen(false)} /><Button label="离开" onPress={leave} /></View></AppDialog>
-    <Modal visible={playerOptions !== null} transparent animationType="fade" supportedOrientations={['portrait', 'landscape']} onRequestClose={() => setPlayerOptions(null)}><View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 }}><ScrollView style={{ maxHeight: '90%', width: '100%', maxWidth: 650, alignSelf: 'center', borderRadius: 16, backgroundColor: theme.color('#1b2024', 'backgroundColor') }} contentContainerStyle={{ padding: 16, gap: 14 }}><View style={styles.controls}><Text style={[styles.title, { flex: 1 }]}>{playerOptions === 'danmaku' ? '弹幕设置' : playerOptions === 'subtitles' ? '字幕管理' : '播放诊断'}</Text><Button label="关闭面板" onPress={() => setPlayerOptions(null)} /></View>{playerOptions === 'danmaku' ? <><DanmakuSettings state={danmaku} /><DanmakuManager roomId={roomId} host={host} tracks={danmaku.tracks} /></> : playerOptions === 'subtitles' ? <SubtitlePanel subtitles={subtitles} /> : <>
+    <Modal visible={playerOptions !== null} transparent animationType="fade" supportedOrientations={['portrait', 'landscape']} onRequestClose={() => setPlayerOptions(null)}><View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 }}><ScrollView style={{ maxHeight: '90%', width: '100%', maxWidth: 650, alignSelf: 'center', borderRadius: 16, backgroundColor: theme.color('#1b2024', 'backgroundColor') }} contentContainerStyle={{ padding: 16, gap: 14 }}><View style={styles.controls}><Text style={[styles.title, { flex: 1 }]}>播放诊断</Text><Button label="关闭面板" onPress={() => setPlayerOptions(null)} /></View>{<>
             <Text style={styles.muted}>播放器：{mediaStatus}{trackSummary ? ` · ${trackSummary}` : ''}</Text>
             <View style={styles.controls}><Button label={diagnosing ? '检测中…' : '播放诊断'} onPress={() => void runProbe()} disabled={diagnosing} /></View>
             {mediaProbe ? <Text style={mediaProbe.category === 'ready' ? styles.muted : styles.error}>网络探测：{mediaProbe.detail} · 来源 {mediaProbe.source}{mediaProbe.status ? ` · HEAD ${mediaProbe.status}` : ''}{mediaProbe.contentType ? ` · ${mediaProbe.contentType}` : ''}{mediaProbe.checks?.map(check => ` · ${check.name} ${check.status}${check.valid ? '✓' : '✗'}`).join('')}{mediaProbe.signature ? ` · 文件头 ${mediaProbe.signature}` : ''}{mediaProbe.redirected ? ' · 已跳转' : ''}</Text> : null}</>}</ScrollView></View></Modal>
