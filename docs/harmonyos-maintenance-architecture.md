@@ -2,6 +2,8 @@
 
 更新日期：2026-10-02
 
+本轮 iOS 对齐补充：以共享 MusicHomePage/MusicDailyPage/MusicFmPage/DanmakuSearchModal 为参考，新增整份歌单替换或追加、连续漫游、来源下拉与双列弹幕选集、横竖菜单切换、音乐首页卡及日推历史日期。仅 iOS RN 业务与维护资料修改；本端原生和共享运行代码未改、未重新发布。69 项单测与隔离 v4.2.1 的 Web/协议检查通过，真机和完整权限差异保留；没有 EAS 云构建。详见 [预览补充](releases/ios-1.5.0-15-followup-preview.md)。
+
 源码核对基线：`client-v1.5.0`，提交 `1ca96fd46963ff5cb89beb6c3d31e1d7b9f501fc`。2026-10-02 已将该标签的共享前端、Android/HarmonyOS 原生源码及版本文件同步至指定仓库 `E:/Codex-bulid/ZViewer/ZViewer-client`，保留 iOS b12 源码与证据。下述新增路径现已在本目录可读，亦可用 `git show client-v1.5.0:<路径>` 复核。见 [本地同步与验证](client-1.5.0-local-sync-2026-10-02.md)。本次构建验证不代表新增设备验收。
 
 ## 1. 当前开发进程

@@ -37,7 +37,7 @@ const backend = 'http://127.0.0.1:7343';
       const frame = await page.getByTestId('room-media-frame').boundingBox();
       const videoBox = await page.getByTestId('video-container').boundingBox();
       check(`watch media frame and empty player stay visible at ${w}x${h}`, frame && videoBox && frame.width > 250 && frame.height > 170 && videoBox.width > 250 && videoBox.height > 100);
-      if (await page.getByRole('button',{name:'展开侧栏',exact:true}).isVisible()) await page.getByRole('button',{name:'展开侧栏',exact:true}).click();
+      if (await page.getByRole('button',{name:/^展开(侧栏|下方菜单)$/,exact:true}).isVisible()) await page.getByRole('button',{name:/^展开(侧栏|下方菜单)$/,exact:true}).click();
       if (h > w) {
         await page.waitForTimeout(200); const media = await page.getByTestId('room-media-frame').boundingBox(); const sidebar = await page.getByTestId('room-sidebar').boundingBox(); const video = await page.getByTestId('video-container').boundingBox();
         check(`portrait panels stay below video at ${w}x${h}`, sidebar && media && video && sidebar.y >= media.y + media.height - 1 && video.y + video.height <= sidebar.y + 1);
@@ -131,9 +131,9 @@ const backend = 'http://127.0.0.1:7343';
       const slider = await page.getByLabel('播放进度').boundingBox(); check(`video controls remain within ${w}x${h}`, slider && slider.y >= 0 && slider.y+slider.height <= h+1);
       await page.getByRole('button', { name:'退出全屏',exact:true }).click(); await page.getByRole('button',{name:'房间设置',exact:true}).waitFor();
     }
-    await page.setViewportSize({width:1180,height:820}); await page.getByRole('button',{name:'旋转并锁定',exact:true}).click();
+    await page.setViewportSize({width:1180,height:820}); if (await page.getByRole('button',{name:'屏幕方向',exact:true}).isVisible()) { await page.getByRole('button',{name:'屏幕方向',exact:true}).click(); await page.getByTestId('dialog-屏幕方向').getByRole('button',{name:'关闭',exact:true}).click(); }
     check('rotation does not toggle fullscreen',await page.getByRole('button',{name:'房间设置',exact:true}).isVisible());
-    if (await page.getByRole('button',{name:'展开侧栏',exact:true}).isVisible()) await page.getByRole('button',{name:'展开侧栏',exact:true}).click(); await page.getByText('片单', { exact: true }).click();
+    if (await page.getByRole('button',{name:/^展开(侧栏|下方菜单)$/,exact:true}).isVisible()) await page.getByRole('button',{name:/^展开(侧栏|下方菜单)$/,exact:true}).click(); await page.getByText('片单', { exact: true }).click();
     mkdirSync(output, { recursive: true });
     for (const [name, width, height] of [['ipad-landscape', 1180, 820], ['ipad-portrait', 820, 1180], ['iphone', 390, 844]]) {
       await page.setViewportSize({ width, height }); await page.waitForTimeout(700); await page.screenshot({ path: resolve(output, `ios-ui-${name}.png`) });

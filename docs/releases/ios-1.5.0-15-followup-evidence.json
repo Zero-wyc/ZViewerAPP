@@ -1,0 +1,573 @@
+{
+  "date": "2026-10-02",
+  "version": "1.5.0",
+  "sourceBuildNumber": "15",
+  "scope": "RN source preview + isolated official v4.2.1; catalog fixtures; not native device media acceptance",
+  "reference": [
+    "src/upstream/modules/music/pages/MusicHomePage.tsx",
+    "src/upstream/modules/music/pages/MusicDailyPage.tsx",
+    "src/upstream/modules/music/pages/MusicFmPage.tsx",
+    "src/upstream/modules/room/watch-together/DanmakuSearchModal.tsx"
+  ],
+  "unitTests": 69,
+  "lint": "passed",
+  "typecheck": "passed",
+  "iosExport": "passed",
+  "webExport": "passed",
+  "EASBuildSubmitted": false,
+  "EASUpdateSubmitted": false,
+  "IPAProduced": false,
+  "followupWeb": {
+    "scope": "RN Web presentation, fixture online catalog, real isolated room writes; device rotation/VLC pending",
+    "checks": [
+      "portrait video remains above menus 735x1044",
+      "hide only lower menu 735x1044 #0",
+      "hide only lower menu 735x1044 #1",
+      "hide only lower menu 735x1044 #2",
+      "portrait video remains above menus 820x1180",
+      "hide only lower menu 820x1180 #0",
+      "hide only lower menu 820x1180 #1",
+      "hide only lower menu 820x1180 #2",
+      "portrait video remains above menus 390x844",
+      "hide only lower menu 390x844 #0",
+      "hide only lower menu 390x844 #1",
+      "hide only lower menu 390x844 #2",
+      "expanded menus switch placement 1180x820",
+      "expanded menus switch placement 820x1180",
+      "expanded menus switch placement 1390x970",
+      "expanded menus switch placement 970x1390",
+      "expanded menus switch placement 844x390",
+      "expanded menus switch placement 390x844",
+      "expanded menus switch placement 1180x820",
+      "30 sources use a bounded dropdown",
+      "80 search results independently scroll",
+      "80 episodes independently scroll",
+      "episodes show title only, two per row",
+      "danmaku modal/close fit 1180x820",
+      "danmaku modal/close fit 820x1180",
+      "danmaku modal/close fit 390x844",
+      "episode playbackParams preserved",
+      "online import persists actual room track",
+      "old queue fixture plays via real server",
+      "failed preload preserves old queue and track",
+      "append entire 130 tracks preserves old playback",
+      "append order includes page beyond 100",
+      "all play replaces queue and starts first",
+      "FM continues beyond first batch with real queue selection",
+      "FM mode/scene API parity",
+      "FM carousel fits 1180x820",
+      "FM carousel fits 820x1180",
+      "FM carousel fits 390x844",
+      "FM carousel fits 320x568",
+      "home full banner and daily stack 1180x820",
+      "home full banner and daily stack 820x1180",
+      "home full banner and daily stack 390x844",
+      "home full banner and daily stack 320x568",
+      "daily defaults to today",
+      "daily history selection changes actual songs",
+      "zero JS runtime errors"
+    ],
+    "errors": []
+  },
+  "roomWeb": {
+    "scope": "Expo web UI + official isolated v4.2.1; not device media acceptance",
+    "checks": [
+      "local account login + Socket connection",
+      "create room + restore host",
+      "浅色 appearance switches without leaving room",
+      "深色 appearance switches without leaving room",
+      "add movie through UI persists canonical source",
+      "watch media frame and empty player stay visible at 1180x820",
+      "source picker opens/closes three times without layout changes at 1180x820",
+      "watch media frame and empty player stay visible at 820x1180",
+      "portrait panels stay below video at 820x1180",
+      "source picker opens/closes three times without layout changes at 820x1180",
+      "watch media frame and empty player stay visible at 390x844",
+      "portrait panels stay below video at 390x844",
+      "source picker opens/closes three times without layout changes at 390x844",
+      "watch media frame and empty player stay visible at 1390x970",
+      "source picker opens/closes three times without layout changes at 1390x970",
+      "playback settings fit 1180x820 with a fixed close control",
+      "playback settings fit 390x844 with a fixed close control",
+      "member join follows server viewer-joined event",
+      "member leave follows server viewer-left event",
+      "rename room follows actual server protocol",
+      "Android music navigation and floating player are present",
+      "empty music player opens/closes three times without update loops",
+      "actual raw NCM status DTO shows logged-out gate without envelope error",
+      "NCM menu stays anchored below its button after resizing to 1180x820",
+      "NCM menu stays anchored below its button after resizing to 820x1180",
+      "NCM menu stays anchored below its button after resizing to 390x844",
+      "menu selection closes dropdown and switches music page",
+      "music surface fills media frame at 1180x820",
+      "music ipad-landscape has no horizontal page overflow",
+      "music surface fills media frame at 820x1180",
+      "music ipad-portrait has no horizontal page overflow",
+      "music surface fills media frame at 390x844",
+      "music iphone has no horizontal page overflow",
+      "music surface fills media frame at 1390x970",
+      "music reported-ipad has no horizontal page overflow",
+      "music surface fills media frame at 844x390",
+      "music phone-landscape has no horizontal page overflow",
+      "successful QR polling refreshes existing My Music page",
+      "real NCM logout returns to Android login gate",
+      "listen mode mounts music search UI",
+      "fixture NCM result + real server music queue upsert/broadcast",
+      "music video picker stays in viewport at 1180x820",
+      "music video picker stays in viewport at 820x1180",
+      "music video picker stays in viewport at 390x844",
+      "song comment modal renders fixture and failed-avatar placeholder",
+      "real server music queue remove/broadcast",
+      "screen sharing missing-module preview remains usable",
+      "fullscreen fills 1180x820 viewport",
+      "video controls remain within 1180x820",
+      "fullscreen fills 820x1180 viewport",
+      "video controls remain within 820x1180",
+      "fullscreen fills 390x844 viewport",
+      "video controls remain within 390x844",
+      "rotation does not toggle fullscreen",
+      "ipad-landscape has no horizontal page overflow",
+      "ipad-portrait has no horizontal page overflow",
+      "iphone has no horizontal page overflow",
+      "leave room returns to lobby",
+      "no JS runtime exceptions"
+    ],
+    "errors": []
+  },
+  "musicPlayerWeb": {
+    "scope": "Exported RN Web layout; fixture artwork and lyrics; actual isolated v4.2.1 queue",
+    "checks": [
+      "empty queue shows usable card without blank lyric panel",
+      "square bounded artwork 1180x820",
+      "card and tool strip within 1180x820",
+      "transport and close remain reachable 1180x820",
+      "tablet/landscape two columns 1180x820",
+      "square bounded artwork 820x1180",
+      "card and tool strip within 820x1180",
+      "transport and close remain reachable 820x1180",
+      "tablet/landscape two columns 820x1180",
+      "square bounded artwork 970x1390",
+      "card and tool strip within 970x1390",
+      "transport and close remain reachable 970x1390",
+      "tablet/landscape two columns 970x1390",
+      "square bounded artwork 390x844",
+      "card and tool strip within 390x844",
+      "transport and close remain reachable 390x844",
+      "phone defaults to card 390x844",
+      "phone switches to full lyric area 390x844",
+      "square bounded artwork 844x390",
+      "card and tool strip within 844x390",
+      "transport and close remain reachable 844x390",
+      "tablet/landscape two columns 844x390",
+      "square bounded artwork 320x568",
+      "card and tool strip within 320x568",
+      "transport and close remain reachable 320x568",
+      "phone defaults to card 320x568",
+      "phone switches to full lyric area 320x568",
+      "player tone changes without losing track or queue",
+      "settings preserve player and mode reflects real room state",
+      "all lyrics are available instead of a seven-line slice",
+      "no runtime JS errors"
+    ],
+    "errors": []
+  },
+  "yoga": {
+    "scope": "Yoga 3.2.1, Fabric ErrataAll; actual roomLayout; not device acceptance",
+    "checks": [
+      {
+        "size": "1390x970",
+        "mode": "watch-together",
+        "sideVisible": false,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 1358,
+          "height": 786
+        }
+      },
+      {
+        "size": "1390x970",
+        "mode": "watch-together",
+        "sideVisible": true,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 1026,
+          "height": 786
+        },
+        "sidebar": {
+          "left": 1038,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 320,
+          "height": 786
+        }
+      },
+      {
+        "size": "1390x970",
+        "mode": "listen-together",
+        "sideVisible": false,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 1358,
+          "height": 786
+        }
+      },
+      {
+        "size": "1390x970",
+        "mode": "listen-together",
+        "sideVisible": true,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 1358,
+          "height": 786
+        }
+      },
+      {
+        "size": "1180x820",
+        "mode": "watch-together",
+        "sideVisible": false,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 1148,
+          "height": 636
+        }
+      },
+      {
+        "size": "1180x820",
+        "mode": "watch-together",
+        "sideVisible": true,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 816,
+          "height": 636
+        },
+        "sidebar": {
+          "left": 828,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 320,
+          "height": 636
+        }
+      },
+      {
+        "size": "1180x820",
+        "mode": "listen-together",
+        "sideVisible": false,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 1148,
+          "height": 636
+        }
+      },
+      {
+        "size": "1180x820",
+        "mode": "listen-together",
+        "sideVisible": true,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 1148,
+          "height": 636
+        }
+      },
+      {
+        "size": "820x1180",
+        "mode": "watch-together",
+        "sideVisible": false,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 788,
+          "height": 996
+        }
+      },
+      {
+        "size": "820x1180",
+        "mode": "watch-together",
+        "sideVisible": true,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 788,
+          "height": 472
+        },
+        "sidebar": {
+          "left": 0,
+          "right": 0,
+          "top": 484,
+          "bottom": 0,
+          "width": 788,
+          "height": 512
+        }
+      },
+      {
+        "size": "820x1180",
+        "mode": "listen-together",
+        "sideVisible": false,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 788,
+          "height": 996
+        }
+      },
+      {
+        "size": "820x1180",
+        "mode": "listen-together",
+        "sideVisible": true,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 788,
+          "height": 996
+        }
+      },
+      {
+        "size": "390x844",
+        "mode": "watch-together",
+        "sideVisible": false,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 358,
+          "height": 660
+        }
+      },
+      {
+        "size": "390x844",
+        "mode": "watch-together",
+        "sideVisible": true,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 358,
+          "height": 311
+        },
+        "sidebar": {
+          "left": 0,
+          "right": 0,
+          "top": 323,
+          "bottom": 0,
+          "width": 358,
+          "height": 337
+        }
+      },
+      {
+        "size": "390x844",
+        "mode": "listen-together",
+        "sideVisible": false,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 358,
+          "height": 660
+        }
+      },
+      {
+        "size": "390x844",
+        "mode": "listen-together",
+        "sideVisible": true,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 358,
+          "height": 660
+        }
+      },
+      {
+        "size": "844x390",
+        "mode": "watch-together",
+        "sideVisible": false,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 812,
+          "height": 206
+        }
+      },
+      {
+        "size": "844x390",
+        "mode": "watch-together",
+        "sideVisible": true,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 524,
+          "height": 206
+        },
+        "sidebar": {
+          "left": 536,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 276,
+          "height": 206
+        }
+      },
+      {
+        "size": "844x390",
+        "mode": "listen-together",
+        "sideVisible": false,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 812,
+          "height": 206
+        }
+      },
+      {
+        "size": "844x390",
+        "mode": "listen-together",
+        "sideVisible": true,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 812,
+          "height": 206
+        }
+      },
+      {
+        "size": "320x568",
+        "mode": "watch-together",
+        "sideVisible": false,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 288,
+          "height": 384
+        }
+      },
+      {
+        "size": "320x568",
+        "mode": "watch-together",
+        "sideVisible": true,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 288,
+          "height": 179
+        },
+        "sidebar": {
+          "left": 0,
+          "right": 0,
+          "top": 191,
+          "bottom": 0,
+          "width": 288,
+          "height": 193
+        }
+      },
+      {
+        "size": "320x568",
+        "mode": "listen-together",
+        "sideVisible": false,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 288,
+          "height": 384
+        }
+      },
+      {
+        "size": "320x568",
+        "mode": "listen-together",
+        "sideVisible": true,
+        "media": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0,
+          "width": 288,
+          "height": 384
+        }
+      }
+    ]
+  },
+  "expoGoLocal": {
+    "manifestHTTP": 200,
+    "bundleHTTP": 200,
+    "bytes": 6678146,
+    "markers": {
+      "收起下方菜单": true,
+      "手动旋转并锁定": true,
+      "全部加入播放列表": true,
+      "DAILY RECOMMENDATION": true,
+      "fm-cover-carousel": true,
+      "danmaku-search-episodes": true,
+      "点击添加该集弹幕": true
+    },
+    "scope": "local Metro only; remote tunnel/device preview not acceptance",
+    "cloudBuild": false,
+    "cloudUpdate": false,
+    "JSXUnicodeEscapesDecoded": true
+  },
+  "iosBundle": {
+    "file": "entry-830ba68bce018f94d9cd385deddec153.hbc",
+    "bytes": 3189631,
+    "sha256": "766028fc887f7acca9b6df46f95a067727756e294ead8f611a9355f9f5432ed6"
+  },
+  "screenshots": {
+    "rotation-1390x970.png": "23a7a30a3ba2f6785cef2e18b35f243fee1a763130756ecf86ee65f42dbf9274",
+    "portrait-735x1044.png": "3b0e991c268af52752e67d7a67defee6d89da16af3f4d0b7dbacb7b2f9dfcab3",
+    "danmaku-390x844.png": "593c523fe17f199139c86d689328c6a550e10fc24ace9f820ec06db7a5e98e54",
+    "danmaku-1180x820.png": "9aff1c74bcea975dc14a2cede7b5821654b76a1312cbc3e039fb3683ae6be821",
+    "home-hero-390x844.png": "e0540f0627453ff0dd4dea6be8c4de01c053555aeacaae49cfe6d839e4d1a92f",
+    "home-hero-1180x820.png": "e83bd143455ecbf931bc6835b5a91a83dc97cbc7d80ea9849fe9961dc08cbe76",
+    "daily-history.png": "1b59bc7acd05d8b3d26cf940deb38e7f0a6371ec501f23514c68e9c8d8b82dee",
+    "fm-1180x820.png": "c1a8aefe4da727564ed1fdf4b999b822c7313cccb9124ca378b3bf6c718f861d",
+    "playlist-actions.png": "6920bdf448e0f971ff584ce444bf974a132b4fbce25098a7793a173a0f11e894"
+  }
+}

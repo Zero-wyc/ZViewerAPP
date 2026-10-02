@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { VlcVideo, useVlcVideo } from '@/components/VlcVideo';
 import * as ScreenOrientation from 'expo-screen-orientation';
+import Constants from 'expo-constants';
 import { MoviePanel } from '@/components/MoviePanel';
 import { PlaybackControls } from '@/components/PlaybackControls';
 import { moviePlayback, type Movie } from '@/lib/sources';
@@ -22,7 +23,7 @@ import { useWatchControl } from '@/hooks/useWatchControl';
 import { useSystemMedia } from '@/hooks/useSystemMedia';
 import { VideoGestures } from '@/components/VideoGestures';
 import { VoicePanel } from '@/components/VoicePanel';
-import { roomLayout } from '@/lib/roomLayout';
+import { roomLayout, stackedMediaHeight, landscapeColumns } from '@/lib/roomLayout';
 import { NativePreviewNotice } from '@/components/NativePreviewNotice';
 import { AppDialog } from '@/components/AppDialog';
 import { BiliAccount } from '@/components/BiliAccount';
@@ -95,6 +96,10 @@ export default function RoomScreen() {
   const roomPlayback = useRef(new RoomPlayback());
   const [waitingMovie, setWaitingMovie] = useState(false);
   const [manualLock, setManualLock] = useState(false);
+  const [orientationAvailable, setOrientationAvailable] = useState(false);
+  const [orientationOpen, setOrientationOpen] = useState(false);
+  const [orientationError, setOrientationError] = useState('');
+  const [orientationBusy, setOrientationBusy] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const controlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showControls = () => { setControlsVisible(true); if (controlsTimer.current) clearTimeout(controlsTimer.current); controlsTimer.current = setTimeout(() => setControlsVisible(false), 3000); };
@@ -121,19 +126,35 @@ export default function RoomScreen() {
   }, [player]);
   useEffect(() => onBiliChange(() => { adapterRef.current?.invalidate(); setRetryTick(value => value + 1); }), []);
   useEffect(() => () => { void stopBiliPlayback(); }, []);
-  const { width, height } = useWindowDimensions();
-  const wide = !fullScreen && width >= 900 && width > height;
+  const windowSize = useWindowDimensions();
+  const [rootSize, setRootSize] = useState({ width: 0, height: 0 });
+  const [bodySize, setBodySize] = useState({ width: 0, height: 0 });
+  const width = rootSize.width || windowSize.width;
+  const height = rootSize.height || windowSize.height;
+  const wide = !fullScreen && width >= 600 && width > height;
   const portrait = height >= width;
   const sideVisible = !fullScreen && mode !== 'listen-together' && (sideOpen ?? (wide || portrait));
   const stacked = portrait && sideVisible;
+  const columns = landscapeColumns(bodySize.width || Math.max(0, width - 24));
   const [mediaSize, setMediaSize] = useState({ width: 0, height: 0 });
   const leftWidth = mediaSize.width || (wide && sideVisible ? Math.max(0, width - 380) : Math.max(0, width - 32));
   const playerHeight = Math.min(leftWidth * 9 / 16, stacked && mediaSize.height ? Math.max(80, mediaSize.height - (source?.sourceUrl ? 68 : 0)) : wide ? Math.max(180, height - 238) : 460);
   useEffect(() => () => { void ScreenOrientation.unlockAsync().catch(() => {}); }, []);
-  const rotateScreen = async () => {
-    if (fullScreen) return;
-    try { if (manualLock) { await ScreenOrientation.unlockAsync(); setManualLock(false); } else { await ScreenOrientation.lockAsync(width > height ? ScreenOrientation.OrientationLock.PORTRAIT_UP : ScreenOrientation.OrientationLock.LANDSCAPE); setManualLock(true); } }
-    catch { setError('当前设备无法锁定方向，可手动旋转屏幕'); }
+  useEffect(() => {
+    if (Constants.expoVersion) return;
+    let active = true;
+    void Promise.all([ScreenOrientation.supportsOrientationLockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP), ScreenOrientation.supportsOrientationLockAsync(ScreenOrientation.OrientationLock.LANDSCAPE)]).then(values => { if (active) setOrientationAvailable(values.every(Boolean)); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+  const rotateScreen = async (action: 'rotate' | 'lock' | 'auto') => {
+    if (fullScreen || orientationBusy || !orientationAvailable) return;
+    setOrientationBusy(true); setOrientationError('');
+    try {
+      if (action === 'auto') { await ScreenOrientation.unlockAsync(); setManualLock(false); }
+      else { const landscape = action === 'rotate' ? portrait : !portrait; await ScreenOrientation.lockAsync(landscape ? ScreenOrientation.OrientationLock.LANDSCAPE : ScreenOrientation.OrientationLock.PORTRAIT_UP); setManualLock(true); }
+      setOrientationOpen(false);
+    } catch { setOrientationError('当前设备无法更改方向，请检查系统方向锁或手动旋转屏幕'); }
+    finally { setOrientationBusy(false); }
   };
   const toggleFullscreen = async () => {
     const operation = ++orientationOperation.current;
@@ -431,21 +452,21 @@ export default function RoomScreen() {
   };
 
   if (!session) return <SafeAreaView style={styles.root}><Text style={styles.text}>请先登录</Text><Button label="返回" onPress={() => router.replace('/')} /></SafeAreaView>;
-  return <SafeAreaView edges={fullScreen ? [] : ['top', 'bottom', 'left', 'right']} style={[styles.root, fullScreen && styles.fullscreenRoot]}>
+  return <SafeAreaView onLayout={event => setRootSize(event.nativeEvent.layout)} edges={fullScreen ? [] : ['top', 'bottom', 'left', 'right']} style={[styles.root, fullScreen && styles.fullscreenRoot]}>
     <StatusBar style={theme.dark ? "light" : "dark"} hidden={fullScreen} />
     {!fullScreen && !musicImmersive ? <NativePreviewNotice /> : null}
     <Surface readable style={[styles.header, (fullScreen || musicImmersive) && { display: 'none' }]}>
       <RoomIconButton label="离开房间" icon="arrow-left" onPress={() => setLeaveOpen(true)} />
       <View style={{ flex: 1, minWidth: 0 }}><Text style={styles.title} numberOfLines={1}>{roomName}</Text><Text style={styles.muted}>{host ? '房主' : '观众'} · {mode === 'listen-together' ? '一起听' : mode === 'screen-share' ? '屏幕共享' : '同步观影'}</Text></View>
-      <RoomIconButton label={manualLock ? "恢复自动旋转" : "旋转并锁定"} icon="smartphone" onPress={() => void rotateScreen()} />
+      {orientationAvailable ? <RoomIconButton label={manualLock ? '方向已锁定' : '屏幕方向'} icon={manualLock ? 'lock' : 'smartphone'} onPress={() => setOrientationOpen(true)} /> : null}
       <VoicePanel compact roomId={roomId} ready={phase === 'ready'} host={host} />
       <RoomIconButton label="房间设置" icon="users" onPress={() => setSettingsOpen(true)} />
-      {mode !== 'listen-together' ? <RoomIconButton label={sideVisible ? '收起侧栏' : '展开侧栏'} icon={sideVisible ? 'sidebar' : 'menu'} onPress={() => setSideOpen(!sideVisible)} /> : null}
+      {mode !== 'listen-together' ? <RoomIconButton label={portrait ? (sideVisible ? '收起下方菜单' : '展开下方菜单') : (sideVisible ? '收起侧栏' : '展开侧栏')} icon={portrait ? (sideVisible ? 'chevron-up' : 'chevron-down') : (sideVisible ? 'sidebar' : 'menu')} onPress={() => setSideOpen(!sideVisible)} /> : null}
     </Surface>
     {!connected && !fullScreen ? <Text style={styles.error}>连接已断开，正在重连</Text> : null}
     {phase !== 'ready' ? <View style={styles.join}><ActivityIndicator color="#65d59b" animating={phase === 'joining' || phase === 'connecting' || phase === 'waiting'} /><Text style={styles.title}>{phase === 'password' ? '请输入房间密码' : phase === 'waiting' ? '等待房主批准' : phase === 'closed' ? '房间已关闭' : phase === 'error' ? '无法加入房间' : '正在加入房间'}</Text>{error ? <Text style={styles.error}>{error}</Text> : null}{phase === 'password' ? <><TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholder="房间密码" placeholderTextColor="#a8b3b6" /><Button label="进入房间" disabled={!connected} onPress={() => { passwordRef.current = password; attempted.current = true; void join(hostRef.current); }} /></> : null}{phase === 'error' ? <Button label="重试" disabled={!connected} onPress={() => void join(hostRef.current)} /> : null}<Button label="返回房间列表" onPress={leave} /></View> : <>
-      <View testID="room-body" style={[roomLayout.body, wide && roomLayout.wide, fullScreen && { gap: 0 }]}>
-        <View testID="room-media-frame" onLayout={event => setMediaSize(event.nativeEvent.layout)} style={[roomLayout.mediaFrame, stacked && roomLayout.stackedMedia]}>
+      <View testID="room-body" onLayout={event => setBodySize(event.nativeEvent.layout)} style={[roomLayout.body, wide && roomLayout.wide, fullScreen && { gap: 0 }]}>
+        <View testID="room-media-frame" onLayout={event => setMediaSize(event.nativeEvent.layout)} style={[roomLayout.mediaFrame, wide && sideVisible && columns.media, stacked && roomLayout.stackedMedia, stacked && { height: stackedMediaHeight(bodySize.height || Math.max(0, height - 150)) }]}>
         {mode === 'listen-together' ? <MusicPanel roomId={roomId} host={host} onExpandedLandscape={setMusicImmersive} switchMode={value => { if (host && socket) void emitAck(socket, 'update-room-mode', { roomId, mode: value }).catch(failure => setError(messageFor(failure))); }} /> : <ScrollView ref={mediaColumn} scrollEnabled={!fullScreen} style={roomLayout.mediaScroll} contentContainerStyle={[styles.mediaContent, fullScreen && { flexGrow: 1, paddingBottom: 0, gap: 0 }]}>
           {mode === 'watch-together' ? <View testID="video-container" onLayout={event => setVideoSize(event.nativeEvent.layout)} style={[styles.playerBox, fullScreen ? { flex: 1, borderRadius: 0, minHeight: 0 } : { height: playerHeight }]}>{source?.sourceUrl && !playbackError ? <VlcVideo video={video} style={styles.video} /> : <View style={styles.placeholder}><Text style={[styles.muted, { color: "#a8b3b6" }]}>{playbackError ? `播放失败（${classifyPlayerError(playbackError)}）：${playbackError}` : waitingMovie ? '正在等待当前影片资料…' : '等待房主选择影片'}</Text>{playbackError && source?.sourceUrl ? <Button label="重试播放" onPress={() => { adapterRef.current?.invalidate(); setPlaybackError(''); setRetryTick(value => value + 1); }} /> : null}</View>}<VideoGestures player={player} fullscreen={fullScreen} show={showControls} control={control} /><SubtitleOverlay subtitles={subtitles} player={player} /><DanmakuOverlay player={player} state={danmaku} width={videoSize.width || leftWidth} height={videoSize.height || playerHeight} /><View pointerEvents={controlsVisible || !fullScreen ? "auto" : "none"} style={[styles.videoControls, fullScreen && !controlsVisible && { opacity: 0 }]}><PlaybackControls player={player} host={host} control={control} fullscreen={fullScreen} toggleFullscreen={() => void toggleFullscreen()} /></View></View> : <ScreenShare roomId={roomId} share={share} height={playerHeight} />}
           {mode === 'watch-together' && source?.sourceUrl && !fullScreen ? <View style={styles.controlPanel}>
@@ -454,7 +475,7 @@ export default function RoomScreen() {
           </View> : null}
         </ScrollView>}
         </View>
-        <Surface readable testID="room-sidebar" style={[styles.sidePanel, !sideVisible && { display: 'none' }, wide ? roomLayout.sidebar : stacked ? roomLayout.stackedSidebar : { position: 'absolute', top: 0, right: 0, bottom: 0, width: '100%', zIndex: 20, backgroundColor: theme.color('#111417', 'backgroundColor'), padding: 12 }]}>
+        <Surface readable testID="room-sidebar" style={[styles.sidePanel, !sideVisible && { display: 'none' }, wide ? columns.sidebar : stacked ? roomLayout.stackedSidebar : { position: 'absolute', top: 0, right: 0, bottom: 0, width: '100%', zIndex: 20, backgroundColor: theme.color('#111417', 'backgroundColor'), padding: 12 }]}>
           <View style={styles.tabs}>{(['chat', 'movies', 'room'] as const).filter(value => value !== 'movies' || mode === 'watch-together').map(value => <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: tab === value }} onPress={() => setTab(value)} style={{ flex: 1, minHeight: 48, flexDirection: 'row', gap: 8, justifyContent: 'center', alignItems: 'center', borderBottomWidth: 2, borderBottomColor: tab === value ? theme.color('#65d59b') : 'transparent' }}><Feather name={value === 'chat' ? 'message-circle' : value === 'movies' ? 'film' : 'settings'} size={18} color={theme.color(tab === value ? '#65d59b' : '#a8b3b6')} /><Text style={tab === value ? styles.activeTab : styles.muted}>{value === 'chat' ? '聊天' : value === 'movies' ? '片单' : '房间'}</Text></Pressable>)}</View>
           {tab === 'chat' ? <View style={{ flex: 1, gap: 12, backgroundColor: theme.color('#1b2024', 'backgroundColor'), borderWidth: 1, borderColor: theme.color('#343d41', 'borderColor'), borderRadius: 12, padding: 12 }}><View style={{ flexDirection: 'row', gap: 4, backgroundColor: theme.color('#141a1d', 'backgroundColor'), borderRadius: 22, padding: 4 }}>{(['comments', 'tracks', 'realtime'] as const).map((value, index) => <Pressable key={value} accessibilityRole="button" onPress={() => setChatSection(value)} style={{ flex: 1, minHeight: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 20, backgroundColor: chatSection === value ? theme.color('#65d59b', 'backgroundColor') : 'transparent' }}><Text style={{ color: theme.color(chatSection === value ? '#111417' : '#a8b3b6'), fontSize: 13 }}>{['评论区', '弹幕轨道', '实时弹幕'][index]}</Text></Pressable>)}</View>{chatSection === 'tracks' ? <ScrollView><DanmakuManager roomId={roomId} host={host} tracks={danmaku.tracks} /></ScrollView> : <><ScrollView style={styles.list} contentContainerStyle={styles.listContent}>{chatSection === 'realtime' ? danmaku.live.map(comment => <Text key={comment.id} style={styles.text}>{comment.content}</Text>) : comments.length ? comments.map(comment => <View key={comment.id} style={styles.item}><Text style={styles.muted}>{comment.username}</Text><Text style={styles.text}>{comment.content}</Text></View>) : <View style={{ padding: 32, alignItems: 'center' }}><Text style={styles.muted}>暂无评论，快来第一条吧</Text></View>}</ScrollView><View style={styles.composer}><TextInput style={[styles.input, { flex: 1 }]} value={draft} onChangeText={setDraft} placeholder={sendAsDanmaku ? "发送弹幕" : "说点什么…"} placeholderTextColor={theme.color('#a8b3b6')} /><Button label="发送" disabled={busy || !connected} onPress={() => void sendComment()} /></View><View style={styles.controls}><Switch value={sendAsDanmaku} onValueChange={setSendAsDanmaku} trackColor={{ true: '#65d59b' }} /><Text style={styles.muted}>以弹幕形式发送</Text></View></>}</View> : null}
           {tab === 'movies' ? <MoviePanel currentMovieId={source?.movieId ?? source?.currentMovieId} roomId={roomId} movies={movies} host={host} play={playMovie} reload={loadMovies} /> : null}
@@ -463,6 +484,13 @@ export default function RoomScreen() {
         </Surface>
       </View>
     </>}
+    <AppDialog visible={orientationOpen} title="屏幕方向" close={() => { if (!orientationBusy) setOrientationOpen(false); }}>
+      <Text style={styles.text}>{manualLock ? '方向已锁定' : '跟随设备自动旋转'}</Text>
+      <Button label="手动旋转并锁定" disabled={orientationBusy} onPress={() => void rotateScreen('rotate')} />
+      <Button label="锁定当前方向" disabled={orientationBusy} onPress={() => void rotateScreen('lock')} />
+      <Button label="恢复自动旋转" disabled={orientationBusy} onPress={() => void rotateScreen('auto')} />
+      {orientationError ? <Text style={styles.error}>{orientationError}</Text> : null}
+    </AppDialog>
     <AppDialog visible={settingsOpen} title="房间" close={() => setSettingsOpen(false)}>
       <Button label="全局外观" onPress={() => { setSettingsOpen(false); theme.open(); }} />
       <BiliAccount /><RoomSettings roomId={roomId} roomName={roomName} host={host} close={closeRoom} viewers={viewers} />

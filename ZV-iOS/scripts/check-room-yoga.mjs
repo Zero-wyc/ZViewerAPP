@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
-import { roomLayout } from '../src/lib/roomLayout.ts';
+import { roomLayout, stackedMediaHeight, landscapeColumns } from '../src/lib/roomLayout.ts';
 const { default: Yoga } = await import(pathToFileURL(resolve(process.argv[2])).href);
 const config = Yoga.Config.create(); config.setUseWebDefaults(false); config.setErrata(Yoga.ERRATA_ALL);
 const node = (styles, parent) => {
@@ -19,14 +19,16 @@ const node = (styles, parent) => {
 const checks = [];
 for (const [width, height] of [[1390, 970], [1180, 820], [820, 1180], [390, 844], [844, 390], [320, 568]]) {
   for (const mode of ['watch-together', 'listen-together']) for (const sideVisible of [false, true]) {
-    const wide = width >= 900 && width > height;
-    const stacked = height >= width && sideVisible;
+    const wide = width >= 600 && width > height;
+    const showSide = sideVisible && mode === 'watch-together';
+    const stacked = height >= width && showSide;
+    const columns = landscapeColumns(width - 32);
     const root = node({ width: width - 32, height: height - 48 - 32 });
     node({ height: 104, flexShrink: 0 }, root);
     const body = node({ ...roomLayout.body, ...(wide ? roomLayout.wide : {}) }, root);
-    const frame = node({ ...roomLayout.mediaFrame, ...(stacked ? roomLayout.stackedMedia : {}) }, body);
+    const frame = node({ ...roomLayout.mediaFrame, ...(wide && showSide ? columns.media : {}), ...(stacked ? { ...roomLayout.stackedMedia, height: stackedMediaHeight(height - 184) } : {}) }, body);
     let sidebar;
-    if (wide && sideVisible) sidebar = node(roomLayout.sidebar, body);
+    if (wide && showSide) sidebar = node(columns.sidebar, body);
     else if (stacked) sidebar = node(roomLayout.stackedSidebar, body);
     // The new frame is independent of ScrollView's intrinsic measured contents.
     const surface = node(mode === 'listen-together' ? { flex: 1, minHeight: 0, minWidth: 0 } : roomLayout.mediaScroll, frame);
@@ -34,7 +36,7 @@ for (const [width, height] of [[1390, 970], [1180, 820], [820, 1180], [390, 844]
     assert(frame.getComputedWidth() > 250 && frame.getComputedHeight() > 170, 'Media never collapses to an empty column');
     assert.equal(surface.getComputedHeight(), frame.getComputedHeight(), 'Watch scroll viewport/music root fills the media frame');
     assert.equal(surface.getComputedWidth(), frame.getComputedWidth());
-    if (sidebar && wide) assert(sidebar.getComputedLeft() >= frame.getComputedWidth(), 'Landscape chat stays to the right of media');
+    if (sidebar && wide) { assert(sidebar.getComputedLeft() >= frame.getComputedWidth(), 'Landscape chat stays to the right of media'); assert(sidebar.getComputedLeft() + sidebar.getComputedWidth() <= body.getComputedWidth(), 'Sidebar never slides beyond available width'); }
     if (sidebar && stacked) assert(sidebar.getComputedTop() >= frame.getComputedHeight() && sidebar.getComputedHeight() > 150, 'Portrait panel stays below the media and receives remaining height');
     checks.push({ size: `${width}x${height}`, mode, sideVisible, media: frame.getComputedLayout(), sidebar: sidebar?.getComputedLayout() });
     root.freeRecursive();
