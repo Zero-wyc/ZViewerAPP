@@ -42,8 +42,11 @@ export interface PermissionsPort {
 
 export interface HarmonyNativeBridge {
   platform?: 'harmony'
+  updateMediaSession?(state: SystemMediaState): Promise<void>
+  clearMediaSession?(sessionId: string): Promise<void>
   toggleOrientation?(isLandscape: boolean): void | Promise<void>
   setImmersive?(enabled: boolean): void | Promise<void>
+  setSystemBarStyle?(dark: boolean): void | Promise<void>
   unlockOrientation?(): void | Promise<void>
   setMediaPlaybackPreferred?(enabled: boolean): void | Promise<void>
   minimizeApp?(): void | Promise<void>
@@ -54,6 +57,30 @@ export interface HarmonyNativeBridge {
   bilibiliPollQr?(key: string): Promise<{ status: number; message?: string; loggedIn?: boolean; proxyStatus?: BilibiliProxyStatus }>
   bilibiliCancelQr?(): Promise<void>
   bilibiliLogout?(): Promise<BilibiliProxyStatus>
+}
+
+export type SystemMediaAction = 'play' | 'pause' | 'stop' | 'previoustrack' | 'nexttrack' | 'seekto'
+export interface SystemMediaState {
+  sessionId: string
+  mediaId: string
+  kind: 'audio' | 'video'
+  title: string
+  artist: string
+  album: string
+  artwork: string
+  /** Standard LRC and the current line; absent for video/no-lyric tracks. */
+  lyric?: string
+  lyricLine?: string
+  playing: boolean
+  position: number
+  duration: number
+  playbackRate: number
+  actions: SystemMediaAction[]
+}
+export interface SystemMediaCommand {
+  sessionId: string
+  action: SystemMediaAction
+  position?: number
 }
 
 declare global {

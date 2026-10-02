@@ -14,8 +14,7 @@
  * - **切歌黑块滑出**：700ms 后滑出露出新歌名
  */
 import { useEffect, useState } from 'react'
-import { apiGet } from '@/lib/api'
-import type { NcmLyricResponse } from '../types'
+import { requestBiliLyrics, requestNcmLyrics } from '../utils/lyricRequest'
 import { mergeLyrics, type LyricLine } from '../utils/lrc'
 
 /** 歌词缺失态：none = 无歌词（Lyric-Area 占位），pure = 纯音乐（单行占位） */
@@ -75,9 +74,7 @@ export function useLyricTrack({
     let cancelled = false
     const loadLyric = async () => {
       try {
-        const { data } = await apiGet<NcmLyricResponse>(
-          `/api/music/ncm/lyric?id=${songId}`
-        )
+        const data = await requestNcmLyrics(songId)
         if (cancelled) return
         const raw = data?.lrc?.lyric ?? ''
         if (!raw.trim()) {
@@ -134,13 +131,7 @@ export function useLyricTrack({
     let cancelled = false
     void (async () => {
       try {
-        const { data } = await apiGet<{
-          lines?: Array<{ from: number; to: number; content: string }>
-        }>(
-          `/api/stream/bilibili/ai-subtitle?bvid=${bvid}&cid=${cid}&duration=${Math.round(
-            (biliDurationMs ?? 0) / 1000
-          )}`
-        )
+        const data = await requestBiliLyrics(bvid, cid, biliDurationMs)
         if (cancelled) return
         const lines: LyricLine[] = (data?.lines ?? [])
           .filter((l) => l.content.trim() !== '')

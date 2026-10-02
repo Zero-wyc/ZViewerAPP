@@ -5,10 +5,12 @@
  * 全屏唯一图层。原先内联在 ListenTogetherPanel 中，现连同三条退出路径一起
  * 抽出：Esc 退出、双击退出、背景视频消失时自动退出。
  *
- * 点按层语义（Hydrogen PlayerVideo 同款）：单击延迟 250ms 触发播放/暂停
+ * 网页点按层语义（Hydrogen PlayerVideo 同款）：单击延迟 250ms 触发播放/暂停
  * （为双击留判定窗口），双击取消未决单击并直接退出纯净模式。
+ * 原生端由 useMusicVideoGestures 接管，只在纯净视频全屏中启用。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { isGlobalAppearanceRuntime } from '../../../../platform/runtime'
 
 export interface UseImmersiveModeOptions {
   /** 是否可用（仅当背景视频存在时可用；源消失时自动退出避免黑屏） */
@@ -56,6 +58,8 @@ export function useImmersiveMode({
 
   const onTap = useCallback(
     (e: React.MouseEvent) => {
+      // Native fullscreen input is handled by the shared video gesture listener.
+      if (isGlobalAppearanceRuntime()) return
       if (e.detail >= 2) {
         if (tapTimerRef.current != null) {
           window.clearTimeout(tapTimerRef.current)

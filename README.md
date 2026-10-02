@@ -2,21 +2,25 @@
 
 <img src="public/favicon.jpg" alt="ZViewer" width="88" height="88" />
 
-面向手机和平板的 ZViewer 共享客户端工程，使用 React、TypeScript 和 Capacitor 构建。当前已包含 Android 原生宿主，并为 iOS 和 HarmonyOS 保留独立宿主目录。播放、同步、音乐与语音模块基于 [Zero-wyc/ZViewer](https://github.com/Zero-wyc/ZViewer) 4.1.7 的前端代码适配。
+面向手机和平板的 ZViewer 客户端工程。现有 Android 应用使用 React、TypeScript 和 Capacitor；`ZV-iOS/` 是独立的 Expo/React Native 工程，已接入服务端登录、房间与基础直链播放，HarmonyOS 保留独立宿主目录。Android 的播放、同步、音乐与语音模块已按 [Zero-wyc/ZViewer](https://github.com/Zero-wyc/ZViewer) v4.2.1 对齐，保留移动端与原生 B 站适配。
 
 本仓库是 **移动客户端共享源码与原生宿主**，不是服务端，也不是直接加载远程网页的地址壳。应用界面与播放器随安装包打包，通过你填写的服务器地址连接 ZViewer 服务。
 
-共享前端已经按多平台边界整理：业务代码不直接依赖 Android 或 Capacitor，原生能力统一通过 `src/platform/` 调用。后续 iOS 可实现同名 Swift Capacitor 插件，HarmonyOS 可用 ArkWeb `JavaScriptProxy` 实现相同契约，详见 [移植指南](PORTING.md)。
+现有共享前端已经按多平台边界整理：业务代码不直接依赖 Android 或 Capacitor，原生能力统一通过 `src/platform/` 调用。Expo iOS 工程已开始移植业务功能，尚未覆盖 B 站代理、语音与完整媒体能力；HarmonyOS 已通过 ArkWeb `JavaScriptProxy` 接入共享前端，详见 [移植指南](PORTING.md)。
 
 [下载安装包](https://github.com/Zero-wyc/ZViewerAPP/releases) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md)
 
-## 当前版本：1.2.1
+## 当前版本：1.5.0
+
+Android 和 HarmonyOS 同步 ZViewer 服务端 v4.2.1，使用同一套连接页、房间、全局背景与深浅主题。双端接入系统播放控件、封面与歌词，完善后台播放和自动旋转；一起听横屏背景铺满屏幕，曲绘避让摄像头，追加视频弹窗适配主题与窄屏。一起看使用中间双击播放/暂停、全屏左右双击各跳转15秒；一起听仅在视频全屏采用相同手势。两端包版本为 1.5.0，versionCode 为 150；iOS 本次不更新、不发布。
+
+发布构建、源码清理边界与设备验收见 [双端维护与发布流程](docs/mobile-release-maintenance.md)，本版变更见 [1.5.0 发布记录](docs/releases/client-1.5.0.md)。
 
 Android 内置 B 站登录与 Go 播放代理，无需另外安装 CLI。扫码登录后，默认选择账号有权限、视频有实际轨道、设备支持的最高普通画质，自动排除 HDR 和杜比视界。最高画质播放失败时，有限恢复后优先回退 720p；没有 720p 则使用真实可用的更低档位。
 
 手机端弹幕默认开启“随屏幕缩放”，让字号随播放区域变化；可以在弹幕设置中关闭，关闭后的选择会保留。桌面网页的默认值不变。
 
-手动选择按影片保留，房主与观众独立选择本机画质；Cookie 在 Android Keystore 加密后保存在不可备份目录。正式版包名 `com.zviewer.mobile`；调试包使用独立包名 `com.zviewer.mobile.debug`。自动化与模拟器验收范围见 [验收报告](docs/android-bilibili-acceptance.md)。
+手动选择按影片保留，房主与观众独立选择本机画质；Cookie 在 Android Keystore 加密后保存在不可备份目录。正式版包名 `com.zviewer.mobile`；调试包使用独立包名 `com.zviewer.mobile.debug`。本轮模拟器验收范围见 [适配记录](docs/android-v4.2.1-adaptation-report.md)。
 
 ## 安装与连接
 
@@ -25,7 +29,7 @@ Android 内置 B 站登录与 Go 播放代理，无需另外安装 CLI。扫码�
 3. 使用服务器账号登录；服务器允许游客时，也可以游客身份进入。
 4. 选择房间，或在服务器授权允许的情况下创建同步观影、一起听房间。
 
-Android 工程最低版本为 Android 7.0 / API 24。请保持 Android System WebView / Chrome 更新；系统版本达到最低要求，并不代表所有媒体编码、WebRTC 或 Web Audio 功能都能在该设备上使用。当前适配基于 ZViewer 4.1.7，其他服务端版本需自行验证兼容性。
+Android 工程最低版本为 Android 7.0 / API 24。请保持 Android System WebView / Chrome 更新；系统版本达到最低要求，并不代表所有媒体编码、WebRTC 或 Web Audio 功能都能在该设备上使用。当前目标服务端为 v4.2.1，验证范围见 [安卓适配记录](docs/android-v4.2.1-adaptation-report.md)。
 
 推荐 HTTPS。为兼容局域网部署，本应用允许 HTTP 和混合内容；不要在不可信网络中使用明文连接。服务器或反向代理需要允许客户端来源的 API 请求及 Socket.IO 连接，客户端不会绕过服务端权限或跨域限制。
 
@@ -54,25 +58,22 @@ npm ci
 npm run dev -- --host 127.0.0.1
 ```
 
-终端会显示访问地址。浏览器调试时仍需要自己的服务端；自动化测试则使用仓库内的模拟服务器。
+终端会显示访问地址。浏览器调试时仍需要自己的服务端。
 
 ```sh
-npm test
-npm run test:native
-npm run test:e2e
 npm run build
 ```
 
-端到端测试使用本机 Google Chrome，测试端口为 5187 和 3347。首次运行前请安装 Chrome。测试包含手机/平板布局、启动加载与重试、房间流程、屏幕共享接收、模拟麦克风语音链路及 16/24 位 FLAC 的实际 MSE 播放。
+测试目录和测试脚本已从客户端交付树清理。发布前请按 Android/HarmonyOS 维护文档执行设备验收，并保留脱敏的发布记录。
 
 ## 跨平台边界
 
-- `src/platform/contracts.ts` 是 Android、iOS 和 HarmonyOS 共用的原生能力契约。
+- `src/platform/contracts.ts` 是现有 Capacitor/ArkWeb 客户端的原生能力契约；Expo iOS 工程尚未接入。
 - 显示、生命周期、音频路由和麦克风权限均通过 `src/platform/` 适配器访问。
 - Android 继续使用现有 Java Capacitor 插件；插件名与方法保持兼容。
-- iOS 使用同名 Swift 插件，不需要修改业务组件。
+- iOS Expo 工程使用 React Native，需要单独迁移界面和平台能力。
 - HarmonyOS 在 ArkWeb 中注入 `zviewerNative`，不在 React 业务层引入 ArkTS 分支。
-- `tests/platform-boundary.test.ts` 会阻止业务代码直接导入 Capacitor。
+- 平台边界由 `src/platform/` 目录和代码评审维护；业务模块不应直接导入 Capacitor。
 
 新平台适配、桥接方法和维护流程见 [PORTING.md](PORTING.md)。
 
@@ -129,11 +130,11 @@ cd ZV-Android
 | `ZV-Android/` | Capacitor Android 工程、Gradle 配置与 Java 原生插件 |
 | `native/bilicore/` | 从 ZViewerCLI 4.1.2 提取的 Go 核心、移动代理与测试 |
 | `docs/` | 实施方案与验收报告 |
-| `ZV-iOS/` | iOS Xcode/Swift 原生宿主（待创建） |
-| `ZV-HarmonyOS/` | HarmonyOS ArkTS/ArkWeb 原生宿主（待创建） |
+| `ZV-iOS/` | Expo/React Native iOS 工程（开发中） |
+| `ZV-HarmonyOS/` | HarmonyOS ArkTS/ArkWeb 原生宿主（已完成） |
 | `public/` | 图标、字体及音频工作线程资源 |
 | `vendor/mediabunny/` | 媒体库本地副本及 DTS / FLAC 补丁 |
-| `tests/` | 单元测试、浏览器回归及模拟服务器 |
+| `docs/` | 平台维护架构、验收记录和发布说明 |
 
 `scripts/generate-android-icons.ps1` 从 `public/favicon.jpg` 生成 Android 启动器图标。`scripts/import-core.mjs` 是维护用的上游导入工具，依赖相邻的 ZViewer 4.1.7 源码目录；普通安装、构建和测试**不需要运行它**。更新媒体库时请保留 [本地补丁](vendor/mediabunny/LOCAL-PATCHES.md)。
 

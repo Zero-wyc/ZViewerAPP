@@ -89,6 +89,7 @@ export interface PlayerMobileToolbarRowProps {
   uiTone: PlayerUiTone
   onToggleUiTone: () => void
   isFullscreen: boolean
+  showFullscreen?: boolean
   onToggleFullscreen: () => void
 }
 
@@ -126,6 +127,7 @@ export function PlayerMobileToolbarRow({
   uiTone,
   onToggleUiTone,
   isFullscreen,
+  showFullscreen = true,
   onToggleFullscreen,
 }: PlayerMobileToolbarRowProps) {
   return (
@@ -337,8 +339,8 @@ export function PlayerMobileToolbarRow({
       >
         <Contrast className="h-5 w-5" />
       </button>
-      {/* 全屏切换：与桌面 song-control 同一状态（iOS 不支持时静默） */}
-      <button
+      {/* 浏览器页面全屏；原生移动端不提供重复入口。 */}
+      {showFullscreen && <button
         type="button"
         onClick={onToggleFullscreen}
         className="flex h-8 w-8 items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity active:scale-90"
@@ -350,7 +352,7 @@ export function PlayerMobileToolbarRow({
         ) : (
           <Maximize className="h-5 w-5" />
         )}
-      </button>
+      </button>}
     </div>
   )
 }

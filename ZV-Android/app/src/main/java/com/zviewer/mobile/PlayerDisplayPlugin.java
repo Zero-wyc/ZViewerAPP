@@ -32,7 +32,15 @@ public class PlayerDisplayPlugin extends Plugin {
     @PluginMethod
     public void unlockOrientation(PluginCall call) {
         getActivity().runOnUiThread(() -> {
-            getActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+            getActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_USER);
+            call.resolve();
+        });
+    }
+
+    @PluginMethod
+    public void setSystemBarStyle(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            ((MainActivity) getActivity()).setSystemBarStyle(call.getBoolean("dark", true));
             call.resolve();
         });
     }

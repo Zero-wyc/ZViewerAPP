@@ -62,14 +62,24 @@ import {
  * 引擎准备超时（毫秒）。
  *
  * 起播需完成探测 + 关键帧索引 + 首段产出，大文件或慢源可能耗时较久；
- * 超时后由 usePlayerSource 的回退链路降级为原生播放。
+ * 超时后 attach 直接失败并向上抛错——**不降级原生播放**（原生解码
+ * DTS/AC3 等编码会无声或再次失败），由用户决定重载或调整影片级开关。
  */
 const READY_TIMEOUT_MS = 60_000
 
-/** TEMP-DIAG：临时诊断 hook，定位 endOfStream 调用来源（修复后移除） */
+/**
+ * 诊断 hook：定位 endOfStream 调用来源。
+ *
+ * 默认关闭（此前 TEMP-DIAG 期遗留的全局原型包裹——每次 endOfStream /
+ * removeSourceBuffer / duration 写入都打 error + 完整堆栈，MSE 操作
+ * 高频时开销可观且刷屏）。需要诊断时在控制台开启：
+ *   localStorage.setItem('zviewer-media-debug', '1'); location.reload()
+ * 与 lib/media-debug 探针共用同一开关。
+ */
 let diagInstalled = false
 function installMediaSourceDiagnostics(): void {
   if (diagInstalled || typeof MediaSource === 'undefined') return
+  if (localStorage.getItem('zviewer-media-debug') !== '1') return
   diagInstalled = true
   const proto = MediaSource.prototype as unknown as Record<string, unknown>
   const wrap = (name: string, extra: () => unknown) => {
@@ -232,7 +242,7 @@ class PlaysVideoController implements PlayerController {
 
     // pipeline 模式下 ready 先于 startHls 触发，此时 readyState 可能仍为 0，
     // 直接赋值 currentTime 会被浏览器丢弃（与 waitForMetadata 的注释同理）。
-    await waitForMetadata(this.video)
+    await waitForMetadata(this.video, undefined, this.source.signal)
 
     const start = startTime ?? this.source.startTime ?? 0
     if (start > 0) {
@@ -422,16 +432,21 @@ export const playsVideoEngine: PlayerEngine = {
     video: HTMLVideoElement,
     source: PlayerSource
   ): Promise<EngineAttachResult> {
+    source.signal?.throwIfAborted()
     const controller = new PlaysVideoController(video, source)
+    const cancel = () => controller.cleanup()
+    source.signal?.addEventListener('abort', cancel, { once: true })
     try {
       await controller.attach(source.startTime ?? 0)
+      source.signal?.throwIfAborted()
     } catch (err) {
       // attach 半途失败：终结半挂载实例，避免残留 worker 与回退引擎竞争
+      source.signal?.removeEventListener('abort', cancel)
       controller.cleanup()
       throw err
     }
     return {
-      cleanup: () => controller.cleanup(),
+      cleanup: () => { source.signal?.removeEventListener('abort', cancel); controller.cleanup() },
       player: controller,
     }
   },

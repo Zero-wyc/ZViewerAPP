@@ -6,8 +6,11 @@
  */
 import type { MediaFormat } from '@/lib/mediaFormat'
 
-/** 引擎类型标识 */
-export type EngineType = 'hls' | 'flv' | 'direct' | 'dash' | 'playsvideo'
+/** 引擎类型标识（videojs10 = Video.js 10 试点引擎，见 engines/videojs10-engine.ts；
+ *  videojs10-dash = DASH 引擎（自研 MPD 构建 + v10 状态层 + dash.js 5.2.0 执行层），
+ *  见 engines/videojs10-dash-engine.ts） */
+export type EngineType =
+  'hls' | 'flv' | 'direct' | 'playsvideo' | 'videojs10' | 'videojs10-dash'
 
 /**
  * seek 操作返回结果（公共类型，供 MSE / DASH 等引擎实现共享）。
@@ -28,7 +31,7 @@ export interface SeekResult {
 /**
  * 引擎控制器接口：DASH 引擎实例的抽象。
  *
- * 使 usePlayerSource 可以用统一的 ref 类型持有 DashPlayer 实例，
+ * 使 usePlayerSource 可以用统一的 ref 类型持有 DASH 引擎控制器，
  * seek-service 通过此接口调用 seekTo，无需感知底层引擎实现。
  */
 export interface PlayerController {
@@ -55,7 +58,38 @@ export interface PlayerController {
  * 播放器源数据：从 WatchTogetherState 中抽取的、引擎 attach 所需的最小字段集。
  * 各引擎按需读取字段，未使用的字段忽略。
  */
+/**
+ * FLV 引擎直播模式运行时事件（由引擎内部 flv.js 实例发出）。
+ *
+ * 引擎负责重连与生命周期，UI 层只消费事件驱动状态机：
+ * - 连接中：onRetrying（或初始 attach 未 resolve）
+ * - 播放中：onReady
+ * - 失败：onExhausted（重试耗尽）
+ * - 已停止：onStreamEnd（推流端停止）
+ */
+export interface FlvRuntimeEvents {
+  /** flv.js ERROR：引擎将按指数退避内部重连，attempt/max 描述当前进度 */
+  onRetrying?: (attempt: number, max: number) => void
+  /** 流可用（MEDIA_INFO / loadedmetadata），重连成功计数复位 */
+  onReady?: () => void
+  /** 指数退避重连耗尽后的最终失败 */
+  onExhausted?: (message: string) => void
+  /** 推流端停止（直播流不应触发 LOADING_COMPLETE，触发即流结束） */
+  onStreamEnd?: () => void
+  /**
+   * 网络层统计（flv.js STATISTICS_INFO，约每秒一次）。
+   * fps 不在此提供：由消费方按 decodedFrames 差值计算。
+   */
+  onStatistics?: (info: {
+    speed: number
+    decodedFrames: number
+    droppedFrames: number
+  }) => void
+}
+
 export interface PlayerSource {
+  /** Cancel in-flight attachment when the source/session is replaced. */
+  signal?: AbortSignal
   /** 视频流 URL（MSE 引擎下为视频 m4s 片段 URL；其他引擎为完整媒体 URL） */
   url: string
   /** DASH 音频流 URL（仅 MSE 引擎使用） */
@@ -68,6 +102,18 @@ export interface PlayerSource {
   audioCodec?: string
   /** 防盗链 headers（由后端 resolve 返回，走代理时使用） */
   headers?: Record<string, string>
+  /**
+   * 直播流标记：FLV 引擎据此启用 isLive 模式（延迟追赶、已播放
+   * SourceBuffer 自动清理、内部指数退避重连）。
+   */
+  isLive?: boolean
+  /**
+   * FLV 直播运行时事件出口（仅 FLV 引擎 isLive 源使用）。
+   *
+   * 引擎内部 flv.js 实例的网络层事件经此上报，供 UI 层驱动连接
+   * 状态机（connecting/playing/error/stopped）与统计展示。
+   */
+  flvRuntimeEvents?: FlvRuntimeEvents
   /**
    * 从特定时间附近开始加载（仅 MSE 引擎使用）。
    *
@@ -103,37 +149,14 @@ export interface PlayerSource {
    */
   audioBlob?: Blob
   /**
-   * 是否启用 P2P 传输（仅 DASH 引擎使用）。
-   *
-   * 启用后 DashPlayer 会创建 P2pEngineDash 实例，通过 SwarmCloud 信令服务
-   * 与房间内其他客户端建立 WebRTC DataChannel，共享已下载的 m4s 分片。
-   *
-   * 仅在 DASH 流模式生效（bufferMode=true 时不启用 P2P，因视频已完整缓存到本地）。
-   * 各客户端独立启用，无需房主协调，SwarmCloud tracker 自动发现房间内 peer。
+   * DASH attachment budget, including preload and metadata.
    */
-  p2pEnabled?: boolean
-  /** DASH attachment budget, including preload and metadata. */
   attachTimeoutMs?: number
-  /**
-   * MKV 快速路径：编解码为浏览器原生友好组合（AAC/MP3/Opus 音轨等）时，
-   * 跳过 playsvideo 重封装管线，直接用 <video> 原生播放。
-   * 由 movie-source-resolver 依据 ffprobe 的音轨信息设置。
-   *
-   * 原生失败（video.error，如编码变体不受支持）时由 usePlayerSource
-   * 自动回退到 playsvideo 管线（forcePlaysVideo），能力不损失。
-   */
-  mkvFastPath?: boolean
-  /**
-   * 强制使用 playsvideo 管线（内部回退标记，不由业务代码设置）。
-   * MKV 快速路径原生失败后，回退重挂载时置位以绕过快速路径判定。
-   */
-  forcePlaysVideo?: boolean
   /**
    * 影片级浏览器播放引擎（playsvideo）开关（添加影片时设置）。
    * - true（默认）：允许 playsvideo 管线
-   * - false：强制原生直连播放（mkvFastPath 一并失效）
-   * 需与系统级 playsvideoEnabled（systemSettingsStore）同时开启，
-   * 任一关闭时 shouldUsePlaysVideo 返回 false。
+   * - false：强制原生直连播放，**唯一门控**（原生失败不回退管线，
+   *   playsvideo 失败也不降级原生）
    */
   playsvideoEnabled?: boolean
   /**

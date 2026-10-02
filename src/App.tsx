@@ -30,6 +30,7 @@ import { useNativeBack } from './mobile/useNativeBack'
 import { BilibiliAccount } from './mobile/BilibiliAccount'
 import { MobileAppearance } from './mobile/MobileAppearance'
 import { startEmbeddedProxy } from './platform/bilibiliProxy'
+import { isGlobalAppearanceRuntime } from './platform/runtime'
 
 const MobileRoom = lazy(() => import('./mobile/MobileRoom'))
 
@@ -403,15 +404,18 @@ export default function App() {
     navigate('/', { replace: true })
   }
 
-  if (activeRoomId && session && !restoring) return (
+  const globalAppearance = isGlobalAppearanceRuntime()
+  const roomContent = activeRoomId && session && !restoring ? (
     <Suspense fallback={<main className="mobile-loading"><RefreshCw className="spin" /><span>正在打开房间</span></main>}>
       <MobileRoom key={`${session.serverUrl}:${activeRoomId}`} roomId={activeRoomId}
         onLeave={() => navigate('/', { replace: true })} />
     </Suspense>
-  )
+  ) : null
+  if (roomContent && !globalAppearance) return roomContent
 
   return (
-    <MobileAppearance>
+    <MobileAppearance global={globalAppearance} room={!!roomContent}>
+      {roomContent || <>
       <header className="brand-bar">
         <BilibiliAccount />
         <div className="brand-mark">Z</div>
@@ -666,6 +670,7 @@ export default function App() {
           )}
         </section>
       )}
+      </>}
     </MobileAppearance>
   )
 }

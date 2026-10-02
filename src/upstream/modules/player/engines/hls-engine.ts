@@ -16,6 +16,7 @@ import {
   isLocalUrl,
   isRelativeUrl,
   buildProxyUrl,
+  appendAuthToken,
 } from '../services/url-proxy'
 
 /** Safari 等原生 HLS 支持检测 */
@@ -33,13 +34,20 @@ function canPlayNativeHls(video: HTMLVideoElement): boolean {
  * 关键：加载完成后需恢复 context.url 与 response.url 为原始 URL，
  * 否则 hls.js 会基于代理 URL 解析 m3u8 中的相对路径 ts 分片，导致拼接错误。
  */
-function createProxyLoader() {
+function createProxyLoader(headers?: Record<string, string>) {
   const BaseLoader = Hls.DefaultConfig.loader
 
   return class ProxyLoader extends BaseLoader {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     load(context: any, config: any, callbacks: any): void {
       const originalUrl = context.url
+      let manifestBaseUrl = originalUrl
+      try {
+        const proxy = new URL(originalUrl)
+        if (proxy.pathname.endsWith('/api/stream/proxy')) {
+          manifestBaseUrl = proxy.searchParams.get('url') || originalUrl
+        }
+      } catch { /* relative request */ }
       const shouldProxy =
         originalUrl &&
         !isLocalUrl(originalUrl) &&
@@ -47,27 +55,35 @@ function createProxyLoader() {
         !originalUrl.includes('/api/stream/proxy?url=')
 
       if (shouldProxy) {
-        context.url = buildProxyUrl(originalUrl)
+        context.url = headers ? resolveProxyUrl(originalUrl, headers, 'hls') : buildProxyUrl(originalUrl)
+      }
+      if (shouldProxy || manifestBaseUrl !== originalUrl) {
         // 包装 onSuccess 回调：加载完成后恢复原始 URL，
         // 确保 hls.js 基于原始 URL 解析 m3u8 中的相对路径
         const originalOnSuccess = callbacks.onSuccess
         callbacks.onSuccess = (
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          stats: any,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           response: any,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ctx: any
+          stats: any,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ctx: any,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          networkDetails: any
         ) => {
           if (response) {
-            response.url = originalUrl
+            response.url = manifestBaseUrl
           }
           if (ctx) {
-            ctx.url = originalUrl
+            ctx.url = manifestBaseUrl
           }
-          originalOnSuccess(stats, response, ctx)
+          originalOnSuccess(response, stats, ctx, networkDetails)
         }
       }
+
+      // 服务器改写清单中的分片/密钥 URL 不带本地 Bearer token；
+      // Android 的 Cookie 不跨 localhost 壳域，逐请求补齐鉴权。
+      context.url = appendAuthToken(context.url)
 
       super.load(context, config, callbacks)
     }
@@ -75,7 +91,8 @@ function createProxyLoader() {
 }
 
 /** 等待 hls.js 加载 m3u8 清单完成或失败，带超时 */
-function waitForHlsReady(hls: Hls, timeoutMs = 15000): Promise<void> {
+function waitForHlsReady(hls: Hls, timeoutMs = 15000, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted()
   return new Promise((resolve, reject) => {
     let settled = false
 
@@ -109,15 +126,24 @@ function waitForHlsReady(hls: Hls, timeoutMs = 15000): Promise<void> {
       reject(new Error(`HLS加载超时(${timeoutMs}ms)`))
     }
 
+    const onAbort = () => {
+      if (settled) return
+      settled = true
+      cleanup()
+      reject(new DOMException('HLS attach cancelled', 'AbortError'))
+    }
+
     function cleanup() {
       hls.off(Hls.Events.MANIFEST_PARSED, onManifestParsed)
       hls.off(Hls.Events.ERROR, onError)
       clearTimeout(timer)
+      signal?.removeEventListener('abort', onAbort)
     }
 
     hls.on(Hls.Events.MANIFEST_PARSED, onManifestParsed)
     hls.on(Hls.Events.ERROR, onError)
     const timer = setTimeout(onTimeout, timeoutMs)
+    signal?.addEventListener('abort', onAbort, { once: true })
   })
 }
 
@@ -128,6 +154,7 @@ export const hlsEngine: PlayerEngine = {
     video: HTMLVideoElement,
     source: PlayerSource
   ): Promise<EngineAttachResult> {
+    source.signal?.throwIfAborted()
     resetVideoElement(video)
 
     const targetUrl = resolveProxyUrl(source.url, source.headers, source.format)
@@ -144,7 +171,7 @@ export const hlsEngine: PlayerEngine = {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        loader: createProxyLoader(),
+        loader: createProxyLoader(source.headers),
         // 内存控制：hls.js 默认 maxMaxBufferLength=600s、backBufferLength=Infinity——
         // 已播数据永不清理，长视频播放 1-2 小时后 MSE SourceBuffer 累积到 GB 级内存。
         // 前向缓冲 30s 保证平滑，硬上限 120s 兜底极低码率，已播仅保留 90s
@@ -181,7 +208,7 @@ export const hlsEngine: PlayerEngine = {
 
       try {
         // 使用事件驱动等待替代 waitForMetadata，避免永久阻塞
-        await waitForHlsReady(hls)
+        await waitForHlsReady(hls, source.attachTimeoutMs ?? 15000, source.signal)
       } catch (err) {
         try {
           hls.destroy()
@@ -207,7 +234,7 @@ export const hlsEngine: PlayerEngine = {
       console.log('[hls-engine] using native HLS (Safari fallback)')
       video.src = targetUrl
       video.load()
-      await waitForMetadata(video)
+      await waitForMetadata(video, source.attachTimeoutMs ?? 30000, source.signal)
       return {
         cleanup: () => {
           try {

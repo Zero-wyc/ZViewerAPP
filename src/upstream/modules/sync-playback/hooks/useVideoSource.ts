@@ -36,7 +36,7 @@ import type { ResolvedSource } from '@/modules/bilibili/types'
 import { safePlay } from '../safePlay'
 import { executeSeek } from '../services'
 import type { SeekToResult } from '../services'
-import { getEmbeddedProxyStatus, isEmbeddedBilibiliHost, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
+import { getEmbeddedProxyStatus, isEmbeddedBilibiliHost, startEmbeddedProxy, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
 import { fallbackNativeQuality, getNativeQualityPolicy, getQualitySelectionRevision, recordNativeQuality, restoreNativeQuality, type NativeQualityPolicy } from '@/modules/bilibili/nativeQualityPolicy'
 
 interface ViewerLocalOverride {
@@ -62,6 +62,20 @@ interface NativeRecoverySnapshot { time: number; playing: boolean; rate: number 
 async function ensureViewerLocalOverride(
   state: WatchTogetherState
 ): Promise<ViewerLocalOverride | null> {
+  // Playback state can arrive before current-movie and the REST movie list.
+  // Native viewers must resolve with their own account, never attach the host's loopback URL.
+  if (isEmbeddedBilibiliHost() && state.sourceType === 'bilibili' && state.sourceUrl) {
+    const roomId = useRoomStore.getState().roomId
+    const initialMovieId = useRoomStore.getState().currentMovieId
+    await startEmbeddedProxy()
+    const deadline = Date.now() + 12000
+    while (!useRoomStore.getState().movies.some(movie => movie.id === useRoomStore.getState().currentMovieId)) {
+      if (useRoomStore.getState().roomId !== roomId || (initialMovieId !== null && useRoomStore.getState().currentMovieId !== initialMovieId)) throw new DOMException('Source changed', 'AbortError')
+      if (Date.now() >= deadline) throw new Error('当前影片信息尚未加载，请重载视频')
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    if (useRoomStore.getState().roomId !== roomId || (initialMovieId !== null && useRoomStore.getState().currentMovieId !== initialMovieId)) throw new DOMException('Source changed', 'AbortError')
+  }
   const storeState = useRoomStore.getState()
   const movieId = storeState.currentMovieId
   if (movieId == null || state.sourceType !== 'bilibili' || !state.sourceUrl) {
@@ -72,6 +86,7 @@ async function ensureViewerLocalOverride(
     return null
   }
 
+  const sessionVersion = getEmbeddedProxyStatus().sessionVersion
   const effectivePreferMp4 = getEffectivePreferMp4(movieId)
   const hostIsMp4 = state.format === 'mp4'
   const existing = storeState.viewerCliResolvedSource
@@ -92,7 +107,7 @@ async function ensureViewerLocalOverride(
   }
 
   // 已有匹配的本地覆盖时直接复用，避免重复解析
-  if (existing?.movieId === movieId && existing.resolved.cid === movie.cid && existingIsMp4 === adjustedPreferMp4) {
+  if (existing?.movieId === movieId && existing.sessionVersion === getEmbeddedProxyStatus().sessionVersion && existing.resolved.cid === movie.cid && existingIsMp4 === adjustedPreferMp4) {
     return existing
   }
 
@@ -101,6 +116,7 @@ async function ensureViewerLocalOverride(
     const resolved = await resolveBilibiliOnline(movie, undefined, {
       preferMp4: adjustedPreferMp4,
     })
+    if (useRoomStore.getState().currentMovieId !== movieId || useRoomStore.getState().movies.find(m => m.id === movieId)?.cid !== movie.cid || getEmbeddedProxyStatus().sessionVersion !== sessionVersion) throw new DOMException('Stale source', 'AbortError')
     const resolvedSource: ResolvedSource = {
       videoUrl: resolved.sourceUrl,
       audioUrl: resolved.audioUrl,
@@ -145,7 +161,9 @@ function withViewerOverride(
     videoCodec: resolved.videoCodec,
     audioCodec: resolved.audioCodec,
     duration: resolved.duration ?? state.duration,
+    cid: resolved.cid ?? state.cid,
     currentQn: resolved.currentQn,
+    acceptQuality: resolved.acceptQuality ?? state.acceptQuality,
   }
 }
 
@@ -179,10 +197,6 @@ export interface UseVideoSourceReturn {
  *
  * 可选传入 blobs（缓冲模式）：从 IndexedDB 读取的本地 Blob 数据，
  * dash.js 会用 blob URL 加载，跳过服务器代理。
- *
- * P2P 标志从本地 parseOptions 读取（各客户端独立启用，不经房主广播）：
- * - 仅 DASH 流模式启用 P2P（bufferMode=true 时忽略，因视频已完整缓存到本地）
- * - 仅 B站 DASH 源有意义（其他源走 direct/hls/flv 引擎，无 P2P 集成）
  */
 function toPlayerSource(
   state: WatchTogetherState,
@@ -196,11 +210,8 @@ function toPlayerSource(
     videoCodec: state.videoCodec,
     audioCodec: state.audioCodec,
     headers: state.headers,
-    // MKV 快速路径：原生友好编码跳过重封装管线直接原生播放
-    // （原生失败由 usePlayerSource 自动回退 playsvideo 管线）
-    mkvFastPath: state.mkvFastPath,
-    // 影片级浏览器播放引擎开关（添加影片时设置），与系统级开关一起
-    // 在 shouldUsePlaysVideo 中决定是否启用 playsvideo 管线
+    // 影片级浏览器播放引擎开关（添加影片时设置），是 shouldUsePlaysVideo
+    // 的唯一门控（原生失败不回退管线）
     playsvideoEnabled: state.playsvideoEnabled,
     // 挂载直链模式：直连失败不回退服务器代理，直接提示错误
     noProxyFallback: state.noProxyFallback,
@@ -217,9 +228,9 @@ function toPlayerSource(
   }
 
   const movieId = useRoomStore.getState().currentMovieId
+  let cliProxyActive = false
   // CLI 本地高画质代理：各客户端独立启用，不经房主广播。
   // 房主广播原始 B站 CDN URL；观众/房主各自在 attach 前决定是否走自己的 CLI 代理。
-  let cliProxyActive = false
   if (state.sourceType === 'bilibili' && movieId != null) {
     const { cliEnabled } = getBilibiliParseOptions(movieId)
     const proxyUrl = cliEnabled ? getActiveCliProxyUrl() : null
@@ -229,18 +240,6 @@ function toPlayerSource(
       if (source.audioUrl) {
         source.audioUrl = buildCliProxyUrl(proxyUrl, source.audioUrl)
       }
-    }
-  }
-
-  // P2P 仅在 DASH 流模式启用（缓冲模式下视频已本地缓存，P2P 无意义）
-  // 各客户端独立从本地 parseOptions 读取，不经房主广播
-  // P2P 配置按影片 ID 独立存储，从 roomStore 读取当前播放影片 ID
-  // 注意：CLI 代理与 P2P 互斥。CLI 代理使用各客户端独立的 localhost URL 作为 channelId，
-  // 会导致 P2P peer 无法匹配，因此当 CLI 代理生效时强制关闭 P2P。
-  if (state.format === 'dash' && !state.bufferMode && !cliProxyActive) {
-    const { p2pEnabled } = getBilibiliParseOptions(movieId ?? 0)
-    if (p2pEnabled) {
-      source.p2pEnabled = true
     }
   }
   if (isEmbeddedBilibiliHost() && state.sourceType === 'bilibili' && cliProxyActive) source.attachTimeoutMs = 30000
@@ -272,7 +271,9 @@ async function restoreSnapshot(
   snapshot: PlaybackSnapshot
 ): Promise<void> {
   // 等待 metadata 加载完成后再恢复 currentTime，否则 seek 会被浏览器丢弃
+  if (!video.isConnected) return
   await waitForMetadata(video)
+  if (!video.isConnected) return
 
   if (video.playbackRate !== snapshot.playbackRate) {
     video.playbackRate = snapshot.playbackRate
@@ -290,7 +291,7 @@ async function restoreSnapshot(
       /* ignore */
     }
   }
-  if (!snapshot.paused) {
+  if (!snapshot.paused && !wasUserPaused(video)) {
     void safePlay(video)
   } else if (!video.paused) {
     video.pause()
@@ -341,7 +342,7 @@ export function useVideoSource({
     const key = `${getEmbeddedProxyStatus().sessionVersion}|${movie.id}|${movie.cid}|${getQualitySelectionRevision(movie.id)}`
     const sessionVersion = getEmbeddedProxyStatus().sessionVersion
     const selectionRevision = getQualitySelectionRevision(movie.id)
-    const stillCurrent = () => useRoomStore.getState().currentMovieId === movie.id && useRoomStore.getState().movies.find(item => item.id === movie.id)?.cid === movie.cid && getEmbeddedProxyStatus().sessionVersion === sessionVersion && getQualitySelectionRevision(movie.id) === selectionRevision
+    const stillCurrent = () => video.isConnected && useRoomStore.getState().currentMovieId === movie.id && useRoomStore.getState().movies.find(item => item.id === movie.id)?.cid === movie.cid && getEmbeddedProxyStatus().sessionVersion === sessionVersion && getQualitySelectionRevision(movie.id) === selectionRevision
     const deadline = Date.now() + 60000
     const snapshot = original ?? { time: video.currentTime, playing: store.watchTogether.isPlaying && !wasUserPaused(video), rate: video.playbackRate }
     const task = (async () => {
@@ -388,6 +389,33 @@ export function useVideoSource({
   }, [forceReload, cleanup, isHostRef, suppressEventsRef, videoRef])
   nativeRecoveryRef.current = recoverNative
 
+  // ── 观众端生效源解析（唯一入口）────────────────────────
+  // 观众端所有 attach/reload 路径必须共用此函数决定实际挂载的源：
+  // 优先复用已有本地覆盖（CLI 清晰度覆盖或本地偏好独立解析结果），
+  // 无匹配覆盖时按本地偏好独立解析（ensureViewerLocalOverride
+  // 内部同样会复用满足格式条件的既有覆盖）。
+  //
+  // ⚠️ 若仅部分路径应用覆盖（如历史版本中 applySourceToVideo 走覆盖而
+  // reloadVideo 直接用广播源），观众端会在「本地覆盖源（MP4→经典引擎）」
+  // 与「房主广播源（DASH→dash 引擎）」之间反复切换引擎：每次翻转都是
+  // 一次完整重挂，并伴随 dash.js destroy 后监听器残留的崩溃刷屏
+  // （PlaybackController 读已置空的 streamInfo → "D is null"）与
+  // blob revoke 后的 code 25 噪音。新增观众端挂载路径时必须经过此函数。
+  const resolveViewerEffectiveState = useCallback(
+    async (state: WatchTogetherState): Promise<WatchTogetherState> => {
+      if (isHostRef.current || !state.sourceUrl) return state
+      const override = await ensureViewerLocalOverride(state)
+      if (override && override.movieId === useRoomStore.getState().currentMovieId) {
+        return withViewerOverride(state, override.resolved)
+      }
+      if (isEmbeddedBilibiliHost() && state.sourceType === 'bilibili' && isCliProxyUrl(state.sourceUrl)) {
+        throw new Error('房主的本地播放地址不可用于当前设备，请重载视频')
+      }
+      return state
+    },
+    [isHostRef]
+  )
+
   // 将指定状态中的视频源应用到 video 元素（含 MSE DASH 处理）。
   // 供房主加载、观众同步以及组件重新挂载时恢复使用。
   // 所有源类型（包括 bilibili）统一逻辑：
@@ -406,23 +434,8 @@ export function useVideoSource({
         return
       }
 
-      let effectiveState = state
-      if (!isHostRef.current) {
-        const storeState = useRoomStore.getState()
-        const currentMovieId = storeState.currentMovieId
-        // 优先复用已有本地覆盖（CLI 清晰度覆盖或本地偏好解析结果）；
-        // 无匹配覆盖时按本地偏好独立解析（ensureViewerLocalOverride
-        // 内部同样会复用满足格式条件的既有覆盖）
-        const existing = storeState.viewerCliResolvedSource
-        const currentMovie = storeState.movies.find(movie => movie.id === currentMovieId)
-        const override =
-          existing && existing.movieId === currentMovieId && existing.resolved.cid === currentMovie?.cid
-            ? existing
-            : await ensureViewerLocalOverride(state)
-        if (override && override.movieId === currentMovieId) {
-          effectiveState = withViewerOverride(state, override.resolved)
-        }
-      }
+      const effectiveState = await resolveViewerEffectiveState(state)
+      if (!video.isConnected) return
 
       const original = { time: startTime ?? video.currentTime ?? effectiveState.currentTime, playing: effectiveState.isPlaying && !wasUserPaused(video), rate: effectiveState.playbackRate }
       nativeAttachmentDepth.current++
@@ -432,6 +445,7 @@ export function useVideoSource({
         if (isEmbeddedBilibiliHost() && movieId != null && effectiveState.currentQn) recordNativeQuality(movieId, effectiveState.currentQn, effectiveState.acceptQuality ?? [])
         if (isEmbeddedBilibiliHost() && movieId != null && effectiveState.sourceType === 'bilibili') lastNativeSource.current = { movieId, cid: useRoomStore.getState().movies.find(movie => movie.id === movieId)?.cid, sessionVersion: getEmbeddedProxyStatus().sessionVersion, state: effectiveState, policy: { ...getNativeQualityPolicy(movieId) } }
       } catch (err) {
+        if (!video.isConnected || (err instanceof DOMException && err.name === 'AbortError')) return
         if (!isEmbeddedBilibiliHost() || effectiveState.sourceType !== 'bilibili' || blobs) throw err
         const store = useRoomStore.getState()
         const previous = lastNativeSource.current
@@ -450,7 +464,7 @@ export function useVideoSource({
         await recoverNative(err instanceof Error ? err : new Error(String(err)), original)
       } finally { nativeAttachmentDepth.current-- }
     },
-    [attachSource, cleanup, isHostRef, recoverNative]
+    [attachSource, cleanup, recoverNative, resolveViewerEffectiveState]
   )
 
   useEffect(() => {
@@ -502,7 +516,7 @@ export function useVideoSource({
     restoredRef.current = true
     suppressEventsRef.current = true
     // 传入 state.currentTime 作为 startTime：页面刷新后恢复播放进度时，
-    // DashPlayer 从该时间对应的字节偏移开始下载，而非从文件头顺序下载。
+    // DASH 引擎从该时间对应的字节偏移开始下载，而非从文件头顺序下载。
     // 否则恢复后需要从头加载到 currentTime 才能播放。
     const startTime = state.currentTime > 0 ? state.currentTime : undefined
     void applySourceToVideo(video, state, startTime)
@@ -540,7 +554,7 @@ export function useVideoSource({
   // 重载视频源：重载按钮调用 + MSE seek 失败时的恢复手段。
   // 从当前播放位置附近重新 attach（MSE 引擎通过 startTime 计算 Range 下载起点），
   // 完成后恢复到原播放位置。用于视频卡死、花屏、缓冲异常等场景的手动恢复。
-  // 也用于 MSE seek 失败（video.error）时：创建全新 DashPlayer 实例，
+  // 也用于 MSE seek 失败（video.error）时：创建全新 DASH 引擎实例，
   // 用最新 state URL 重新加载，避免旧实例的 video.error / URL 过期问题。
   const reloadVideo = useCallback(
     async (video: HTMLVideoElement) => {
@@ -551,10 +565,18 @@ export function useVideoSource({
       const state = useRoomStore.getState().watchTogether
       if (!state.sourceUrl) return
 
+      // 观众端必须与 applySourceToVideo 同源（resolveViewerEffectiveState）：
+      // 若此处直接用广播源重挂，seek 失败兜底/手动重载会把本地覆盖源
+      // （MP4→经典引擎）替换为房主广播源（DASH→dash 引擎），引发引擎反复翻转
+      const effectiveState = await resolveViewerEffectiveState(state)
+
       suppressEventsRef.current = true
       useRoomStore.getState().setReloadingState(true, snapshot.currentTime)
       try {
-        await forceReload(video, toPlayerSource(state, snapshot.currentTime))
+        await forceReload(
+          video,
+          toPlayerSource(effectiveState, snapshot.currentTime)
+        )
         await restoreSnapshot(video, snapshot)
       } catch (err) {
         console.error('[useVideoSource] 重载视频源失败:', err)
@@ -564,7 +586,7 @@ export function useVideoSource({
         useRoomStore.getState().setReloadingState(false, null)
       }
     },
-    [forceReload, suppressEventsRef]
+    [forceReload, resolveViewerEffectiveState, suppressEventsRef]
   )
 
   // seek 到未缓冲区域时的处理：
@@ -572,7 +594,7 @@ export function useVideoSource({
   // 调用 executeSeek → 引擎 seekTo（不重建 MediaSource，清空 SourceBuffer + Range 下载）。
   // 仅对 MSE 流（DASH / 含 audioUrl）生效，普通 mp4 直链由浏览器原生处理。
   // MSE seek 失败时（如 video.error），executeSeek 会调用 onSeekFailed → reloadVideo
-  // 创建全新 DashPlayer 实例（用最新 state URL）重新加载。
+  // 创建全新 DASH 引擎实例（用最新 state URL）重新加载。
   useEffect(() => {
     const video = videoRef.current
     if (!video) return

@@ -1,50 +1,37 @@
 # ZViewer mobile porting guide
 
-The React application is the shared product. Native projects are hosts that package
-`dist/` and implement a small platform contract. Do not fork application features by
-copying `src/` into separate Android, iOS, and HarmonyOS repositories.
+The repository root contains the React/Vite client used by the Capacitor Android
+host and the completed HarmonyOS ArkWeb host. `ZV-iOS/` is a separate Expo/React
+Native project that is still receiving product features.
 
 ## Shared and native ownership
 
-Shared across every client:
+Shared by the existing Vite client and its native hosts:
 
 - `src/`: login, rooms, Socket.IO, playback, chat, danmaku, subtitles, music, voice
 - `public/`: bundled web assets and workers
 - `vendor/`: patched media dependencies
-- `tests/`: unit and browser regression coverage
+- `docs/`: platform maintenance notes and release records
 - Vite and TypeScript configuration
 
 Owned by each native host:
 
 - Android: `ZV-Android/` and its Java plugins
-- iOS: the future `ZV-iOS/` Xcode project and Swift plugins
+- iOS: `ZV-iOS/`, a separate Expo/React Native project
 - HarmonyOS: `ZV-HarmonyOS/`, an ArkTS/ArkWeb shell that packages `dist/`
 
-All native access from shared code goes through `src/platform/`. The
-`platform-boundary` unit test prevents direct Capacitor imports elsewhere.
+Native access from the Vite client goes through `src/platform/`. The
+Keep direct Capacitor imports within `src/platform/`; verify this boundary
+when reviewing shared code and before building both native packages.
 
-## iOS host contract
+## iOS project
 
-Install the iOS package at the same version as Capacitor core, add the platform on a
-Mac. Capacitor is configured to create the native project in `ZV-iOS/`:
-
-```sh
-npm install @capacitor/ios@8.5.2
-npx cap add ios
-npm run build
-npx cap sync ios
-```
-
-Implement a Swift Capacitor plugin named `PlayerDisplay` with these methods:
-
-- `toggleOrientation()`
-- `setImmersive({ enabled })`
-- `unlockOrientation()`
-
-The shared caller does not need to change. Add an iOS audio adapter in
-`src/platform/audioRouting.ts` only if AVAudioSession behavior requires native
-control. Microphone capture continues through `permissions.requestMicrophoneStream`;
-the Xcode project must provide the usage description and WKWebView permission setup.
+`ZV-iOS/` is an Expo/React Native project. Run `npm start` from that directory
+to start development. It now implements server login, room navigation, chat and
+basic single-track video playback; the remaining product features still require
+native iOS implementations and device tests. See `ZV-iOS/README.md` and
+`docs/ios-windows-acceptance.md`. Do not run `cap add ios` or `cap sync ios`
+against `ZV-iOS/`.
 
 ## HarmonyOS host contract
 
@@ -74,5 +61,5 @@ cannot provide.
 1. Implement product behavior once in shared TypeScript.
 2. Extend a contract in `src/platform/contracts.ts` only for a real native need.
 3. Implement that contract per host; unsupported optional capabilities degrade safely.
-4. Run `npm test`, `npm run build`, and `npm run test:e2e` before syncing native assets.
+4. Run `npm run build` before syncing native assets, then perform the platform's device acceptance checklist.
 5. Test media, microphone, rotation, backgrounding, and safe areas on real devices.

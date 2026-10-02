@@ -34,10 +34,13 @@
   });
   window.zviewerNative = {
     platform: 'harmony',
+    updateMediaSession: (state) => request('updateMediaSession', state),
+    clearMediaSession: (sessionId) => request('clearMediaSession', sessionId),
     minimizeApp: () => window.zviewerHost.minimizeApp(),
     toggleOrientation: (isLandscape) => request('toggleOrientation', isLandscape),
     unlockOrientation: () => request('unlockOrientation', null),
     setImmersive: (enabled) => request('setImmersive', enabled),
+    setSystemBarStyle: (dark) => request('setSystemBarStyle', dark),
     requestMicrophonePermission: () => request('requestMicrophonePermission', null).then(() => true, () => false),
     bilibiliStart: () => request('bilibiliStart', null),
     bilibiliStatus: () => request('bilibiliStatus', null),

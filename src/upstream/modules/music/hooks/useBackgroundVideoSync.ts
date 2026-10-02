@@ -138,8 +138,15 @@ export function useBackgroundVideoSync({
   // 解析成功 → attach 到背景 video（引擎按 format 选 MSE/Direct；B站 CDN
   // 直链由引擎经后端代理注入 Referer，CLI 模式本身已是本地代理 URL）
   useEffect(() => {
+    if (!source?.url) {
+      // Removing a binding unmounts <video>. Clear the source marker as well,
+      // so adding the same URL attaches it to the new element instead of skipping it.
+      cleanup()
+      setReadyUrl(null)
+      return
+    }
     const video = videoRef.current
-    if (!video || status !== 'ready' || !source?.url) {
+    if (!video || status !== 'ready') {
       return
     }
     void attachSource(video, {
@@ -164,7 +171,7 @@ export function useBackgroundVideoSync({
         })
       }
     })
-  }, [status, source, attachSource, isPlaying, syncBgVideoTime])
+  }, [status, source, attachSource, cleanup, isPlaying, syncBgVideoTime])
 
   // 卸载时释放引擎资源（blobUrl / MSE）
   useEffect(() => cleanup, [cleanup])

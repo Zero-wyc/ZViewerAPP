@@ -37,7 +37,6 @@ import {
   resolveMovieSource,
   resolveBilibiliOnline,
   getEffectivePreferMp4,
-  getActiveCliProxyUrl,
   type ResolvedMovieSource,
 } from './movie-source-resolver'
 import type { ResolvedSource } from '@/modules/bilibili/types'
@@ -558,11 +557,7 @@ export function useWatchTogether({
       try {
         // 未显式传入 options 时，从 localStorage 读取该影片的播放模式偏好
         // （BilibiliParseSettings 中切换播放模式触发 triggerReloadBilibili 走此路径）
-        // CLI 已启用但未连接时直接报错，不再降级为 MP4。
-        const parsePrefs = getBilibiliParseOptions(movie.id)
-        if (parsePrefs.cliEnabled && !getActiveCliProxyUrl()) {
-          throw new Error('CLI 代理未连接，请先启动本地 zcontrol-cli')
-        }
+        // CLI 已启用但未连接时不抛错，由 getEffectivePreferMp4 回退服务器 MP4
         const resolvedOptions = options ?? {
           preferMp4: getEffectivePreferMp4(movie.id),
           // 用户主动触发重载（切清晰度/播放模式）：绕过解析缓存取新地址
@@ -608,12 +603,13 @@ export function useWatchTogether({
         // 下载期间若已开始新的加载，放弃本次 attach（避免旧源覆盖新影片）
         if (loadSeqRef.current !== seq) return
 
-        // 传入 preserveTime 作为 startTime：DashPlayer 会从该时间对应的字节位置
+        // 传入 preserveTime 作为 startTime：DASH 引擎会从该时间对应的字节位置
         // 开始 Range 下载，而非从文件头 0 字节顺序下载。否则大跨度跳转后重载会
         // 从头加载到目标位置才播放（用户看到的"加载跳转之前的部分"现象）。
         await applySourceToVideo(video, newState, preserveTime, blobs)
+        if (loadSeqRef.current !== seq || !video.isConnected) return
         video.currentTime = preserveTime
-        if (shouldPlay) {
+        if (shouldPlay && !wasUserPaused(video)) {
           void safePlay(video)
         }
 
@@ -644,7 +640,7 @@ export function useWatchTogether({
           if (preserveTime > 0) {
             video.currentTime = preserveTime
           }
-          if (shouldPlay) {
+          if (shouldPlay && video.isConnected && !wasUserPaused(video)) {
             void safePlay(video)
           }
         } catch {
@@ -729,15 +725,11 @@ export function useWatchTogether({
 
       suppressEventsRef.current = true
       try {
-        if (
-          cliEnabled &&
-          movie?.url &&
-          movie.cid &&
-          getActiveCliProxyUrl() &&
-          !hasOverride
-        ) {
+        if (cliEnabled && movie?.url && movie.cid && !hasOverride) {
+          // CLI 已连接走本地代理 DASH；未连接由 getEffectivePreferMp4
+          // 返回 true，回退服务器 MP4 直链（不要求必须已连接才重解析）
           const resolved = await resolveBilibiliOnline(movie, undefined, {
-            preferMp4: false,
+            preferMp4: getEffectivePreferMp4(movie.id),
           })
           const resolvedSource: ResolvedSource = {
             videoUrl: resolved.sourceUrl,
@@ -882,10 +874,7 @@ export function useWatchTogether({
     ): Promise<ResolvedMovieSource> => {
       setIsResolving(true)
       try {
-        const parsePrefs = getBilibiliParseOptions(movie.id)
-        if (parsePrefs.cliEnabled && !getActiveCliProxyUrl()) {
-          throw new Error('CLI 代理未连接，请先启动本地 zcontrol-cli')
-        }
+        // CLI 已启用但未连接时不抛错，由 getEffectivePreferMp4 回退服务器 MP4
         return await resolveBilibiliOnline(movie, undefined, {
           preferMp4: getEffectivePreferMp4(movie.id),
           forceRefresh,
@@ -996,8 +985,6 @@ export function useWatchTogether({
           sourceType === 'bilibili' &&
           r.format === 'dash' &&
           getBilibiliParseOptions(movie.id).bufferMode === true,
-        // MKV 快速路径：原生友好编码（AAC/MP3/Opus 音轨）直接原生播放
-        mkvFastPath: r.mkvFastPath ?? false,
         // 影片级浏览器播放引擎开关（添加影片时设置），随状态广播给观众
         playsvideoEnabled: r.playsvideoEnabled !== false,
         // 挂载直链模式：直连失败不回退服务器代理，直接提示错误

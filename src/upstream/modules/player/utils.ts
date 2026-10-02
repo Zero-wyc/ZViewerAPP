@@ -58,14 +58,17 @@ export function resetVideoElement(video: HTMLVideoElement): void {
  */
 export const METADATA_TIMEOUT_MS = 30_000
 
-export function waitForMetadata(video: HTMLVideoElement): Promise<void> {
+export function waitForMetadata(video: HTMLVideoElement, timeoutMs = METADATA_TIMEOUT_MS, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'))
   if (video.readyState >= 1) return Promise.resolve()
   return new Promise((resolve, reject) => {
     const cleanup = () => {
       video.removeEventListener('loadedmetadata', onLoaded)
       video.removeEventListener('error', onError)
       clearTimeout(timer)
+      signal?.removeEventListener('abort', onAbort)
     }
+    const onAbort = () => { cleanup(); reject(new DOMException('Aborted', 'AbortError')) }
     const onLoaded = () => {
       cleanup()
       resolve()
@@ -82,9 +85,10 @@ export function waitForMetadata(video: HTMLVideoElement): Promise<void> {
     }
     const timer = setTimeout(() => {
       cleanup()
-      reject(new Error('等待媒体 metadata 超时（30s）'))
-    }, METADATA_TIMEOUT_MS)
+      reject(new Error(`等待媒体 metadata 超时（${Math.round(timeoutMs / 1000)}s）`))
+    }, timeoutMs)
 
+    signal?.addEventListener('abort', onAbort, { once: true })
     video.addEventListener('loadedmetadata', onLoaded)
     video.addEventListener('error', onError)
   })

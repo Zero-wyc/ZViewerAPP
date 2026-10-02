@@ -11,9 +11,9 @@
  *   点击建议 → 写入关键词并跳搜索页；回车 → page='search' 并存关键词
  * - 导航链接：默认折叠态只有「网易云音乐」「哔哩哔哩」两按钮——网易云
  *   四分区（首页/私人漫游/云盘/我的音乐）合并进「网易云音乐」按钮，点击
- *   弹出分区选择面板（当前项实心方块指示，底部可展开完整导航），折叠态
+ *   弹出分区选择面板（当前项实心方块指示，桌面底部可展开完整导航），折叠态
  *   无意图的初始页默认落「我的音乐」；面板底部或展开态末尾按钮可在两种
- *   排版间切换（musicNavCollapsed 持久化）。当前页 on-surface、
+ *   排版间切换（musicNavCollapsed 持久化）；原生端与窄屏固定折叠。当前页 on-surface、
  *   其余 on-surface-variant/60，20px font-medium，间距 clamp(18px,3vw,40px)，
  *   hover opacity-0.7；导航底部下划线（Hydrogen Home.vue .router-tracker
  *   1:1 复刻：14×2px 短条，居中当前页按钮，left 0.3s ease 滑动，
@@ -55,6 +55,7 @@ import {
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import { cn } from '@/lib/utils'
 import { ncmVipLabel } from '../hooks/useNcmLogin'
+import { isGlobalAppearanceRuntime } from '../../../../platform/runtime'
 
 /** 菜单内「房间模式」分组的注入状态（由 MusicAppShell 透传） */
 export interface RoomModeMenuState {
@@ -129,7 +130,12 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
   /** 账户菜单展开态 */
   const [menuOpen, setMenuOpen] = useState(false)
   /** 顶部导航折叠态（网易云四分区合并为单按钮；持久化设置） */
-  const navCollapsed = useMusicSettingsStore((s) => s.musicNavCollapsed)
+  const savedNavCollapsed = useMusicSettingsStore((s) => s.musicNavCollapsed)
+  const isMobile = useIsMobile()
+  // Native mobile hosts keep the compact menu in both orientations, including
+  // installations that previously saved an expanded navigation preference.
+  const compactNavigation = isGlobalAppearanceRuntime() || isMobile
+  const navCollapsed = compactNavigation || savedNavCollapsed
   const setMusicSettings = useMusicSettingsStore((s) => s.set)
   /** 折叠态「网易云音乐」分区面板展开态 */
   const [ncmMenuOpen, setNcmMenuOpen] = useState(false)
@@ -140,7 +146,6 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
   /** 悬停可见态：默认隐藏，鼠标移入左侧悬停区才显示搜索框 */
   const [searchVisible, setSearchVisible] = useState(false)
   /** 手机端搜索：触屏无 hover，点击搜索图标唤出全宽搜索层 */
-  const isMobile = useIsMobile()
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   /** 下拉条目（热榜/建议共用关键词列表） */
   const [assistItems, setAssistItems] = useState<string[]>([])
@@ -688,8 +693,8 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
 
       {/* ===== 中：导航链接组（手机端字号/间距收窄更优雅）。
           折叠态（默认）：「网易云音乐」+「哔哩哔哩」两按钮，网易云四
-          分区收入弹出面板（当前项实心方块指示，底部可展开完整导航）；
-          展开态：完整五按钮 + 末尾折叠按钮，两种排版可互切（持久化） ===== */}
+          分区收入弹出面板（当前项实心方块指示，桌面底部可展开完整导航）；
+          桌面展开态：完整五按钮 + 末尾折叠按钮；原生端和窄屏固定折叠 ===== */}
       <nav
         ref={navRef}
         className="relative flex min-w-0 flex-1 items-center justify-center gap-[clamp(18px,3vw,40px)] max-md:gap-3"
@@ -803,30 +808,34 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
                       </button>
                     )
                   })}
-                  <div
-                    className="mx-1 my-1.5 h-px"
-                    style={{
-                      backgroundColor:
-                        'color-mix(in srgb, var(--md-sys-color-outline) 40%, transparent)',
-                    }}
-                  />
-                  {/* 展开完整导航（恢复五按钮排版，persist 到设置） */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMusicSettings({ musicNavCollapsed: false })
-                      setNcmMenuOpen(false)
-                    }}
-                    className="zen-dropdown-item flex w-full items-center gap-2.5 rounded-[var(--md-sys-shape-corner)] px-2.5 py-2 text-left text-sm text-[var(--md-sys-color-on-surface)] transition-all hover:bg-[var(--md-sys-color-surface-container-highest)] hover:translate-x-0.5"
-                    style={
-                      {
-                        '--item-delay': `${NCM_NAV_ITEMS.length * ITEM_DELAY_STEP}ms`,
-                      } as React.CSSProperties
-                    }
-                  >
-                    <UnfoldVertical className="h-4 w-4 text-[var(--md-sys-color-on-surface-variant)]" />
-                    展开完整导航
-                  </button>
+                  {!compactNavigation && (
+                    <>
+                      <div
+                        className="mx-1 my-1.5 h-px"
+                        style={{
+                          backgroundColor:
+                            'color-mix(in srgb, var(--md-sys-color-outline) 40%, transparent)',
+                        }}
+                      />
+                      {/* 桌面展开完整导航（恢复五按钮排版，persist 到设置） */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMusicSettings({ musicNavCollapsed: false })
+                          setNcmMenuOpen(false)
+                        }}
+                        className="zen-dropdown-item flex w-full items-center gap-2.5 rounded-[var(--md-sys-shape-corner)] px-2.5 py-2 text-left text-sm text-[var(--md-sys-color-on-surface)] transition-all hover:bg-[var(--md-sys-color-surface-container-highest)] hover:translate-x-0.5"
+                        style={
+                          {
+                            '--item-delay': `${NCM_NAV_ITEMS.length * ITEM_DELAY_STEP}ms`,
+                          } as React.CSSProperties
+                        }
+                      >
+                        <UnfoldVertical className="h-4 w-4 text-[var(--md-sys-color-on-surface-variant)]" />
+                        展开完整导航
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>

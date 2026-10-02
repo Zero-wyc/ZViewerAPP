@@ -2,19 +2,21 @@
 
 更新日期：2026-10-02
 
+源码核对基线：`client-v1.5.0`，提交 `1ca96fd46963ff5cb89beb6c3d31e1d7b9f501fc`。2026-10-02 已将该标签的共享前端、Android/HarmonyOS 原生源码及版本文件同步至指定仓库 `E:/Codex-bulid/ZViewer/ZViewer-client`，保留 iOS b12 源码与证据。下述新增路径现已在本目录可读，亦可用 `git show client-v1.5.0:<路径>` 复核。见 [本地同步与验证](client-1.5.0-local-sync-2026-10-02.md)。本次构建验证不代表新增设备验收。
+
 ## 1. 当前开发进程
 
 | 客户端 | 当前状态 | 维护结论 |
 | --- | --- | --- |
 | Android | 已完成开发，当前发布版本 1.5.0（versionCode 150） | Android 是共享网页功能和 B 站行为的主要参考宿主之一 |
 | HarmonyOS | 已同步当前 Android 的 v4.2.1 共享业务代码和全局外观，API 26 手机模拟器外观验收完成；客户端包版本为 1.5.0/150 | 维护重点是共享网页同步、ArkWeb 桥接和 ArkTS 本地代理；HEVC Main 10 解码限制单独记录 |
-| iOS | Expo/React Native 已完成服务端登录、房间和基础直链播放；等待开发者修复媒体截断问题后继续 | 当前不复用 HarmonyOS ArkWeb 宿主代码；继续遵循 `docs/ios-continuation-plan.md` |
+| iOS | 已交付 1.2.1 / b12 unsigned，已有房间、VLC、音乐、语音及本机 B 站实现；b12 真机复验尚未闭环 | 后续对齐 client 1.5.0 产品行为与服务端 v4.2.1，以 RN/原生模块实现系统媒体等能力，不复制 ArkWeb 宿主；执行 `docs/ios-continuation-plan.md` |
 
 HarmonyOS 应用不是另写一套业务前端。它将根项目构建出的 `dist/` 放入 `entry/src/main/resources/rawfile/web/`，由 ArkWeb 以固定本地来源加载；平台能力通过 `zviewerHost` 注入，再由 `bridge-bootstrap.js` 暴露为共享前端识别的 `window.zviewerNative`。
 
-1.3.5 的一起听导航在鸿蒙手机、横屏和平板固定折叠，忽略旧的展开偏好；播放器下箭头增加浅色圆形底板。房间玻璃背景使用主题变量，纯净视频关闭装饰性模糊和缩放。维护位置与回归清单见 [双端维护与发布](https://github.com/Zero-wyc/ZViewerAPP/blob/client-v1.5.0/docs/mobile-release-maintenance.md#一起听界面维护135)。
+1.3.5 的一起听导航在鸿蒙手机、横屏和平板固定折叠，忽略旧的展开偏好；播放器下箭头增加浅色圆形底板。房间玻璃背景使用主题变量，纯净视频关闭装饰性模糊和缩放。维护位置与回归清单见 [双端维护与发布](mobile-release-maintenance.md#一起听界面维护135)。
 
-1.5.0 新增原生系统播放控件、封面及歌词同步，完善后台播放和自动旋转，修复横屏安全区、头像与追加视频弹窗。一起看采用中间双击播放、全屏左右双击跳转15秒；一起听仅在视频全屏使用相同手势。用户已确认双端测试全部通过，维护位置与正式构建验收见 [1.5.0 发布记录](https://github.com/Zero-wyc/ZViewerAPP/blob/client-v1.5.0/docs/releases/client-1.5.0.md)。
+1.5.0 新增原生系统播放控件、封面及歌词同步，完善后台播放和自动旋转，修复横屏安全区、头像与追加视频弹窗。一起看采用中间双击播放、全屏左右双击跳转15秒；一起听仅在视频全屏使用相同手势。用户已确认双端测试全部通过，维护位置与正式构建验收见 [1.5.0 发布记录](releases/client-1.5.0.md)。
 
 ## 2. 代码归属边界
 
@@ -74,7 +76,7 @@ npm run harmony:web
 
 ## 4. HarmonyOS 升级顺序
 
-系统媒体由 `NativeMediaSession.ets` 实现，通过 `Index.ets` 的 `updateMediaSession`/`clearMediaSession` 和 `bridge-bootstrap.js` 与共享播放器连接。封面下载后解码为 PixelMap；播放必须同时具备 AVSession 与 AUDIO_PLAYBACK 连续任务。暂停释放连续任务，退出销毁会话与图片资源。默认及解除手动锁定使用 AUTO_ROTATION_RESTRICTED，尊重系统旋转开关。契约与回归要求见 [双端维护与发布](https://github.com/Zero-wyc/ZViewerAPP/blob/client-v1.5.0/docs/mobile-release-maintenance.md#系统媒体控件后台播放与旋转2026-10-01)。
+系统媒体由 `NativeMediaSession.ets` 实现，通过 `Index.ets` 的 `updateMediaSession`/`clearMediaSession` 和 `bridge-bootstrap.js` 与共享播放器连接。封面下载后解码为 PixelMap；播放必须同时具备 AVSession 与 AUDIO_PLAYBACK 连续任务。暂停释放连续任务，退出销毁会话与图片资源。默认及解除手动锁定使用 AUTO_ROTATION_RESTRICTED，尊重系统旋转开关。契约与回归要求见 [双端维护与发布](mobile-release-maintenance.md#系统媒体控件后台播放与旋转2026-10-01)。
 
 1. 共享业务改根项目 `src/`，完成 `npm run build`。
 2. 运行 `npm run harmony:web`，确认 `rawfile/web` 已重新生成。
@@ -109,10 +111,23 @@ Android `MainActivity` 使用原生 WindowInsets，HarmonyOS `Index.ets` 使用 
 
 Android 模拟器本机 B 站账号有效；隔离房间真实 CDN 播放连续 16 秒且帧数持续增加，延迟影片列表后解析正常，测试中收到 25 个 Range/206 响应并确认没有 9333 请求。用户原房间另行确认 1080P+ 高画质解析与 CDN 数据加载，无改动原房间播放状态。HarmonyOS 横屏全屏已验收。暂停/拖动与 Android 原生全屏专项操作脚本未最终通过，不将其记录为已验收。HEVC Main 10 在既有模拟器的解码限制不属于本次 B 站/界面修复，不应把轨道解析或解封装成功当作可播放。
 
-## 6. 文档入口
+## 6. 1.5.0 新增维护入口与回归
 
-- 双端版本、清理与发布步骤：[`mobile-release-maintenance.md`](https://github.com/Zero-wyc/ZViewerAPP/blob/client-v1.5.0/docs/mobile-release-maintenance.md)
-- 当前 1.5.0 发布记录：[`releases/client-1.5.0.md`](https://github.com/Zero-wyc/ZViewerAPP/blob/client-v1.5.0/docs/releases/client-1.5.0.md)
+鸿蒙系统入口为 `Index.ets → services/NativeMediaSession.ets`，由 bridge-bootstrap.js 暴露 update/clear；AVSession 与 AUDIO_PLAYBACK 连续任务共同生效。module.json5 声明 audioPlayback 与 KEEP_BACKGROUND_RUNNING。暂停停止任务，离开销毁会话/请求/PixelMap；默认/解锁使用 AUTO_ROTATION_RESTRICTED。系统歌词写入 lyric/singleLyricText。
+
+| 能力 | 共享源码入口（仓库相对路径） | 维护要求 |
+| --- | --- | --- |
+| 系统媒体 | `src/mobile/useSystemMediaSession.ts`、`src/platform/{contracts,mediaSession}.ts`；`src/upstream/modules/room/watch-together/WatchTogetherCore.tsx` 与音乐 `hooks/useMediaSession.ts` | 一起看/一起听均接入；sessionId/actions 校验，业务秒/系统毫秒，观众命令经过审批；旧播放器只能清理自己的会话 |
+| 歌词与封面 | `src/upstream/modules/music/hooks/useSystemLyrics.ts`、`utils/lyricRequest.ts` | 合并请求、20 项/5 分钟缓存、LRC 上限 65536 字符；媒体桥接上限 262144 字符；切无歌词曲清空，旧图片回调不能覆盖新曲 |
+| 旋转与手势 | `src/mobile/PlayerDisplayControls.tsx`、`src/platform/playerDisplay.ts`、`src/mobile/videoGestures.ts`；`useWatchGestures.ts`、`useMusicVideoGestures.ts` | 首次切换锁定、再次自动；中心双击播放，全屏侧边 ±15 秒；音乐仅纯净模式启用并操作音频；单击显示控件 |
+| 音乐 UI | `src/upstream/modules/music/components/{MusicTopNav,MusicAppShell,MusicVideoModal}.tsx`、`hooks/useBackgroundVideoSync.ts`、`utils/neteaseImage.ts` | 宽屏仍折叠、44px 可见关闭区、背景铺满/前景避让、弹窗与键盘滚动、头像占位、删除后同源重加重新加载 |
+
+系统控件权限、真正后台音频、旧会话清理、歌词快切、系统旋转锁和触屏去重需单独回归。后台不能只看 paused=false；需确认后台状态、时间推进和实际音轨输出。历史解码限制继续保留。所有客户端修改及 Git 操作统一在指定 ZViewer-client 仓库完成，遵循根 Agents.md。
+
+## 7. 文档入口
+
+- 双端版本、清理与发布步骤：[`mobile-release-maintenance.md`](mobile-release-maintenance.md)
+- 当前 1.5.0 发布记录：[`releases/client-1.5.0.md`](releases/client-1.5.0.md)
 
 - 共享移植边界：[`PORTING.md`](../PORTING.md)
 - HarmonyOS 发布说明：[`ZV-HarmonyOS/README.md`](../ZV-HarmonyOS/README.md)

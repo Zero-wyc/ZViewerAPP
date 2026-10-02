@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { Check, ImagePlus, Palette, RotateCcw, X } from 'lucide-react'
 import { radiusPresetToPx, RADIUS_PRESETS, useThemeStore } from '@/store/themeStore'
+import { setSystemBarStyle } from '../platform/playerDisplay'
 
 const DEFAULT_WALLPAPER = `${import.meta.env.BASE_URL}Nacho3.jpg`
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024
@@ -17,13 +18,20 @@ function Range({ label, value, min, max, step = 1, unit = '', disabled = false, 
   </label>
 }
 
-export function MobileAppearance({ children }: { children: ReactNode }) {
+export function MobileAppearance({ children, global = false, room = false }: {
+  children: ReactNode; global?: boolean; room?: boolean
+}) {
   const theme = useThemeStore()
   const [open, setOpen] = useState(false)
   const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches)
   const [url, setUrl] = useState(theme.backgroundImage?.startsWith('data:') ? '' : theme.backgroundImage ?? '')
   const [imageError, setImageError] = useState('')
   const uploadRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    const show = () => setOpen(true)
+    window.addEventListener('mobile-appearance-open', show)
+    return () => window.removeEventListener('mobile-appearance-open', show)
+  }, [])
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)')
     const update = () => setSystemDark(media.matches)
@@ -42,13 +50,38 @@ export function MobileAppearance({ children }: { children: ReactNode }) {
     }
   }, [open])
   const isDark = theme.mode === 'auto' ? systemDark : theme.isDark
+  useEffect(() => { if (global) void setSystemBarStyle(isDark).catch(() => {}) }, [global, isDark])
   const appearance = {
     '--appearance-radius': `${radiusPresetToPx(theme.radius)}px`,
     '--appearance-glass': isDark
       ? `rgba(19, 27, 37, ${Math.max(.2, theme.glassStrength)})`
       : `rgba(247, 249, 255, ${Math.max(.2, theme.glassStrength)})`,
     '--appearance-blur': `${theme.reducedMotion ? 0 : theme.glassBlur}px`,
+    '--appearance-strength': String(Math.max(.2, theme.glassStrength)),
   } as CSSProperties
+  // Shared panels and portals read their theme from the document, outside this shell.
+  useLayoutEffect(() => {
+    if (!global) return
+    const root = document.documentElement
+    const attributes = {
+      'data-mobile-appearance-theme': isDark ? 'dark' : 'light',
+      'data-mobile-reduced-motion': String(theme.reducedMotion),
+    }
+    const previousAttributes = Object.keys(attributes).map(key => [key, root.getAttribute(key)] as const)
+    const previousStyles = Object.keys(appearance).map(key => [key, root.style.getPropertyValue(key)] as const)
+    for (const [key, value] of Object.entries(attributes)) root.setAttribute(key, value)
+    for (const [key, value] of Object.entries(appearance)) root.style.setProperty(key, String(value))
+    return () => {
+      for (const [key, value] of previousAttributes) {
+        if (value === null) root.removeAttribute(key)
+        else root.setAttribute(key, value)
+      }
+      for (const [key, value] of previousStyles) {
+        if (value) root.style.setProperty(key, value)
+        else root.style.removeProperty(key)
+      }
+    }
+  }, [global, isDark, theme.reducedMotion, theme.radius, theme.glassStrength, theme.glassBlur])
 
   const setImageUrl = () => {
     const next = url.trim()
@@ -77,7 +110,7 @@ export function MobileAppearance({ children }: { children: ReactNode }) {
     reader.readAsDataURL(file)
   }
 
-  return <main className="app-shell" data-appearance={isDark ? 'dark' : 'light'}
+  return <div className={`app-shell${room ? ' app-shell-room' : ''}`} data-appearance={isDark ? 'dark' : 'light'}
     data-reduced-motion={theme.reducedMotion} style={appearance}>
     <div className="appearance-wallpaper" aria-hidden="true" style={{
       backgroundImage: `url(${theme.backgroundImage || DEFAULT_WALLPAPER})`,
@@ -89,8 +122,8 @@ export function MobileAppearance({ children }: { children: ReactNode }) {
       style={{ background: `rgba(255,255,255,${theme.backgroundWhiteOverlay})` }} />}
     {theme.backgroundBlackOverlay > 0 && <div className="appearance-overlay" aria-hidden="true"
       style={{ background: `rgba(0,0,0,${theme.backgroundBlackOverlay})` }} />}
-    <button type="button" className="appearance-trigger" aria-label="外观设置" title="外观设置"
-      onClick={() => setOpen(true)}><Palette size={19} /></button>
+    {!room && <button type="button" className="appearance-trigger" aria-label="外观设置" title="外观设置"
+      onClick={() => setOpen(true)}><Palette size={19} /></button>}
     {children}
     {open && <div className="appearance-backdrop" onClick={() => setOpen(false)}>
       <section className="appearance-sheet" role="dialog" aria-modal="true" aria-label="外观设置" data-mobile-appearance
@@ -142,5 +175,5 @@ export function MobileAppearance({ children }: { children: ReactNode }) {
         </div>
       </section>
     </div>}
-  </main>
+  </div>
 }

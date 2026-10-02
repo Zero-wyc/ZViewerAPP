@@ -17,9 +17,13 @@ export default class EntryAbility extends UIAbility {
       }
       // Keep the system safe areas aligned with the Web surface on phones and tablets.
       const mainWindow = windowStage.getMainWindowSync();
+      mainWindow.setPreferredOrientation(window.Orientation.AUTO_ROTATION_RESTRICTED)
+        .catch(() => hilog.error(DOMAIN, 'ZViewer', 'Failed to enable automatic rotation'));
+      mainWindow.setWindowLayoutFullScreen(true)
+        .catch(() => hilog.error(DOMAIN, 'ZViewer', 'Failed to enable edge-to-edge layout'));
       mainWindow.setWindowSystemBarProperties({
-        statusBarColor: '#111417',
-        navigationBarColor: '#111417',
+        statusBarColor: '#00000000',
+        navigationBarColor: '#00000000',
         statusBarContentColor: '#FFFFFF',
         navigationBarContentColor: '#FFFFFF'
       }).catch(() => hilog.error(DOMAIN, 'ZViewer', 'Failed to style system bars'));

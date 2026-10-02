@@ -25,6 +25,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, User } from 'lucide-react'
+import { fallbackNcmAvatar, neteaseImageUrl } from '../utils/neteaseImage'
 import { apiPost } from '@/lib/api'
 import { message } from '@/components/ui/message'
 import { useMusicStore } from '../store'
@@ -384,9 +385,7 @@ export function MusicSettingsPage() {
     message.success('已退出网易云账号')
   }
 
-  const avatarUrl = loginStatus.avatarUrl
-    ? `${loginStatus.avatarUrl.replace('http://', 'https://')}?param=100y100`
-    : null
+  const avatarUrl = neteaseImageUrl(loginStatus.avatarUrl, 100)
 
   return (
     <div className="music-settings-page flex h-full min-h-0 min-w-0 flex-col px-6 pt-6 md:px-8">
@@ -443,6 +442,8 @@ export function MusicSettingsPage() {
                 {avatarUrl ? (
                   <img
                     src={avatarUrl}
+                    referrerPolicy="no-referrer"
+                    onError={fallbackNcmAvatar}
                     alt={loginStatus.nickname ?? '网易云账号'}
                     className="mr-[15px] h-[70px] w-[70px] rounded-full object-cover"
                     draggable={false}

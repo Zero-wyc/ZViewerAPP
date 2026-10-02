@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { ArrowLeft, Check, ChevronDown, Film, Headphones, MessageCircle, MonitorPlay, Music2, Plus, RefreshCw, Settings2, UsersRound, WifiOff, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, Film, Headphones, MessageCircle, MonitorPlay, Music2, Palette, Plus, RefreshCw, Settings2, UsersRound, WifiOff, X } from 'lucide-react'
 import { useSocket } from '@/hooks/useSocket'
 import { useRoomStore } from '@/store/roomStore'
 import { useAuthStore } from '@/store/authStore'
@@ -27,6 +27,7 @@ import { restoreDisplay, ScreenOrientationButton } from './PlayerDisplayControls
 import { VoiceChatPanel } from '@/modules/voice-chat/components/VoiceChatPanel'
 import { useMusicAudioRouting } from './useMusicAudioRouting'
 import { BilibiliAccount } from './BilibiliAccount'
+import { isGlobalAppearanceRuntime } from '../platform/runtime'
 
 type Tab = 'chat' | 'movies' | 'room'
 
@@ -205,7 +206,13 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
           onAudioSessionChange={setVoiceAudioActive} />
       </section>}
       <Modal open={addOpen} title="添加影片" onClose={() => setAddOpen(false)} footer={null}><MoviePushPanel isHost={canAdd} /></Modal>
-      <Modal open={settingsOpen} title="房间" onClose={() => setSettingsOpen(false)} footer={null}><BilibiliAccount /><RoomInfoPanel roomId={roomId} isHost={room.isHost} /></Modal>
+      <Modal open={settingsOpen} title="房间" onClose={() => setSettingsOpen(false)} footer={null}>
+        {isGlobalAppearanceRuntime() && <button className="mobile-text-button mobile-appearance-entry" onClick={() => {
+          setSettingsOpen(false)
+          window.dispatchEvent(new Event('mobile-appearance-open'))
+        }}><Palette size={18} />外观设置</button>}
+        <BilibiliAccount /><RoomInfoPanel roomId={roomId} isHost={room.isHost} />
+      </Modal>
       <Modal open={leaveOpen} title="离开房间？" onClose={() => setLeaveOpen(false)} footer={<div className="mobile-dialog-actions"><button className="mobile-text-button" onClick={() => setLeaveOpen(false)}>取消</button><button className="mobile-text-button" onClick={leave}>离开</button></div>}>
         <p>{room.isHost ? '离开后将停止本机播放，房间按服务器的离线规则保留。' : '离开后将停止本机播放。'}</p>
       </Modal>

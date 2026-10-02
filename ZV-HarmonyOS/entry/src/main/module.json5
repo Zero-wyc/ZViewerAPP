@@ -18,6 +18,7 @@
         "startWindowIcon": "$media:startIcon",
         "startWindowBackground": "$color:start_window_background",
         "exported": true,
+        "backgroundModes": ["audioPlayback"],
         "skills": [
           {
             "entities": ["entity.system.home"],
@@ -27,6 +28,7 @@
       }
     ],
     "requestPermissions": [
+      { "name": "ohos.permission.KEEP_BACKGROUND_RUNNING" },
       { "name": "ohos.permission.INTERNET" },
       {
         "name": "ohos.permission.MICROPHONE",

@@ -133,6 +133,7 @@ export async function resolveBilibiliViaCli(
   const params = new URLSearchParams({
     bvid,
   })
+  const sessionVersion = getEmbeddedProxyStatus().sessionVersion
   const embedded = isEmbeddedBilibiliHost() && proxyUrl === getEmbeddedProxyStatus().proxyUrl
   if (embedded) {
     params.set('qualityMode', nativeOptions?.qualityMode ?? 'autoMax')
@@ -172,6 +173,8 @@ export async function resolveBilibiliViaCli(
   } catch {
     throw new CliResolveError(`CLI 代理返回了无效响应（HTTP ${res.status}）`)
   }
+
+  if (embedded && getEmbeddedProxyStatus().sessionVersion !== sessionVersion) throw new CliResolveError('账号已切换，请重新解析')
 
   if (!res.ok || data.success === false || !data.videoUrl) {
     if (embedded && res.status === 401) await embeddedBilibiliProxy.logout()

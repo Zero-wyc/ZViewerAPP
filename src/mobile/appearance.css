@@ -1,22 +1,39 @@
-.app-shell {
+.app-shell,
+html[data-mobile-appearance-theme] {
+  --app-safe-top: max(var(--native-safe-top, 0px), env(safe-area-inset-top, 0px));
+  --app-safe-bottom: max(var(--native-safe-bottom, 0px), env(safe-area-inset-bottom, 0px));
+  --app-safe-left: max(var(--native-safe-left, 0px), env(safe-area-inset-left, 0px));
+  --app-safe-right: max(var(--native-safe-right, 0px), env(safe-area-inset-right, 0px));
   --appearance-text: #f3f7fa;
   --appearance-muted: #b8c5cd;
   --appearance-line: rgba(235, 245, 255, .25);
   --appearance-field: rgba(13, 20, 29, .68);
   --appearance-accent: #9cdbff;
   --appearance-accent-text: #102638;
+  --appearance-surface: #131b25;
+  --appearance-container: #252f3b;
+  --appearance-error: #ffb4ab;
+}
+.app-shell {
   isolation: isolate;
   max-width: none;
   color: var(--appearance-text);
   background: #101a25;
+  padding: calc(18px + var(--app-safe-top)) max(20px, var(--app-safe-right)) calc(22px + var(--app-safe-bottom)) max(20px, var(--app-safe-left));
 }
-.app-shell[data-appearance="light"] {
+.app-shell[data-appearance="light"],
+html[data-mobile-appearance-theme="light"] {
   --appearance-text: #1c293a;
   --appearance-muted: #43566b;
   --appearance-line: rgba(50, 67, 91, .25);
   --appearance-field: rgba(246, 249, 255, .66);
   --appearance-accent: #1463b6;
   --appearance-accent-text: #fff;
+  --appearance-surface: #f7f9ff;
+  --appearance-container: #e3eaf3;
+  --appearance-error: #a12626;
+}
+.app-shell[data-appearance="light"] {
   background: #dce7f5;
 }
 .appearance-wallpaper, .appearance-overlay {
@@ -93,8 +110,14 @@
 .app-shell .create-room-button { border-radius: var(--appearance-radius); background: var(--appearance-accent); color: var(--appearance-accent-text); }
 .app-shell .guest-note,
 .app-shell .permission-note { border-radius: var(--appearance-radius); background: var(--appearance-glass); color: var(--appearance-text); }
+.app-shell .guest-note { border-color: var(--appearance-accent); }
+.app-shell .guest-note strong { color: var(--appearance-text); }
+.app-shell .guest-note span { color: var(--appearance-muted); }
+.app-shell .mode-switch button { color: var(--appearance-muted); }
+.app-shell .error-banner { color: var(--appearance-error); background: var(--appearance-field); border-color: var(--appearance-error); }
+.app-shell .create-room-button:disabled { color: var(--appearance-muted); background: var(--appearance-container); border-color: var(--appearance-line); }
 .app-shell .room-status { border-radius: var(--appearance-radius); }
-.app-shell .room-status.online { color: #68db9d; }
+.app-shell .room-status.online { color: var(--appearance-accent); background: var(--appearance-container); }
 .app-shell .rooms-toolbar { border-color: var(--appearance-line); }
 .app-shell .sheet-backdrop { background: rgba(8, 15, 25, .58); }
 .app-shell .create-sheet { border-radius: var(--appearance-radius) var(--appearance-radius) 0 0; }
@@ -104,8 +127,8 @@
 .appearance-trigger {
   position: fixed;
   z-index: 10;
-  right: 20px;
-  bottom: max(24px, env(safe-area-inset-bottom));
+  right: calc(20px + var(--app-safe-right));
+  bottom: calc(24px + var(--app-safe-bottom));
   display: grid;
   width: 52px;
   height: 52px;
@@ -120,12 +143,13 @@
 }
 .appearance-backdrop {
   position: fixed;
-  z-index: 40;
+  z-index: 1200;
   inset: 0;
   display: flex;
   align-items: flex-end;
   justify-content: center;
   background: rgba(7, 17, 30, .55);
+  padding-top: var(--app-safe-top);
 }
 .appearance-sheet {
   display: flex;
@@ -136,15 +160,15 @@
   border-radius: 28px 28px 0 0;
   background: var(--appearance-glass);
   color: var(--appearance-text);
-  -webkit-backdrop-filter: blur(28px);
-  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(var(--appearance-blur));
+  backdrop-filter: blur(var(--appearance-blur));
   box-shadow: 0 -15px 60px rgba(0, 0, 0, .25);
 }
 .appearance-sheet header { display: flex; justify-content: space-between; align-items: center; padding: 24px 22px 12px; }
 .appearance-kicker { color: var(--appearance-accent); font-size: 10px; font-weight: 800; letter-spacing: .14em !important; }
 .appearance-sheet h2 { margin: 5px 0 0; font-size: 24px; }
 .appearance-close { display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid var(--appearance-line); border-radius: 50%; background: var(--appearance-field); color: var(--appearance-text); }
-.appearance-scroll { overflow-y: auto; padding: 0 22px max(26px, env(safe-area-inset-bottom)); }
+.appearance-scroll { overflow-y: auto; padding: 0 22px calc(26px + var(--app-safe-bottom)); }
 .appearance-group { padding-top: 17px; }
 .appearance-group + .appearance-group { margin-top: 18px; border-top: 1px solid var(--appearance-line); }
 .appearance-group h3 { margin: 0 0 14px; font-size: 13px; color: var(--appearance-muted); }
@@ -166,7 +190,139 @@
 .appearance-url button, .appearance-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 0 13px; border: 1px solid var(--appearance-line); border-radius: var(--appearance-radius); background: var(--appearance-field); color: var(--appearance-text); }
 .appearance-file { display: none; }
 .appearance-actions { display: flex; gap: 8px; }
-.appearance-error { margin: 8px 0; color: #ff8d8d; font-size: 12px; }
+.appearance-error { margin: 8px 0; color: var(--appearance-error); font-size: 12px; }
 .app-shell[data-reduced-motion="true"] *,
 .app-shell[data-reduced-motion="true"] *::before,
 .app-shell[data-reduced-motion="true"] *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+
+/* Android shares these variables with body portals and the imported room/music UI. */
+html[data-mobile-appearance-theme] {
+  color-scheme: dark;
+  --md-sys-color-primary: var(--appearance-accent);
+  --md-sys-color-on-primary: var(--appearance-accent-text);
+  --md-sys-color-primary-container: var(--appearance-container);
+  --md-sys-color-on-primary-container: var(--appearance-text);
+  --md-sys-color-secondary: var(--appearance-muted);
+  --md-sys-color-on-secondary: var(--appearance-surface);
+  --md-sys-color-secondary-container: var(--appearance-container);
+  --md-sys-color-on-secondary-container: var(--appearance-text);
+  --md-sys-color-surface: var(--appearance-surface);
+  --md-sys-color-background: var(--appearance-surface);
+  --md-sys-color-on-background: var(--appearance-text);
+  --md-sys-color-on-surface: var(--appearance-text);
+  --md-sys-color-on-surface-variant: var(--appearance-muted);
+  --md-sys-color-surface-variant: var(--appearance-container);
+  --md-sys-color-surface-container-lowest: var(--appearance-surface);
+  --md-sys-color-surface-container-low: var(--appearance-field);
+  --md-sys-color-surface-container: var(--appearance-container);
+  --md-sys-color-surface-container-high: var(--appearance-container);
+  --md-sys-color-surface-container-highest: var(--appearance-container);
+  --md-sys-color-outline: var(--appearance-muted);
+  --md-sys-color-outline-variant: var(--appearance-line);
+  --md-sys-shape-corner: var(--appearance-radius);
+  --md-sys-radius-small: calc(var(--appearance-radius) / 4);
+  --md-sys-radius-medium: calc(var(--appearance-radius) / 2);
+  --md-sys-radius-large: var(--appearance-radius);
+  --glass-bg: var(--appearance-glass);
+  --glass-border: var(--appearance-line);
+  --glass-strength: var(--appearance-strength);
+  --glass-strong-strength: var(--appearance-strength);
+  --glass-blur: var(--appearance-blur);
+  --glass-blur-strong: var(--appearance-blur);
+  --glass-blur-mask: calc(var(--appearance-blur) * .4);
+  --glass-blur-loading: var(--appearance-blur);
+  --lt-raw-on-surface: var(--appearance-text);
+  --lt-raw-on-surface-variant: var(--appearance-muted);
+  --lt-raw-outline: var(--appearance-muted);
+  --lt-raw-outline-variant: var(--appearance-line);
+  --lt-glass-on-surface: var(--appearance-text);
+  --lt-glass-on-surface-variant: var(--appearance-muted);
+  --lt-glass-outline: var(--appearance-muted);
+  --lt-glass-outline-variant: var(--appearance-line);
+}
+html[data-mobile-appearance-theme="light"] { color-scheme: light; }
+html[data-mobile-appearance-theme] body { color: var(--appearance-text); }
+html[data-mobile-reduced-motion="true"] *,
+html[data-mobile-reduced-motion="true"] *::before,
+html[data-mobile-reduced-motion="true"] *::after {
+  animation-duration: .01ms !important;
+  transition-duration: .01ms !important;
+}
+.app-shell.app-shell-room { padding: 0; }
+.app-shell-room .mobile-room { background: transparent; color: var(--appearance-text); padding: var(--app-safe-top) var(--app-safe-right) var(--app-safe-bottom) var(--app-safe-left); }
+/* Expanded landscape playback paints behind the cutout/navigation safe areas.
+   Only foreground content is inset, so artwork keeps its camera clearance. */
+@media (orientation: landscape) {
+  .app-shell-room .mobile-room-music:has(.music-player-overlay) { padding: 0; }
+  .app-shell-room .music-player-overlay .music-player-content {
+    padding: calc(95px + var(--app-safe-top)) calc(45px + var(--app-safe-right)) calc(60px + var(--app-safe-bottom)) calc(45px + var(--app-safe-left));
+  }
+  .app-shell-room .music-player-overlay .music-player-collapse {
+    top: calc(12px + var(--app-safe-top));
+    right: calc(12px + var(--app-safe-right));
+  }
+}
+@media (orientation: landscape) and (max-height: 540px) {
+  .app-shell-room .music-player-overlay .music-player-content {
+    padding: calc(36px + var(--app-safe-top)) calc(16px + var(--app-safe-right)) calc(20px + var(--app-safe-bottom)) calc(16px + var(--app-safe-left));
+  }
+}
+.app-shell-room .mobile-room-header,
+.app-shell-room .mobile-room-details,
+.app-shell-room .mobile-voice-panel,
+.app-shell-room .mobile-room-details .glass-strong {
+  background: var(--appearance-glass);
+  -webkit-backdrop-filter: blur(var(--appearance-blur));
+  backdrop-filter: blur(var(--appearance-blur));
+  border-color: var(--appearance-line);
+}
+.app-shell-room .mobile-room-details,
+.app-shell-room .mobile-voice-panel { border-radius: var(--appearance-radius); }
+.app-shell-room .mobile-room-title span,
+.app-shell-room .mobile-room-tabs button,
+.app-shell-room .mobile-room-footer { color: var(--appearance-muted); }
+.app-shell-room .icon-button { color: var(--appearance-text); }
+.app-shell-room .mobile-room-tabs,
+.app-shell-room .mobile-room-footer,
+.app-shell-room .mobile-voice-heading { border-color: var(--appearance-line); }
+.app-shell-room .mobile-room-tabs button[aria-selected="true"],
+.app-shell-room .mobile-mode-switch button[aria-pressed="true"],
+html[data-mobile-appearance-theme] .mobile-text-button,
+.app-shell-room .mobile-voice-trigger.is-connected,
+html[data-mobile-appearance-theme] .mobile-appearance-entry { color: var(--appearance-accent); }
+.app-shell-room .mobile-room-tabs button[aria-selected="true"],
+.app-shell-room .mobile-mode-switch button[aria-pressed="true"] { border-color: var(--appearance-accent); }
+.app-shell-room .mobile-text-input { background: var(--appearance-field); border-color: var(--appearance-line); color: var(--appearance-text); border-radius: var(--appearance-radius); }
+/* Settings live inside the dark player, but follow the app's selected theme. */
+html[data-mobile-appearance-theme] .player-settings-dialog {
+  --md-sys-color-on-surface: var(--appearance-text);
+  --md-sys-color-on-surface-variant: var(--appearance-muted);
+  --md-sys-color-surface: var(--appearance-surface);
+  --md-sys-color-surface-container: var(--appearance-container);
+  --glass-bg: var(--appearance-glass);
+  color: var(--appearance-text);
+  text-shadow: none;
+}
+html[data-mobile-appearance-theme] .player-settings-dialog-card {
+  background: var(--appearance-glass);
+  -webkit-backdrop-filter: blur(var(--appearance-blur));
+  backdrop-filter: blur(var(--appearance-blur));
+}
+html[data-mobile-appearance-theme] .player-settings-dialog .mobile-settings-group {
+  background: transparent;
+}
+/* The dialog already provides glass; a second blur leaves a pale rectangle. */
+html[data-mobile-appearance-theme] .player-settings-dialog .player-settings-main,
+html[data-mobile-appearance-theme] .player-settings-dialog .player-settings-side {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+/* Video and its controls keep their own dark surface, including fullscreen. */
+.app-shell-room .mobile-player {
+  --md-sys-color-on-surface: #edf1ef;
+  --md-sys-color-on-surface-variant: #a8b3b6;
+  --md-sys-color-surface: #111417;
+  --md-sys-color-surface-container: #1b2024;
+  --glass-bg: rgba(19, 27, 37, .85);
+  color: #edf1ef;
+}

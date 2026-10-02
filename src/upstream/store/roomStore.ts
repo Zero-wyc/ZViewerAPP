@@ -1,3 +1,4 @@
+import { getEmbeddedProxyStatus } from '../../platform/bilibiliProxy'
 import { create } from 'zustand'
 import { apiFetch, safeJson } from '@/lib/api'
 import type {
@@ -216,14 +217,14 @@ interface RoomState {
   watchTogether: WatchTogetherState
   movies: Movie[]
   currentMovieId: number | null
-  pendingQualityChange: { movieId: number; resolved: ResolvedSource } | null
+  pendingQualityChange: { movieId: number; resolved: ResolvedSource; sessionVersion?: number } | null
   /**
    * 观众端通过本地 CLI 自主切换的清晰度解析结果。
    * 仅影响当前客户端播放，不写入影片列表也不广播给房主/其他观众。
    */
-  viewerCliResolvedSource: { movieId: number; resolved: ResolvedSource } | null
+  viewerCliResolvedSource: { movieId: number; resolved: ResolvedSource; sessionVersion?: number } | null
   setViewerCliResolvedSource: (
-    value: { movieId: number; resolved: ResolvedSource } | null
+    value: { movieId: number; resolved: ResolvedSource; sessionVersion?: number } | null
   ) => void
   /** 待处理的预览播放请求（由 MoviePushPanel 触发，useWatchTogether 消费） */
   pendingPreviewPlay: PreviewPlayRequest | null
@@ -307,7 +308,7 @@ interface RoomState {
   setMovies: (movies: Movie[]) => void
   setCurrentMovieId: (id: number | null) => void
   setPendingQualityChange: (
-    value: { movieId: number; resolved: ResolvedSource } | null
+    value: { movieId: number; resolved: ResolvedSource; sessionVersion?: number } | null
   ) => void
   setPendingPreviewPlay: (value: PreviewPlayRequest | null) => void
   /** 触发一次 B站 重新解析（计数器递增） */
@@ -343,7 +344,7 @@ interface RoomState {
       playsvideoEnabled?: boolean
       sourceMeta?: AniSubsSourceMeta | null
     }
-  ) => Promise<void>
+  ) => Promise<ReturnType<typeof mapDtoToMovie> | undefined>
   updateMovie: (
     roomId: string,
     movieId: number,
@@ -506,7 +507,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   setCurrentMovieId: (id) => set({ currentMovieId: id }),
   setPendingQualityChange: (value) => set({ pendingQualityChange: value }),
   setViewerCliResolvedSource: (value) =>
-    set({ viewerCliResolvedSource: value }),
+    set({ viewerCliResolvedSource: value ? { ...value, sessionVersion: getEmbeddedProxyStatus().sessionVersion } : null }),
   setPendingPreviewPlay: (value) => set({ pendingPreviewPlay: value }),
   triggerReloadBilibili: () =>
     set((state) => ({
@@ -568,7 +569,10 @@ export const useRoomStore = create<RoomState>((set, get) => ({
     if (!res.ok || !data.success) {
       throw new Error(data.message || '新增影片失败')
     }
-    // 不直接更新本地 state，等待后端广播 movie-list 刷新
+    // 不直接更新本地 state，等待后端广播 movie-list 刷新。
+    // 返回后端创建的影片（含 id）：添加流程需要即时拿到 id 持久化
+    // 解析偏好（BilibiliParseSettings），对齐预览与正式播放的解析语义。
+    return data.movie ? mapDtoToMovie(data.movie) : undefined
   },
 
   updateMovie: async (roomId, movieId, payload) => {

@@ -140,6 +140,7 @@ export interface PlayerSongControlProps {
   uiTone: PlayerUiTone
   onToggleUiTone: () => void
   isFullscreen: boolean
+  showFullscreen?: boolean
   onToggleFullscreen: () => void
   onClose: () => void
 }
@@ -197,6 +198,7 @@ export function PlayerSongControl({
   uiTone,
   onToggleUiTone,
   isFullscreen,
+  showFullscreen = true,
   onToggleFullscreen,
   onClose,
 }: PlayerSongControlProps) {
@@ -571,8 +573,8 @@ export function PlayerSongControl({
       >
         <Contrast className="h-[max(2.5vh,20px)] w-[max(2.5vh,20px)]" />
       </button>
-      {/* 全屏切换：整个应用进入/退出全屏（Esc 或再点退出） */}
-      <button
+      {/* 浏览器页面全屏；原生移动端展开播放器已经占满应用视口。 */}
+      {showFullscreen && <button
         type="button"
         onClick={onToggleFullscreen}
         className="flex h-[max(2.5vh,20px)] w-[max(2.5vh,20px)] items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity hover:opacity-70 active:scale-90"
@@ -584,7 +586,7 @@ export function PlayerSongControl({
         ) : (
           <Maximize className="h-[max(2.5vh,20px)] w-[max(2.5vh,20px)]" />
         )}
-      </button>
+      </button>}
       <button
         type="button"
         onClick={onClose}
