@@ -86,6 +86,7 @@ import { PlayerMobileToolbarRow } from './PlayerMobileToolbarRow'
 import { PlayerCardFace } from './PlayerCardFace'
 import { PlayerLyricPanelShell } from './PlayerLyricPanelShell'
 import { useImmersiveMode } from '../hooks/useImmersiveMode'
+import { useMusicVideoGestures } from '../hooks/useMusicVideoGestures'
 import { useSeekLock } from '../hooks/useSeekLock'
 import { usePlayerUiTone } from '../hooks/usePlayerUiTone'
 import { useLandscapeToolbarFlash } from '../hooks/useLandscapeToolbarFlash'
@@ -291,6 +292,7 @@ function ListenTogetherInner({
   const {
     immersive,
     enter: enterImmersive,
+    exit: exitImmersive,
     onTap: handleImmersiveTap,
   } = useImmersiveMode({ available: bgVideoReady, togglePlay })
 
@@ -479,6 +481,10 @@ function ListenTogetherInner({
     [canControl, seekWithLock, handleViewerSeek]
   )
 
+  const { surfaceRef: videoGestureRef, controlsVisible: videoControlsVisible } = useMusicVideoGestures({
+    fullscreen: immersive, getAudio, onTogglePlayback: handlePlayPause, onSeek: handleLyricSeek,
+  })
+
   /** 播放模式轮换（仅房主，切换后广播同步） */
   const handleTogglePlayMode = useCallback(() => {
     const idx = PLAY_MODE_ORDER.indexOf(playMode)
@@ -646,6 +652,9 @@ function ListenTogetherInner({
         bgDim={bgDim}
         immersive={immersive}
         onImmersiveTap={handleImmersiveTap}
+        gestureRef={videoGestureRef}
+        controlsVisible={videoControlsVisible}
+        onExitImmersive={exitImmersive}
       />
 
       {/* ===== B站 音源弹幕层（复用一起看弹幕模块）：仅 B站 条目渲染，
@@ -1007,8 +1016,7 @@ function ListenTogetherInner({
             )}
         </div>
       )}
-      {/* 添加视频弹窗（Hydrogen MusicVideo：无全屏遮罩，绝对居中于播放页；
-          搜索成功即按 songId 写入本地关联，驱动视频背景） */}
+      {/* 响应式添加视频弹窗；搜索成功按 songId 写入本地关联，驱动视频背景。 */}
       {showMusicVideo && (
         <MusicVideoModal
           songId={songId ?? -1}

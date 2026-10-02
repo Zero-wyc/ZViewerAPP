@@ -1,9 +1,8 @@
 /**
- * 添加视频弹窗（Hydrogen components/MusicVideo.vue 截图可见部分 1:1 复刻）。
+ * 添加视频弹窗：响应式布局与移动端主题共用，内容在安全区内滚动。
  *
- * 黑色弹窗结构：标题（添加视频 / ADD VIDEO FOR {songName}）+ B站账号区
- * （未登录 NONE / 已登录头像+昵称+大会员水印 + 登录/退出按钮）+ BV号输入框
- * + 视频信息区（NONE / 封面+标题+UP主+分P chips）+ 右侧 搜索/删除 按钮列。
+ * 标题 + B站账号/二维码 + BV号输入 + 视频信息/分P + 搜索/删除。
+ * 挂载到 body，避免完整播放器的动画与 overflow 裁切弹窗。
  *
  * 与 Hydrogen 的差异（Web 架构约束）：
  * - 登录复用 ZViewer 的 B站扫码链路（/api/stream/bilibili/*），二维码内嵌
@@ -12,7 +11,9 @@
  *   本地关联（musicVideoStore，按 songId 保存），供完整播放器视频背景消费；
  *   删除按钮语义为解除当前歌曲的视频关联
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { X } from 'lucide-react'
 import {
   getBilibiliLoginStatus,
   getBilibiliUserInfo,
@@ -69,6 +70,31 @@ export function MusicVideoModal({
   songName,
   onClose,
 }: MusicVideoModalProps) {
+  const titleId = useId()
+  const dialogRef = useRef<HTMLElement>(null)
+  const closeRef = useRef(onClose)
+  useLayoutEffect(() => { closeRef.current = onClose }, [onClose])
+  useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null
+    dialogRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
+    const closeOnKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.stopImmediatePropagation(); closeRef.current() }
+      if (event.key !== 'Tab') return
+      const controls = dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input')
+      if (!controls?.length) return
+      const first = controls[0], last = controls[controls.length - 1]
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+    }
+    const closeOnBack = (event: Event) => { event.stopImmediatePropagation(); closeRef.current() }
+    window.addEventListener('keydown', closeOnKey, true)
+    window.addEventListener('mobile-room-back', closeOnBack, true)
+    return () => {
+      window.removeEventListener('keydown', closeOnKey, true)
+      window.removeEventListener('mobile-room-back', closeOnBack, true)
+      if (previousFocus?.isConnected) previousFocus.focus()
+    }
+  }, [])
   const [biliUser, setBiliUser] = useState<BilibiliUserInfo | null>(null)
   const [loginStatusLoaded, setLoginStatusLoaded] = useState(false)
   // 扫码登录态：null=非登录流程；显示二维码 + 轮询状态文字
@@ -237,386 +263,79 @@ export function MusicVideoModal({
     message.info('已解除该歌曲的视频关联')
   }, [songId])
 
-  return (
-    <div
-      className="absolute left-1/2 top-1/2 z-[999] h-[600px] w-[450px] -translate-x-1/2 -translate-y-1/2"
-      style={{ backgroundColor: 'rgba(44, 50, 51, 1)' }}
-    >
-      {/* 关闭 X（Hydrogen .close 内联 SVG） */}
-      <button
-        type="button"
-        aria-label="关闭"
-        className="absolute right-[15px] top-[16px] h-[25px] w-[25px] transition-opacity hover:opacity-80 active:opacity-60"
-        onClick={onClose}
-      >
-        <svg viewBox="0 0 24 24" className="h-full w-full" aria-hidden="true">
-          <line
-            x1="5"
-            y1="5"
-            x2="19"
-            y2="19"
-            stroke="white"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-          <line
-            x1="19"
-            y1="5"
-            x2="5"
-            y2="19"
-            stroke="white"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-        </svg>
-      </button>
 
-      {/* 标题区（.set-video-title） */}
-      <div
-        className="flex flex-col text-left text-white"
-        style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)', padding: '10px 15px' }}
-      >
-        <span
-          style={{
-            fontFamily: "'SourceHanSansCN-Bold', sans-serif",
-            fontSize: 18,
-            lineHeight: '18px',
-          }}
-        >
-          添加视频
-        </span>
-        <span
-          className="overflow-hidden text-ellipsis whitespace-nowrap"
-          style={{
-            fontFamily: "'Bender-Bold', 'SourceHanSansCN-Bold', sans-serif",
-            fontSize: 16,
-            width: '90%',
-          }}
-        >
-          ADD VIDEO FOR{' '}
-          <span style={{ color: 'pink' }}>{songName || 'Music'}</span>
-        </span>
-      </div>
-
-      {/* 内容区（.set-video-info） */}
-      <div style={{ padding: '10px 15px' }}>
-        <div className="flex flex-row justify-between">
-          {/* B站账号区（.bili-account .account-info） */}
-          <div
-            className="relative select-none overflow-hidden"
-            style={{
-              width: '80%',
-              height: 80,
-              backgroundColor: 'rgba(0, 0, 0, 0.55)',
-            }}
-          >
-            <span
-              className="absolute left-0 top-0 w-full"
-              style={{
-                height: 12,
-                lineHeight: '12px',
-                paddingLeft: 4,
-                backgroundColor: 'rgba(0, 0, 0, 0.75)',
-                color: 'rgba(255, 255, 255, 0.8)',
-                fontFamily: "'Bender-Bold', sans-serif",
-                fontSize: 8,
-                textAlign: 'left',
-              }}
-            >
-              BILIBILI ACCOUNT
-            </span>
-            {qrLogin ? (
-              // 扫码登录：二维码 + 状态文字内嵌在账号区
-              <div className="flex h-full w-full items-center gap-3 px-3 pt-2">
-                <img
-                  src={qrLogin.qrDataUrl}
-                  alt="登录二维码"
-                  className="h-[64px] w-[64px]"
-                />
-                <span
-                  className="flex-1"
-                  style={{
-                    color: 'rgba(255, 255, 255, 0.8)',
-                    fontFamily: "'SourceHanSansCN-Bold', sans-serif",
-                    fontSize: 11,
-                  }}
-                >
-                  {qrStatusText}
-                </span>
-              </div>
-            ) : loginStatusLoaded && biliUser ? (
-              <div className="flex h-full w-full flex-row items-center">
-                <img
-                  src={toDisplayableBiliImage(biliUser.avatar)}
-                  alt=""
-                  className="ml-[14px] mt-[9px] h-[45px] w-[45px]"
-                  style={{ border: '1px solid rgba(255, 255, 255, 0.1)' }}
-                  onError={(e) => {
-                    e.currentTarget.style.visibility = 'hidden'
-                  }}
-                />
-                <div
-                  className="ml-[12px] mt-[9px] flex flex-col text-left"
-                  style={{
-                    color: 'rgba(255, 255, 255, 0.9)',
-                    fontFamily: "'SourceHanSansCN-Bold', sans-serif",
-                    fontSize: 11,
-                  }}
-                >
-                  <span className="truncate">{biliUser.name}</span>
-                  <span>
-                    大会员：{biliUser.vipStatus ? '已激活' : '未激活'}
-                  </span>
-                </div>
-                <div
-                  className="absolute bottom-[8px] right-[30px]"
-                  style={{
-                    color: 'rgba(255, 255, 255, 0.8)',
-                    fontFamily: "'Bender-Bold', sans-serif",
-                    fontSize: 8,
-                  }}
-                >
-                  BILIBILI VIP
-                  <span
-                    className="absolute -right-[20px] bottom-[3px] block h-[3px] w-[14px]"
-                    style={{
-                      backgroundColor: biliUser.vipStatus
-                        ? 'rgba(255, 192, 203, 0.9)'
-                        : 'rgba(255, 255, 255, 0.6)',
-                    }}
-                  />
-                </div>
-              </div>
-            ) : (
-              <span
-                className="block w-full"
-                style={{
-                  color: 'rgba(255, 255, 255, 0.8)',
-                  fontFamily: "'Bender-Bold', sans-serif",
-                  fontSize: 14,
-                  lineHeight: '80px',
-                  textAlign: 'center',
-                }}
-              >
-                NONE
-              </span>
-            )}
+  return createPortal(
+    <div className="music-video-modal-backdrop" onClick={event => { if (event.target === event.currentTarget) onClose() }}>
+      <section ref={dialogRef} className="music-video-modal" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+        <header className="music-video-modal-header">
+          <div className="min-w-0">
+            <h2 id={titleId}>添加视频</h2>
+            <p>ADD VIDEO FOR <span title={songName}>{songName || 'Music'}</span></p>
           </div>
-          {/* 登录/退出按钮（.account-button） */}
-          <button
-            type="button"
-            className="hover:bg-black/35 active:bg-black/65"
-            style={{
-              width: '18%',
-              height: 80,
-              backgroundColor: 'rgba(0, 0, 0, 0.55)',
-              color: 'rgba(255, 255, 255, 0.9)',
-              fontFamily: "'SourceHanSansCN-Bold', sans-serif",
-              fontSize: 14,
-              transition: '0.2s',
-            }}
-            onClick={() => void handleLoginOrLogout()}
-          >
-            {biliUser ? '退出' : '登录'}
-          </button>
-        </div>
-
-        {/* 链接输入框（.video-url） */}
-        <div className="mt-[10px]">
-          <input
-            type="text"
-            spellCheck={false}
-            value={videoUrl}
-            placeholder="请输入视频链接或BV号"
-            onChange={(e) => setVideoUrl(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void handleSearch()
-            }}
-            className="w-full outline-none"
-            style={{
-              padding: '0 12px',
-              height: 30,
-              backgroundColor: 'rgba(0, 0, 0, 0.55)',
-              color: 'rgba(255, 255, 255, 0.8)',
-              fontFamily: "'Bender-Bold', 'SourceHanSansCN-Bold', sans-serif",
-              fontSize: 12,
-              border: 'none',
-            }}
-          />
-        </div>
-
-        {/* 视频信息 + 搜索/删除（.video-add） */}
-        <div className="flex flex-row justify-between">
-          {/* 视频信息区（.video-info） */}
-          <div
-            className="relative"
-            style={{
-              marginTop: 10,
-              padding: '10px 15px',
-              width: '80%',
-              height: 220,
-              backgroundColor: 'rgba(0, 0, 0, 0.55)',
-            }}
-          >
-            <div
-              style={{
-                color: 'rgba(255, 255, 255, 0.9)',
-                fontFamily: "'SourceHanSansCN-Bold', sans-serif",
-                fontSize: 20,
-                lineHeight: '22px',
-                textAlign: 'left',
-              }}
-            >
-              视频信息
-            </div>
-            <div
-              style={{
-                color: 'rgba(255, 255, 255, 0.6)',
-                fontFamily: "'Bender-Bold', sans-serif",
-                fontSize: 10,
-                textAlign: 'left',
-              }}
-            >
-              VIDEO INFO
-            </div>
-            {videoInfo ? (
-              <div className="mt-[6px] flex w-full flex-col">
-                <div className="flex flex-row items-center">
-                  <img
-                    src={toDisplayableBiliImage(videoInfo.pic)}
-                    alt=""
-                    className="mr-[10px] self-start"
-                    style={{
-                      height: 60,
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                    }}
-                    onError={(e) => {
-                      e.currentTarget.style.visibility = 'hidden'
-                    }}
-                  />
-                  <div className="flex min-w-0 flex-col text-left">
-                    <span
-                      className="line-clamp-2"
-                      style={{
-                        marginBottom: 4,
-                        color: 'rgba(255, 255, 255, 0.9)',
-                        fontFamily: "'SourceHanSansCN-Bold', sans-serif",
-                        fontSize: 12,
-                        wordBreak: 'break-all',
-                      }}
-                    >
-                      {videoInfo.title}
-                    </span>
-                    <span
-                      className="truncate"
-                      style={{
-                        color: 'rgba(255, 255, 255, 0.6)',
-                        fontFamily: "'SourceHanSansCN-Bold', sans-serif",
-                        fontSize: 10,
-                        wordBreak: 'break-all',
-                      }}
-                    >
-                      UP：{videoInfo.upName}
-                    </span>
+          <button type="button" aria-label="关闭添加视频" onClick={onClose}><X aria-hidden="true" size={24} /></button>
+        </header>
+        <div className="music-video-modal-body">
+          <div className="music-video-account-row">
+            <div className="music-video-account">
+              <small>BILIBILI ACCOUNT</small>
+              {qrLogin ? (
+                <div className="music-video-account-details">
+                  <img src={qrLogin.qrDataUrl} alt="登录二维码" className="music-video-qr" />
+                  <span className="min-w-0">{qrStatusText}</span>
+                </div>
+              ) : loginStatusLoaded && biliUser ? (
+                <div className="music-video-account-details">
+                  <img src={toDisplayableBiliImage(biliUser.avatar)} alt="B站头像" className="music-video-avatar"
+                    onError={event => { event.currentTarget.style.visibility = 'hidden' }} />
+                  <div className="min-w-0">
+                    <p className="truncate" title={biliUser.name}>{biliUser.name}</p>
+                    <p>大会员：{biliUser.vipStatus ? '已激活' : '未激活'}</p>
                   </div>
                 </div>
-                {/* 分 P 列表（多 P 时横滚 chips） */}
-                {videoInfo.pages.length > 1 && (
-                  <div className="mt-[10px] flex flex-row overflow-x-auto overflow-y-hidden pb-[6px]">
-                    {videoInfo.pages.map((p) => (
-                      <div
-                        key={p.cid}
-                        className="mr-[10px] shrink-0 hover:bg-white/5"
-                        style={{
-                          width: 70,
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
-                          backgroundColor:
-                            selectedCid === p.cid
-                              ? 'rgba(255, 255, 255, 0.1)'
-                              : undefined,
-                          cursor: 'pointer',
-                        }}
-                        onClick={() => handleSelectPage(p.cid)}
-                        title={p.part}
-                      >
-                        <span
-                          className="block truncate"
-                          style={{
-                            color: 'rgba(255, 255, 255, 0.6)',
-                            fontFamily: "'SourceHanSansCN-Bold', sans-serif",
-                            fontSize: 10,
-                            lineHeight: '30px',
-                            textAlign: 'center',
-                          }}
-                        >
-                          {p.part || `P${p.page}`}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <span
-                className="absolute left-0 top-0 h-full w-full text-center"
-                style={{
-                  color: 'rgba(255, 255, 255, 0.8)',
-                  fontFamily:
-                    "'Bender-Bold', 'SourceHanSansCN-Bold', sans-serif",
-                  fontSize: 14,
-                  lineHeight: '200px',
-                }}
-              >
-                {searching ? '搜索中...' : 'NONE'}
-              </span>
-            )}
+              ) : <p className="music-video-empty-account">{loginStatusLoaded ? '未登录' : '加载中…'}</p>}
+            </div>
+            <button type="button" className="music-video-action" onClick={() => void handleLoginOrLogout()}>
+              {biliUser ? '退出' : '登录'}
+            </button>
           </div>
-          {/* 搜索/删除按钮列（.video-other） */}
-          <div
-            className="flex w-[18%] flex-col justify-between"
-            style={{ marginTop: 10 }}
-          >
-            <button
-              type="button"
-              className="hover:bg-black/35 active:bg-black/65"
-              style={{
-                width: '100%',
-                height: '48%',
-                backgroundColor: 'rgba(0, 0, 0, 0.55)',
-                color: 'rgba(255, 255, 255, 0.9)',
-                fontFamily: "'SourceHanSansCN-Bold', sans-serif",
-                fontSize: 14,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: '0.2s',
-              }}
-              onClick={() => void handleSearch()}
-            >
-              搜索
-            </button>
-            <button
-              type="button"
-              className="hover:bg-black/35 active:bg-black/65"
-              style={{
-                width: '100%',
-                height: '48%',
-                backgroundColor: 'rgba(0, 0, 0, 0.55)',
-                color: 'rgba(255, 255, 255, 0.9)',
-                fontFamily: "'SourceHanSansCN-Bold', sans-serif",
-                fontSize: 14,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: '0.2s',
-              }}
-              onClick={handleDelete}
-            >
-              删除
-            </button>
+          <input className="music-video-url" type="text" aria-label="视频链接或BV号" spellCheck={false}
+            value={videoUrl} placeholder="请输入视频链接或BV号" onChange={event => setVideoUrl(event.target.value)}
+            onKeyDown={event => { if (event.key === 'Enter') void handleSearch() }} />
+          <div className="music-video-info-row">
+            <div className="music-video-info">
+              <h3>视频信息</h3><small>VIDEO INFO</small>
+              {videoInfo ? (
+                <>
+                  <div className="music-video-preview">
+                    <img src={toDisplayableBiliImage(videoInfo.pic)} alt="视频封面"
+                      onError={event => { event.currentTarget.style.visibility = 'hidden' }} />
+                    <div className="min-w-0">
+                      <p className="line-clamp-2" title={videoInfo.title}>{videoInfo.title}</p>
+                      <small className="block truncate" title={videoInfo.upName}>UP：{videoInfo.upName}</small>
+                    </div>
+                  </div>
+                  {videoInfo.pages.length > 1 && (
+                    <div className="music-video-pages" aria-label="视频分P">
+                      {videoInfo.pages.map(page => (
+                        <button type="button" key={page.cid} aria-pressed={selectedCid === page.cid}
+                          onClick={() => handleSelectPage(page.cid)} title={page.part}>
+                          {page.part || `P${page.page}`}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : <p className="music-video-empty">{searching ? '搜索中…' : '暂无视频'}</p>}
+            </div>
+            <div className="music-video-actions">
+              <button type="button" className="music-video-action" disabled={searching} onClick={() => void handleSearch()}>
+                {searching ? '搜索中…' : '搜索'}
+              </button>
+              <button type="button" className="music-video-action" onClick={handleDelete}>删除</button>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+      </section>
+    </div>, document.body
   )
 }

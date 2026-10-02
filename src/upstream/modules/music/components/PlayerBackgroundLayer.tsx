@@ -9,7 +9,7 @@
  * 3. **自定义视频背景**：B站 视频关联曲目；`contain` 模式额外铺一层放大模糊
  *    封面填充黑边；`fixed` 提升用于纯净模式，元素不重挂、播放流不断
  * 4. **背景压暗**：黑色遮罩盖在背景之上、内容之下
- * 5. **纯净模式点按层**：单击切播放暂停、双击退出（Esc 亦可退出）
+ * 5. **纯净模式点按层**：原生端用全屏双击手势，网页单击播放、双击退出
  *
  * 交叉溶解的快照状态自持：父组件只需传 cover，换曲判定在本组件 render 期
  * 完成（React 官方 props 变化调 state 模式，规避 effect 内同步 setState）。
@@ -17,6 +17,8 @@
 import { useState } from 'react'
 import type { CSSProperties, MouseEvent, RefObject } from 'react'
 import { cn } from '@/lib/utils'
+import { ChevronDown } from 'lucide-react'
+import { isGlobalAppearanceRuntime } from '../../../../platform/runtime'
 
 export interface PlayerBackgroundLayerProps {
   /** 当前曲目封面（无封面时不渲染封面层） */
@@ -45,8 +47,11 @@ export interface PlayerBackgroundLayerProps {
   bgDim: number
   /** 纯净模式（背景视频沉浸） */
   immersive: boolean
-  /** 纯净模式点按层回调（单击播放/暂停，双击退出） */
+  /** 网页纯净模式点按层回调；原生端由 gestureRef 接管 */
   onImmersiveTap: (e: MouseEvent) => void
+  gestureRef: RefObject<HTMLButtonElement>
+  controlsVisible: boolean
+  onExitImmersive: () => void
 }
 
 export function PlayerBackgroundLayer({
@@ -62,6 +67,9 @@ export function PlayerBackgroundLayer({
   bgDim,
   immersive,
   onImmersiveTap,
+  gestureRef,
+  controlsVisible,
+  onExitImmersive,
 }: PlayerBackgroundLayerProps) {
   // Viewing the video should preserve the whole frame; background preferences
   // (cropping, stretching and blur) only apply while the player UI is visible.
@@ -214,17 +222,23 @@ export function PlayerBackgroundLayer({
         />
       )}
 
-      {/* ===== 纯净模式覆盖层：单击切换播放/暂停（video 保持
-          pointer-events-none 让点击穿透），双击屏幕直接退出纯净模式
-          （无退出按钮；Esc 仍可退出） ===== */}
+      {/* 纯净模式点按层。原生端仅全屏启用共享手势，视频自身不接收指针。
+          单击唤出退出按钮；网页继续使用原来的点击语义。 */}
       {immersive && (
         <>
           <button
+            ref={gestureRef}
             type="button"
-            aria-label="单击切换播放/暂停，双击退出纯净模式"
+            aria-label={isGlobalAppearanceRuntime() ? '视频全屏手势区：中间双击播放或暂停，左右双击跳转15秒' : '单击切换播放/暂停，双击退出纯净模式'}
             onClick={onImmersiveTap}
             className="fixed inset-0 z-[65] cursor-pointer"
           />
+          {isGlobalAppearanceRuntime() && controlsVisible && (
+            <button type="button" aria-label="退出视频全屏" onClick={onExitImmersive}
+              className="music-video-exit fixed z-[80] flex h-11 w-11 items-center justify-center rounded-full">
+              <ChevronDown aria-hidden="true" size={24} />
+            </button>
+          )}
           {/* 背景压暗同样作用于纯净模式：叠在 fixed 视频（z-70）之上，
               保证纯视频画面也跟随同一压暗设置 */}
           {bgDim > 0 && (
