@@ -234,3 +234,8 @@ SDK57官方文档和AGENTS为准，expo install；CNG/config plugin/本地Expo M
 ### 2026-10-02 展开音乐播放器补充
 
 展开页重做为共享双端的播放卡/图标工具栏/独立完整歌词结构；iPad 竖屏双栏，窄屏手机切换歌词，短横屏压缩控件，封面明确宽高防止拉伸。新增 31 项播放页 Web 和既有 59 项房间复验均通过，0 JS 异常；59 单测、lint/typecheck 和 iOS/Web 导出通过。源码编号仍为 15，无新云端构建/更新或 IPA，继续 Expo Go Reload。原生安全区、大字体、旋转、VLC 出声和后台限制仍待设备验证。详见 [音乐页补充](releases/ios-1.5.0-15-music-preview.md)。
+
+### 2026-10-02 音乐首页横幅与滑动补充
+
+iOS 横幅改为加载原始宽图并等比铺满，去掉仅用于专辑封面的 CDN 方图裁切；支持手动左右滑动、双向首尾循环和定位条，短拖动/竖向滚动不切图，手动操作避开自动轮播。70 单测、60 项 RN Web/CDP 触摸与既有功能检查、lint/typecheck、本地 iOS/Web 导出通过；这不是 UIKit 真机通过证明。只修改 iOS 与维护记录，双端程序未变；没有新增 EAS Build/Update 或 IPA，继续 Expo Go Reload。
+详见 [横幅补充](releases/ios-1.5.0-15-banner-preview.md)。

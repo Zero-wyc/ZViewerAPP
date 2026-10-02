@@ -65,3 +65,8 @@ b15 新增 `check-room-yoga.mjs`：六尺寸/两模式/侧栏共 24 组实际 ro
 本轮界面验证：59 单测、29 首页/59 房间音乐/21 来源 Web，0 JS 异常。首页包括两主题/黑白背景/低透明度的文字对比度；check-native-parity.cjs 包含 60 来源/80 集、分列、多选重试和真实后端保存，支持 IOS_TEST_OUTPUT。iOS/Web 导出及 expo-blur ~57.0.3/默认壁纸纳入通过，Doctor 20/21 提示未隐藏。b14 首页 Yoga/Provider 是历史专项证据，不是当前原生完整页面验收。
 
 b15 展开播放器补充：`check-music-player-ui.cjs`（同隔离端口/依赖，支持 IOS_TEST_OUTPUT）覆盖六尺寸、80 行歌词与封面/控件边界，共 31 项。原房间 59 项复验通过。播放卡/图标工具栏/完整歌词区与双端结构对齐，iPad 竖屏双栏；原生安全区/大字体/音频仍待验收。无新 EAS Build/Update，见 [音乐页补充](../docs/releases/ios-1.5.0-15-music-preview.md)。
+
+### 2026-10-02 音乐首页横幅与滑动补充
+
+iOS 横幅改为加载原始宽图并等比铺满，去掉仅用于专辑封面的 CDN 方图裁切；支持手动左右滑动、双向首尾循环和定位条，短拖动/竖向滚动不切图，手动操作避开自动轮播。70 单测、60 项 RN Web/CDP 触摸与既有功能检查、lint/typecheck、本地 iOS/Web 导出通过；这不是 UIKit 真机通过证明。只修改 iOS 与维护记录，双端程序未变；没有新增 EAS Build/Update 或 IPA，继续 Expo Go Reload。
+详见 [横幅补充](../docs/releases/ios-1.5.0-15-banner-preview.md)。

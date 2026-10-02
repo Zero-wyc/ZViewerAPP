@@ -65,6 +65,14 @@ test('Netease images preserve signed query fields, limit upgrades to their host 
   const image = new URL(neteaseImageUrl('//p1.music.126.net/a.jpg?param=40y40&signature=abc', 300)); assert.equal(image.protocol, 'https:'); assert.equal(image.searchParams.get('param'), '300y300'); assert.equal(image.searchParams.get('signature'), 'abc');
   assert.equal(new URL(neteaseImageUrl('http://other.example/a?param=40y40')).protocol, 'http:'); assert.equal(neteaseImageUrl('http://user:pass@example.com/a'), ''); assert.equal(neteaseImageUrl('file:///a'), '');
 });
+test('Netease banners retain original wide artwork while album covers keep their square crop', () => {
+  const raw = 'http://p1.music.126.net/banner.jpg?param=300y300&quality=89&token=signed';
+  const banner = new URL(neteaseImageUrl(raw, null));
+  assert.equal(banner.protocol, 'https:'); assert.equal(banner.searchParams.has('param'), false);
+  assert.equal(banner.searchParams.get('quality'), '89'); assert.equal(banner.searchParams.get('token'), 'signed');
+  assert.equal(new URL(neteaseImageUrl(raw)).searchParams.get('param'), '300y300');
+  assert.equal(neteaseImageUrl('https://cdn.example/banner.jpg?param=original&signature=abc', null), 'https://cdn.example/banner.jpg?param=original&signature=abc');
+});
 test('cancelled media resolution cannot write, invalidation retains paused progress and same-URL delete/readd loads again', async () => {
   let finish; const native = { currentTime: 0, duration: 300, playbackRate: 1, playing: false, sources: [], play() { this.playing = true; }, pause() { this.playing = false; }, async replaceAsync(source) { this.sources.push(source); this.currentTime = 0; } };
   const adapter = new NativeMediaAdapter(native, async () => new Promise(resolve => { finish = resolve; })); const value = { sourceUrl: 'https://example.com/a', isPlaying: false, currentTime: 42 };
