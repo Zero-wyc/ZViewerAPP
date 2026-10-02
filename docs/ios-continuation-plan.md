@@ -228,3 +228,7 @@ SDK57官方文档和AGENTS为准，expo install；CNG/config plugin/本地Expo M
 - 59 单测、lint/typecheck、iOS/Web 导出、24 房间 Yoga、29 首页/59 房间音乐/21 来源 Web 通过，0 JS 异常。Expo Go manifest/iOS JS/壁纸 HTTP200。Doctor 20/21，保留 WebRTC/本地模块提示。
 - 用户已看到背景并指出入口/对比度问题，本轮已修改；未获得全应用原生通过结论。I13 原生独立业务 Socket/后台切歌/审批仍未闭环，系统歌词差异、长时媒体/HLS 子资源、真实账号/跨端语音等矩阵保留。
 - 只保留 Metro/Expo Go，EAS 95eec7cf… 已取消，早期 0665bfa3… b14 不作为最终包。源码编号 15，没有 b15 IPA；没有新增云端 Build/Update。用户确认界面并明确要求后再构建。
+
+### 2026-10-02 展开音乐播放器补充
+
+展开页重做为共享双端的播放卡/图标工具栏/独立完整歌词结构；iPad 竖屏双栏，窄屏手机切换歌词，短横屏压缩控件，封面明确宽高防止拉伸。新增 31 项播放页 Web 和既有 59 项房间复验均通过，0 JS 异常；59 单测、lint/typecheck 和 iOS/Web 导出通过。源码编号仍为 15，无新云端构建/更新或 IPA，继续 Expo Go Reload。原生安全区、大字体、旋转、VLC 出声和后台限制仍待设备验证。详见 [音乐页补充](releases/ios-1.5.0-15-music-preview.md)。

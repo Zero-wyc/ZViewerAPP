@@ -139,3 +139,7 @@ Android 模拟器本机 B 站账号有效；隔离房间真实 CDN 播放连续 
 ## 2026-10-02 iOS 界面对齐交接
 
 双端继续共用 src/，iOS 使用 RN + VLC。mobileDesign、Surface/AppDialog、来源下拉/集中选集移植产品布局与字段；默认背景复用 public/Nacho3.jpg，首页 B站账号改为可见文字，标题/提示有主题底色，竖屏评论位于视频下方。59 单测、29 首页/59 房间/21 来源 Web、24 Yoga 通过；只修改 iOS 与维护文档，未改双端程序。本轮无新增 EAS Build/Update 或 IPA，继续 Expo Go 预览；I13 后台业务 Socket 和原生等效验收保持待完成。详见 [b15 预览](releases/ios-1.5.0-15-preview.md)。
+
+### 2026-10-02 展开音乐播放器补充
+
+展开页重做为共享双端的播放卡/图标工具栏/独立完整歌词结构；iPad 竖屏双栏，窄屏手机切换歌词，短横屏压缩控件，封面明确宽高防止拉伸。新增 31 项播放页 Web 和既有 59 项房间复验均通过，0 JS 异常；59 单测、lint/typecheck 和 iOS/Web 导出通过。源码编号仍为 15，无新云端构建/更新或 IPA，继续 Expo Go Reload。原生安全区、大字体、旋转、VLC 出声和后台限制仍待设备验证。详见 [音乐页补充](releases/ios-1.5.0-15-music-preview.md)。
