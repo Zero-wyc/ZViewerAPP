@@ -1,18 +1,20 @@
 # HarmonyOS 应用维护架构整理
 
-更新日期：2026-10-01
+更新日期：2026-10-02
 
 ## 1. 当前开发进程
 
 | 客户端 | 当前状态 | 维护结论 |
 | --- | --- | --- |
-| Android | 已完成开发，当前发布版本 1.3.5（versionCode 135） | Android 是共享网页功能和 B 站行为的主要参考宿主之一 |
-| HarmonyOS | 已同步当前 Android 的 v4.2.1 共享业务代码和全局外观，API 26 手机模拟器外观验收完成；客户端包版本为 1.3.5/135 | 维护重点是共享网页同步、ArkWeb 桥接和 ArkTS 本地代理；HEVC Main 10 解码限制单独记录 |
+| Android | 已完成开发，当前发布版本 1.5.0（versionCode 150） | Android 是共享网页功能和 B 站行为的主要参考宿主之一 |
+| HarmonyOS | 已同步当前 Android 的 v4.2.1 共享业务代码和全局外观，API 26 手机模拟器外观验收完成；客户端包版本为 1.5.0/150 | 维护重点是共享网页同步、ArkWeb 桥接和 ArkTS 本地代理；HEVC Main 10 解码限制单独记录 |
 | iOS | Expo/React Native 已完成服务端登录、房间和基础直链播放；等待开发者修复媒体截断问题后继续 | 当前不复用 HarmonyOS ArkWeb 宿主代码；继续遵循 `docs/ios-continuation-plan.md` |
 
 HarmonyOS 应用不是另写一套业务前端。它将根项目构建出的 `dist/` 放入 `entry/src/main/resources/rawfile/web/`，由 ArkWeb 以固定本地来源加载；平台能力通过 `zviewerHost` 注入，再由 `bridge-bootstrap.js` 暴露为共享前端识别的 `window.zviewerNative`。
 
 1.3.5 的一起听导航在鸿蒙手机、横屏和平板固定折叠，忽略旧的展开偏好；播放器下箭头增加浅色圆形底板。房间玻璃背景使用主题变量，纯净视频关闭装饰性模糊和缩放。维护位置与回归清单见 [双端维护与发布](mobile-release-maintenance.md#一起听界面维护135)。
+
+1.5.0 新增原生系统播放控件、封面及歌词同步，完善后台播放和自动旋转，修复横屏安全区、头像与追加视频弹窗。一起看采用中间双击播放、全屏左右双击跳转15秒；一起听仅在视频全屏使用相同手势。用户已确认双端测试全部通过，维护位置与正式构建验收见 [1.5.0 发布记录](releases/client-1.5.0.md)。
 
 ## 2. 代码归属边界
 
@@ -110,7 +112,7 @@ Android 模拟器本机 B 站账号有效；隔离房间真实 CDN 播放连续 
 ## 6. 文档入口
 
 - 双端版本、清理与发布步骤：[`mobile-release-maintenance.md`](mobile-release-maintenance.md)
-- 当前 1.3.5 发布记录：[`releases/client-1.3.5.md`](releases/client-1.3.5.md)
+- 当前 1.5.0 发布记录：[`releases/client-1.5.0.md`](releases/client-1.5.0.md)
 
 - 共享移植边界：[`PORTING.md`](../PORTING.md)
 - HarmonyOS 发布说明：[`ZV-HarmonyOS/README.md`](../ZV-HarmonyOS/README.md)

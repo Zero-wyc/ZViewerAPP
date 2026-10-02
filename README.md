@@ -10,11 +10,11 @@
 
 [下载安装包](https://github.com/Zero-wyc/ZViewerAPP/releases) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md)
 
-## 当前版本：1.3.5
+## 当前版本：1.5.0
 
-Android 和 HarmonyOS 同步 ZViewer 服务端 v4.2.1，使用同一套连接页、房间、全局背景与深浅主题。一起听在移动端固定使用折叠导航，取消“展开完整导航”；播放器下箭头增加浅色圆形底板。同步修复浅色菜单背景、纯净视频布局与返回交互。两端包版本为 1.3.5，versionCode 为 135；iOS 本次不更新、不发布。
+Android 和 HarmonyOS 同步 ZViewer 服务端 v4.2.1，使用同一套连接页、房间、全局背景与深浅主题。双端接入系统播放控件、封面与歌词，完善后台播放和自动旋转；一起听横屏背景铺满屏幕，曲绘避让摄像头，追加视频弹窗适配主题与窄屏。一起看使用中间双击播放/暂停、全屏左右双击各跳转15秒；一起听仅在视频全屏采用相同手势。两端包版本为 1.5.0，versionCode 为 150；iOS 本次不更新、不发布。
 
-发布构建、源码清理边界与设备验收见 [双端维护与发布流程](docs/mobile-release-maintenance.md)，本版变更见 [1.3.5 发布记录](docs/releases/client-1.3.5.md)。
+发布构建、源码清理边界与设备验收见 [双端维护与发布流程](docs/mobile-release-maintenance.md)，本版变更见 [1.5.0 发布记录](docs/releases/client-1.5.0.md)。
 
 Android 内置 B 站登录与 Go 播放代理，无需另外安装 CLI。扫码登录后，默认选择账号有权限、视频有实际轨道、设备支持的最高普通画质，自动排除 HDR 和杜比视界。最高画质播放失败时，有限恢复后优先回退 720p；没有 720p 则使用真实可用的更低档位。
 
