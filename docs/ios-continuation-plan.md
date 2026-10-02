@@ -1,10 +1,12 @@
 # iOS 继续开发与验收文档
 
-更新：2026-09-30。工程：ZV-iOS/；界面和权限语义基准：Android 1.2.1。
+更新：2026-10-02。工程：`ZV-iOS/`。已交付基线仍为 iOS 1.2.1 / build 12、服务端 v4.2.0；**后续更新目标改为 Android/HarmonyOS 1.3.0 / 130 的产品行为与服务端 v4.2.1 协议**，不是将双端网页引擎搬入 RN。
+
+本次仅更新计划，依据当前工作区维护文档与源码交叉核对，未修改程序、构建安装包或新增真机验收。工作区存在尚未提交的 Android、鸿蒙及共享 Go 改动；下文描述的是该工作区快照，不能等同于已发布标签中的全部内容。第 1～6 节保留 b12 交付与验收记录，第 7～10 节为后续执行计划；旧节中的“本轮/本版”均指 b12。
 
 **当前交付：1.2.1 / build 12 unsigned。** 用户已反馈上一轮包的视频播放、B站扫码、番剧播放和挂载视频播放正常；同时反馈自动起播、全屏、旋转及 Android 界面对齐问题。本版已修正对应客户端链路，**新版真机复验待完成**。语音和本机 B站 CLI 已实现并编入包，编译和 fixture 不能代替麦克风/跨端运行验收。
 
-## 1. 当前决策
+## 1. b12 交付决策（历史基线）
 
 - 独立 Expo/RN；单一 VLCKit 文件/音乐/HTTP-FLV 内核，NativeMediaAdapter → VlcPlayer → VlcVideo。WebRTC 仅接收原有实时共享。
 - 客户端适配 v4.2.0，保留 8 MiB Range 上限，不引入默认转码/HLS；本轮正式服务端无交付改动，共享 Go 实现及其他客户端未修改。
@@ -15,7 +17,7 @@
 
 参考：[Expo 规范](../ZV-iOS/AGENTS.md)、[README](../ZV-iOS/README.md)、[b12 交付证据](releases/ios-1.2.1-12-unsigned.md)、[b11 历史交付](releases/ios-1.2.1-11-unsigned.md)、[b9 历史交付](releases/ios-1.2.1-9-unsigned.md)、[历史单内核基线](releases/ios-1.2.1-2-vlc.md)。缺失的历史外部手册不作为当前证据。
 
-## 2. 已实现和待验证
+## 2. b12 已实现和待验证
 
 | 阶段/项目 | 已实现 | 当前证据 | 有待测试验证 |
 | --- | --- | --- | --- |
@@ -41,7 +43,7 @@
 - SourcePicker 漏配 Modal 横屏方向，原生默认竖屏与房间横屏锁存在配置冲突；现在显式 fullScreen，允许 portrait / portrait-upside-down / landscape，不在弹窗开关或布局回调里调用方向锁。没有采集 UIKit 旋转日志，持续旋转是否彻底消失需 b12 真机确认。
 - 新增三尺寸菜单锚点和弹窗反复开关布局检查；Web 检查不能证明 iPad 原生方向过渡正常。
 
-## 3. 自动验证
+## 3. b12 自动验证记录（本次未重跑）
 
 - **35/35 单测**：鉴权/URL/Range/取消、切源/暂停/释放/音轨、初始化前起播、字幕/弹幕/歌词、语音包和 B站 CID/分P。
 - lint、类型、iOS/Web 导出通过。Doctor **20/21**：Directory 提示 WebRTC New Architecture 未测试和本地私有模块无元数据，未隐藏。
@@ -80,3 +82,81 @@
 SDK57官方文档和AGENTS为准，expo install；CNG/config plugin/本地Expo Module，不手改生成项目。每版记录测试/构建/摘要/真实剩余项。仅暂存本版iOS代码/锁文件/文档/脱敏证据，不混入既有Android/鸿蒙/根工程改动，不提交账号/原日志/证书/IPA。用户已授权源码/包检查后Git提交；未真机验收不创建通过标签。回滚用git revert，不reset --hard。
 
 本轮文件和SHA-256见 [b12交付记录](releases/ios-1.2.1-12-unsigned.md)。b10/b11 为历史构建，本次复验使用 b12。
+
+## 7. 2026-10-02 源码差异与迁移边界
+
+### 7.1 参考资料与状态纠偏
+
+- 架构与发布：[Android 维护架构](android-maintenance-architecture.md)、[HarmonyOS 维护架构](harmonyos-maintenance-architecture.md)、[双端维护与发布](mobile-release-maintenance.md)。双端共享根 `src/`，iOS 独立维护 `ZV-iOS/src/` 与本地 Expo Module；根项目同步命令不会更新 iOS。
+- 协议与媒体：[Android v4.2.1 适配](android-v4.2.1-adaptation-report.md)、[鸿蒙适配及编码限制](harmonyos-v4.2.1-adaptation-report.md)、[B 站 CDN 修复](android-bilibili-cdn-playback-fix.md)。保留其中设备、内容和测试时长边界，不能将模拟器/WebView 成功推定为 iOS VLC 成功。
+- 外观：[Android 全局外观](android-global-appearance.md)、[鸿蒙外观同步](harmonyos-global-appearance-sync-plan.md)。后续对齐浅/深/跟随系统、背景和玻璃设置、系统安全区，不再仅以旧绿色/深灰截图为完整目标。
+- 两端维护架构表仍把 iOS 概括成“基础直链播放、等待修复截断”，与 b12 记录和现有源码范围不一致。iOS 已有片单、音乐、语音和本机 B 站实现，用户也反馈部分播放正常；应定位为“功能已实现较多、v4.2.1 差异待补齐、b12 真机复验未闭环”，既不退回仅登录的阶段，也不宣称截断及所有媒体已解决。
+
+### 7.2 已核对的差异
+
+下列相对路径均相对仓库根。表中“待补齐”是后续任务，不代表本次已修复。
+
+| 领域 | Android/HarmonyOS 参考实现 | iOS 现状与后续结论 |
+| --- | --- | --- |
+| 房间恢复及 B 站时序 | `src/upstream/modules/sync-playback/hooks/useVideoSource.ts` 等待当前影片 DTO，异步后重读 movieId，核验 cid/会话并丢弃过期解析 | `ZV-iOS/src/app/room/[roomId].tsx` 请求 `request-current-movie`，但当前未注册 `current-movie` 监听；播放状态直接进入 adapter，`movie-list` 仅更新列表。需增加当前影片身份与待处理播放状态，不能依赖事件到达顺序 |
+| B 站解析/偏好 | `src/upstream/modules/bilibili/{parseOptions,nativeQualityPolicy,useBilibiliQuality}.ts`、`room/watch-together/movie-source-resolver.ts`：影片级策略、管理员限制、真实画质、手动失败恢复 | `ZV-iOS/src/lib/biliNative.ts` 已有本机解析、epoch、分 P、两次降档；缓存以 URL 为键、画质全局保存，返回的 sessionVersion 未用于缓存键。`resolvers.ts` 固定传 preferMp4/forceDash；`MoviePanel.tsx` 添加影片忽略创建返回 DTO。需补齐策略和身份，不能把现有本机解析算成未开发 |
+| CDN 与原生构建 | `native/bilicore/mobile/mobile.go` 已有候选去重/排序、受限 CDN/4483、简化媒体 UA；鸿蒙 `BilibiliLocalProxy.ets` 独立实现同类策略 | iOS 通过 `scripts/stage-native-core.cjs` 复制当前共享 Go 源并生成 SHA-256 manifest。下一包需重建 XCFramework 并核对来源；不能认定历史 b12 已含这些修复，也无需复制 ArkTS 代理 |
+| 语音 | `src/upstream/modules/voice-chat/hooks/useVoiceChat.ts`：媒体初始化 ACK、房间恢复后重入、稳定 instanceId、volatile 媒体发送及拥塞处理 | `ZV-iOS/src/components/VoicePanel.tsx` 已有 forceNew websocket、mediaToken、初始化 ACK、Opus/PCM 和写缓冲丢帧；尚未发送 instanceId，媒体仍用普通 emit，joined 在 voiceStart 后设置而非以媒体 ACK 为准。重入/令牌刷新、过期 ACK 和可见连接状态需专项对齐，不能写成“从零迁移旧语音事件” |
+| 一起听 | `src/upstream/modules/music/hooks/useListenTogether.ts` 用队列位置处理重复曲目，隔离解析缓存、清理重试；`useMusicVideoBackground.ts` 提供背景视频策略 | `ZV-iOS/src/components/MusicPanel.tsx` 用 trackKey/findIndex 定位前后曲，重复歌曲可能反复定位首项；stream 主要按 trackKey 复用。需补队列位置、账号/服务端/音质变化失效，以及有限重试与取消；音乐背景视频列为后续功能 |
+| 全局外观 | `src/mobile/MobileAppearance.tsx`、`appearance.css`、`src/upstream/store/themeStore.ts`：持久化外观壳、主题变量、背景及减少动态效果 | iOS `RoomUi.tsx`、首页/房间/音乐多处固定深色，`app.json` 固定 dark。需实现 RN 主题与偏好，覆盖独立 Modal；不得复制 CSS/Portal 实现。主题切换必须保留 VLC 实例、音轨和当前进度 |
+| 番剧批量添加 | `src/upstream/modules/room/components/AnimeEpisodePicker.tsx` 及 AniSubs/Kazumi 选择器支持多选和部分失败 | `ZV-iOS/src/components/AnimePicker.tsx` 当前逐集点击即添加。后续增加选择、批量提交、成功移除/失败保留，继续使用已有逐集 API |
+| 播放器及挂载 | 根网页已迁移 Video.js 10/dash.js，含 attach/seek 取消、HLS 鉴权；`player/engines/direct-route.ts` 区分挂载直链与中转 | iOS 保持 `NativeMediaAdapter → VlcPlayer → VlcVideo`。`media.ts` 已隔离本机 URL、令牌和固定 Range 头；重点验收短 206 续读、HLS 子资源鉴权、取消/释放及直链语义，不引入网页引擎、MSE、P2P 或默认转码 |
+
+## 8. 后续版本实施顺序
+
+优先级以本节为准；第 2 节 P0～P5 仅表示历史开发分组。各阶段完成后再确定版本号并递增 build，不预先宣称“下一包已完成 1.3.0 对齐”。
+
+### 阶段 A：P0 协议、播放正确性与历史反馈闭环
+
+1. **I01 / b12 反馈复验**：按第 4 节先验证添加片源弹窗旋转、网易云菜单、自动起播与全屏恢复；有可复现失败先修。协议、队列等独立工作可以继续，但发布前必须记录这些问题的真机结论。
+2. **I02 / v4.2.1 房间契约**：核对登录刷新、加入/审批/房主恢复、成员列表、当前影片及播放事件 DTO。以 roomId、movieId、cid、连接代次管理异步状态，资料未齐时等待并显示加载状态，设置超时；切房/换片/退出取消旧任务。回归“播放状态先到”“影片列表先到”“等待中换片”“重连晚加入”。
+3. **I03 / 本机 B 站链路**：从当前影片规范地址与 cid 解析，房主桌面 `127.0.0.1:9333` 只作为需本机重新解析的情形，不能放宽通用 URL 校验。补齐影片级自动/手动质量、真实 currentQn、管理员 DASH 设置与 CLI 不可用时服务器 MP4 回退；保留 CLI 用户偏好和暂停/进度。缓存隔离服务器、账号会话、影片/cid、解析模式和画质版本，同请求合并，账号退出/切换失效；手动切档失败恢复原策略与播放状态。
+4. **I04 / Go 修复进入 iOS 包**：先固定要打包的共享 Go 来源与 manifest，再重建 ARM64 XCFramework。验证普通/边缘/mcdn 候选切换、完整签名查询参数（含 nbs）、Range/HEAD/206、取消及 Cookie 隔离；仅允许已登记解析结果和受限 CDN/端口。共享 Go 如需继续改动，单独提交并回归 Android，不能当作仅 iOS 私有改动。
+5. **I05 / 语音会话状态**：将房间恢复 ACK、voice-join、新 mediaToken、独立媒体连接及 voice-media-init ACK 明确串联；只有绑定成功才允许媒体收发和显示可通话。保留稳定实例标识、丢帧而非积压策略、ACK 超时/代次取消、鉴权刷新、禁言/踢出及离房释放。编码器已有 Opus/PCM 能力，先验证 v4.2.1 互通，再按实际丢包/拥塞结果安排 PLC、码率与统计增强，不照搬浏览器音频代码。
+6. **I06 / VLC 与 Range 门槛**：保留现有单内核及初始化前播放意图。分别测试 v4.2.0 历史短 206 场景与 v4.2.1 实际响应，记录端点、请求 Range、Content-Range、响应体长度、续读与总流量。历史 8 MiB 是已有服务端行为约束，不是所有代理的统一限额；双端报告中的 12 MiB 完整 Range 也不能推定服务端文件接口已取消上限。不得以改正式服务端上限掩盖 iOS 续读问题。
+
+阶段 A 出口：v4.2.1 隔离服务上完成房间/B 站/语音协议回归，真机完成 b12 反馈及核心视频续读；未完成麦克风、媒体或旋转实测的项目仍明确标为待验收。v4.2.0 作为历史对照，未经专项验证不承诺新包双版本全功能兼容，不隐式回退旧 `voice-audio-data` 协议。
+
+### 阶段 B：P1 全局外观与音乐一致性
+
+1. **I07 / RN 全局外观**：参考双端主题字段建立持续挂载的根主题状态，依次覆盖连接页、登录/列表、房间、音乐、设置及 Modal；提供浅色/深色/跟随系统、背景图、圆角、透明度、模糊、背景位置/缩放/旋转/遮罩及减少动态效果。背景文件采用合适的本地文件存储，偏好只保存引用和参数；不要把大图塞进 SecureStore。原生玻璃不可用时使用可读的普通表面。
+2. 系统状态栏、安全区、键盘和大字体与主题联动；播放器画布保持黑色，设置面板单层表面，避免重复模糊和浅色低对比文字。iOS 使用 RN 安全区及原生方向策略，不移植 Android WindowInsets 或鸿蒙 CSS 注入。切换主题/打开外观页不重建 VLC；关闭浮层、退出全屏、返回房间的交互顺序明确。暂保留 iPad requireFullScreen，Split View 另立方向适配任务。
+3. **I08 / 音乐队列与解析**：用队列项/位置维护重复曲目推进，遵守现有服务端 DTO，不自创线上同步字段；覆盖 `[A, A, B]`、删除当前项、前后曲、随机/单曲/顺序和播放结束。解析按账号/服务器/曲目/cid/音质/模式隔离，同请求合并；暂停、切歌、切房与卸载取消重试和过期结果。验收音质变化后重新取流、B 站音轨和歌词走当前本机会话、音乐与语音同时使用的音频路由。
+
+阶段 B 出口：iPhone/iPad 横竖屏及浅/深色截图对照，主题重启持久化、媒体实例/进度连续性、重复歌曲推进和跨端音乐同步均有记录；不能以 Web 导出截图代替原生模糊、安全区和方向验收。
+
+### 阶段 C：P2 功能补齐与交付
+
+- **I09 / 来源与辅助体验**：番剧多选/部分失败重试；按双端现有行为核对评论、字幕弹幕设置与诊断展示。挂载覆盖直链/服务端中转、账号权限和失败提示，不无提示改变直链的带宽语义。HLS 清单、相对分片、密钥、外部字幕和分离音轨分别验证鉴权及取消。
+- **I10 / 音乐背景及共享观看**：在主音轨同步稳定后补音乐背景视频及分辨率设置，遵守管理员 DASH 开关并验证多播放器资源竞争；真实 WebRTC 与 OBS HTTP-FLV 分开测，继续只提供共享接收端。
+- **I11 / 交付收口**：保留用户自行签名的 unsigned-device 方式，内置 JS；核对 iOS 版本/build、原生桥接、许可证、来源摘要和 IPA SHA-256。正式签名、TestFlight/商店及 Split View 不自动纳入本轮。
+
+## 9. 新版本验收矩阵与证据要求
+
+使用隔离 v4.2.1 服务、测试账号和房间，联调结束恢复设备连接/偏好并停止临时服务与端口转发。已有脚本若固定 v4.2.0/fixture，应先调整断言与环境记录；历史 35/37/16/7 通过数不能直接算作新版本结果。
+
+| 验收组 | 必测场景 | 通过证据 |
+| --- | --- | --- |
+| 房间/时序 | 主连接重连、令牌刷新、晚加入、影片/列表/状态乱序、等待中换片、房主转交 | 脱敏事件次序与代次；无旧片覆盖、无他机 9333 请求，权限与成员状态符合实际服务端 |
+| B 站 | QR/退出/重登、分 P、自动/手动/失败恢复、CLI 不可用与管理员禁 DASH、真实 CDN 备用节点 | 实际 qn/编码、首帧、连续播放、seek/暂停、Range/206；无 Cookie/签名 URL/本机能力路径泄漏 |
+| 文件/媒体 | MKV/MP4 各十分钟、HEVC Main 10/H.264、FLAC 16/24 位、分离轨、HLS 子资源、短 206/416/取消 | 设备与系统、容器和编码、画面帧/声音/时间推进、请求字节；鸿蒙 HEVC 零帧仅作为排查案例，不推断 iOS 成败 |
+| 语音跨端 | iOS↔Android、iOS↔HarmonyOS、iOS↔官方 v4.2.1 网页；媒体单独断线与主连接断线、禁言/踢出 | 初始化 ACK 与换令牌证据、上下行帧及真人双向听感；蓝牙/扬声器/回声/来电/后台/弱网单独记结果 |
+| 音乐 | 重复曲目、播放结束、暂停中解析完成、连续切歌、音质/账号/服务器切换、音乐与语音共存 | 队列位置、同步进度、退出后无旧流/重试；真实网易云账号/VIP/歌词与 fixture 区分 |
+| 外观/方向 | 两种设备、浅深/系统主题、设置 Modal、键盘/大字体、全屏/旋转/源选择器、进程重启 | 原生截图、主题持久化、VLC 实例和播放连续性；b12 反馈逐项关闭或保留已知限制 |
+| 发布 | 新 build 用户签名安装、冷启动、旧版升级、HTTP 局域网权限、后台恢复 | 构建来源、IPA 检查/SHA-256、测试清单、已知限制；编译成功与真机通过分开记录 |
+
+每项记录 build、设备/系统、服务端版本、素材/账号类型、步骤、预期、实际、证据和剩余问题。暂停后允许播放器合理预缓冲，需统计是否停止持续下载；离房释放后不能继续请求旧媒体。同步暂沿用约 2 秒目标并记录测量条件。
+
+## 10. 开发验证与维护交接
+
+- 开始程序实现前遵循 `ZV-iOS/AGENTS.md`，按当前 Expo 主版本查对应文档；使用 CNG/config plugin/本地 Module，不手改生成 iOS 工程，不执行 Capacitor 同步到 iOS。
+- 每阶段按改动增加有实际故障价值的回归：事件乱序、缓存隔离、重复队列、过期语音 ACK、取消/释放；复用 `ZV-iOS/tests/` 和现有脚本。根目录旧测试已在双端清理中删除，不照抄历史报告中的失效命令，也不删除 iOS 现有测试。
+- 从 `ZV-iOS/` 运行 `npm test`、`npm run lint`、`npm run typecheck`，按需运行 Expo Doctor、iOS 导出和隔离服务联调；原生模块或共享 Go 变更须重新设备构建并检查 IPA。Doctor 历史警告重新记录，不能沿用旧通过数或隐藏警告。
+- 每次程序版本构建完成后按维护准则做本地 Git commit，提交前检查范围。本次仅计划文档更新，不构成程序版本构建；后续不得把工作区其他端既有改动一并提交。共享 Go 来源必须可追溯到提交或明确源码摘要，禁止以“iOS 没改 Go 文件”为由跳过打包来源检查。
+- 随实际交付更新本计划、`ZV-iOS/README.md` 与 `docs/releases/ios-<version>-<build>-unsigned.md`，同时修正双端维护文档中的过时 iOS 状态；历史证据不覆盖、不改写成新版结果。
+- 未经后续发布指令不 push、打发布标签或上架。如发布 GitHub Release，说明按仓库规定依次使用“🚀 新特性 / Features”“🐛 错误修复 / Bug Fixes”“⚠️ 破坏性改动 / Breaking Changes”“⚡ 性能优化 / Performance Improvements”“📖 文档与依赖更新 / Documentation & Dependencies”，分隔线后附“完整变更记录”。
