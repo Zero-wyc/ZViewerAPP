@@ -1,6 +1,7 @@
 import { nativeVideoSource, type PlaybackSource } from './media.ts';
 
 export type Playback = PlaybackSource & {
+  currentMovieId?: number;
   isPlaying: boolean;
   currentTime: number;
   playbackRate?: number;
@@ -27,14 +28,19 @@ export class NativeMediaAdapter {
   private needsInitialSeek = false;
   private initialTime = 0;
   private pending = 0;
+  private invalidation = 0;
+  private cancellation: AbortController | null = null;
   private player: NativePlayerPort;
-  private resolve: (state: PlaybackSource, server: string, token: string) => Promise<ReturnType<typeof nativeVideoSource>>;
+  private resolve: (state: PlaybackSource, server: string, token: string, signal?: AbortSignal) => Promise<ReturnType<typeof nativeVideoSource>>;
   constructor(player: NativePlayerPort, resolve = async (state: PlaybackSource, server: string, token: string) => nativeVideoSource(state, server, token)) { this.player = player; this.resolve = resolve; }
   get busy() { return this.pending > 0; }
-  invalidate() { this.key = ''; }
+  invalidate() { this.invalidation++; }
+  cancelPending() { this.version++; this.cancellation?.abort(); }
 
   apply(state: Playback | null, server: string, token: string, revision = 0): Promise<void> {
     const version = ++this.version;
+    this.cancellation?.abort();
+    const cancellation = new AbortController(); this.cancellation = cancellation;
     this.pending++;
     const task = this.queue.then(async () => {
       if (this.disposed || version !== this.version) return;
@@ -44,11 +50,13 @@ export class NativeMediaAdapter {
           await this.player.replaceAsync(null);
           return;
         }
-        const source = await this.resolve(state, server, token);
+        let aborted: (() => void) | undefined;
+        const cancelled = new Promise<never>((_, reject) => { aborted = () => reject(new Error('播放任务已取消')); cancellation.signal.addEventListener('abort', aborted, { once: true }); });
+        const source = await Promise.race([this.resolve(state, server, token, cancellation.signal), cancelled]).finally(() => { if (aborted) cancellation.signal.removeEventListener('abort', aborted); });
         if (this.disposed || version !== this.version) return;
-        const key = JSON.stringify([source.uri, source.contentType, source.headers, source.slaves.map(slave => slave.uri), revision]);
+        const key = JSON.stringify([source.uri, source.contentType, source.headers, source.slaves.map(slave => slave.uri), revision, this.invalidation]);
         if (key !== this.key) {
-          const preserveTime = source.identity === this.uri && !!this.key;
+          const preserveTime = source.identity === this.uri;
           const position = preserveTime ? this.player.currentTime : state.currentTime;
           this.player.pause();
           await this.player.replaceAsync(source);
@@ -74,7 +82,7 @@ export class NativeMediaAdapter {
   }
 
   dispose() {
-    this.disposed = true; this.version++;
+    this.disposed = true; this.version++; this.cancellation?.abort();
     // The view controller owns native release; the adapter stops queued writes.
     try { this.player.pause(); } catch { /* the hook may already have released it */ }
   }

@@ -1,0 +1,356 @@
+{
+  "version": "1.5.0",
+  "build": "13",
+  "date": "2026-10-02",
+  "scope": "iOS candidate, no device acceptance or parity claim",
+  "sourceBaseline": "9a17d56",
+  "reference": "client-v1.5.0",
+  "referenceCommit": "1ca96fd46963ff5cb89beb6c3d31e1d7b9f501fc",
+  "eas": {
+    "id": "39c98171-8b19-4e31-b68d-9639d6fac54f",
+    "status": "FINISHED",
+    "createdAt": "2026-10-02T06:30:47.042Z",
+    "completedAt": "2026-10-02T06:37:29.158Z",
+    "url": "https://expo.dev/accounts/fredqin2006/projects/zviewer-ios/builds/39c98171-8b19-4e31-b68d-9639d6fac54f",
+    "shaMatchesWorker": true
+  },
+  "ipa": {
+    "bundleId": "com.zviewer.mobile",
+    "version": "1.5.0",
+    "build": "13",
+    "app": {
+      "arm64": true,
+      "platform": 2,
+      "signed": false,
+      "encrypted": false
+    },
+    "frameworks": [
+      "ExpoFileSystem.framework",
+      "ExpoFont.framework",
+      "ExpoImage.framework",
+      "ExpoModulesCore.framework",
+      "ExpoModulesJSI.framework",
+      "ExpoModulesWorklets.framework",
+      "React.framework",
+      "ReactNativeDependencies.framework",
+      "SDWebImage.framework",
+      "SDWebImageAVIFCoder.framework",
+      "SDWebImageSVGCoder.framework",
+      "SDWebImageWebPCoder.framework",
+      "VLCKit.framework",
+      "WebRTC.framework",
+      "hermesvm.framework",
+      "libavif.framework"
+    ],
+    "nativeBridges": {
+      "ZViewerNativeModule": true,
+      "ZVBiliBridge": true,
+      "ZVVoiceCodec": true
+    },
+    "jsBytes": 3072876,
+    "background": [
+      "audio"
+    ],
+    "ats": {
+      "NSAllowsLocalNetworking": true
+    },
+    "requiresFullScreen": true,
+    "orientations": [
+      "UIInterfaceOrientationPortrait",
+      "UIInterfaceOrientationPortraitUpsideDown",
+      "UIInterfaceOrientationLandscapeLeft",
+      "UIInterfaceOrientationLandscapeRight"
+    ],
+    "ipadOrientations": null,
+    "systemMedia": true,
+    "sharedSource": {
+      "reference": "client-v1.5.0",
+      "referenceCommit": "1ca96fd46963ff5cb89beb6c3d31e1d7b9f501fc",
+      "normalizedLineEndings": "LF",
+      "files": {
+        "core/bilibili.go": "3f62c642e16f2ee5c3e7dc8da07a5f5cd376ae00c9179fb898571bdb94277532",
+        "core/quality.go": "4f837cd1188134a79a06ab81b84007e49524a45e7042346d410feb9ad65a3341",
+        "core/resolver.go": "0176b34b0dc8a582ad969658cf245478da790984219334f52a8b87a8edb1bbf0",
+        "core/runtime.go": "e27429abd10503be3a500770ad09728e53c2277f9f95b999da0f8d52625db4c3",
+        "core/wbi.go": "cf515ccf69bb57c8179408f2749b2e95831024d1a01ede23f539ee3745741b33",
+        "mobile/mobile.go": "56c43e323f9aa89ac4e9f6f247d6cf95bd438d74915057902a122019bc39c2ed",
+        "go.mod": "f74c0187ee5d8f0e8d0363bc9790dda38d4d19b2561a242fb431314912641641",
+        "go.sum": "e91a44f02f39dde17809bfa6dcb65c216e5714135495b953ff6ac7671d7fa81c",
+        "UPSTREAM-LICENSE": "136c2b469a836851acabe53dad8b1c6371a39590bc35970411644da0eeae8977"
+      }
+    },
+    "deviceFamilies": [
+      1,
+      2
+    ],
+    "minimumOS": "16.4",
+    "interfaceStyle": "Automatic",
+    "bytes": 46476739,
+    "sha256": "3869c3be04df04e449d706563f72ac902fa9d153d154eb8cd4cc14fe0ebccebe"
+  },
+  "validation": {
+    "unitTests": 49,
+    "lint": "passed",
+    "typecheck": "passed",
+    "iosExport": "passed",
+    "webExport": "passed",
+    "doctor": {
+      "passed": 20,
+      "total": 21,
+      "warnings": [
+        "react-native-webrtc untested on New Architecture",
+        "private zviewer-native lacks Directory metadata"
+      ]
+    },
+    "go": "two packages compile; no tests in source",
+    "hostOpus": {
+      "frames": 50,
+      "sampleRate": 48000,
+      "frameMs": 20,
+      "channels": 1,
+      "deviceCapture": false
+    },
+    "protocol": {
+      "scope": "official v4.2.1 isolated service, synthetic Opus/PCM and subtitle/danmaku data; not device acceptance",
+      "checks": [
+        "host + admitted guest",
+        "watch seek request/response and host approval permission",
+        "watch play request and rejection",
+        "watch pause request and rejection",
+        "current movie creation DTO and persisted playback identity",
+        "voice join uses primary member identity",
+        "unissued media token rejected",
+        "binary Opus relay preserves bytes/time/primary id",
+        "legacy PCM relay",
+        "codec config uses existing main connection event",
+        "server-enforced mute drops media",
+        "unmute resumes media",
+        "media reconnect rebinds existing token",
+        "kick invalidates relay token",
+        "subtitle sync and host permission",
+        "late subtitle state request",
+        "danmaku import persists and broadcasts",
+        "danmaku offset update",
+        "danmaku hide/delete",
+        "voice kick cooldown prevents immediate rejoin",
+        "main reconnect rejoins room and receives a fresh media token",
+        "new media ACK restores relay with the new primary identity",
+        "voice leave"
+      ],
+      "observations": [
+        {
+          "name": "old primary token immediately after disconnect",
+          "accepted": true,
+          "implication": "Official package cleanup does not guarantee immediate invalidation; client must reject stale connection generations."
+        }
+      ]
+    },
+    "ui": {
+      "scope": "Expo web UI + official isolated v4.2.1; not device media acceptance",
+      "checks": [
+        "local account login + Socket connection",
+        "create room + restore host",
+        "浅色 appearance switches without leaving room",
+        "深色 appearance switches without leaving room",
+        "add movie through UI persists canonical source",
+        "source picker opens/closes three times without layout changes at 1180x820",
+        "source picker opens/closes three times without layout changes at 820x1180",
+        "source picker opens/closes three times without layout changes at 390x844",
+        "member join follows server viewer-joined event",
+        "member leave follows server viewer-left event",
+        "rename room follows actual server protocol",
+        "Android music navigation and floating player are present",
+        "empty music player opens/closes three times without update loops",
+        "actual raw NCM status DTO shows logged-out gate without envelope error",
+        "NCM menu stays anchored below its button after resizing to 1180x820",
+        "NCM menu stays anchored below its button after resizing to 820x1180",
+        "NCM menu stays anchored below its button after resizing to 390x844",
+        "menu selection closes dropdown and switches music page",
+        "music ipad-landscape has no horizontal page overflow",
+        "music ipad-portrait has no horizontal page overflow",
+        "music iphone has no horizontal page overflow",
+        "successful QR polling refreshes existing My Music page",
+        "real NCM logout returns to Android login gate",
+        "listen mode mounts music search UI",
+        "fixture NCM result + real server music queue upsert/broadcast",
+        "music video picker stays in viewport at 1180x820",
+        "music video picker stays in viewport at 820x1180",
+        "music video picker stays in viewport at 390x844",
+        "song comment modal renders fixture and failed-avatar placeholder",
+        "real server music queue remove/broadcast",
+        "screen sharing missing-module preview remains usable",
+        "fullscreen fills 1180x820 viewport",
+        "video controls remain within 1180x820",
+        "fullscreen fills 820x1180 viewport",
+        "video controls remain within 820x1180",
+        "fullscreen fills 390x844 viewport",
+        "video controls remain within 390x844",
+        "rotation does not toggle fullscreen",
+        "ipad-landscape has no horizontal page overflow",
+        "ipad-portrait has no horizontal page overflow",
+        "iphone has no horizontal page overflow",
+        "leave room returns to lobby",
+        "no JS runtime exceptions"
+      ],
+      "errors": []
+    },
+    "range": {
+      "scope": "official v4.2.1 HTTP transport only; local MKV files; no device decoding claim",
+      "capBytes": 8388608,
+      "samples": [
+        {
+          "container": "MKV",
+          "bytes": 1472077716,
+          "checks": [
+            {
+              "name": "start",
+              "status": 206,
+              "start": 0,
+              "end": 255,
+              "bytes": 256,
+              "cancelled": false
+            },
+            {
+              "name": "middle",
+              "status": 206,
+              "start": 736038858,
+              "end": 736039113,
+              "bytes": 256,
+              "cancelled": false
+            },
+            {
+              "name": "tail",
+              "status": 206,
+              "start": 1472077460,
+              "end": 1472077715,
+              "bytes": 256,
+              "cancelled": false
+            },
+            {
+              "name": "open",
+              "status": 206,
+              "start": 0,
+              "end": 8388607,
+              "bytes": 8388608,
+              "cancelled": true
+            },
+            {
+              "name": "large",
+              "status": 206,
+              "start": 0,
+              "end": 8388607,
+              "bytes": 8388608,
+              "cancelled": false
+            },
+            {
+              "name": "next capped boundary",
+              "status": 206,
+              "start": 8388608,
+              "end": 8388863,
+              "bytes": 256,
+              "cancelled": false
+            },
+            {
+              "name": "unsatisfiable",
+              "status": 416
+            },
+            {
+              "name": "unauthenticated HEAD",
+              "status": 401
+            }
+          ]
+        },
+        {
+          "container": "MKV",
+          "bytes": 5722739354,
+          "checks": [
+            {
+              "name": "start",
+              "status": 206,
+              "start": 0,
+              "end": 255,
+              "bytes": 256,
+              "cancelled": false
+            },
+            {
+              "name": "middle",
+              "status": 206,
+              "start": 2861369677,
+              "end": 2861369932,
+              "bytes": 256,
+              "cancelled": false
+            },
+            {
+              "name": "tail",
+              "status": 206,
+              "start": 5722739098,
+              "end": 5722739353,
+              "bytes": 256,
+              "cancelled": false
+            },
+            {
+              "name": "open",
+              "status": 206,
+              "start": 0,
+              "end": 8388607,
+              "bytes": 8388608,
+              "cancelled": true
+            },
+            {
+              "name": "large",
+              "status": 206,
+              "start": 0,
+              "end": 8388607,
+              "bytes": 8388608,
+              "cancelled": false
+            },
+            {
+              "name": "next capped boundary",
+              "status": 206,
+              "start": 8388608,
+              "end": 8388863,
+              "bytes": 256,
+              "cancelled": false
+            },
+            {
+              "name": "unsatisfiable",
+              "status": 416
+            },
+            {
+              "name": "unauthenticated HEAD",
+              "status": 401
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "server": {
+    "version": "4.2.1",
+    "source": "https://github.com/Zero-wyc/ZViewer/releases/download/v4.2.1/zviewer-windows-x64.zip",
+    "isolated": true,
+    "nasConnected": false,
+    "syntheticVoice": true,
+    "neteaseUiFixtures": true
+  },
+  "pending": [
+    "all iPhone/iPad new-package acceptance",
+    "I13 independent native room heartbeat/next-prev/viewer approval while JS suspended",
+    "real Bilibili/NCM accounts/CDN",
+    "ten-minute MKV/MP4 and HEVC/FLAC/HLS/slave tracks",
+    "cross-platform voice, echo, Bluetooth, interruption, weak network",
+    "native rotation, keyboard, safe area, PiP, upgrades"
+  ],
+  "platformDifferences": [
+    "no equivalent full system lyrics page; app lyrics retained",
+    "iPad Split View disabled",
+    "no queue-item field added to online music state"
+  ],
+  "publication": {
+    "signed": false,
+    "pushed": false,
+    "tagged": false,
+    "storeSubmitted": false
+  },
+  "cleanup": "Temporary official v4.2.1 and Web export services stopped; no listeners on 7343/7347; no port forwarding created; no NAS/user account preferences changed."
+}

@@ -1,11 +1,15 @@
+import { useAppearance } from '@/state/appearance';
 import { useEffect, useState } from 'react';
 import { Image, Text, View } from 'react-native';
 import { biliOperation } from '@/lib/nativeBridge';
 import { qualities, resetBiliPlayback, setBiliQuality, type BiliStatus } from '@/lib/biliNative';
 import { readPreference } from '@/lib/preferences';
 import { messageFor } from '@/lib/server';
-import { RoomButton, ui } from './RoomUi';
+import { RoomButton, ui as baseUi } from './RoomUi';
 export function BiliAccount() {
+  const theme = useAppearance();
+  const ui = theme.styles(baseUi);
+
   const [status, setStatus] = useState<BiliStatus | null>(null); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
   const [qr, setQr] = useState<{ qrcodeKey: string; qrDataUrl: string } | null>(null); const [message, setMessage] = useState(''); const [qn, setQn] = useState(0);
   useEffect(() => { let current = true; void biliOperation<BiliStatus>('start').then(value => { if (current) setStatus(value); }).catch(() => {}); void readPreference('zviewer-bili-quality', { qn: 0 }).then(value => { if (current) setQn(value.qn); }); return () => { current = false; }; }, []);

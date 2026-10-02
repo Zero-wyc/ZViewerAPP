@@ -3,6 +3,10 @@
 #import <Security/Security.h>
 #import <VideoToolbox/VideoToolbox.h>
 #import <CommonCrypto/CommonDigest.h>
+static NSLock *resolveLock;
+static NSMutableSet<NSURLSessionDataTask *> *resolveTasks;
+static NSUInteger resolveEpoch;
+static void prepareResolveRegistry(void) { static dispatch_once_t once; dispatch_once(&once, ^{ resolveLock = [NSLock new]; resolveTasks = [NSMutableSet new]; }); }
 
 static NSDictionary *decode(NSString *raw) {
   NSData *data = [raw dataUsingEncoding:NSUTF8StringEncoding];
@@ -79,6 +83,8 @@ static NSArray *subtitleLines(NSString *address) {
   return lines;
 }
 @implementation ZVBiliBridge
++ (NSUInteger)resolveGeneration { prepareResolveRegistry(); [resolveLock lock]; NSUInteger value = resolveEpoch; [resolveLock unlock]; return value; }
++ (void)cancelResolve { prepareResolveRegistry(); [resolveLock lock]; resolveEpoch++; NSArray *tasks = [resolveTasks allObjects]; [resolveLock unlock]; for (NSURLSessionDataTask *task in tasks) [task cancel]; }
 + (NSDictionary *)perform:(NSString *)operation value:(NSString *)value {
   @synchronized(self) {
     NSError *error = nil; NSString *raw = @"{}";
@@ -126,7 +132,7 @@ static NSArray *subtitleLines(NSString *address) {
       return @{ @"success":@YES, @"data":response[@"data"] ?: response[@"result"] ?: @{} };
     }
     else if ([operation isEqual:@"resolve"]) {
-      NSDictionary *options = decode(value); NSDictionary *status = decode(MobileStatus());
+      NSUInteger requestGeneration = [self resolveGeneration]; NSDictionary *options = decode(value); NSDictionary *status = decode(MobileStatus());
       if (![status[@"ready"] boolValue]) status = decode(MobileStart(readCookie(), &error));
       if (error || ![status[@"loggedIn"] boolValue]) return @{ @"success":@NO, @"message":@"请先在本机扫码登录 B站账号" };
       NSString *base = status[@"proxyUrl"]; if (![base hasPrefix:@"http://127.0.0.1:"]) return @{ @"success":@NO, @"message":@"本机媒体服务未启动" };
@@ -139,7 +145,9 @@ static NSArray *subtitleLines(NSString *address) {
       NSURLSessionConfiguration *config = NSURLSessionConfiguration.ephemeralSessionConfiguration; config.timeoutIntervalForRequest = 45; config.HTTPShouldSetCookies = NO;
       NSURLSession *session = [NSURLSession sessionWithConfiguration:config];
       NSURLSessionDataTask *task = [session dataTaskWithURL:url.URL completionHandler:^(NSData *data, NSURLResponse *response, NSError *failure) { body = data; code = ((NSHTTPURLResponse *)response).statusCode; dispatch_semaphore_signal(ready); }];
+      prepareResolveRegistry(); [resolveLock lock]; if (resolveEpoch != requestGeneration) { [resolveLock unlock]; [session invalidateAndCancel]; return @{ @"success":@NO, @"message":@"播放任务已取消" }; } [resolveTasks addObject:task]; [resolveLock unlock];
       [task resume]; if (dispatch_semaphore_wait(ready, dispatch_time(DISPATCH_TIME_NOW, 46 * NSEC_PER_SEC))) [task cancel]; [session invalidateAndCancel];
+      [resolveLock lock]; [resolveTasks removeObject:task]; [resolveLock unlock];
       if (code != 200 || !body) return @{ @"success":@NO, @"message":@"本机 B站解析失败，请检查登录、权限和网络" };
       NSMutableDictionary *result = [[NSJSONSerialization JSONObjectWithData:body options:0 error:nil] mutableCopy];
       if (![result isKindOfClass:NSDictionary.class] || ![result[@"success"] boolValue]) return @{ @"success":@NO, @"message":@"本机 B站解析未返回可播放源" };

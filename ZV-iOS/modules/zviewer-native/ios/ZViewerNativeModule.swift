@@ -2,39 +2,62 @@ import ExpoModulesCore
 import AVFoundation
 
 public class ZViewerNativeModule: Module {
+  private var voiceRevision = 0
   private let voice = ZVVoiceEngine()
+  private lazy var systemMedia = ZVSystemMedia()
   private let biliQueue = DispatchQueue(label: "zviewer.bili", qos: .userInitiated)
   public func definition() -> ModuleDefinition {
     Name("ZViewerNative")
-    Events("onVoiceFrame", "onVoiceStatus")
+    Events("onVoiceFrame", "onVoiceStatus", "onMediaCommand")
+    AsyncFunction("mediaUpdate") { (json: String) in self.systemMedia.update(json) }.runOnQueue(.main)
+    AsyncFunction("mediaClear") { (id: String) in self.systemMedia.clear(id) }.runOnQueue(.main)
+    AsyncFunction("mediaDrain") { (id: String) in self.systemMedia.drain(id) }.runOnQueue(.main)
     OnCreate { [weak self] in
+      DispatchQueue.main.async { self?.systemMedia.command = { [weak self] value in self?.sendEvent("onMediaCommand", value) } }
       // A previous process may have terminated during a call.
       UserDefaults.standard.set(false, forKey: "ZViewerVoiceActive")
+      UserDefaults.standard.removeObject(forKey: "ZViewerPlaybackUri")
       self?.voice.frame = { [weak self] data, clock in self?.sendEvent("onVoiceFrame", ["data": data.base64EncodedString(), "mediaTs": clock]) }
       self?.voice.status = { [weak self] message in self?.sendEvent("onVoiceStatus", ["message": message]) }
     }
     AsyncFunction("bili") { (operation: String, value: String, promise: Promise) in
-      self.biliQueue.async { promise.resolve(ZVBiliBridge.perform(operation, value: value)) }
+      let revision = ZVBiliBridge.resolveGeneration()
+      self.biliQueue.async {
+        if operation == "resolve" && revision != ZVBiliBridge.resolveGeneration() { promise.resolve(["success": false, "message": "播放任务已取消"]); return }
+        promise.resolve(ZVBiliBridge.perform(operation, value: value))
+      }
     }
+    AsyncFunction("biliCancelResolve") { ZVBiliBridge.cancelResolve() }
     AsyncFunction("voiceStart") { (promise: Promise) in
+      self.voiceRevision += 1; let revision = self.voiceRevision
       AVAudioSession.sharedInstance().requestRecordPermission { allowed in
+        DispatchQueue.main.async {
+        guard self.voiceRevision == revision else { promise.resolve(nil); return }
         guard allowed else { promise.reject("MIC_PERMISSION", "请在系统设置中允许麦克风访问"); return }
         self.voice.queue.async {
+          guard !self.voice.background else { promise.resolve(nil); return }
           do { try self.voice.start(); promise.resolve(nil) }
           catch { self.voice.stop(); promise.reject("VOICE_START", "无法启动语音，请检查音频设备或系统权限") }
         }
+        }
       }
-    }
+    }.runOnQueue(.main)
     AsyncFunction("voiceMute") { (muted: Bool) in self.voice.queue.async { self.voice.muted = muted } }
     AsyncFunction("voicePlay") { (peer: String, encoded: Bool, sampleRate: Double, clock: Double, data: String) in
       guard peer.count <= 128, let bytes = Data(base64Encoded: data), bytes.count <= 23040 else { return }
       self.voice.queue.async { self.voice.play(peer: peer, encoded: encoded, sampleRate: sampleRate, clock: clock, bytes: bytes) }
     }
     AsyncFunction("voiceDrop") { (peer: String) in self.voice.queue.async { self.voice.drop(peer) } }
-    AsyncFunction("voiceStop") { (promise: Promise) in self.voice.queue.async { self.voice.stop(); promise.resolve(nil) } }
-    OnAppEntersBackground { self.voice.queue.async { self.voice.background = true } }
+    AsyncFunction("voiceStop") { (promise: Promise) in self.voiceRevision += 1; self.voice.queue.async { self.voice.stop(); promise.resolve(nil) } }.runOnQueue(.main)
+    OnAppEntersBackground {
+      DispatchQueue.main.async {
+        self.voiceRevision += 1
+        self.voice.queue.async { self.voice.background = true; self.voice.stop(); self.voice.status?("后台已释放麦克风与语音音频，返回后自动静音重入") }
+      }
+    }
     OnAppEntersForeground { self.voice.queue.async { self.voice.background = false } }
     OnDestroy {
+      DispatchQueue.main.async { self.voiceRevision += 1; self.systemMedia.shutdown() }
       self.voice.queue.async { self.voice.stop() }
       self.biliQueue.async { _ = ZVBiliBridge.perform("stop", value: "") }
     }

@@ -1,6 +1,6 @@
+import { useAppearance } from '@/state/appearance';
 import { SubtitleOverlay, SubtitlePanel, useSubtitles } from '@/components/Subtitles';
 import { DanmakuManager } from '@/components/DanmakuManager';
-/* eslint-disable react-hooks/immutability -- the VLC control port intentionally mutates native playback state. */
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
@@ -17,6 +17,10 @@ import { MusicPanel } from '@/components/MusicPanel';
 import { ScreenShare, type ShareState } from '@/components/ScreenShare';
 import { playbackSource, onBiliChange, biliFallback, stopBiliPlayback } from '@/lib/biliNative';
 import { RoomIconButton } from '@/components/RoomUi';
+import { RoomPlayback } from '@/lib/roomPlayback';
+import { useWatchControl } from '@/hooks/useWatchControl';
+import { useSystemMedia } from '@/hooks/useSystemMedia';
+import { VideoGestures } from '@/components/VideoGestures';
 import { VoicePanel } from '@/components/VoicePanel';
 
 import { emitAck } from '@/lib/socket';
@@ -32,10 +36,16 @@ type Comment = { id: number; username: string; content: string; createdAt: strin
 type JoinData = ShareState & { roomId?: string; mode?: RoomMode; name?: string; isHost?: boolean; playback?: Playback };
 
 function Button({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
+  const theme = useAppearance();
+  const styles = theme.styles(baseStyles);
+
   return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.button, disabled && styles.disabled]}><Text style={styles.buttonText}>{label}</Text></Pressable>;
 }
 
 export default function RoomScreen() {
+  const theme = useAppearance();
+  const styles = theme.styles(baseStyles);
+
   const { roomId, name, asHost, hasPassword } = useLocalSearchParams<{ roomId: string; name?: string; asHost?: string; hasPassword?: string }>();
   const { session, socket, connected, request } = useSession();
   const [share, setShare] = useState<ShareState>({});
@@ -59,6 +69,7 @@ export default function RoomScreen() {
   const [diagnosing, setDiagnosing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [fullScreen, setFullScreen] = useState(false);
+  const [musicImmersive, setMusicImmersive] = useState(false);
   const [chatSection, setChatSection] = useState<'comments' | 'tracks' | 'realtime'>('comments');
   const [sideOpen, setSideOpen] = useState<boolean | null>(null);
   const [playerOptions, setPlayerOptions] = useState<'danmaku' | 'subtitles' | 'diagnostics' | null>(null);
@@ -74,6 +85,14 @@ export default function RoomScreen() {
   const passwordRef = useRef('');
   const adapterRef = useRef<NativeMediaAdapter | null>(null);
   const playbackRef = useRef<Playback | null>(null);
+  const roomPlayback = useRef(new RoomPlayback());
+  const [waitingMovie, setWaitingMovie] = useState(false);
+  const [manualLock, setManualLock] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const controlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showControls = () => { setControlsVisible(true); if (controlsTimer.current) clearTimeout(controlsTimer.current); controlsTimer.current = setTimeout(() => setControlsVisible(false), 3000); };
+  useEffect(() => () => { if (controlsTimer.current) clearTimeout(controlsTimer.current); }, []);
+  const applyPlayback = useCallback((value: Playback | null) => { playbackRef.current = value; setSource(value); setWaitingMovie(roomPlayback.current.waiting); }, []);
   const generation = useRef(0);
   const video = useVlcVideo();
   const { player } = video;
@@ -82,8 +101,8 @@ export default function RoomScreen() {
   const readyRef = useRef(false);
   useEffect(() => { readyRef.current = phase === 'ready' && mode === 'watch-together'; playbackRef.current = source; }, [phase, mode, source]);
   const publishNativeState = useCallback((action?: 'play' | 'pause' | 'seek' | 'rate', value?: number) => {
-    if (!hostRef.current || !readyRef.current || !socket?.connected || !playbackRef.current || adapterRef.current?.busy || player.preparing) return;
-    const state: Playback = { ...playbackRef.current, currentTime: player.currentTime, isPlaying: player.playing, playbackRate: player.playbackRate, duration: player.duration };
+    if (!hostRef.current || !readyRef.current || !socket?.connected || !playbackRef.current || !action && (adapterRef.current?.busy || player.preparing)) return;
+    const state: Playback = { ...playbackRef.current, currentTime: player.currentTime, isPlaying: action === 'play' ? true : action === 'pause' ? false : player.playing, playbackRate: player.playbackRate, duration: player.duration };
     playbackRef.current = state;
     setSource(state);
     if (action) socket.emit('watch-together-control', { roomId, action, value });
@@ -102,7 +121,8 @@ export default function RoomScreen() {
   const playerHeight = Math.min(leftWidth * 9 / 16, wide ? Math.max(180, height - 238) : 460);
   useEffect(() => () => { void ScreenOrientation.unlockAsync().catch(() => {}); }, []);
   const rotateScreen = async () => {
-    try { await ScreenOrientation.lockAsync(width > height ? ScreenOrientation.OrientationLock.PORTRAIT_UP : ScreenOrientation.OrientationLock.LANDSCAPE); }
+    if (fullScreen) return;
+    try { if (manualLock) { await ScreenOrientation.unlockAsync(); setManualLock(false); } else { await ScreenOrientation.lockAsync(width > height ? ScreenOrientation.OrientationLock.PORTRAIT_UP : ScreenOrientation.OrientationLock.LANDSCAPE); setManualLock(true); } }
     catch { setError('当前设备无法锁定方向，可手动旋转屏幕'); }
   };
   const toggleFullscreen = async () => {
@@ -122,10 +142,12 @@ export default function RoomScreen() {
 
   const loadMovies = useCallback(async () => {
     try {
+      const version = generation.current;
       const data = await request<{ movies: Movie[] }>(`/api/rooms/${encodeURIComponent(roomId)}/movies`);
-      setMovies(Array.isArray(data.movies) ? data.movies : []);
+      if (version !== generation.current) return;
+      const values = Array.isArray(data.movies) ? data.movies : []; setMovies(values); applyPlayback(roomPlayback.current.list(values));
     } catch (failure) { setError(messageFor(failure)); }
-  }, [request, roomId]);
+  }, [request, roomId, applyPlayback]);
 
   const loadComments = useCallback(() => {
     if (!socket?.connected) return;
@@ -138,17 +160,17 @@ export default function RoomScreen() {
     if (data.shareMethod) setShare({ shareMethod: data.shareMethod, streamKey: data.streamKey });
     if (data.name) setRoomName(data.name);
     if (data.mode) setMode(data.mode);
-    if (data.playback?.sourceUrl) { playbackRef.current = data.playback; setSource(data.playback); setMediaProbe(null); }
+    if (data.playback?.sourceUrl) { applyPlayback(roomPlayback.current.state(data.playback)); setMediaProbe(null); }
     setError(''); setPhase('ready');
     void loadMovies();
     loadComments();
     socket?.emit('request-current-movie', { roomId });
     if (!hostRef.current) {
       socket?.timeout(10000).emit('watch-together-request-state', { roomId }, (timeout: Error | null, result?: { success: boolean; data?: { state?: Playback } }) => {
-        if (!timeout && result?.success && result.data?.state) setSource(result.data.state);
+        if (!timeout && result?.success && result.data?.state) applyPlayback(roomPlayback.current.state(result.data.state));
       });
     }
-  }, [loadMovies, loadComments, socket, roomId]);
+  }, [loadMovies, loadComments, socket, roomId, applyPlayback]);
 
   const join = useCallback(async (asRoomHost: boolean) => {
     if (!socket?.connected) { setPhase('connecting'); return; }
@@ -177,28 +199,29 @@ export default function RoomScreen() {
     if (!socket) return;
     const invalidateJoin = () => { generation.current++; };
     const onConnect = () => { if (attempted.current) void join(hostRef.current); else setPhase('password'); };
-    const onDisconnect = () => { generation.current++; setViewers([]); setPhase('connecting'); };
+    const onDisconnect = () => { generation.current++; readyRef.current = false; roomPlayback.current.reset(); setSource(null); setViewers([]); setPhase('connecting'); };
     const onViewerJoined = (payload: { viewerSocketId: string; userId?: number; username?: string; role?: string }) => { setViewers(previous => [...previous.filter(item => item.socketId !== payload.viewerSocketId), { ...payload, socketId: payload.viewerSocketId }]); };
     const onViewerLeft = (payload: { viewerSocketId: string }) => setViewers(previous => previous.filter(item => item.socketId !== payload.viewerSocketId));
     const onApproved = (data: JoinData) => { if (data.roomId === roomId) applyRoom(data); };
     const onRejected = (data: JoinData) => { if (data.roomId === roomId) { generation.current++; setPhase('error'); setError('房主拒绝了加入申请'); } };
     const onClosed = (data: JoinData) => { if (data.roomId === roomId) { generation.current++; attempted.current = false; readyRef.current = false; player.pause(); setSource(null); setPhase('closed'); setError('房间已关闭'); } };
     const onKicked = (data: { reason?: string }) => { generation.current++; attempted.current = false; readyRef.current = false; player.pause(); setSource(null); setPhase('closed'); setError(data.reason || '您已被移出房间'); };
-    const onMode = (data: JoinData) => { if ((!data.roomId || data.roomId === roomId) && data.mode) { setMode(data.mode); setSideOpen(null); setPlayerOptions(null); setFullScreen(false); orientationOperation.current++; void ScreenOrientation.unlockAsync().catch(() => {}); } };
+    const onMode = (data: JoinData) => { if ((!data.roomId || data.roomId === roomId) && data.mode) { setMode(data.mode); setSideOpen(null); setPlayerOptions(null); setFullScreen(false); setManualLock(false); orientationOperation.current++; void ScreenOrientation.unlockAsync().catch(() => {}); } };
     const onHostTransferred = (data: { newHostSocketId: string }) => { const next = data.newHostSocketId === socket.id; hostRef.current = next; setHost(next); if (next) void join(true); };
     const onName = (data: JoinData) => { if (data.roomId === roomId && data.name) setRoomName(data.name); };
     const onShare = (data: JoinData) => { if (data.roomId === roomId) setShare({ shareMethod: data.shareMethod, streamKey: data.streamKey }); };
     const onComment = (item: Comment) => setComments(previous => previous.some(value => value.id === item.id) ? previous : [...previous, item]);
-    const onMovies = (payload: { movies?: Movie[] }) => { if (Array.isArray(payload.movies)) setMovies(payload.movies.filter(movie => !movie.roomId || movie.roomId === roomId)); };
+    const onMovies = (payload: { movies?: Movie[] }) => { if (Array.isArray(payload.movies)) { const values = payload.movies.filter(movie => !movie.roomId || movie.roomId === roomId); setMovies(values); applyPlayback(roomPlayback.current.list(values)); } };
+    const onCurrent = (payload: { movieId: number | null }) => { if (payload.movieId !== null && !Number.isSafeInteger(payload.movieId)) return; applyPlayback(roomPlayback.current.current(payload.movieId)); const version = generation.current; socket.timeout(10000).emit('watch-together-request-state', { roomId }, (timeout: Error | null, result?: { success: boolean; data?: { state?: Playback } }) => { if (!timeout && result?.data?.state && version === generation.current) applyPlayback(roomPlayback.current.state(result.data.state)); }); };
     const onJoinRequest = (payload: { roomId: string; viewerSocketId: string; username: string }) => {
       if (hostRef.current && payload.roomId === roomId) setJoinRequests(current => [...current.filter(item => item.viewerSocketId !== payload.viewerSocketId), payload]);
     };
     const onPlayback = (payload: { state?: Playback; diff?: Partial<Playback> }) => {
       if (hostRef.current) return;
-      if (payload.state) setSource(previous => ({ ...previous, ...payload.state, ...payload.diff } as Playback));
+      if (payload.state) applyPlayback(roomPlayback.current.state({ ...payload.state, ...payload.diff }));
     };
     const onControl = (payload: { action?: 'play' | 'pause' | 'seek' | 'rate'; value?: number }) => {
-      if (hostRef.current) return;
+      if (hostRef.current || !readyRef.current || !roomPlayback.current.value()) return;
       if (payload.action === 'play') player.play();
       if (payload.action === 'pause') player.pause();
       if (payload.action === 'seek' && Number.isFinite(payload.value)) player.currentTime = Math.max(0, payload.value!);
@@ -206,7 +229,8 @@ export default function RoomScreen() {
     };
     const onHeartbeat = (payload: { source?: string; currentTime?: number; isPlaying?: boolean; suppressed?: boolean; state?: Playback }) => {
       if (hostRef.current) return;
-      if (payload.state) setSource(payload.state);
+      if (payload.state) applyPlayback(roomPlayback.current.state(payload.state));
+      if (!readyRef.current || !roomPlayback.current.value()) return;
       if (payload.suppressed) return;
       const target = payload.state?.currentTime ?? payload.currentTime;
       if (Number.isFinite(target) && Math.abs(player.currentTime - target!) > 2) player.currentTime = target!;
@@ -224,7 +248,7 @@ export default function RoomScreen() {
     socket.on('host-transferred', onHostTransferred); socket.on('room-name-updated', onName);
     socket.on('share-method-changed', onShare);
     socket.on('new-comment', onComment);
-    socket.on('movie-list', onMovies);
+    socket.on('movie-list', onMovies); socket.on('current-movie', onCurrent);
     socket.on('join-request', onJoinRequest);
     socket.on('viewer-joined', onViewerJoined); socket.on('viewer-left', onViewerLeft);
     socket.on('watch-together-state', onPlayback);
@@ -239,13 +263,13 @@ export default function RoomScreen() {
       socket.off('room-closed', onClosed); socket.off('room-mode-changed', onMode);
       socket.off('host-transferred', onHostTransferred); socket.off('room-name-updated', onName);
       socket.off('share-method-changed', onShare);
-      socket.off('new-comment', onComment); socket.off('movie-list', onMovies);
+      socket.off('new-comment', onComment); socket.off('movie-list', onMovies); socket.off('current-movie', onCurrent);
       socket.off('join-request', onJoinRequest);
       socket.off('viewer-joined', onViewerJoined); socket.off('viewer-left', onViewerLeft);
       socket.off('watch-together-state', onPlayback); socket.off('watch-together-control', onControl);
       socket.off('sync-heartbeat', onHeartbeat);
     };
-  }, [socket, roomId, join, applyRoom, player]);
+  }, [socket, roomId, join, applyRoom, player, applyPlayback]);
 
   useEffect(() => {
     if (!host || phase !== 'ready' || !socket || mode !== 'watch-together') return;
@@ -265,9 +289,11 @@ export default function RoomScreen() {
   useEffect(() => {
     const playing = player.addListener('playingChange', ({ isPlaying }) => publishNativeState(isPlaying ? 'play' : 'pause'));
     const rate = player.addListener('playbackRateChange', ({ playbackRate }) => publishNativeState('rate', playbackRate));
+    let lastHeartbeat = 0;
     let previous: { position: number; time: number; playing: boolean; rate: number } | null = null;
     const progress = player.addListener('timeUpdate', ({ currentTime }) => {
       const time = Date.now();
+      if (time - lastHeartbeat >= 5000 && readyRef.current && hostRef.current && socket?.connected && playbackRef.current && !adapterRef.current?.busy && !player.preparing) { lastHeartbeat = time; socket.emit('host-heartbeat', { roomId, currentTime, isPlaying: player.playing, playbackRate: player.playbackRate, suppressed: false }); }
       // Detect native seek discontinuities
       // without broadcasting ordinary progress on every half-second tick.
       if (previous && !adapterRef.current?.busy) {
@@ -278,7 +304,7 @@ export default function RoomScreen() {
     });
     const loaded = player.addListener('sourceLoad', () => { previous = null; });
     return () => { playing.remove(); rate.remove(); progress.remove(); loaded.remove(); };
-  }, [player, publishNativeState]);
+  }, [player, publishNativeState, socket, roomId]);
 
   useEffect(() => {
     if (!session || !adapterRef.current) return;
@@ -287,7 +313,8 @@ export default function RoomScreen() {
     void adapterRef.current.apply(state, session.serverUrl, session.accessToken, retryTick)
       .then(() => { if (current) setPlaybackError(''); })
       .catch(failure => { if (current) setPlaybackError(safeMediaError(messageFor(failure))); });
-    return () => { current = false; };
+    const adapter = adapterRef.current;
+    return () => { current = false; adapter?.cancelPending(); };
   }, [source, mode, session, player, retryTick, phase]);
   useEffect(() => {
     const subscription = player.addListener('statusChange', ({ status, error: videoError }) => {
@@ -365,17 +392,10 @@ export default function RoomScreen() {
     ]);
   };
 
-  const control = (action: 'play' | 'pause' | 'seek', value?: number) => {
-    if (!host || !socket || !source) return;
-    if (action === 'play') player.play();
-    if (action === 'pause') player.pause();
-    if (action === 'seek' && Number.isFinite(value)) player.currentTime = Math.max(0, value!);
-    const next = { ...source, isPlaying: action === 'play' ? true : action === 'pause' ? false : source.isPlaying, currentTime: player.currentTime };
-    playbackRef.current = next;
-    setSource(next);
-    socket.emit('watch-together-control', { roomId, action, value });
-    socket.emit('watch-together-state', { roomId, state: next });
-  };
+  const watch = useWatchControl(socket, roomId, host, player, publishNativeState);
+  const control = watch.control;
+  useSystemMedia(player, phase === 'ready' && mode === 'watch-together' && source ? { mediaId: `${roomId}:${source.movieId ?? source.sourceUrl}:${source.cid ?? 0}`, kind: 'video', sourceIdentity: source.sourceUrl.startsWith('/') && session ? `${session.serverUrl}${source.sourceUrl}` : source.sourceUrl, title: movies.find(item => item.id === source.movieId)?.title || roomName, host, actions: ['play', 'pause', 'seek'] } : null, (action, value) => { if (['play', 'pause', 'seek'].includes(action)) control(action as 'play' | 'pause' | 'seek', value); });
+  useEffect(() => { if (!waitingMovie) return; const timer = setTimeout(() => setPlaybackError('当前影片资料等待超时，请刷新片单并重试播放'), 12000); return () => clearTimeout(timer); }, [waitingMovie]);
 
   const playMovie = async (movie: Movie) => {
     if (!host || !socket || !session) return;
@@ -396,40 +416,39 @@ export default function RoomScreen() {
     catch (failure) { setPlaybackError(safeMediaError(messageFor(failure))); return; }
     if (version !== generation.current || !readyRef.current) return;
     const state: Playback = { ...resolved, isPlaying: true, currentTime: 0, playbackRate: 1 };
-    playbackRef.current = state;
-    setSource(state);
+    roomPlayback.current.current(movie.id); applyPlayback(roomPlayback.current.state(state));
     socket.emit('watch-together-state', { roomId, state });
   };
 
   if (!session) return <SafeAreaView style={styles.root}><Text style={styles.text}>请先登录</Text><Button label="返回" onPress={() => router.replace('/')} /></SafeAreaView>;
   return <SafeAreaView edges={fullScreen ? [] : ['top', 'bottom', 'left', 'right']} style={[styles.root, fullScreen && styles.fullscreenRoot]}>
-    <StatusBar style="light" hidden={fullScreen} />
-    <View style={[styles.header, fullScreen && { display: 'none' }]}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}><Pressable onPress={leave} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}><Text style={styles.link}>‹ 返回</Text></Pressable><View style={{ flex: 1 }}><Text style={styles.title} numberOfLines={1}>{roomName}</Text><Text style={styles.muted}>{host ? '房主' : '观众'} · {connected ? '已连接' : '重连中'}</Text></View><RoomIconButton label="旋转" icon="smartphone" onPress={() => void rotateScreen()} /><VoicePanel compact roomId={roomId} ready={phase === 'ready'} host={host} /><RoomIconButton label="房间设置" icon="users" onPress={() => { setSideOpen(true); setTab('room'); }} /></View><View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>{(['watch-together', 'screen-share', 'listen-together'] as const).map((value, index) => <Pressable key={value} accessibilityRole="button" disabled={!host || mode === value} onPress={() => void emitAck(socket!, 'update-room-mode', { roomId, mode: value }).catch(failure => setError(messageFor(failure)))} style={{ minHeight: 40, paddingHorizontal: 16, borderRadius: 12, justifyContent: 'center', backgroundColor: mode === value ? '#243b30' : '#1b2024' }}><Text style={{ color: mode === value ? '#65d59b' : '#a8b3b6' }}>{['一起看', '投屏', '一起听'][index]}</Text></Pressable>)}<Pressable accessibilityRole="button" onPress={() => setSideOpen(!sideVisible)} style={{ minHeight: 40, paddingHorizontal: 12, justifyContent: 'center' }}><Text style={styles.link}>{sideVisible ? '收起侧栏' : '展开侧栏'}</Text></Pressable></View></View>
+    <StatusBar style={theme.dark ? "light" : "dark"} hidden={fullScreen} />
+    <View style={[styles.header, (fullScreen || musicImmersive) && { display: 'none' }]}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}><Pressable onPress={leave} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}><Text style={styles.link}>‹ 返回</Text></Pressable><View style={{ flex: 1, minWidth: 0 }}><Text style={styles.title} numberOfLines={1}>{roomName}</Text><Text style={styles.muted}>{host ? '房主' : '观众'} · {connected ? '已连接' : '重连中'}</Text></View><RoomIconButton label={manualLock ? "恢复自动旋转" : "旋转并锁定"} icon="smartphone" onPress={() => void rotateScreen()} /><VoicePanel compact roomId={roomId} ready={phase === 'ready'} host={host} /><RoomIconButton label="全局外观" icon="sun" onPress={theme.open} /><RoomIconButton label="房间设置" icon="users" onPress={() => { setSideOpen(true); setTab('room'); }} /></View><View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>{(['watch-together', 'screen-share', 'listen-together'] as const).map((value, index) => <Pressable key={value} accessibilityRole="button" disabled={!host || mode === value} onPress={() => void emitAck(socket!, 'update-room-mode', { roomId, mode: value }).catch(failure => setError(messageFor(failure)))} style={{ minHeight: 40, paddingHorizontal: 16, borderRadius: 12, justifyContent: 'center', backgroundColor: mode === value ? theme.color('#243b30', 'backgroundColor') : theme.color('#1b2024', 'backgroundColor') }}><Text style={{ color: theme.color(mode === value ? '#65d59b' : '#a8b3b6') }}>{['一起看', '投屏', '一起听'][index]}</Text></Pressable>)}<Pressable accessibilityRole="button" onPress={() => setSideOpen(!sideVisible)} style={{ minHeight: 40, paddingHorizontal: 12, justifyContent: 'center' }}><Text style={styles.link}>{sideVisible ? '收起侧栏' : '展开侧栏'}</Text></Pressable></View></View>
     {phase !== 'ready' ? <View style={styles.join}><ActivityIndicator color="#65d59b" animating={phase === 'joining' || phase === 'connecting' || phase === 'waiting'} /><Text style={styles.title}>{phase === 'password' ? '请输入房间密码' : phase === 'waiting' ? '等待房主批准' : phase === 'closed' ? '房间已关闭' : phase === 'error' ? '无法加入房间' : '正在加入房间'}</Text>{error ? <Text style={styles.error}>{error}</Text> : null}{phase === 'password' ? <><TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholder="房间密码" placeholderTextColor="#a8b3b6" /><Button label="进入房间" disabled={!connected} onPress={() => { passwordRef.current = password; attempted.current = true; void join(hostRef.current); }} /></> : null}{phase === 'error' ? <Button label="重试" disabled={!connected} onPress={() => void join(hostRef.current)} /> : null}<Button label="返回房间列表" onPress={leave} /></View> : <>
       <View style={[styles.roomBody, wide && styles.roomBodyWide, fullScreen && { gap: 0 }]}>
         <ScrollView ref={mediaColumn} scrollEnabled={!fullScreen} style={[styles.mediaColumn, mode === 'listen-together' && { flex: 1, maxHeight: '100%' }, fullScreen && { flex: 1, flexBasis: 0, flexShrink: 0, maxHeight: '100%' }, wide && mode !== 'listen-together' && { width: leftWidth, flexBasis: leftWidth, flexGrow: 0, flexShrink: 0, maxHeight: '100%' }]} contentContainerStyle={[styles.mediaContent, mode === 'listen-together' && { flex: 1, paddingBottom: 0 }, fullScreen && { flexGrow: 1, paddingBottom: 0, gap: 0 }]}>
-          {mode === 'watch-together' ? <View testID="video-container" onLayout={event => setVideoSize(event.nativeEvent.layout)} style={[styles.playerBox, fullScreen ? { flex: 1, borderRadius: 0, minHeight: 0 } : { height: playerHeight }]}>{source?.sourceUrl && !playbackError ? <VlcVideo video={video} style={styles.video} /> : <View style={styles.placeholder}><Text style={styles.muted}>{playbackError ? `播放失败（${classifyPlayerError(playbackError)}）：${playbackError}` : '等待房主选择影片'}</Text>{playbackError && source?.sourceUrl ? <Button label="重试播放" onPress={() => { adapterRef.current?.invalidate(); setPlaybackError(''); setRetryTick(value => value + 1); }} /> : null}</View>}<SubtitleOverlay subtitles={subtitles} player={player} /><DanmakuOverlay player={player} state={danmaku} width={videoSize.width || leftWidth} height={videoSize.height || playerHeight} /><View style={styles.videoControls}><PlaybackControls player={player} host={host} control={control} fullscreen={fullScreen} toggleFullscreen={() => void toggleFullscreen()} /></View></View> : mode === 'listen-together' ? <MusicPanel roomId={roomId} host={host} /> : <ScreenShare roomId={roomId} share={share} height={playerHeight} />}
+          {mode === 'watch-together' ? <View testID="video-container" onLayout={event => setVideoSize(event.nativeEvent.layout)} style={[styles.playerBox, fullScreen ? { flex: 1, borderRadius: 0, minHeight: 0 } : { height: playerHeight }]}>{source?.sourceUrl && !playbackError ? <VlcVideo video={video} style={styles.video} /> : <View style={styles.placeholder}><Text style={[styles.muted, { color: "#a8b3b6" }]}>{playbackError ? `播放失败（${classifyPlayerError(playbackError)}）：${playbackError}` : waitingMovie ? '正在等待当前影片资料…' : '等待房主选择影片'}</Text>{playbackError && source?.sourceUrl ? <Button label="重试播放" onPress={() => { adapterRef.current?.invalidate(); setPlaybackError(''); setRetryTick(value => value + 1); }} /> : null}</View>}<VideoGestures player={player} fullscreen={fullScreen} show={showControls} control={control} /><SubtitleOverlay subtitles={subtitles} player={player} /><DanmakuOverlay player={player} state={danmaku} width={videoSize.width || leftWidth} height={videoSize.height || playerHeight} /><View pointerEvents={controlsVisible || !fullScreen ? "auto" : "none"} style={[styles.videoControls, fullScreen && !controlsVisible && { opacity: 0 }]}><PlaybackControls player={player} host={host} control={control} fullscreen={fullScreen} toggleFullscreen={() => void toggleFullscreen()} /></View></View> : mode === 'listen-together' ? <MusicPanel roomId={roomId} host={host} onExpandedLandscape={setMusicImmersive} /> : <ScreenShare roomId={roomId} share={share} height={playerHeight} />}
           {mode === 'watch-together' && source?.sourceUrl && !fullScreen ? <View style={styles.controlPanel}>
             <View style={styles.controls}><Button label="弹幕设置" onPress={() => setPlayerOptions('danmaku')} /><Button label="字幕管理" onPress={() => setPlayerOptions('subtitles')} /><Button label="播放诊断" onPress={() => setPlayerOptions('diagnostics')} /></View>
 
           </View> : null}
         </ScrollView>
-        <View style={[styles.sidePanel, !sideVisible && { display: 'none' }, wide ? { width: 320, flexBasis: 320, flexGrow: 0, flexShrink: 0 } : { position: 'absolute', top: 0, right: 0, bottom: 0, width: '100%', zIndex: 20, backgroundColor: '#111417', padding: 12 }]}>
+        <View style={[styles.sidePanel, !sideVisible && { display: 'none' }, wide ? { width: 320, flexBasis: 320, flexGrow: 0, flexShrink: 0 } : { position: 'absolute', top: 0, right: 0, bottom: 0, width: '100%', zIndex: 20, backgroundColor: theme.color('#111417', 'backgroundColor'), padding: 12 }]}>
           <View style={styles.tabs}><Pressable accessibilityRole="button" onPress={() => setSideOpen(false)}><Text style={styles.link}>收起</Text></Pressable><Pressable onPress={() => setTab('chat')}><Text style={tab === 'chat' ? styles.activeTab : styles.muted}>聊天</Text></Pressable><Pressable onPress={() => setTab('movies')}><Text style={tab === 'movies' ? styles.activeTab : styles.muted}>片单</Text></Pressable><Pressable onPress={() => setTab('room')}><Text style={tab === 'room' ? styles.activeTab : styles.muted}>房间</Text></Pressable></View>
-          {tab === 'chat' ? <View style={{ flex: 1, gap: 12, backgroundColor: '#1b2024', borderWidth: 1, borderColor: '#343d41', borderRadius: 12, padding: 12 }}><View style={{ flexDirection: 'row', gap: 4, backgroundColor: '#141a1d', borderRadius: 22, padding: 4 }}>{(['comments', 'tracks', 'realtime'] as const).map((value, index) => <Pressable key={value} accessibilityRole="button" onPress={() => setChatSection(value)} style={{ flex: 1, minHeight: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 20, backgroundColor: chatSection === value ? '#65d59b' : 'transparent' }}><Text style={{ color: chatSection === value ? '#111417' : '#a8b3b6', fontSize: 13 }}>{['评论区', '弹幕轨道', '实时弹幕'][index]}</Text></Pressable>)}</View>{chatSection === 'tracks' ? <ScrollView><DanmakuManager roomId={roomId} host={host} tracks={danmaku.tracks} /></ScrollView> : <><ScrollView style={styles.list} contentContainerStyle={styles.listContent}>{chatSection === 'realtime' ? danmaku.live.map(comment => <Text key={comment.id} style={styles.text}>{comment.content}</Text>) : comments.length ? comments.map(comment => <View key={comment.id} style={styles.item}><Text style={styles.muted}>{comment.username}</Text><Text style={styles.text}>{comment.content}</Text></View>) : <View style={{ padding: 32, alignItems: 'center' }}><Text style={styles.muted}>暂无评论，快来第一条吧</Text></View>}</ScrollView><View style={styles.composer}><TextInput style={[styles.input, { flex: 1 }]} value={draft} onChangeText={setDraft} placeholder={sendAsDanmaku ? "发送弹幕" : "说点什么…"} placeholderTextColor="#a8b3b6" /><Button label="发送" disabled={busy || !connected} onPress={() => void sendComment()} /></View><View style={styles.controls}><Switch value={sendAsDanmaku} onValueChange={setSendAsDanmaku} trackColor={{ true: '#65d59b' }} /><Text style={styles.muted}>以弹幕形式发送</Text></View></>}</View> : null}
+          {tab === 'chat' ? <View style={{ flex: 1, gap: 12, backgroundColor: theme.color('#1b2024', 'backgroundColor'), borderWidth: 1, borderColor: theme.color('#343d41', 'borderColor'), borderRadius: 12, padding: 12 }}><View style={{ flexDirection: 'row', gap: 4, backgroundColor: theme.color('#141a1d', 'backgroundColor'), borderRadius: 22, padding: 4 }}>{(['comments', 'tracks', 'realtime'] as const).map((value, index) => <Pressable key={value} accessibilityRole="button" onPress={() => setChatSection(value)} style={{ flex: 1, minHeight: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 20, backgroundColor: chatSection === value ? '#65d59b' : 'transparent' }}><Text style={{ color: theme.color(chatSection === value ? '#111417' : '#a8b3b6'), fontSize: 13 }}>{['评论区', '弹幕轨道', '实时弹幕'][index]}</Text></Pressable>)}</View>{chatSection === 'tracks' ? <ScrollView><DanmakuManager roomId={roomId} host={host} tracks={danmaku.tracks} /></ScrollView> : <><ScrollView style={styles.list} contentContainerStyle={styles.listContent}>{chatSection === 'realtime' ? danmaku.live.map(comment => <Text key={comment.id} style={styles.text}>{comment.content}</Text>) : comments.length ? comments.map(comment => <View key={comment.id} style={styles.item}><Text style={styles.muted}>{comment.username}</Text><Text style={styles.text}>{comment.content}</Text></View>) : <View style={{ padding: 32, alignItems: 'center' }}><Text style={styles.muted}>暂无评论，快来第一条吧</Text></View>}</ScrollView><View style={styles.composer}><TextInput style={[styles.input, { flex: 1 }]} value={draft} onChangeText={setDraft} placeholder={sendAsDanmaku ? "发送弹幕" : "说点什么…"} placeholderTextColor="#a8b3b6" /><Button label="发送" disabled={busy || !connected} onPress={() => void sendComment()} /></View><View style={styles.controls}><Switch value={sendAsDanmaku} onValueChange={setSendAsDanmaku} trackColor={{ true: '#65d59b' }} /><Text style={styles.muted}>以弹幕形式发送</Text></View></>}</View> : null}
           {tab === 'movies' ? <MoviePanel roomId={roomId} movies={movies} host={host} play={playMovie} reload={loadMovies} /> : null}
           {tab === 'room' ? <><RoomSettings roomId={roomId} roomName={roomName} host={host} close={closeRoom} viewers={viewers} />{joinRequests.map(item => <View key={item.viewerSocketId} style={styles.item}><Text style={styles.text}>{item.username} 申请加入</Text><View style={styles.controls}><Button label="同意" onPress={() => void decideJoin(item.viewerSocketId, true)} /><Button label="拒绝" onPress={() => void decideJoin(item.viewerSocketId, false)} /></View></View>)}</> : null}
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {watch.notice ? <Text style={styles.muted}>{watch.notice}</Text> : null}{watch.requests.map(item => <View key={`${item.action}:${item.viewerSocketId}`} style={styles.item}><Text style={styles.text}>{item.viewerUsername || '观众'} 申请 {item.action}{item.time !== undefined ? ` · ${Math.round(item.time)} 秒` : ''}</Text><View style={styles.controls}><Button label="同意" onPress={() => void watch.decide(item, true)} /><Button label="拒绝" onPress={() => void watch.decide(item, false)} /></View></View>)}{error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
       </View>
     </>}
-    <Modal visible={playerOptions !== null} transparent animationType="fade" supportedOrientations={['portrait', 'landscape']} onRequestClose={() => setPlayerOptions(null)}><View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 }}><ScrollView style={{ maxHeight: '90%', width: '100%', maxWidth: 650, alignSelf: 'center', borderRadius: 16, backgroundColor: '#1b2024' }} contentContainerStyle={{ padding: 16, gap: 14 }}><View style={styles.controls}><Text style={[styles.title, { flex: 1 }]}>{playerOptions === 'danmaku' ? '弹幕设置' : playerOptions === 'subtitles' ? '字幕管理' : '播放诊断'}</Text><Button label="关闭面板" onPress={() => setPlayerOptions(null)} /></View>{playerOptions === 'danmaku' ? <><DanmakuSettings state={danmaku} /><DanmakuManager roomId={roomId} host={host} tracks={danmaku.tracks} /></> : playerOptions === 'subtitles' ? <SubtitlePanel subtitles={subtitles} /> : <>
+    <Modal visible={playerOptions !== null} transparent animationType="fade" supportedOrientations={['portrait', 'landscape']} onRequestClose={() => setPlayerOptions(null)}><View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 }}><ScrollView style={{ maxHeight: '90%', width: '100%', maxWidth: 650, alignSelf: 'center', borderRadius: 16, backgroundColor: theme.color('#1b2024', 'backgroundColor') }} contentContainerStyle={{ padding: 16, gap: 14 }}><View style={styles.controls}><Text style={[styles.title, { flex: 1 }]}>{playerOptions === 'danmaku' ? '弹幕设置' : playerOptions === 'subtitles' ? '字幕管理' : '播放诊断'}</Text><Button label="关闭面板" onPress={() => setPlayerOptions(null)} /></View>{playerOptions === 'danmaku' ? <><DanmakuSettings state={danmaku} /><DanmakuManager roomId={roomId} host={host} tracks={danmaku.tracks} /></> : playerOptions === 'subtitles' ? <SubtitlePanel subtitles={subtitles} /> : <>
             <Text style={styles.muted}>播放器：{mediaStatus}{trackSummary ? ` · ${trackSummary}` : ''}</Text>
             <View style={styles.controls}><Button label={diagnosing ? '检测中…' : '播放诊断'} onPress={() => void runProbe()} disabled={diagnosing} /></View>
             {mediaProbe ? <Text style={mediaProbe.category === 'ready' ? styles.muted : styles.error}>网络探测：{mediaProbe.detail} · 来源 {mediaProbe.source}{mediaProbe.status ? ` · HEAD ${mediaProbe.status}` : ''}{mediaProbe.contentType ? ` · ${mediaProbe.contentType}` : ''}{mediaProbe.checks?.map(check => ` · ${check.name} ${check.status}${check.valid ? '✓' : '✗'}`).join('')}{mediaProbe.signature ? ` · 文件头 ${mediaProbe.signature}` : ''}{mediaProbe.redirected ? ' · 已跳转' : ''}</Text> : null}</>}</ScrollView></View></Modal>
   </SafeAreaView>;
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#111417', padding: 16, gap: 12 }, fullscreenRoot: { padding: 0, gap: 0, backgroundColor: '#000' }, videoControls: { position: 'absolute', bottom: 0, left: 0, right: 0 }, header: { gap: 8, minHeight: 44 }, link: { color: '#65d59b', fontSize: 17 }, title: { color: '#edf1ef', fontSize: 19, fontWeight: '700' }, sectionTitle: { color: '#edf1ef', fontSize: 16, fontWeight: '700' }, text: { color: '#edf1ef', fontSize: 15 }, muted: { color: '#a8b3b6', fontSize: 13 }, error: { color: '#ffaaa5', padding: 8 }, join: { flex: 1, justifyContent: 'center', gap: 15 }, input: { backgroundColor: '#1b2024', borderColor: '#343d41', borderWidth: 1, color: '#edf1ef', borderRadius: 10, paddingHorizontal: 12, minHeight: 44 }, button: { backgroundColor: '#65d59b', borderRadius: 10, minHeight: 44, paddingHorizontal: 15, justifyContent: 'center', alignItems: 'center' }, buttonText: { color: '#111417', fontWeight: '700' }, disabled: { opacity: 0.45 }, roomBody: { flex: 1, gap: 12 }, roomBodyWide: { flexDirection: 'row' }, mediaColumn: { flexBasis: 'auto', flexGrow: 0, flexShrink: 1, maxHeight: '56%' }, mediaContent: { gap: 10, paddingBottom: 8 }, playerBox: { width: '100%', backgroundColor: '#05080c', alignItems: 'center', justifyContent: 'center', borderRadius: 12, overflow: 'hidden' }, placeholder: { alignItems: 'center', gap: 12, padding: 16 }, video: { width: '100%', height: '100%' }, controlPanel: { gap: 8 }, controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, sidePanel: { flex: 1, minHeight: 170, gap: 8 }, tabs: { flexDirection: 'row', gap: 28, paddingVertical: 8 }, activeTab: { color: '#65d59b', fontWeight: '700' }, list: { flex: 1 }, listContent: { gap: 8, paddingBottom: 18 }, item: { backgroundColor: '#1b2024', padding: 12, borderRadius: 10, gap: 4 }, composer: { flexDirection: 'row', gap: 8 },
 });

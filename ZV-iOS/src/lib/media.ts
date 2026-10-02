@@ -1,4 +1,7 @@
 export type PlaybackSource = {
+  movieId?: number;
+  cid?: number;
+  biliPolicy?: { qn: number; cliEnabled: boolean; preferMp4: boolean; dashAllowed: boolean; revision: number };
   sourceUrl: string;
   sourceType?: string;
   format?: string;

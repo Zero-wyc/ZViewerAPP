@@ -15,8 +15,8 @@ Pod::Spec.new do |s|
   s.public_header_files = 'ZVBiliBridge.h', 'ZVVoiceCodec.h'
   s.vendored_frameworks = 'Vendor/Bilicore.xcframework'
   s.vendored_libraries = 'Vendor/libopus.a'
-  s.resource_bundles = { 'ZViewerNativeLicenses' => ['Vendor/*-LICENSE'] }
+  s.resource_bundles = { 'ZViewerNativeLicenses' => ['Vendor/*-LICENSE', 'Vendor/*-source-*.json'] }
   s.libraries = 'resolv'
-  s.frameworks = 'AVFoundation', 'AudioToolbox', 'Security', 'VideoToolbox'
+  s.frameworks = 'AVFoundation', 'AudioToolbox', 'Security', 'VideoToolbox', 'MediaPlayer'
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'HEADER_SEARCH_PATHS' => '$(inherited) "$(PODS_TARGET_SRCROOT)/Vendor/opus"' }
 end

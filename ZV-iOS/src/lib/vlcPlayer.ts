@@ -41,6 +41,8 @@ export class VlcPlayer implements NativePlayerPort {
     this.disposed = false;
   }
   get currentTime() { return this.position; }
+  get sourceUri() { return this.snapshot?.source.uri || ''; }
+  get sourceIdentity() { return this.snapshot?.source.identity || ''; }
   set currentTime(time: number) {
     if (this.disposed || !Number.isFinite(time)) return;
     const next = Math.max(0, time);

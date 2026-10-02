@@ -1,23 +1,23 @@
 # ZViewer iOS
 
-独立 Expo SDK 57 / React Native 工程。当前交付 **1.2.1 / build 12 未签名真机测试包**；文件、音乐和 HTTP-FLV 使用单一 VLCKit，保留统一播放器适配接口及 v4.2.0 的 8 MiB Range 行为。
+独立 Expo SDK 57 / React Native 工程，当前 **1.5.0 / build 13 unsigned 候选版**。对照 client-v1.5.0 固定参考迁移产品行为，与隔离的官方服务端 v4.2.1 联调。保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，WebRTC 仅用于既有共享观看接收。
 
-## 已实现
+按用户要求集中实现功能后交用户自行签名和验收。**候选版尚未完成真机验收，不能视为双端等效版**。功能、构建和逐项限制见 [b13 交付记录](../docs/releases/ios-1.5.0-13-unsigned.md)；历史 b12 证据保留在 [原计划](../docs/ios-continuation-plan.md)。
 
-- 对照 Android 平板虚拟机的一起看/一起听界面：绿色/深灰、图标导航、聊天分区及可收起侧栏；登录/游客/会话刷新、审批/密码/成员权限。
-- 片单、服务器文件、WebDAV/FTP/OpenList/Emby/Jellyfin 挂载管理、AniSubs/旧番剧/Kazumi。
-- VLC 播放/同步、分离音轨、进度/倍速/音量、字幕/全屏/PiP；字幕文件导入与房间同步，弹幕导入/编辑/在线搜索/叠加。
-- 一起听队列/同步/审批/循环，网易云账号/歌单/歌词/音质、B站音乐；原有 WebRTC 共享接收和 OBS-FLV。
-- **本机 B站 Go bilicore**：QR、Keychain Cookie、搜索/推荐/收藏/关注/合集/分 P/画质/歌词/有限回退；各端独立解析，房间只广播 BV 原地址。
-- **房间语音**：AVAudioEngine/回声处理、Opus 48kHz/20ms、旧 PCM 接收、既有媒体 Socket、静音/禁言/踢出/重连/释放；收起面板继续通话，离房释放。
-- b11 修正：保留初始化前起播意图；播放条覆盖在视频内；全屏移除外层留白，旋转操作独立，退出恢复之前方向策略。iPad `requireFullScreen` 用于使方向锁生效，**关闭 Split View**。
-- 网易云使用折叠菜单、我的音乐登录页、居中底部播放条、独立队列/歌词面板；适配原始登录状态 DTO，扫码成功刷新歌单，退出恢复登录页。
+## 本轮实现
 
-用户已反馈上一轮视频、B站扫码、番剧和挂载视频正常。**b12 自动起播/全屏/旋转/样式仍待真机复验**，语音、同步及扩展媒体矩阵仍待测。状态及限制见 [原 plan](../docs/ios-continuation-plan.md) 和 [b12 交付记录](../docs/releases/ios-1.2.1-12-unsigned.md)。
+- 当前影片/片单/播放状态乱序协调，规范 URL/cid 本机解析，切换与重连代次隔离；观众 watch 控制申请和房主审批统一进入屏内/手势/系统命令路径。
+- 影片级 B站 CLI/服务器 MP4/管理员 DASH、自动/手动与真实 qn、失败保留策略和进度；解析有限缓存、账号会话/cid/服务器/策略隔离。Go 来源逐文件固定核对和打包摘要。
+- 语音稳定 instanceId、volatile 拥塞丢帧、媒体初始化 ACK 后收发和断线重绑；后台释放麦克风/语音音频，前台静音重入。
+- 重复曲目按队列项推进，四种播放模式/结束处理；账号/音质/服务器改变重新取流。歌词 20 项/5 分钟请求合并、旧曲隔离、失败重试和当前行。
+- 两模式 Now Playing 状态/标题/封面/动作、sessionId 比较清理、原生 VLC 命令和进度桥接；后台 audio 声明；封面流式读取 ≤2 MB。
+- 浅/深/系统主题、本地背景文件、圆角/透明度/模糊/位置/缩放/旋转/遮罩及减少动态效果；持续根主题和独立 Modal 覆盖，普通表面替代不可用玻璃效果。
+- 手动旋转锁/恢复自动、全屏临时锁/恢复、安全区；一起看三分区双击与 ±15 秒，一起听纯净视频手势控制真实音频。
+- 音乐静音关联视频搜索/分 P/追加/删除、画质/解析策略/同源重加；44pt 收起按钮、图片规范化/失败占位、评论/楼层回复。番剧多选、批量/部分失败保留重试。
 
-本次 b12 修正网易云下拉菜单锚点，并为添加片源弹窗显式配置横竖屏方向。三尺寸菜单/弹窗布局检查通过；iPad 横屏持续旋转仍待新包复验。
+既有片单、挂载管理、字幕弹幕、网易云账号/歌单、B站 QR/Keychain/目录、共享观看接收及 OBS-FLV 保留。
 
-## 未签名真机构建
+## 构建和验证
 
 ```powershell
 cd ZV-iOS
@@ -25,11 +25,9 @@ cd ZV-iOS
 # 等待完成：./scripts/build-ios-unsigned.ps1 -Wait
 ```
 
-脚本先暂存共享 Go 源，再将 EAS archive 限定本工程。自定义 workflow 校验固定 Go/Opus 下载摘要、构建依赖、运行 Opus 编解码检查，以 CNG 生成项目并编译 iphoneos ARM64 Release。包内置 JS，不需要 Apple 登录、设备注册或 Metro。
+上传脚本先规范 Bash 为 LF，再验证 9 个共享 Go/依赖/许可证文件与参考 `1ca96fd46963ff5cb89beb6c3d31e1d7b9f501fc` 一致、生成来源摘要。EAS archive 限定本工程；workflow 下载校验固定 Go/Opus、重建 ARM64 vendors、host Opus smoke、CNG/Pods、iphoneos Release 和 unsigned IPA。
 
-本版 IPA：`release-assets/ZViewer-1.2.1-b12-unsigned.ipa`（不提交 Git）。按最新要求仅交付 unsigned，**需要用户自行签名后安装**。Expo Go 不能加载 VLC/Go/语音原生模块。旧 development/simulator profile 尚未配置本模块对应的 vendor 准备步骤，当前请用 unsigned-device；模拟器包不能改后缀当真机包。
-
-## 验证与限制
+包：`release-assets/ZViewer-1.5.0-b13-unsigned.ipa`，不提交 Git；内置 JS，无需 Metro，**用户自行签名后安装**。Expo Go 不含 VLC/Go/语音桥接。当前仅 unsigned-device 准备 vendors，development/simulator 尚需相应流程。
 
 ```sh
 npm ci
@@ -38,13 +36,17 @@ npm run lint
 npm run typecheck
 npx expo-doctor
 npx expo export --platform ios
-python scripts/inspect-unsigned-ipa.py release-assets/ZViewer-1.2.1-b12-unsigned.ipa
+python scripts/inspect-unsigned-ipa.py release-assets/ZViewer-1.5.0-b13-unsigned.ipa
 ```
 
-本版 35 项单测、lint/类型、iOS/Web 导出通过；Doctor 20/21，Directory 提示 WebRTC New Architecture 未测试、私有本地模块无元数据，未屏蔽。EAS 设备编译和 IPA 平台/桥接/JS/方向声明检查见版本记录。
+本轮 49 项单测、lint/typecheck、iOS/Web 导出和 43 项 Web 布局检查通过。Doctor 20/21：WebRTC New Architecture 未测试、私有本地模块无 Directory 元数据，未屏蔽。Go 两包可编译但源目录无测试，不等于 CDN 回归。
 
-`check-room-ui.cjs` 本轮 37 项检查通过，含两模式三尺寸、全屏填满/控件位置、旋转操作不切换全屏、真实登录状态及退出、扫码后刷新；`check-room-protocol.cjs` 和 `check-mount-flow.cjs` 历史分别 16 项协议、7 项挂载通过。仅使用隔离的本地 v4.2.0；音乐上游扫码/歌单/搜索、语音包和 DAV 为 fixture，不等于真实账号、麦克风或 NAS 验收。`check-local-results.mjs` 核对此前桌面 VLC/原网页 Range 证据。本轮未连接 NAS。
+新脚本 `check-ios-421.cjs`（协议/合成语音帧）、`check-ios-range-421.cjs`（本地 MKV 传输）、`check-continuation-ui.cjs`（Web 三尺寸布局，网易云上游 fixture）需隔离官方 v4.2.1 服务和 Web 导出服务，默认端口 7343/7347。不连接 NAS，不读取用户音乐/B站账号；历史报告不覆盖。
 
-VLCKit 4.0.0a24 是预发布版，expo-libvlc-player 固定 57.0.54。真机续读/编码/后台/PiP、蓝牙/来电、语音回声、B站账号/高画质/失效和 Android 同房同步均待测。复杂 ASS 样式使用 VLC 外部字幕；同步 RN 字幕层显示文本和基础样式。
+## 验收边界
 
-CNG 管理生成原生目录；维护本地 Expo Module/config plugin，不手改生成项目，不执行 Capacitor 同步。以 [AGENTS.md](AGENTS.md) 为规范。
+真机出声/解码、十分钟 MKV/MP4、HEVC/FLAC/HLS/分离轨、实际 CDN/账号、跨端语音/蓝牙/来电、原生方向/键盘/大字体/PiP/安全区，均待 b13 新包验证。系统完整歌词页没有等价实现，保留应用内歌词。
+
+后台 host 播放/暂停/seek 有原生通路；**JS 完全暂停时没有独立原生房间 Socket 心跳/切歌/观众审批管线**，待前台恢复回流，不能宣称完整后台同步闭环。重复曲目的跨端同步未新增线上队列项字段。重连完整既有成员列表受现有服务端契约限制。
+
+继续 `UIRequiresFullScreen=true`，iPad Split View 关闭；复杂 ASS 特效使用 VLC 原文件。无自动 push、标签、证书签名、TestFlight 或商店发布。CNG 管理生成目录，维护本地 Module/config plugin，不手改生成工程，不执行 Capacitor iOS 同步；遵循 [AGENTS.md](AGENTS.md)。

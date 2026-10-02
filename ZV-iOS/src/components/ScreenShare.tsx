@@ -1,3 +1,4 @@
+import { useAppearance } from '@/state/appearance';
 import { useEffect, useState } from 'react';
 import { NativeModules, Platform, Text, View } from 'react-native';
 import type { RTCPeerConnection, MediaStream, RTCIceCandidate, RTCSessionDescription } from 'react-native-webrtc';
@@ -5,13 +6,16 @@ import { useSession } from '@/state/session';
 import { NativeMediaAdapter } from '@/lib/mediaAdapter';
 import { emitAck } from '@/lib/socket';
 import { VlcVideo, useVlcVideo } from './VlcVideo';
-import { RoomButton, RoomInput, ui } from './RoomUi';
+import { RoomButton, RoomInput, ui as baseUi } from './RoomUi';
 // Web/Expo Go can open rooms without loading a missing native module.
 const rtc: typeof import('react-native-webrtc') | null = Platform.OS === 'ios' && NativeModules.WebRTCModule
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- capability detection precedes native import.
   ? require('react-native-webrtc') : null;
 export type ShareState = { shareMethod?: 'webrtc' | 'stream-push'; streamKey?: string | null };
 export function ScreenShare({ roomId, share, height }: { roomId: string; share: ShareState; height: number }) {
+  const theme = useAppearance();
+  const ui = theme.styles(baseUi);
+
   const { session, socket } = useSession(); const video = useVlcVideo(); const [stream, setStream] = useState<MediaStream | null>(null); const [error, setError] = useState(''); const [status, setStatus] = useState('等待共享端'); const [retry, setRetry] = useState(0);
   const [flvBase, setFlvBase] = useState('');
   useEffect(() => {
@@ -51,7 +55,7 @@ export function ScreenShare({ roomId, share, height }: { roomId: string; share: 
     }
     return () => adapter.dispose();
   }, [share.shareMethod, share.streamKey, session, video.player, flvBase, retry]);
-  return <View style={ui.content}><View style={{ height, backgroundColor: '#05080c', overflow: 'hidden', borderRadius: 12 }}>{share.shareMethod === 'stream-push' ? <VlcVideo video={video} style={{ flex: 1 }} /> : stream && rtc ? <rtc.RTCView streamURL={stream.toURL()} objectFit="contain" style={{ flex: 1 }} /> : <Text style={ui.muted}>{rtc ? status : '共享观看需要原生安装包'}</Text>}</View>
+  return <View style={ui.content}><View style={{ height, backgroundColor: theme.color('#05080c', 'backgroundColor'), overflow: 'hidden', borderRadius: 12 }}>{share.shareMethod === 'stream-push' ? <VlcVideo video={video} style={{ flex: 1 }} /> : stream && rtc ? <rtc.RTCView streamURL={stream.toURL()} objectFit="contain" style={{ flex: 1 }} /> : <Text style={ui.muted}>{rtc ? status : '共享观看需要原生安装包'}</Text>}</View>
     <Text style={ui.muted}>{share.shareMethod === 'stream-push' ? 'OBS 推流 · VLC' : `屏幕共享 · ${status}`}</Text><RoomButton label="重新连接" secondary onPress={() => { setError(''); setStream(null); setRetry(value => value + 1); void emitAck(socket!, 'viewer-ready', { roomId }).catch(() => {}); }} />{share.shareMethod === 'stream-push' ? <RoomInput value={flvBase} onChangeText={setFlvBase} placeholder="HTTP-FLV 服务地址（可选，含协议与端口）" autoCapitalize="none" keyboardType="url" /> : null}{error ? <Text style={ui.error}>{error}</Text> : null}
   </View>;
 }

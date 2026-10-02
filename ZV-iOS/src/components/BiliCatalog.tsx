@@ -1,12 +1,16 @@
+import { useAppearance } from '@/state/appearance';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { biliOperation } from '@/lib/nativeBridge';
 import { messageFor } from '@/lib/server';
-import { RoomButton, RoomInput, ui } from './RoomUi';
+import { RoomButton, RoomInput, ui as baseUi } from './RoomUi';
 type Item = { bvid: string; title: string; cid?: number; duration?: number; author?: string };
 type Container = { id: number; title: string };
 type Catalog = { data: { result?: Item[]; item?: Item[]; medias?: Item[]; archives?: Item[]; episodes?: Item[]; list?: (Container & { season_id?: number })[] } };
 export function BiliCatalog({ choose }: { choose: (item: Item) => void }) {
+  const theme = useAppearance();
+  const ui = theme.styles(baseUi);
+
   const [keyword, setKeyword] = useState(''); const [kind, setKind] = useState('search'); const [items, setItems] = useState<Item[]>([]); const [groups, setGroups] = useState<Container[]>([]);
   const [groupKind, setGroupKind] = useState(''); const [id, setId] = useState(0); const [page, setPage] = useState(1); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [collection, setCollection] = useState('');
   const load = async (next: string, pn = 1, value = 0) => {

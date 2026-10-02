@@ -1,3 +1,4 @@
+import { useAppearance } from '@/state/appearance';
 import { Pressable, StyleSheet, Text, TextInput, type TextInputProps } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 import type { ComponentProps } from 'react';
@@ -14,9 +15,17 @@ export const ui = StyleSheet.create({
   buttonText: { color: roomColors.background, fontWeight: '700' }, input: { borderWidth: 1, borderColor: roomColors.line, borderRadius: 10, color: roomColors.text, minHeight: 44, padding: 10, backgroundColor: roomColors.surface },
 });
 export function RoomButton({ label, onPress, disabled, secondary }: { label: string; onPress: () => void; disabled?: boolean; secondary?: boolean }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} style={[ui.button, secondary && ui.secondary, disabled && { opacity: 0.45 }]}><Text style={[ui.buttonText, secondary && ui.text]}>{label}</Text></Pressable>;
+  const theme = useAppearance();
+  const localUi = theme.styles(ui);
+
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} style={[localUi.button, secondary && localUi.secondary, disabled && { opacity: 0.45 }]}><Text style={[localUi.buttonText, secondary && localUi.text]}>{label}</Text></Pressable>;
 }
-export function RoomInput(props: TextInputProps) { return <TextInput placeholderTextColor={roomColors.muted} autoCorrect={false} {...props} style={[ui.input, props.style]} />; }
+export function RoomInput(props: TextInputProps) {
+  const theme = useAppearance();
+  const localUi = theme.styles(ui);
+ return <TextInput placeholderTextColor={theme.color(roomColors.muted)} autoCorrect={false} {...props} style={[localUi.input, props.style]} />; }
 export function RoomIconButton({ label, icon, onPress }: { label: string; icon: ComponentProps<typeof Feather>['name']; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><Feather name={icon} size={22} color={roomColors.muted} /></Pressable>;
+  const theme = useAppearance();
+
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><Feather name={icon} size={22} color={theme.color(roomColors.muted)} /></Pressable>;
 }

@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | Android | 已完成开发，当前发布版本 1.5.0（versionCode 150） | Android 是共享网页功能和 B 站行为的主要参考宿主之一 |
 | HarmonyOS | 已同步当前 Android 的 v4.2.1 共享业务代码和全局外观，API 26 手机模拟器外观验收完成；客户端包版本为 1.5.0/150 | 维护重点是共享网页同步、ArkWeb 桥接和 ArkTS 本地代理；HEVC Main 10 解码限制单独记录 |
-| iOS | 已交付 1.2.1 / b12 unsigned，已有房间、VLC、音乐、语音及本机 B 站实现；b12 真机复验尚未闭环 | 后续对齐 client 1.5.0 产品行为与服务端 v4.2.1，以 RN/原生模块实现系统媒体等能力，不复制 ArkWeb 宿主；执行 `docs/ios-continuation-plan.md` |
+| iOS | 1.5.0 / b13 unsigned 集中候选版：房间/B站/语音恢复、外观、队列歌词、系统媒体、关联视频和手势已实现 | 对接隔离官方 v4.2.1，待用户签名及 iPhone/iPad 验收；后台独立 Socket 心跳/切歌/审批未闭环，不宣称双端等效。见 [b13 交付记录](releases/ios-1.5.0-13-unsigned.md) |
 
 HarmonyOS 应用不是另写一套业务前端。它将根项目构建出的 `dist/` 放入 `entry/src/main/resources/rawfile/web/`，由 ArkWeb 以固定本地来源加载；平台能力通过 `zviewerHost` 注入，再由 `bridge-bootstrap.js` 暴露为共享前端识别的 `window.zviewerNative`。
 

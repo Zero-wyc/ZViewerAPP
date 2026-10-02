@@ -1,3 +1,4 @@
+import { useAppearance } from '@/state/appearance';
 import { useState } from 'react';
 import { Alert, Switch, Text, View } from 'react-native';
 import { useSession } from '@/state/session';
@@ -5,9 +6,12 @@ import type { DanmakuTrack } from '@/lib/timeline';
 import { importDanmaku } from '@/lib/danmakuImport';
 import { pickTextFile } from '@/lib/imports';
 import { messageFor } from '@/lib/server';
-import { RoomButton, RoomInput, ui } from './RoomUi';
+import { RoomButton, RoomInput, ui as baseUi } from './RoomUi';
 type Entry = { id: string; title: string; episodeNumber?: number; playbackParams?: Record<string, unknown> };
 export function DanmakuManager({ roomId, host, tracks }: { roomId: string; host: boolean; tracks: DanmakuTrack[] }) {
+  const theme = useAppearance();
+  const ui = theme.styles(baseUi);
+
   const { request } = useSession(); const [open, setOpen] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [edit, setEdit] = useState<DanmakuTrack | null>(null); const [text, setText] = useState(''); const [offset, setOffset] = useState('0');
   const [sources, setSources] = useState<{ id: string; name: string }[]>([]); const [source, setSource] = useState(''); const [keyword, setKeyword] = useState(''); const [results, setResults] = useState<Entry[]>([]); const [episodes, setEpisodes] = useState<Entry[]>([]);
   const root = `/api/rooms/${encodeURIComponent(roomId)}/danmaku-tracks`;

@@ -1,12 +1,16 @@
+import { useAppearance } from '@/state/appearance';
 import { useEffect, useState } from 'react';
 import { Alert, Switch, Text, View } from 'react-native';
 import { useSession } from '@/state/session';
 import { messageFor } from '@/lib/server';
-import { RoomButton, RoomInput, ui } from './RoomUi';
+import { RoomButton, RoomInput, ui as baseUi } from './RoomUi';
 const kinds = ['webdav', 'ftp', 'openlist', 'emby', 'jellyfin'];
 type Mount = { id: number; name: string; serverUrl: string; path?: string; port?: number; username?: string; directLink?: boolean; type: string };
 const empty = { name: '', serverUrl: '', path: '/', port: '', username: '', password: '', apiKey: '', directLink: false };
 export function MountManager() {
+  const theme = useAppearance();
+  const ui = theme.styles(baseUi);
+
   const { request, session } = useSession(); const [kind, setKind] = useState('webdav'); const [mounts, setMounts] = useState<Mount[]>([]); const [edit, setEdit] = useState<number | null>(null);
   const [fields, setFields] = useState(empty); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [open, setOpen] = useState(false);
   useEffect(() => { if (!open) return; let active = true; void request<{ mounts: Mount[] }>(`/api/${kind}/mounts`).then(value => { if (active) setMounts(value.mounts); }).catch(failure => { if (active) setMessage(messageFor(failure)); }); return () => { active = false; }; }, [kind, request, open]);

@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | Android | 已完成开发，当前发布版本 1.5.0（versionCode 150） | 以后优先在共享前端实现产品行为，再同步 Android 原生宿主和发布包 |
 | HarmonyOS | 已完成开发并已有 ArkWeb/HAP 发布线 | 与 Android 共享网页业务，但原生桥接、B 站代理和打包链路独立维护 |
-| iOS | 已交付 1.2.1 / b12 unsigned，已有房间、VLC、音乐、语音及本机 B 站实现；b12 真机复验尚未闭环 | 后续对齐 client 1.5.0 产品行为与服务端 v4.2.1，重点补系统媒体/后台、歌词、旋转及手势；不视为双端等效版，执行 `docs/ios-continuation-plan.md` |
+| iOS | 1.5.0 / b13 unsigned 集中候选版：房间/B站/语音恢复、外观、队列歌词、系统媒体、关联视频和手势已实现 | 对接隔离官方 v4.2.1，待用户签名及 iPhone/iPad 验收；后台独立 Socket 心跳/切歌/审批未闭环，不宣称双端等效。见 [b13 交付记录](releases/ios-1.5.0-13-unsigned.md) |
 
 当前 Android 的发布入口是 `ZV-Android/`，网页入口是仓库根目录的 `src/`。`ZV-HarmonyOS/` 不应复制 Android Gradle 或 Java 代码；它通过 ArkWeb 加载同一份 `dist/`。
 

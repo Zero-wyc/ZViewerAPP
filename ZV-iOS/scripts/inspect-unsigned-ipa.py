@@ -38,7 +38,21 @@ def inspect(path):
         bridges = {name: name.encode() in binary for name in ['ZViewerNativeModule', 'ZVBiliBridge', 'ZVVoiceCodec']}
         assert all(bridges.values()), 'Missing linked native Bilibili/voice bridge classes'
         assert info.get('NSMicrophoneUsageDescription'), 'Missing microphone permission description'
-        return dict(bundleId=info['CFBundleIdentifier'], version=info['CFBundleShortVersionString'], build=info['CFBundleVersion'], app=app, frameworks=frameworks, nativeBridges=bridges, jsBytes=archive.getinfo(root + 'main.jsbundle').file_size, background=info.get('UIBackgroundModes'), ats=info.get('NSAppTransportSecurity'), requiresFullScreen=info.get('UIRequiresFullScreen', False), orientations=info.get('UISupportedInterfaceOrientations'), ipadOrientations=info.get('UISupportedInterfaceOrientations~ipad'))
+        continuation = {}
+        if tuple(map(int, info['CFBundleShortVersionString'].split('.'))) >= (1, 5, 0):
+            assert set(info.get('UIDeviceFamily', [])) == {1, 2}, 'Missing iPhone or iPad device family'
+            assert b'ZVSystemMedia' in binary and b'ZViewerVlcCommand' in binary and b'ZViewerVlcProgress' in binary, 'Missing system media integration'
+            assert 'audio' in info.get('UIBackgroundModes', []), 'Missing background audio declaration'
+            manifests = [name for name in names if name.startswith(root) and name.endswith('/bilicore-source-provenance.json')]
+            assert len(manifests) == 1, 'Missing bundled shared source provenance'
+            provenance = json.loads(archive.read(manifests[0]))
+            assert provenance['referenceCommit'] == '1ca96fd46963ff5cb89beb6c3d31e1d7b9f501fc', 'Unexpected shared Go reference'
+            assert len(provenance['files']) == 9, 'Unexpected shared source manifest size'
+            source_manifest = json.loads(archive.read(manifests[0].replace('source-provenance.json', 'source-manifest.json')))
+            assert provenance['files'] == source_manifest, 'Source manifests disagree'
+            assert any(name.endswith('/OPUS-LICENSE') for name in names) and any(name.endswith('/BILICORE-LICENSE') for name in names), 'Missing native dependency licenses'
+            continuation = dict(systemMedia=True, sharedSource=provenance, deviceFamilies=info.get('UIDeviceFamily'), minimumOS=info.get('MinimumOSVersion'), interfaceStyle=info.get('UIUserInterfaceStyle'))
+        return dict(bundleId=info['CFBundleIdentifier'], version=info['CFBundleShortVersionString'], build=info['CFBundleVersion'], app=app, frameworks=frameworks, nativeBridges=bridges, jsBytes=archive.getinfo(root + 'main.jsbundle').file_size, background=info.get('UIBackgroundModes'), ats=info.get('NSAppTransportSecurity'), requiresFullScreen=info.get('UIRequiresFullScreen', False), orientations=info.get('UISupportedInterfaceOrientations'), ipadOrientations=info.get('UISupportedInterfaceOrientations~ipad'), **continuation)
 
 if __name__ == '__main__':
     path = Path(sys.argv[1]); result = inspect(path)

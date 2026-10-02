@@ -2,14 +2,14 @@
   "expo": {
     "name": "ZViewer",
     "slug": "zviewer-ios",
-    "version": "1.2.1",
+    "version": "1.5.0",
     "orientation": "default",
     "icon": "./assets/images/zviewer-icon.png",
     "scheme": "zviewer",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.zviewer.mobile",
-      "buildNumber": "12",
+      "buildNumber": "13",
       "supportsTablet": true,
       "icon": "./assets/images/zviewer-icon.png",
       "infoPlist": {
@@ -49,7 +49,8 @@
         {
           "initialOrientation": "DEFAULT"
         }
-      ]
+      ],
+      "./plugins/with-system-media.cjs"
     ],
     "experiments": {
       "typedRoutes": true,

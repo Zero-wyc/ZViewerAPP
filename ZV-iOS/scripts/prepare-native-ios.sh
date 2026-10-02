@@ -32,6 +32,8 @@ cp .libs/libopus.a "$vendor/libopus.a"
 cp include/opus*.h "$vendor/opus/"
 cp COPYING "$vendor/OPUS-LICENSE"
 cp "$root/.native-staging/bilicore/UPSTREAM-LICENSE" "$vendor/BILICORE-LICENSE"
+cp "$root/.native-staging/bilicore/source-manifest.json" "$vendor/bilicore-source-manifest.json"
+cp "$root/.native-staging/bilicore/source-provenance.json" "$vendor/bilicore-source-provenance.json"
 echo 'Prepared device ARM64 Bilicore and Opus libraries.'
 mkdir -p "$work/opus-host"
 tar -xzf "$work/opus.tar.gz" -C "$work/opus-host"

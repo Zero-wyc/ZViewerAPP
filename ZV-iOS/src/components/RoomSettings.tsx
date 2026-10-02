@@ -1,12 +1,16 @@
+import { useAppearance } from '@/state/appearance';
 import { BiliAccount } from './BiliAccount';
 import { useEffect, useState } from 'react';
 import { Alert, ScrollView, Switch, Text, View } from 'react-native';
 import { useSession } from '@/state/session';
 import { emitAck } from '@/lib/socket';
 import { messageFor } from '@/lib/server';
-import { RoomButton, RoomInput, ui } from './RoomUi';
+import { RoomButton, RoomInput, ui as baseUi } from './RoomUi';
 export type Viewer = { socketId: string; username?: string; userId?: number; role?: string };
 export function RoomSettings({ roomId, roomName, host, close, viewers }: { roomId: string; roomName: string; host: boolean; close: () => void; viewers: Viewer[] }) {
+  const theme = useAppearance();
+  const ui = theme.styles(baseUi);
+
   const { socket, request } = useSession(); const [name, setName] = useState(roomName); const [password, setPassword] = useState('');
   const [initialMax, setInitialMax] = useState<number | null>(null);
   const [max, setMax] = useState(''); const [approval, setApproval] = useState(false); const [approvalChanged, setApprovalChanged] = useState(false); const [passwordChanged, setPasswordChanged] = useState(false); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);

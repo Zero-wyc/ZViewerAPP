@@ -11,21 +11,21 @@ const VlcView: ComponentType<LibVlcPlayerViewProps> | null = Platform.OS === 'io
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- native capability detection must precede package loading.
   ? require('expo-libvlc-player').LibVlcPlayerView : null;
 
-export function useVlcVideo() {
+export function useVlcVideo(silent = false) {
   const [snapshot, setSnapshot] = useState<VlcSnapshot | null>(null);
   const player = useMemo(() => new VlcPlayer(setSnapshot, !!VlcView), []);
   useEffect(() => { player.connect(); return () => player.dispose(); }, [player]);
-  useEffect(() => { let active = true; void readPreference('zviewer-volume', { value: 100 }).then(value => { if (active) player.configure({ volume: value.value }); }); return () => { active = false; }; }, [player]);
+  useEffect(() => { if (silent) { player.configure({ volume: 0 }); return; } let active = true; void readPreference('zviewer-volume', { value: 100 }).then(value => { if (active) player.configure({ volume: value.value }); }); return () => { active = false; }; }, [player, silent]);
   return { player, snapshot };
 }
 
-export function VlcVideo({ video, style }: { video: ReturnType<typeof useVlcVideo>; style: StyleProp<ViewStyle> }) {
+export function VlcVideo({ video, style, background = false }: { video: ReturnType<typeof useVlcVideo>; style: StyleProp<ViewStyle>; background?: boolean }) {
   const { player, snapshot } = video;
   if (!snapshot || !VlcView) return null;
-  return <VlcSurface key={snapshot.id} player={player} snapshot={snapshot} style={style} />;
+  return <VlcSurface key={snapshot.id} player={player} snapshot={snapshot} style={style} background={background} />;
 }
 
-function VlcSurface({ player, snapshot, style }: { player: VlcPlayer; snapshot: VlcSnapshot; style: StyleProp<ViewStyle> }) {
+function VlcSurface({ player, snapshot, style, background }: { player: VlcPlayer; snapshot: VlcSnapshot; style: StyleProp<ViewStyle>; background: boolean }) {
   const ref = useRef<LibVlcPlayerViewRef | null>(null);
   useEffect(() => {
     player.attach(snapshot.id, ref.current);
@@ -42,10 +42,10 @@ function VlcSurface({ player, snapshot, style }: { player: VlcPlayer; snapshot: 
     volume={snapshot.settings.volume}
     delays={{ subtitle: Math.round(snapshot.settings.subtitleDelay * 1000000) }}
     autoplay={snapshot.autoplay}
-    pictureInPicture={true}
+    pictureInPicture={!background}
     time={Math.round(snapshot.initialTime * 1000)}
     rate={snapshot.rate}
-    contentFit="contain"
+    contentFit={background ? 'cover' : 'contain'}
     audioMixingMode="mixWithOthers"
     onFirstPlay={event => player.loaded(snapshot.id, event.media.length)}
     onTimeChanged={event => player.progress(snapshot.id, event.value)}
