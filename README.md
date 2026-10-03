@@ -10,11 +10,11 @@
 
 [下载安装包](https://github.com/Zero-wyc/ZViewerAPP/releases) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md)
 
-## 当前版本：1.5.0
+## 当前版本：Android/鸿蒙 1.5.0，iOS 源码/Release 1.5.1
 
-Android 和 HarmonyOS 同步 ZViewer 服务端 v4.2.1，使用同一套连接页、房间、全局背景与深浅主题。双端接入系统播放控件、封面与歌词，完善后台播放和自动旋转；一起听横屏背景铺满屏幕，曲绘避让摄像头，追加视频弹窗适配主题与窄屏。一起看使用中间双击播放/暂停、全屏左右双击各跳转15秒；一起听仅在视频全屏采用相同手势。Android/鸿蒙包版本为 1.5.0，versionCode 为 150；iOS 对齐 1.5.0 / build 15，2026-10-02 用户确认真机 UI 通过，授权构建未签名 IPA；iOS 附件已追加到现有 `client-v1.5.0` Release。
+Android 和 HarmonyOS 同步 ZViewer 服务端 v4.2.1，使用同一套连接页、房间、全局背景与深浅主题。双端接入系统播放控件、封面与歌词，完善后台播放和自动旋转；一起听横屏背景铺满屏幕，曲绘避让摄像头，追加视频弹窗适配主题与窄屏。一起看使用中间双击播放/暂停、全屏左右双击各跳转15秒；一起听仅在视频全屏采用相同手势。Android/鸿蒙包版本为 1.5.0，versionCode 为 150；iOS 源码与独立 `ios-v1.5.1` Release 版本为 1.5.1，本次未重新进行 Expo/EAS 构建，复用已修复的 1.5.0 / build 16 未签名 IPA；安装包内部版本仍为 1.5.0（16）。
 
-发布构建、源码清理边界与设备验收见 [双端维护与发布流程](docs/mobile-release-maintenance.md)，本版变更见 [1.5.0 发布记录](docs/releases/client-1.5.0.md)。
+发布构建、源码清理边界与设备验收见 [双端维护与发布流程](docs/mobile-release-maintenance.md)，双端变更见 [1.5.0 发布记录](docs/releases/client-1.5.0.md)，iOS 修复及包版本说明见 [1.5.1 发行说明](docs/releases/ios-1.5.1-release-notes.md)。
 
 Android 内置 B 站登录与 Go 播放代理，无需另外安装 CLI。扫码登录后，默认选择账号有权限、视频有实际轨道、设备支持的最高普通画质，自动排除 HDR 和杜比视界。最高画质播放失败时，有限恢复后优先回退 720p；没有 720p 则使用真实可用的更低档位。
 
@@ -24,7 +24,7 @@ Android 内置 B 站登录与 Go 播放代理，无需另外安装 CLI。扫码�
 
 **iOS 更新说明：** 由于 Expo Build 的额度限制，iOS 端更新与错误修复会出现延迟，不会与 Android/鸿蒙两端同步完成（除非有人有 Mac 帮忙编译）。
 
-iOS 包为未签名的 iPhone/iPad ARM64 Release，需要自行签名安装；内置 JS，无需运行 Metro。UI 验收不代表后台同步、音视频及语音所有真机场景通过。构建完成后的包与校验记录见 [iOS 1.5.0 发布记录](docs/releases/ios-1.5.0-15-unsigned.md)。
+iOS 包为未签名的 iPhone/iPad ARM64 Release，需要自行签名安装；内置 JS，无需运行 Metro。UI 验收不代表后台同步、音视频及语音所有真机场景通过。构建完成后的包与校验记录见 [iOS 维护文档](docs/ios-maintenance-architecture.md)与 [1.5.1 发行说明](docs/releases/ios-1.5.1-release-notes.md)。
 
 ## 安装与连接
 
@@ -134,7 +134,7 @@ cd ZV-Android
 | `ZV-Android/` | Capacitor Android 工程、Gradle 配置与 Java 原生插件 |
 | `native/bilicore/` | 从 ZViewerCLI 4.1.2 提取的 Go 核心、移动代理与测试 |
 | `docs/` | 实施方案与验收报告 |
-| `ZV-iOS/` | Expo/React Native iOS 1.5.0 与原生模块 |
+| `ZV-iOS/` | Expo/React Native iOS 源码 1.5.1 与原生模块（复用 1.5.0 / build 16 IPA） |
 | `ZV-HarmonyOS/` | HarmonyOS ArkTS/ArkWeb 原生宿主（已完成） |
 | `public/` | 图标、字体及音频工作线程资源 |
 | `vendor/mediabunny/` | 媒体库本地副本及 DTS / FLAC 补丁 |

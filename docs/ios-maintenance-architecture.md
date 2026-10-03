@@ -1,6 +1,6 @@
 # iOS 客户端维护架构
 
-更新日期：2026-10-03。指定修改和 Git 仓库为 `E:/Codex-bulid/ZViewer/ZViewer-client`，iOS 工程位于 `ZV-iOS/`。当前修复版本为 **1.5.0 / build 16**；IPA 构建状态及摘要见本文末尾的交付记录。旧 b12/b15 的继续开发、预览和验收记录保留历史含义，不能替代本版本验收。
+更新日期：2026-10-03。指定修改和 Git 仓库为 `E:/Codex-bulid/ZViewer/ZViewer-client`，iOS 工程位于 `ZV-iOS/`。当前 iOS 源码及 Release 版本为 **1.5.1**；本次未重新触发 Expo/EAS 构建，安装包复用 **1.5.0 / build 16**。IPA 内部版本仍为 1.5.0，不能将 Release 版本称为安装包内部版本；构建状态及摘要见本文末尾的交付记录。旧 b12/b15 的继续开发、预览和验收记录保留历史含义，不能替代本版本验收。
 
 ## 1. 工程与运行边界
 
@@ -97,7 +97,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-ios-unsigned.p
 python scripts/inspect-unsigned-ipa.py <IPA绝对路径>
 ```
 
-离线检查要求 iOS 设备 Mach-O、VLC/原生桥接/系统媒体、共享来源摘要、依赖许可证和内置 JS；拒绝误交模拟器包或带意外签名/描述文件的包。IPA 需用户自行签名后安装。本任务不发布 GitHub Release。每次构建交付后只在指定 `ZViewer-client` 仓库本地 commit，保留其他未跟踪资产。
+离线检查要求 iOS 设备 Mach-O、VLC/原生桥接/系统媒体、共享来源摘要、依赖许可证和内置 JS；拒绝误交模拟器包或带意外签名/描述文件的包。IPA 需用户自行签名后安装。本次 iOS 1.5.1 发布见 [发行说明](releases/ios-1.5.1-release-notes.md)；复用既有 build 16 IPA，不重新构建。每次构建交付后只在指定 `ZViewer-client` 仓库本地 commit，保留其他未跟踪资产。
 
 ## 8. 2026-10-03 截图反馈对应修复
 
@@ -129,3 +129,10 @@ EAS：[1.5.0 / build 16](https://expo.dev/accounts/fredqin2006/projects/zviewer-
 安装需要自行签名；本轮未进行 iOS 真机视觉/音频复验，特别是 ASS 特效与边缘文本、原生音轨/字幕高亮、跨端真实听歌回执仍需按上述真机步骤复测。
 
 本轮记录：[build 16 验证证据](releases/ios-1.5.0-16-validation.json)。既有 build 15 的发布/安装信息见 [build 15 交付记录](releases/ios-1.5.0-15-unsigned.md)。Expo API 与构建方式按 [SDK 57 文档](https://docs.expo.dev/versions/v57.0.0/)、[config mods](https://docs.expo.dev/config-plugins/mods/) 和 [EAS Build](https://docs.expo.dev/build/introduction/) 核对。
+
+## 9. iOS 1.5.1 发布（2026-10-03）
+
+- 独立 iOS Release/标签：[ios-v1.5.1](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/ios-v1.5.1)。源码 app.json、package.json 和 package-lock.json 版本同步为 1.5.1；构建号保留 16，本轮没有构建新的 IPA。
+- 发布附件保留真实安装包文件名 `ZViewer-iOS-1.5.0-build16-unsigned.ipa`，内部版本 **1.5.0 / 16**，SHA-256 与上节一致。Release 说明在开头明确版本差异；附件仍需自行签名。
+- 源码 ZIP 由发布标签对应的已提交源码生成，包含本轮 iOS 修复、维护文档及 vendor/mediabunny，排除未跟踪模板文件、构建缓存和私有凭据。
+- 附件包含 IPA、源码 ZIP、原始 build 16 IPA 检查/验证 JSON 和本次发布 SHA256SUMS。使用既有 74 单测、18 Web 检查及真实 MKV 辅助验证证据；不新增真机验收结论。

@@ -1,16 +1,16 @@
 # ZViewer iOS
 
-独立 Expo SDK 57 / React Native 工程，当前 **1.5.0 / b15，真机 UI 已通过，未签名 IPA 已构建**。对照 client-v1.5.0 固定参考迁移产品行为，与隔离的官方服务端 v4.2.1 联调。保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，WebRTC 仅用于既有共享观看接收。
+独立 Expo SDK 57 / React Native 工程，当前 **源码/Release 1.5.1，复用内部版本 1.5.0 / build 16 的未签名 IPA，本次未重新进行 Expo/EAS 构建**。对照 client-v1.5.0 固定参考迁移产品行为，与隔离的官方服务端 v4.2.1 联调。保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，WebRTC 仅用于既有共享观看接收。
 
-按用户要求集中实现功能后交用户自行签名和验收。**2026-10-02 用户确认 iOS 真机 UI 检测通过，并授权构建与发布。音视频、语音和后台功能的完整真机矩阵仍待验收**。功能、构建和逐项限制见 [b15 预览记录](../docs/releases/ios-1.5.0-15-preview.md)；历史 b12 证据保留在 [原计划](../docs/ios-continuation-plan.md)。
+按用户要求集中实现功能后交用户自行签名和验收。**2026-10-02 用户确认此前 b15 的 iOS 真机 UI 检测通过。build 16 的轨道选择与 ASS 原生显示，以及音视频、语音和后台功能的完整真机矩阵仍待验收**。功能、构建和逐项限制见 [b15 预览记录](../docs/releases/ios-1.5.0-15-preview.md)；历史 b12 证据保留在 [原计划](../docs/ios-continuation-plan.md)。
 
 b14 修复开屏原生纵向布局增长、会话恢复等待和退出后旧请求回写，并校验损坏外观偏好；原 b13 功能继续保留。具体根因、回归与当前包见 [开屏复核](../docs/ios-openscreen-fix-summary.md)。
 
-最新 [b15 功能/布局补充](../docs/releases/ios-1.5.0-15-followup-preview.md)：整份歌单播放/追加、连续私人漫游、在线弹幕搜索弹窗和双列集名、横竖展开菜单、音乐首页与日推日期。用户已完成真机 UI 复验，本轮提交一次 unsigned-device EAS Build；不提交 OTA 更新，原 I13 限制保留。
+历史 [b15 功能/布局补充](../docs/releases/ios-1.5.0-15-followup-preview.md)：整份歌单播放/追加、连续私人漫游、在线弹幕搜索弹窗和双列集名、横竖展开菜单、音乐首页与日推日期。当时用户完成真机 UI 复验并提交 unsigned-device EAS Build；原 I13 限制保留。
 
 **更新说明：** 由于 Expo Build 的额度限制，iOS 端更新与错误修复会出现延迟，不会与 Android/鸿蒙两端同步完成（除非有人有 Mac 帮忙编译）。
 
-正式包与校验见 [1.5.0 / b15 交付记录](../docs/releases/ios-1.5.0-15-unsigned.md)；IPA、检查 JSON 与源码 ZIP 已追加到现有 `client-v1.5.0` Release，不另建 iOS 标签。
+当前发布见 [iOS 1.5.1 发行说明](../docs/releases/ios-1.5.1-release-notes.md)与[维护文档](../docs/ios-maintenance-architecture.md)，使用独立标签 `ios-v1.5.1`。本轮修复播放设置/字幕/弹幕分页、轨道选中提示、音乐同步确认重复、B站分享文本解析和字幕重复渲染。历史 [1.5.0 / b15 交付记录](../docs/releases/ios-1.5.0-15-unsigned.md)及其 `client-v1.5.0` 附件保留。
 
 ## b13 功能基线
 
@@ -27,7 +27,7 @@ b14 修复开屏原生纵向布局增长、会话恢复等待和退出后旧请�
 
 ## 预览和构建
 
-用户已在 Expo Go 完成真机 UI 检测并确认通过，本轮按授权构建 unsigned-device IPA。Expo Go 可预览图片、expo-blur 和 RN 界面；VLC/本机 B站/语音仍需安装包测试。以后先完成界面与本地检查，再按维护者授权提交云构建。下面是复现本次构建的操作。
+此前用户已在 Expo Go 完成 b15 真机 UI 检测并确认通过；最新修复的 build 16 IPA 已构建和检查。1.5.1 发布复用该包，本次不运行下列构建命令。Expo Go 可预览图片、expo-blur 和 RN 界面；VLC/本机 B站/语音仍需安装包测试。以后先完成界面与本地检查，再按维护者授权提交云构建。下面保留后续需要重新构建时的操作。
 
 ```powershell
 cd ZV-iOS
@@ -37,7 +37,7 @@ cd ZV-iOS
 
 上传脚本先规范 Bash 为 LF，再验证 9 个共享 Go/依赖/许可证文件与参考 `1ca96fd46963ff5cb89beb6c3d31e1d7b9f501fc` 一致、生成来源摘要。EAS archive 限定本工程；workflow 下载校验固定 Go/Opus、重建 ARM64 vendors、host Opus smoke、CNG/Pods、iphoneos Release 和 unsigned IPA。
 
-本次包：`release-assets/ZViewer-1.5.0-b15-unsigned.ipa`，构建及校验状态见交付记录，不提交 Git；内置 JS，无需 Metro，**用户自行签名后安装**。Expo Go 不含 VLC/Go/语音桥接。当前仅 unsigned-device 准备 vendors，development/simulator 尚需相应流程。
+本次复用包（内部版本 1.5.0 / build 16）：`release-assets/ZViewer-iOS-1.5.0-build16-unsigned.ipa`，构建及校验状态见维护文档，不提交 Git；内置 JS，无需 Metro，**用户自行签名后安装**。Expo Go 不含 VLC/Go/语音桥接。当前仅 unsigned-device 准备 vendors，development/simulator 尚需相应流程。
 
 ```sh
 npm ci
@@ -47,7 +47,7 @@ npm run typecheck
 npx expo-doctor
 npx expo export --platform ios
 # 后续 IPA 构建完成后再检查：
-python scripts/inspect-unsigned-ipa.py release-assets/ZViewer-1.5.0-b15-unsigned.ipa
+python scripts/inspect-unsigned-ipa.py release-assets/ZViewer-iOS-1.5.0-build16-unsigned.ipa
 ```
 
 b14 的 59 项单测、lint/typecheck、iOS/Web 导出、37 项 Yoga 布局记录（含旧版复现）、13 项真实 Provider 的模拟原生端口回归、20 项开屏 Web 和 43 项既有 Web 房间布局复验通过。Yoga 使用独立 3.2.1 WASM，并启用与 RN Fabric 默认一致的 ErrataAll；这些检查不能替代 UIKit 真机。Doctor 20/21：WebRTC New Architecture 未测试、私有本地模块无 Directory 元数据，未屏蔽。Go 两包可编译但源目录无测试，不等于 CDN 回归。

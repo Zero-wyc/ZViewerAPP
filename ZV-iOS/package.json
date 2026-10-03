@@ -1,7 +1,7 @@
 {
   "name": "zv-ios",
   "main": "expo-router/entry",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "dependencies": {
     "@config-plugins/react-native-webrtc": "^15.0.2",
     "@expo/ui": "~57.0.21",
