@@ -1,6 +1,22 @@
 # Android 应用维护架构整理
 
-更新日期：2026-10-02
+更新日期：2026-10-04
+
+## 2026-10-04：1.6.0 / 160 新服务端适配交付
+
+当前双端开发交付版本为 **1.6.0 / 160**，目标上游 `9827929088a31d7cb1d6bf7ceac096df640a2416`（v4.3.7 后 4 个提交）；已发布的 1.5.0 和下方历史验收记录仍按原版本解释。完整构建与验收边界见 [交付记录](releases/client-1.6.0-adaptation.md)。本轮不修改 iOS 工程。
+
+| 功能 | 维护入口与约束 |
+| --- | --- |
+| LiveKit 语音 | `modules/voice-chat/hooks/useVoiceChat.ts` 使用 `/api/voice/token/mute/kick`，使用返回 URL 和 identity；保留主业务 Socket、移动持久面板、原生麦克风权限和音频路由。重连中显示媒体中断，自动播放被阻止时提供恢复按钮。 |
+| 语音生命周期 | token/权限/connect/publish 用 generation 与取消控制；离房、切服、失败、被踢统一停止原始与处理后的音轨，关闭 AudioContext 并移除 audio。管理员禁言与用户主动闭麦分开保存。 |
+| 字幕与媒体 | `modules/subtitles/pgs-decoder.ts`、`mkv-embedded.ts`、`useSubtitles.ts`、`SubtitleOverlay.tsx` 完成有序 PGS 解码与画布定位；保留设备文本字幕偏好。`patches/playsvideo+0.4.7.patch` 由 postinstall 重现视频 cue/AAC 修复。 |
+| 本地弹幕 | `modules/danmaku/localImport.ts`、`DanmakuTrackCard.tsx` 支持 XML/JSON，5 MiB 输入与 20000 条限制；房间 JSON 请求不超过服务端 1 MiB 限制，失败回滚并反馈，不误报保存成功。Android 使用系统文档选择器，无全盘存储权限。 |
+| 网易云账号 | `useNcmLogin.ts`、`MusicCookieModal.tsx`、`MusicTopNav.tsx` 新增 Cookie 登录/主动复制；游客拒绝，业务 401 不触发会话刷新，关闭后清空临时输入。扫码和 B 站本机凭据体系保留。 |
+
+Android 调试 APK 已在 Medium Phone 模拟器安装。与隔离新服务端、鸿蒙和桌面 SDK 三方联调，远端解码电平非零、桌面接收到 Android 上传媒体字节；管理静音/解禁/踢出、收起面板、本地弹幕保存/观众拒绝与回滚、Cookie 错误/空值和弹窗布局均通过。系统选择器实际返回带中文内容的 XML；H.264/AAC 测试片解码、PGS 定位和现有 639 MB MKV 的 467 条 ASS 提取通过。18 项自动回归通过。
+
+本包是 `com.zviewer.mobile.debug` 调试签名验收包，尚未生成正式签名发布版。真机可听性、蓝牙/耳机、首次拒绝权限后重试、后台锁屏通话、生产代理 UDP/TURN，以及真实长片多次 seek/字幕跨端广播仍需独立验收；不得将模拟器媒体统计当成人工听音结论。旧 v4.2.1 语音协议不受此版本支持。
 
 本轮 iOS 对齐补充：以共享 MusicHomePage/MusicDailyPage/MusicFmPage/DanmakuSearchModal 为参考，新增整份歌单替换或追加、连续漫游、来源下拉与双列弹幕选集、横竖菜单切换、音乐首页卡及日推历史日期。仅 iOS RN 业务与维护资料修改；本端原生和共享运行代码未改、未重新发布。69 项单测与隔离 v4.2.1 的 Web/协议检查通过，真机和完整权限差异保留；没有 EAS 云构建。详见 [预览补充](releases/ios-1.5.0-15-followup-preview.md)。
 
@@ -10,8 +26,8 @@
 
 | 客户端 | 当前状态 | 维护结论 |
 | --- | --- | --- |
-| Android | 已完成开发，当前发布版本 1.5.0（versionCode 150） | 以后优先在共享前端实现产品行为，再同步 Android 原生宿主和发布包 |
-| HarmonyOS | 已完成开发并已有 ArkWeb/HAP 发布线 | 与 Android 共享网页业务，但原生桥接、B 站代理和打包链路独立维护 |
+| Android | 当前开发交付 1.6.0 / 160；最近已发布 1.5.0 / 150 | 优先在共享前端实现，再同步原生宿主；1.6.0 真机及正式签名待验收 |
+| HarmonyOS | 当前开发交付 1.6.0 / 160，ArkWeb 未签名 HAP | 共享网页业务，原生桥接、B 站代理和打包独立维护；真机及正式签名待验收 |
 | iOS | 1.5.0 / b15，用户已确认真机 UI 检测通过，授权未签名 IPA 构建及单独 iOS Release | RN + VLC；I13 与完整音视频/语音验收边界见 [iOS 交付记录](releases/ios-1.5.0-15-unsigned.md) |
 
 当前 Android 的发布入口是 `ZV-Android/`，网页入口是仓库根目录的 `src/`。`ZV-HarmonyOS/` 不应复制 Android Gradle 或 Java 代码；它通过 ArkWeb 加载同一份 `dist/`。

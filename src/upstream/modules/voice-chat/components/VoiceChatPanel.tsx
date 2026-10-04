@@ -53,11 +53,13 @@ export function VoiceChatPanel({
     members,
     globalVolume,
     peerVolumes,
-    peerLatencies,
+    selfId,
+    audioBlocked,
+    resumeAudio,
     micVolume,
     monitorEnabled,
     audioLevels,
-    voiceMutedBySocket,
+    voiceMutedIds,
     join,
     leave,
     toggleMic,
@@ -67,7 +69,7 @@ export function VoiceChatPanel({
     setMicVolume,
     muteVoiceMember,
     kickVoiceMember,
-  } = useVoiceChat({ socket, roomId, username })
+  } = useVoiceChat({ roomId, username })
 
   useEffect(() => { onConnectionChange?.(joined) }, [joined, onConnectionChange])
   useEffect(() => { onAudioSessionChange?.(joining || joined) }, [joining, joined, onAudioSessionChange])
@@ -76,14 +78,13 @@ export function VoiceChatPanel({
   if (!roomId) return null
 
   const memberCount = members.length
-  const isMe = (socketId: string) => socketId === socket?.id
+  const isMe = (socketId: string) => socketId === selfId
   /** 成员显示名：登录用户为真实用户名；游客（userId=0）加短后缀消歧义 */
   const displayName = (member: VoiceMember, me: boolean) => {
     if (me) return '我'
     const name = member.username?.trim()
-    if (name && member.userId > 0) return name
     if (name && name !== '游客' && name !== 'guest') return name
-    return `游客 ${member.socketId.slice(0, 4).toUpperCase()}`
+    return `游客 ${member.id.replace(/^guest:/, '').slice(0, 4).toUpperCase()}`
   }
 
   /** 展开态面板内容（悬浮模式与嵌入模式共用；嵌入模式在工具坞内纵向堆叠，
@@ -181,14 +182,14 @@ export function VoiceChatPanel({
       {joined && memberCount > 0 && (
         <div className="mb-2 flex-1 space-y-1.5 overflow-y-auto pr-1">
           {members.map((member) => {
-            const me = isMe(member.socketId)
-            const peerVolume = peerVolumes.get(member.socketId) ?? 1
-            const levelKey = me ? 'self' : member.socketId
+            const me = isMe(member.id)
+            const peerVolume = peerVolumes.get(member.id) ?? 1
+            const levelKey = me ? 'self' : member.id
             const audioLevel = audioLevels.get(levelKey) ?? 0
-            const memberMuted = voiceMutedBySocket.has(member.socketId)
+            const memberMuted = voiceMutedIds.has(member.id)
             return (
               <div
-                key={member.socketId}
+                key={member.id}
                 className="rounded-[var(--md-sys-radius-small)] bg-[var(--glass-bg)] px-2 py-1.5"
               >
                 <div className="flex items-center gap-2">
@@ -240,13 +241,6 @@ export function VoiceChatPanel({
                       }}
                     />
                   </div>
-                  {!me && (
-                    <span className="text-[10px] tabular-nums text-[var(--md-sys-color-on-surface-variant)]">
-                      {peerLatencies.has(member.socketId)
-                        ? `${peerLatencies.get(member.socketId)}ms`
-                        : '-'}
-                    </span>
-                  )}
                   {me && !micEnabled && (
                     <MicOff className="h-3 w-3 text-[var(--md-sys-color-error)]" />
                   )}
@@ -254,12 +248,12 @@ export function VoiceChatPanel({
                     <button
                       onClick={() =>
                         setEditingPeer((prev) =>
-                          prev === member.socketId ? null : member.socketId
+                          prev === member.id ? null : member.id
                         )
                       }
                       className={cn(
                         'rounded-full p-1 transition-colors',
-                        editingPeer === member.socketId
+                        editingPeer === member.id
                           ? 'bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)]'
                           : 'text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container-highest)]'
                       )}
@@ -273,7 +267,7 @@ export function VoiceChatPanel({
                       <button
                         onClick={() => {
                           void muteVoiceMember(
-                            member.socketId,
+                            member.id,
                             !memberMuted
                           ).then((res) => {
                             if (!res.success && res.message) {
@@ -292,7 +286,7 @@ export function VoiceChatPanel({
                       </button>
                       <button
                         onClick={() => {
-                          void kickVoiceMember(member.socketId).then((res) => {
+                          void kickVoiceMember(member.id).then((res) => {
                             if (res.success) {
                               message.success(
                                 `已将 ${displayName(member, false)} 移出语音`
@@ -310,7 +304,7 @@ export function VoiceChatPanel({
                     </>
                   )}
                 </div>
-                {!me && editingPeer === member.socketId && (
+                {!me && editingPeer === member.id && (
                   <div className="mt-2">
                     <Slider
                       size="sm"
@@ -320,7 +314,7 @@ export function VoiceChatPanel({
                       max={100}
                       step={1}
                       valueFormatter={(v) => `${v}%`}
-                      onChange={(v) => setPeerVolume(member.socketId, v / 100)}
+                      onChange={(v) => setPeerVolume(member.id, v / 100)}
                     />
                   </div>
                 )}
@@ -331,6 +325,9 @@ export function VoiceChatPanel({
       )}
 
       {/* 未加入提示 */}
+      {joined && audioBlocked && (
+        <Button className="min-h-11 w-full" onClick={() => void resumeAudio()}>点击恢复语音声音</Button>
+      )}
       {!joined && !joining && (
         <div className="mb-3 text-center text-xs text-[var(--md-sys-color-on-surface-variant)]">
           点击加入即可与房间内其他观众语音交流

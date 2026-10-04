@@ -293,6 +293,10 @@ export const useDanmakuStore = create<DanmakuState>()(
 
       addTrack: async (trackId, label, source, items, offset = 0) => {
         const roomId = get().roomId
+        const previous = get().tracks.find(t => t.trackId === trackId)
+        if (roomId && new TextEncoder().encode(JSON.stringify({ trackId, label, source, items, offset, hidden: false })).length >= 1024 * 1024) {
+          throw new Error('弹幕轨道超过服务端 1 MB 请求限制，请减少条数或文本长度')
+        }
         // 先乐观更新本地状态，让观众/房主立即看到效果
         const next: DanmakuTrack = {
           trackId,
@@ -318,6 +322,7 @@ export const useDanmakuStore = create<DanmakuState>()(
             `/api/rooms/${encodeURIComponent(roomId)}/danmaku-tracks`,
             {
               method: 'POST',
+              refreshAuth: 'unauthorized',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 trackId,
@@ -333,11 +338,11 @@ export const useDanmakuStore = create<DanmakuState>()(
             success: boolean
             message?: string
           }>(res, { success: false })
-          if (!data.success) {
-            console.error('[danmakuStore] add track failed:', data.message)
-          }
+          if (!res.ok || !data.success) throw new Error(data.message || '房间保存失败，请重试')
         } catch (err) {
-          console.error('[danmakuStore] add track error:', err)
+          // Roll back only this optimistic track, never a new room or a newer edit.
+          if (get().roomId === roomId) set(state => ({ tracks: state.tracks.flatMap(t => t !== next ? [t] : previous ? [previous] : []) }))
+          throw err
         }
       },
 

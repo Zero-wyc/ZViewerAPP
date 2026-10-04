@@ -1,6 +1,7 @@
 import { abilityAccessCtrl, common } from '@kit.AbilityKit';
 import { webview } from '@kit.ArkWeb';
 import { window } from '@kit.ArkUI';
+import { picker } from '@kit.CoreFileKit';
 import { BilibiliLocalProxy } from '../services/BilibiliLocalProxy';
 import { DEBUG } from 'BuildProfile';
 import { NativeMediaSession, MediaSessionState } from '../services/NativeMediaSession';
@@ -128,6 +129,7 @@ struct Index {
   private controller: webview.WebviewController = new webview.WebviewController();
   private host: HarmonyHost = new HarmonyHost(getContext(this) as common.UIAbilityContext, this.controller);
   private mainWindow: window.Window | null = null;
+  private pendingFileSelection: FileSelectorResult | null = null;
   private areaChanged = (): void => { this.syncSafeArea(); };
 
   private syncSafeArea(): void {
@@ -157,6 +159,8 @@ struct Index {
   }
 
   aboutToDisappear(): void {
+    this.pendingFileSelection?.handleFileList([]);
+    this.pendingFileSelection = null;
     this.host.dispose();
     this.mainWindow?.off('avoidAreaChange', this.areaChanged);
     this.mainWindow?.off('windowSizeChange', this.areaChanged);
@@ -194,6 +198,31 @@ struct Index {
     return true;
   }
 
+  private selectDanmakuFile(event: OnShowFileSelectorEvent): boolean {
+    const accepted = event.fileSelector.getAcceptType();
+    if (event.fileSelector.getMode() !== FileSelectorMode.FileOpenMode ||
+      !accepted.some((type: string) => type === '.xml' || type === '.json' ||
+        type === 'application/xml' || type === 'text/xml' || type === 'application/json')) return false;
+    // Only the document import gets a host callback; other file inputs retain ArkWeb defaults.
+    if (this.pendingFileSelection !== null) { event.result.handleFileList([]); return true; }
+    const result = event.result;
+    this.pendingFileSelection = result;
+    const options = new picker.DocumentSelectOptions();
+    options.maxSelectNumber = 1;
+    options.fileSuffixFilters = ['弹幕文件|.xml,.json'];
+    const documents = new picker.DocumentViewPicker(getContext(this) as common.UIAbilityContext);
+    documents.select(options).then((uris: Array<string>) => {
+      if (this.pendingFileSelection !== result) return;
+      this.pendingFileSelection = null;
+      result.handleFileList(uris.slice(0, 1));
+    }).catch(() => {
+      if (this.pendingFileSelection !== result) return;
+      this.pendingFileSelection = null;
+      result.handleFileList([]);
+    });
+    return true;
+  }
+
   build() {
     Column() {
       Web({ src: LOCAL_PAGE, controller: this.controller })
@@ -213,6 +242,7 @@ struct Index {
         .onInterceptRequest((event) => {
           return this.localResource(event.request.getRequestUrl());
         })
+        .onShowFileSelector((event) => this.selectDanmakuFile(event))
         .onPermissionRequest((event) => {
           const request = event.request;
           const resources = request.getAccessibleResource();

@@ -1,6 +1,6 @@
 {
   "name": "zviewer-client",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,7 +10,10 @@
     "harmony:web": "npm run build -- --base=./ && node ZV-HarmonyOS/scripts/sync-web.mjs",
     "preview": "vite preview",
     "android:sync": "npm run build -- --base=./ && cap sync android",
-    "android:open": "cap open android"
+    "android:open": "cap open android",
+    "postinstall": "patch-package --error-on-fail",
+    "test:media": "node --experimental-specifier-resolution=node --test scripts/media-regression.test.mjs",
+    "test:adaptation": "node --test scripts/voice-adaptation.test.mjs scripts/danmaku-import.test.mjs scripts/music-cookie.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
@@ -28,14 +31,15 @@
     "hls.js": "^1.6.16",
     "lucide-react": "^0.544.0",
     "mediabunny": "file:vendor/mediabunny",
-    "playsvideo": "^0.4.7",
+    "playsvideo": "0.4.7",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.4",
     "socket.io-client": "^4.8.3",
     "tailwind-merge": "^3.6.0",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.14",
+    "livekit-client": "^2.22.3"
   },
   "devDependencies": {
     "@babel/parser": "^7.29.9",
@@ -49,6 +53,7 @@
     "socket.io": "^4.8.4",
     "tailwindcss": "^3.4.19",
     "typescript": "^7.0.2",
-    "vite": "^8.3.1"
+    "vite": "^8.3.1",
+    "patch-package": "^8.0.0"
   }
 }

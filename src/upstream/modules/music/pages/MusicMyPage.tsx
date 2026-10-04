@@ -9,7 +9,7 @@
  * 滚动，左栏完全静态。
  *
  * 左侧栏（Hydrogen LibraryType/LibraryList 复刻）：
- * - 双层 Tab（高 50px）：一级 4 项「歌单 / 收藏 / 下载管理 / 本地管理」，
+ * - 双层 Tab（高 50px）：一级 2 项「歌单 / 收藏」，
  *   16px 加粗字，激活变黑 + 文字下方 3px 黑色条（width 展开动画），
  *   底部 0.5px 细分隔线；二级子 Tab 12px 随一级切换
  * - 列表条目：50px 方图（0.5px 边框）+ 15px 名称 + 11px 副信息，
@@ -60,14 +60,12 @@ export interface MusicMyPageProps {
 }
 
 /** 一级 Tab（Hydrogen type-one） */
-const TYPE_ONE = ['歌单', '收藏', '下载管理', '本地管理'] as const
+const TYPE_ONE = ['歌单', '收藏'] as const
 
 /** 二级子 Tab（Hydrogen type-two，随一级切换） */
 const TYPE_TWO: Record<number, string[]> = {
   0: ['我创建的', '我收藏的'],
   1: ['专辑', '歌手', 'MV', '电台'],
-  2: ['正在下载', '下载完成'],
-  3: ['全部', '专辑', '歌手'],
 }
 
 /** 详情弹窗 metro 展开动画 + 四角白点闪烁（Hydrogen introduce-detail 同款） */
@@ -1428,11 +1426,7 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
               ))
             ))}
 
-          {/* ===== 下载管理（Web 环境不支持 Electron 下载队列） ===== */}
-          {listType1 === 2 && <MyMusicUnsupported type2={listType2} />}
 
-          {/* ===== 本地管理（Web 环境不支持本地目录扫描） ===== */}
-          {listType1 === 3 && <MyMusicUnsupported type2={listType2} />}
         </div>
       </div>
 
@@ -1590,24 +1584,6 @@ function MyMusicEmpty() {
       </div>
       <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
         从左侧选择歌单 / 专辑 / 歌手查看详情
-      </p>
-    </div>
-  )
-}
-
-/** 下载管理 / 本地管理空态（Hydrogen 依赖 Electron IPC，Web 环境提示） */
-function MyMusicUnsupported({ type2 }: { type2: number }) {
-  const isDownload = type2 === 0
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center">
-      <ListMusic
-        className="h-6 w-6 opacity-40"
-        style={{ color: 'var(--md-sys-color-on-surface-variant)' }}
-      />
-      <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-        {isDownload
-          ? '下载管理依赖桌面端下载队列，ZViewer Web 环境暂不支持'
-          : '本地音乐管理依赖桌面端目录扫描，ZViewer Web 环境暂不支持'}
       </p>
     </div>
   )

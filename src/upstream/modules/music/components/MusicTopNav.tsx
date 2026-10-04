@@ -55,6 +55,7 @@ import {
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import { cn } from '@/lib/utils'
 import { ncmVipLabel } from '../hooks/useNcmLogin'
+import { MusicCookieModal } from './MusicCookieModal'
 import { isGlobalAppearanceRuntime } from '../../../../platform/runtime'
 
 /** 菜单内「房间模式」分组的注入状态（由 MusicAppShell 透传） */
@@ -128,6 +129,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
   /** 搜索框本地输入（回车才写入 store，避免每次击键切页） */
   const [keyword, setKeyword] = useState('')
   /** 账户菜单展开态 */
+  const [cookieModalOpen, setCookieModalOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   /** 顶部导航折叠态（网易云四分区合并为单按钮；持久化设置） */
   const savedNavCollapsed = useMusicSettingsStore((s) => s.musicNavCollapsed)
@@ -1116,6 +1118,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
               <Settings className="h-4 w-4 text-[var(--md-sys-color-on-surface-variant)]" />
               设置
             </button>
+            <button type="button" className="min-h-11 w-full rounded px-2.5 text-left text-sm hover:bg-[var(--md-sys-color-surface-container-highest)]" onClick={() => { setMenuOpen(false); setCookieModalOpen(true) }}>网易云 Cookie 登录 / 复制</button>
             {/* 退出登录 / 账号登录 */}
             {loginStatus.loggedIn ? (
               <button
@@ -1174,6 +1177,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
           </div>
         )}
       </div>
+      {cookieModalOpen && <MusicCookieModal onClose={() => setCookieModalOpen(false)} />}
     </header>
   )
 }

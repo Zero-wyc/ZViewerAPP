@@ -3,6 +3,7 @@ import { apiGet, apiPost } from '@/lib/api'
 import { message } from '@/components/ui/message'
 import { useMusicStore } from '../store'
 import type { NcmLoginStatus } from '../types'
+import { useAuthStore } from '@/store/authStore'
 
 /** 二维码扫码状态轮询间隔（毫秒） */
 const QR_POLL_INTERVAL_MS = 1500
@@ -63,6 +64,8 @@ export interface UseNcmLoginResult {
   fetchLoginStatus: () => Promise<void>
   /** 退出登录（/api/music/logout）并清空本地登录态 */
   logout: () => Promise<void>
+  cookieLogin: (cookie: string) => Promise<void>
+  readCookie: () => Promise<string>
 }
 
 /**
@@ -149,6 +152,23 @@ export function useNcmLogin(): UseNcmLoginResult {
     } catch (err) {
       console.error('[useNcmLogin] 查询登录状态失败:', err)
     }
+  }, [])
+
+  const requireAccount = () => {
+    const user = useAuthStore.getState().user
+    if (!user || user.role === 'guest') throw new Error('请先登录 ZViewer 账号，游客不能管理网易云 Cookie')
+  }
+  const cookieLogin = useCallback(async (cookie: string) => {
+    requireAccount()
+    const { data, ok, status } = await apiPost<{ success?: boolean; message?: string }>('/api/music/ncm-cookie-login', { cookie: cookie.trim() }, { refreshAuth: 'never' })
+    if (!ok || !data?.success) throw new Error(status === 401 ? '请先登录 ZViewer 账号' : data?.message || '网易云 Cookie 无效或已过期')
+    await fetchLoginStatus()
+  }, [fetchLoginStatus])
+  const readCookie = useCallback(async () => {
+    requireAccount()
+    const { data, ok, status } = await apiGet<{ success?: boolean; cookie?: string; message?: string }>('/api/music/ncm-cookie', { refreshAuth: 'never' })
+    if (!ok || !data?.success) throw new Error(status === 401 ? '请先登录 ZViewer 账号' : data?.message || '读取网易云 Cookie 失败')
+    return data.cookie || ''
   }, [])
 
   /** 退出登录（/api/music/logout）并清空本地登录态 */
@@ -279,5 +299,7 @@ export function useNcmLogin(): UseNcmLoginResult {
     loginStatus,
     fetchLoginStatus,
     logout,
+    cookieLogin,
+    readCookie,
   }
 }

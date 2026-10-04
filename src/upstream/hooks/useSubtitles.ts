@@ -448,7 +448,7 @@ export function useSubtitles({ roomId, isHost }: UseSubtitlesOptions) {
           signal,
           onChunk: (chunk) => {
             if (embeddedEpochRef.current !== epoch) return
-            const cues = parseSubtitle(chunk.text, chunk.format)
+            const cues = chunk.cues ?? parseSubtitle(chunk.text, chunk.format)
             if (cues.length === 0) return
             setState((prev) => {
               if (trackIndex < 0) {
@@ -462,9 +462,17 @@ export function useSubtitles({ roomId, isHost }: UseSubtitlesOptions) {
                   // 时间戳去重：观众本地提取与房主广播全量数据并存时，
                   // 同一轨的 cue（start 相同）只保留一份，避免重复字幕
                   const starts = new Set(
-                    prev.subtitleTracks[existing]!.cues.map((c) => c.start)
+                    prev.subtitleTracks[existing]!.cues.map(
+                      (c) =>
+                        `${c.start}:${c.bitmap?.x ?? ''}:${c.bitmap?.y ?? ''}`
+                    )
                   )
-                  const deduped = cues.filter((c) => !starts.has(c.start))
+                  const deduped = cues.filter(
+                    (c) =>
+                      !starts.has(
+                        `${c.start}:${c.bitmap?.x ?? ''}:${c.bitmap?.y ?? ''}`
+                      )
+                  )
                   if (deduped.length === 0) return prev
                   return {
                     ...prev,
@@ -507,6 +515,10 @@ export function useSubtitles({ roomId, isHost }: UseSubtitlesOptions) {
           },
         }).then(
           () => {
+            if (embeddedEpochRef.current !== epoch) {
+              if (!settled) reject(new Error('字幕提取已取消'))
+              return
+            }
             if (!settled) {
               settled = true
               reject(new Error('字幕轨为空'))
@@ -522,6 +534,10 @@ export function useSubtitles({ roomId, isHost }: UseSubtitlesOptions) {
             })
           },
           (err) => {
+            if (embeddedEpochRef.current !== epoch) {
+              if (!settled) reject(err)
+              return
+            }
             if (!settled) {
               settled = true
               reject(err)
@@ -542,7 +558,7 @@ export function useSubtitles({ roomId, isHost }: UseSubtitlesOptions) {
         )
       })
     },
-    [] // setState 稳定；broadcast 不在流式过程中使用（完成时快照）
+    [broadcast]
   )
 
   /**
@@ -619,9 +635,9 @@ export function useSubtitles({ roomId, isHost }: UseSubtitlesOptions) {
           // 首段已到达、字幕轨已生效，后台继续补齐，无需等待
           return finish(started)
         }
-        // 一条都没提出来（如非 MKV 容器 / 全部为位图字幕轨）
+        // 一条都没提出来（非 MKV 容器 / 不支持的编码）
         console.info(
-          '[useSubtitles] 前端提取内嵌字幕不可用（非 MKV / 位图字幕轨 / CORS 拒绝），跳过自动加载'
+          '[useSubtitles] 前端提取内嵌字幕不可用（非 MKV / 不支持的编码 / CORS 拒绝），跳过自动加载'
         )
         return finish(0)
       } catch (err) {
@@ -723,6 +739,8 @@ export function useSubtitles({ roomId, isHost }: UseSubtitlesOptions) {
         if (url) {
           try {
             // 流式提取：首段到达即建轨生效（秒级可播），后台补齐
+            const controller = embeddedAbortRef.current ?? new AbortController()
+            embeddedAbortRef.current = controller
             await streamEmbeddedTrack(
               url,
               {
@@ -730,7 +748,9 @@ export function useSubtitles({ roomId, isHost }: UseSubtitlesOptions) {
                 label: track.label,
                 language: track.language,
               },
-              true
+              true,
+              undefined,
+              controller.signal
             )
             return 1
           } catch (err) {
@@ -797,7 +817,7 @@ export function useSubtitles({ roomId, isHost }: UseSubtitlesOptions) {
         return 0
       }
     },
-    [isHost, broadcast]
+    [isHost, broadcast, streamEmbeddedTrack]
   )
 
   const setFontSize = useCallback(

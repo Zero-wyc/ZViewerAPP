@@ -227,6 +227,8 @@ type RequestOptions = Omit<RequestInit, 'headers'> & {
   headers?: Record<string, string>
   /** 内部使用：本次请求是否已重试过一次，避免无限循环 */
   _retried?: boolean
+  /** Business permission errors must not trigger session refresh. */
+  refreshAuth?: 'default' | 'unauthorized' | 'never'
 }
 
 /**
@@ -309,7 +311,7 @@ export async function apiFetch(
   input: string | URL,
   options: RequestOptions = {}
 ): Promise<Response> {
-  const { _retried, headers, ...rest } = options
+  const { _retried, headers, refreshAuth = 'default', ...rest } = options
 
   // 拼接完整 URL（如果 input 是相对路径如 /api/xxx）
   // 每次实时从 localStorage 读取，确保自定义后端地址立即生效
@@ -331,7 +333,7 @@ export async function apiFetch(
   })
 
   // 401/403：access token 过期或无效 → 尝试 refresh，成功后重试一次
-  if ((res.status === 401 || res.status === 403) && !_retried) {
+  if (refreshAuth !== 'never' && (res.status === 401 || (refreshAuth === 'default' && res.status === 403)) && !_retried) {
     const ok = await refreshAccessToken()
     if (ok) {
       // 重试原请求，标记 _retried 避免再次进入 refresh 分支

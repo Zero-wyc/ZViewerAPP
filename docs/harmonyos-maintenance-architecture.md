@@ -1,6 +1,18 @@
 # HarmonyOS 应用维护架构整理
 
-更新日期：2026-10-02
+更新日期：2026-10-04
+
+## 2026-10-04：1.6.0 / 160 新服务端适配交付
+
+当前双端开发交付版本为 **1.6.0 / 160**，目标上游 `9827929088a31d7cb1d6bf7ceac096df640a2416`（v4.3.7 后 4 个提交）；已发布的 1.5.0 与下方历史结论仍按原版本解释。完整变更和验证见 [交付记录](releases/client-1.6.0-adaptation.md)。iOS 工程本轮未改。
+
+共享前端已同步 LiveKit `/api/voice/token/mute/kick`、identity 管理、有序 PGS 位图字幕与 Matroska/AAC 补丁、本地 XML/JSON 弹幕、网易云 Cookie 登录/主动复制和我的音乐空 Tab 清理。实现入口与生命周期约束见 [Android 同期维护记录](android-maintenance-architecture.md)；语音继续经过 `permissions.requestMicrophoneStream` 与原生权限桥，音频会话沿用既有平台契约。
+
+`Index.ets` 新增 `onShowFileSelector → picker.DocumentViewPicker`，仅处理单文件 XML/JSON 输入，按后缀筛选、只返回一个 URI。取消/失败返回空数组，页面销毁释放未完成回调；其他文件输入保留 ArkWeb 默认行为。默认选择器此前出现“无法打开”，补回调后 API 26 Pura 90 Pro 模拟器可浏览下载目录，并实际向网页返回 XML File 与中文内容；取消后可再次打开。没有增加全盘存储权限或放开外部导航。
+
+HAP 已构建并安装到该模拟器；与 Android、桌面 SDK 的三方 LiveKit 联调取得实际解码电平和桌面收到的鸿蒙媒体字节。禁言/解禁/踢出、收起面板、弹幕广播与权限回滚、Cookie 入口错误反馈通过。PGS 画布定位、H.264/AAC 测试片画面推进通过。所有网页资源由 `npm run harmony:web` 生成，不能手改 rawfile。
+
+交付物为 **未签名 HAP**，本地没有配置可用的正式签名密码。真机安装需要既有证书/Profile 签名；真机音频、蓝牙、后台通话、生产代理/UDP/TURN、真实长片 seek 与字幕跨端广播尚待验收。原 HEVC Main 10 解码限制不因本次字幕修复解除；API 23 最低版本未新增设备验证。18 项共享回归通过不等于所有真机场景验收。
 
 本轮 iOS 对齐补充：以共享 MusicHomePage/MusicDailyPage/MusicFmPage/DanmakuSearchModal 为参考，新增整份歌单替换或追加、连续漫游、来源下拉与双列弹幕选集、横竖菜单切换、音乐首页卡及日推历史日期。仅 iOS RN 业务与维护资料修改；本端原生和共享运行代码未改、未重新发布。69 项单测与隔离 v4.2.1 的 Web/协议检查通过，真机和完整权限差异保留；没有 EAS 云构建。详见 [预览补充](releases/ios-1.5.0-15-followup-preview.md)。
 
@@ -10,8 +22,8 @@
 
 | 客户端 | 当前状态 | 维护结论 |
 | --- | --- | --- |
-| Android | 已完成开发，当前发布版本 1.5.0（versionCode 150） | Android 是共享网页功能和 B 站行为的主要参考宿主之一 |
-| HarmonyOS | 已同步当前 Android 的 v4.2.1 共享业务代码和全局外观，API 26 手机模拟器外观验收完成；客户端包版本为 1.5.0/150 | 维护重点是共享网页同步、ArkWeb 桥接和 ArkTS 本地代理；HEVC Main 10 解码限制单独记录 |
+| Android | 当前开发交付 1.6.0 / 160；最近已发布 1.5.0 / 150 | 共享网页功能和 B 站行为的主要参考宿主；1.6.0 真机及正式签名待验收 |
+| HarmonyOS | 当前开发交付 1.6.0 / 160，适配上游 9827929；API 26 模拟器联调通过 | 维护共享网页、ArkWeb 桥接与 ArkTS 代理；真机/正式签名与 HEVC Main 10 限制单独记录 |
 | iOS | 1.5.0 / b15，用户已确认真机 UI 检测通过，授权未签名 IPA 构建及单独 iOS Release | RN + VLC；I13 与完整音视频/语音验收边界见 [iOS 交付记录](releases/ios-1.5.0-15-unsigned.md) |
 
 HarmonyOS 应用不是另写一套业务前端。它将根项目构建出的 `dist/` 放入 `entry/src/main/resources/rawfile/web/`，由 ArkWeb 以固定本地来源加载；平台能力通过 `zviewerHost` 注入，再由 `bridge-bootstrap.js` 暴露为共享前端识别的 `window.zviewerNative`。

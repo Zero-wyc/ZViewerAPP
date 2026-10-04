@@ -11,11 +11,17 @@ microphone permission handling, and secure local credential storage.
 
 Initial build used DevEco Studio 26.0.0.851, HarmonyOS SDK 26.0.0.105,
 Hvigor 6.26.8, ohpm 26.0.0.630, and DevEco's Node 24.14.1 on Windows.
-Version 1.5.0 (versionCode 150) targets API 26 and requires HarmonyOS 6.1 /
+Version 1.6.0 (versionCode 160) targets API 26 and requires HarmonyOS 6.1 /
 API 23 or later. The release bundle is `com.zviewer.mobile`. Lower API device
 behavior has not received additional testing in this release. Local release
 signing must use the existing registered bundle and certificate; credentials
 are kept outside the published source archive.
+
+The 2026-10-04 development delivery targets upstream `9827929` (v4.3.7 + 4):
+LiveKit voice, PGS subtitles, local danmaku import through DocumentViewPicker,
+and NetEase Cookie controls. The current local HAP is unsigned; emulator
+verification and remaining physical-device checks are recorded in
+[the delivery report](../docs/releases/client-1.6.0-adaptation.md).
 
 ## Build
 
