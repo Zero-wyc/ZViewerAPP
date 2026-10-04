@@ -48,3 +48,25 @@ example
 /.native-staging/
 /.native-tools/
 /modules/zviewer-native/ios/Vendor/
+
+# Local agent/editor metadata and unused Expo template files
+.claude/
+.vscode/
+CLAUDE.md
+LICENSE
+assets/expo.icon/
+assets/images/android-icon-background.png
+assets/images/android-icon-foreground.png
+assets/images/android-icon-monochrome.png
+assets/images/expo-badge-white.png
+assets/images/expo-badge.png
+assets/images/expo-logo.png
+assets/images/favicon.png
+assets/images/icon.png
+assets/images/logo-glow.png
+assets/images/react-logo.png
+assets/images/react-logo@2x.png
+assets/images/react-logo@3x.png
+assets/images/splash-icon.png
+assets/images/tabIcons/
+assets/images/tutorial-web.png
