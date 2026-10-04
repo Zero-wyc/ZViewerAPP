@@ -17,11 +17,13 @@ behavior has not received additional testing in this release. Local release
 signing must use the existing registered bundle and certificate; credentials
 are kept outside the published source archive.
 
-The 2026-10-04 development delivery targets upstream `9827929` (v4.3.7 + 4):
+The 2026-10-04 version 1.6.0 release targets upstream `9827929` (v4.3.7 + 4):
 LiveKit voice, PGS subtitles, local danmaku import through DocumentViewPicker,
-and NetEase Cookie controls. The current local HAP is unsigned; emulator
+and NetEase Cookie controls. The release HAP uses the existing release signing identity; emulator
 verification and remaining physical-device checks are recorded in
 [the delivery report](../docs/releases/client-1.6.0-adaptation.md).
+
+The user confirmed HarmonyOS voice connectivity through the domain on an external network. iOS has not yet been adapted to this new server or LiveKit protocol.
 
 ## Build
 

@@ -1,6 +1,6 @@
 # Android / HarmonyOS 维护与发布
 
-更新日期：2026-10-04。当前双端开发交付为 1.6.0 / 160，适配上游 `9827929`（v4.3.7 后 4 个提交），详见 [交付与验收边界](releases/client-1.6.0-adaptation.md)。此次提供调试 APK、未签名 HAP 和源码；正式发布仍需原有签名与真机验收。最近双端已发布版本仍为 1.5.0 / 150。本篇同时保留 2026-10-02 将 iOS 1.5.0 / b15 未签名 IPA 追加到 `client-v1.5.0` Release 的历史说明，见 [iOS 交付](releases/ios-1.5.0-15-unsigned.md)。
+更新日期：2026-10-04。当前双端发布为 1.6.0 / 160，适配上游 `9827929`（v4.3.7 后 4 个提交），详见 [交付与验收边界](releases/client-1.6.0-adaptation.md)。此次发布原签名 Release APK/HAP、源码 ZIP 与 SHA-256。用户已确认鸿蒙纯外网域名语音可连接，其他真机场景仍按交付记录验收。**iOS 尚未适配新服务端与 LiveKit，本次不发布 IPA。** [1.6.0 发行说明](releases/client-1.6.0.md)。本篇同时保留 2026-10-02 将 iOS 1.5.0 / b15 未签名 IPA 追加到 `client-v1.5.0` Release 的历史说明，见 [iOS 交付](releases/ios-1.5.0-15-unsigned.md)。
 
 从 1.6.0 起 `npm install` / `npm ci` 的 postinstall 使用 `patch-package --error-on-fail` 安装锁定的 playsvideo 0.4.7 补丁。不要跳过安装脚本或复制服务端依赖裁剪脚本。回归入口为 `npm run test:media` 与 `npm run test:adaptation`，当前测试脚本使用 Node 24 的 TypeScript 去类型能力。
 

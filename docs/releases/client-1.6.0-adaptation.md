@@ -1,14 +1,14 @@
 # Android / HarmonyOS 1.6.0 / 160 新服务端适配交付
 
-日期：2026-10-04。实施仓库：`E:/Codex-bulid/ZViewer/ZViewer-client`；分支：`adapt/android-harmony-upstream-20261004`。这是本地开发验收交付，没有发布 GitHub Release，也没有升级用户现有服务端。
+日期：2026-10-04。实施仓库：`E:/Codex-bulid/ZViewer/ZViewer-client`；分支：`adapt/android-harmony-upstream-20261004`。本记录保留开发联调证据；正式发布为 client-v1.6.0，发行说明见 [1.6.0](client-1.6.0.md)。用户已确认鸿蒙纯外网域名语音可连接；没有升级用户服务端。**iOS 尚未适配新服务端与 LiveKit，本次不发布 IPA。**
 
 | 基线 | 内容 |
 | --- | --- |
 | 客户端施工前提交 | `9464d12d9f1b34d2f11c4904ce7fa7993850e83b` |
 | 目标服务端 | `9827929088a31d7cb1d6bf7ceac096df640a2416`，`v4.3.7-4-g9827929` |
 | 双端版本 | `1.6.0`，versionCode `160` |
-| Android 交付 | `release/client-v1.6.0/ZViewer-Android-1.6.0-debug.apk`，包名 `com.zviewer.mobile.debug`，内部 versionName `1.6.0-debug`，调试签名 |
-| HarmonyOS 交付 | `release/client-v1.6.0/ZViewer-HarmonyOS-1.6.0-unsigned.hap`，bundle `com.zviewer.mobile`，未签名 |
+| Android 交付 | `release/client-v1.6.0/ZViewer-Android-1.6.0-release.apk`，包名 `com.zviewer.mobile`，versionName `1.6.0` / 160，既有发布签名 |
+| HarmonyOS 交付 | `release/client-v1.6.0/ZViewer-HarmonyOS-1.6.0-release.hap`，bundle `com.zviewer.mobile`，Release 构建、既有发布签名 |
 | 源码与核对 | 同目录 `ZViewer-client-1.6.0-source.zip`、`SOURCE-COMMIT.txt`、`SHA256SUMS.txt`；源码仅来自本地提交，不含未跟踪 iOS 文件、依赖、构建缓存或 QA 服务配置 |
 
 ## 🚀 新特性 / Features
@@ -31,7 +31,7 @@
 
 - 语音要求 LiveKit 服务端；不支持旧 v4.2.1 语音事件，不做静默旧协议回退。普通房间业务继续走 Socket.IO。
 - 同账号 identity 相同，另一设备加入会顶替原连接并提示。新服务端仍需自行核验 token 路由的入房访问控制，客户端入房门禁不替代服务端校验。
-- 此次产物用于验收：调试 APK 与正式包名不同；未签名 HAP 需使用既有证书/Profile 签名后用于真机。没有创建或替换正式签名密钥。
+- 正式发布 APK/HAP 沿用既有应用标识和发布签名，没有创建或替换密钥。iOS 尚未适配本次新服务端。
 
 ## ⚡ 性能优化 / Performance Improvements
 
@@ -87,9 +87,10 @@ Hvigor 构建成功，报告 `No signingConfig found`，因此产物明确为 un
 
 原生联调脚本在结束时恢复原服务端和登录存储，没有更改用户服务端配置。截图、原生选择器布局、媒体统计和构建日志保存在 `.ui-validation/upstream-20261004/`，不进入源码归档。核心原生桥、B站随机回环代理/凭据存储、系统媒体会话和音乐外部管理语音语义保留。
 
-## 正式发布前剩余验收
+## 正式签名构建与剩余验收
 
-- 使用现有正式签名配置生成 release APK/HAP，并在真实 Android/鸿蒙设备安装。
+- 已使用原有配置生成 Release APK/HAP。Android 执行 `assembleRelease`，签名验证与旧版证书一致；鸿蒙执行 release `assembleHap`，`verify-app` 通过，发布证书身份与旧版一致。签名配置仅构建时注入，构建后恢复公开模板。
+- 用户确认鸿蒙使用域名在纯外网可加入语音。新 Release 包安装及其他完整真机场景仍需独立验收。
 - 首次麦克风授权、拒绝后重试、双向人工听音、音乐共存、扬声器/耳机/蓝牙、前后台/锁屏恢复和重复快速进退。
 - 用户部署的 `/rtc` HTTP/validate 与 WebSocket Upgrade、实际 UDP/TURN 可达性及网络断开恢复。页面/API 正常不代表媒体网络正常；503 按未就绪反馈。
 - 真实长 MKV 的 PGS/ASS/SRT、冷启动、连续加载、多次前后 seek、切影片取消、音画偏移、内存释放及新版桌面与双端字幕广播一致性。原鸿蒙 HEVC Main 10 限制仍保留。

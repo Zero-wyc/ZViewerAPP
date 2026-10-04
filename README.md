@@ -2,7 +2,7 @@
 
 <img src="public/favicon.jpg" alt="ZViewer" width="88" height="88" />
 
-面向手机和平板的 ZViewer 客户端工程。现有 Android 应用使用 React、TypeScript 和 Capacitor；`ZV-iOS/` 是独立的 Expo/React Native 工程，已接入登录、房间、VLC 媒体、本机 B站与语音，HarmonyOS 保留独立宿主目录。Android/鸿蒙当前开发源码已适配 [Zero-wyc/ZViewer](https://github.com/Zero-wyc/ZViewer) `9827929`（v4.3.7 后 4 个提交），保留移动端与原生 B 站适配。
+面向手机和平板的 ZViewer 客户端工程。现有 Android 应用使用 React、TypeScript 和 Capacitor；`ZV-iOS/` 是独立的 Expo/React Native 工程，已接入登录、房间、VLC 媒体、本机 B站与语音，HarmonyOS 保留独立宿主目录。Android/鸿蒙当前 1.6.0 已适配 [Zero-wyc/ZViewer](https://github.com/Zero-wyc/ZViewer) `9827929`（v4.3.7 后 4 个提交），保留移动端与原生 B 站适配。
 
 本仓库是 **移动客户端共享源码与原生宿主**，不是服务端，也不是直接加载远程网页的地址壳。应用界面与播放器随安装包打包，通过你填写的服务器地址连接 ZViewer 服务。
 
@@ -10,11 +10,11 @@
 
 [下载安装包](https://github.com/Zero-wyc/ZViewerAPP/releases) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md)
 
-## 当前开发交付：Android/鸿蒙 1.6.0 / 160
+## 当前发布：Android/鸿蒙 1.6.0 / 160
 
-双端升级 LiveKit 语音、PGS 位图字幕和 AAC/seek 修复，新增本地 XML/JSON 弹幕及网易云 Cookie 登录/复制，清理我的音乐空 Tab。18 项自动回归与双端模拟器联调通过；本地交付调试 APK 和未签名 HAP，正式签名及真机验收尚未完成，详见 [1.6.0 交付记录](docs/releases/client-1.6.0-adaptation.md)。新版本语音要求 LiveKit 服务端，不支持旧 v4.2.1 的语音协议。iOS 本轮没有修改或构建。
+双端升级 LiveKit 语音、PGS 位图字幕和 AAC/seek 修复，新增本地 XML/JSON 弹幕及网易云 Cookie 登录/复制，清理我的音乐空 Tab。18 项自动回归与双端模拟器联调通过；发布沿用既有签名的正式 APK 和 HAP；用户已确认鸿蒙纯外网域名语音可连接，其他真机场景按交付记录保留验收边界，详见 [1.6.0 交付记录](docs/releases/client-1.6.0-adaptation.md)。新版本语音要求 LiveKit 服务端，不支持旧 v4.2.1 的语音协议。**iOS 目前尚未适配本次新版本服务端（含 LiveKit 语音），本次不发布 iOS 安装包。** 发行说明见 [1.6.0 Release](docs/releases/client-1.6.0.md)。
 
-## 已发布版本：Android/鸿蒙 1.5.0，iOS 源码/Release 1.5.1
+## 历史发布：Android/鸿蒙 1.5.0，iOS 源码/Release 1.5.1
 
 Android 和 HarmonyOS 同步 ZViewer 服务端 v4.2.1，使用同一套连接页、房间、全局背景与深浅主题。双端接入系统播放控件、封面与歌词，完善后台播放和自动旋转；一起听横屏背景铺满屏幕，曲绘避让摄像头，追加视频弹窗适配主题与窄屏。一起看使用中间双击播放/暂停、全屏左右双击各跳转15秒；一起听仅在视频全屏采用相同手势。Android/鸿蒙包版本为 1.5.0，versionCode 为 150；iOS 源码与独立 `ios-v1.5.1` Release 版本为 1.5.1，本次未重新进行 Expo/EAS 构建，复用已修复的 1.5.0 / build 16 未签名 IPA；安装包内部版本仍为 1.5.0（16）。
 
