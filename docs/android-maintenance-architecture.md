@@ -2,6 +2,10 @@
 
 更新日期：2026-10-07
 
+### 1.7.0 真机验收与发布确认
+
+2026-10-07 用户确认 Android / HarmonyOS 真机验收通过，授权向 `Zero-wyc/ZViewerAPP` 上传源码并发布 `client-v1.7.0`。复用已验收的正式签名 APK/HAP，仅补充验收与发布文档；下方本地交付状态及“待验收”清单保留为发布前记录。未扩写未提供的设备型号或单项场景日志。正式发行说明与验收证据见 [1.7.0 交付记录](releases/client-1.7.0-adaptation.md)。
+
 ## 2026-10-07：1.7.0 / 170 双端适配交付
 
 当前本地交付版本为 **1.7.0 / 170**，目标上游 `ba033096bc9c3a85a2058918a002b80a5f484ec8`。正式 APK 与鸿蒙 HAP 均已构建并验证既有发布签名；本地源码提交、ZIP、SHA-256 和脱敏证据一起交付。尚未发布远端 Release。本轮不修改或构建 iOS，下方 1.6.0 及更早章节属于历史记录。详见 [1.7.0 交付记录](releases/client-1.7.0-adaptation.md)、[发行说明](releases/client-1.7.0.md)。
@@ -43,8 +47,8 @@ Android 调试 APK 已在 Medium Phone 模拟器安装。与隔离新服务端�
 
 | 客户端 | 当前状态 | 维护结论 |
 | --- | --- | --- |
-| Android | 当前本地交付 1.7.0 / 170；既有签名 APK | PGC 与证书通道模拟器验证通过；完整真机场景见 1.7.0 记录 |
-| HarmonyOS | 当前本地交付 1.7.0 / 170，ArkWeb 正式签名 HAP | 共享网页业务与 ArkTS PGC/证书通道已适配；剩余设备场景待验收 |
+| Android | 当前发布 1.7.0 / 170；既有签名 APK | 用户确认真机验收通过；自动验证证据见 1.7.0 记录 |
+| HarmonyOS | 当前发布 1.7.0 / 170，ArkWeb 正式签名 HAP | 用户确认真机验收通过；与 Android 同步发布 |
 | iOS | 1.5.0 / b15，用户已确认真机 UI 检测通过，授权未签名 IPA 构建及单独 iOS Release | RN + VLC；I13 与完整音视频/语音验收边界见 [iOS 交付记录](releases/ios-1.5.0-15-unsigned.md) |
 
 当前 Android 的发布入口是 `ZV-Android/`，网页入口是仓库根目录的 `src/`。`ZV-HarmonyOS/` 不应复制 Android Gradle 或 Java 代码；它通过 ArkWeb 加载同一份 `dist/`。

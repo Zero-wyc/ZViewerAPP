@@ -1,13 +1,19 @@
 # Android / HarmonyOS 1.7.0 适配交付
 
-日期：2026-10-07。版本：**1.7.0 / 170**。本次为本地签名交付，未发布 GitHub Release、未部署生产服务端；iOS 不在本轮范围内。
+日期：2026-10-07。版本：**1.7.0 / 170**。用户确认双端真机验收通过后，授权上传 `Zero-wyc/ZViewerAPP` 并发布 `client-v1.7.0`。正式 APK/HAP 保持已验收构建不变，补充文档后提交发布源码与 SHA-256；未部署生产服务端，iOS 不在本轮范围内。
+
+## 用户真机验收与发布
+
+2026-10-07，用户确认“真机验收通过，上传GitHub仓库并发布Release版本”。据此记录双端本版真机验收通过。用户未逐项提供设备型号和场景日志，不将这条确认扩写为各账号、编码、网络与外设组合的独立测量证据。下方自动验证和模拟器统计保留原始范围。
+
+发布地址：[client-v1.7.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.7.0)。附件固定为正式签名 APK、正式签名 HAP、提交源码 ZIP 和 `SHA256SUMS.txt`，不包含 APP 归档。发布前复核远端附件大小/摘要，发布后核对 main、标签、latest 与附件。
 
 ## 基线与交付物
 
 - 指定仓库：`E:/Codex-bulid/ZViewer/ZViewer-client`，从 `e9106e914cb15b487ef4f5c18f73f00695265681` 增量修改。
 - 目标上游：`ba033096bc9c3a85a2058918a002b80a5f484ec8`，采用 2026-10-07 方案中已经核验的源码快照。这里的“最新”指该方案的固定目标，没有将后续远端变动自动混入交付。
 - 按映射合并共享代码，保留移动端增强；没有运行旧 `import-core.mjs`，没有覆盖 iOS 工程。
-- 本地目录：`release/client-v1.7.0/`。正式签名 APK、正式签名 HAP、提交后的源码 ZIP、`SOURCE-COMMIT.txt`、`SHA256SUMS.txt` 和脱敏 `evidence/` 同目录交付。
+- 本地目录：`release/client-v1.7.0/`。正式签名 APK、正式签名 HAP、发布提交后的源码 ZIP、`SOURCE-COMMIT.txt`、`SHA256SUMS.txt` 和脱敏 `evidence/` 同目录保留。`SOURCE-COMMIT.txt` 区分安装包构建提交与仅补充文档的发布提交。
 - Android 包名 `com.zviewer.mobile`、最低 API 24；调试包名仍为 `com.zviewer.mobile.debug`。鸿蒙原有最低 API 与解码能力边界保留。
 - APK 经 apksigner 验证，沿用已有发布证书，SHA-256 为 `51b892a049a1650a03dc0a3baf9406db85b9fb91267851f15ee697df2d2ccc9b`。HAP 经 hap-sign-tool 验证，release Profile、代码签名和内容摘要均通过，使用已有发布密钥和证书。
 - 私有签名配置只在本机构建时注入，构建后恢复干净配置；密钥、密码、Profile、Cookie 和设备私有回环路径不纳入源码归档。
@@ -59,7 +65,9 @@ LiveKit 徽标从实际 selected candidate pair 判断 UDP/TCP，统计不可用
 
 模拟器：Android Medium Phone；鸿蒙 Pura 90 Pro / API 26。脱敏记录位于交付目录 `evidence/`：双端 connection、free-pgc、member-pgc 共六份 JSON。PGC 流地址、Cookie、签名材料和服务器私有连接路径未放入证据。
 
-## 尚待设备或外部环境验收
+## 自动验证覆盖边界（用户真机验收前记录）
+
+用户现已确认本版双端真机验收通过；以下保留代理执行阶段未取得独立设备日志的项目，不将历史“待验收”描述作为发布阻塞，也不伪造新增实测统计。
 
 - PGC DASH 已有双端解析与编码/AAC 选择契约回归；本轮真实会员内容的画面/seek 证据来自 MP4，未新增双端 PGC DASH 实播或人工音频验收。
 - 非会员真实试看、失效 Cookie、房主/观众不同账号与服务端会员/非会员交叉矩阵未完成现场测试；fixture 覆盖不替代真实账号矩阵。

@@ -1,6 +1,6 @@
 # Android / HarmonyOS 1.7.0 / 170
 
-2026-10-07 本地签名交付；目标上游 `ba033096bc9c3a85a2058918a002b80a5f484ec8`。构建、模拟器证据和未覆盖场景见 [适配交付记录](client-1.7.0-adaptation.md)。
+2026-10-07 正式发布；目标上游 `ba033096bc9c3a85a2058918a002b80a5f484ec8`。用户已确认 Android / HarmonyOS 真机验收通过。APK/HAP 沿用本次已验收的正式签名构建，源码与 SHA-256 同版本发布；iOS 不在本轮范围内。构建、模拟器证据及验收记录见 [适配交付记录](client-1.7.0-adaptation.md)。
 
 ## 🚀 新特性 / Features
 
@@ -28,7 +28,7 @@
 ## 📖 文档与依赖更新 / Documentation & Dependencies
 
 - 同步双端维护架构、方案实施状态和交付记录；版本统一为 1.7.0 / 170。/ Update both maintenance guides and delivery evidence.
-- 30 项共享回归和 Go 测试通过，正式 APK/HAP 签名验证通过；真实会员 MP4 已在两端模拟器越过约 400 秒位置继续出帧。其余真机与外部环境边界见交付记录。/ Verified builds, regression tests and scoped emulator playback evidence.
+- 30 项共享回归和 Go 测试通过，正式 APK/HAP 签名验证通过；会员 MP4 在两端模拟器约 400 秒位置继续出帧，用户确认双端真机验收通过。/ Verified regression tests, signed builds and user-confirmed acceptance on both mobile platforms.
 
 ---
-**完整变更记录**：指定仓库中基线 `e9106e914cb15b487ef4f5c18f73f00695265681` 至 `SOURCE-COMMIT.txt` 所记提交；上游增量为 `9827929088a31d7cb1d6bf7ceac096df640a2416...ba033096bc9c3a85a2058918a002b80a5f484ec8`。
+**完整变更记录**：[client-v1.6.0...client-v1.7.0](https://github.com/Zero-wyc/ZViewerAPP/compare/client-v1.6.0...client-v1.7.0)
