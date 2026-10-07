@@ -1,3 +1,4 @@
+import { applyServerPolicy, selectServer, connectionUrl, readServerPolicy, saveServerPolicy, revokeServerConnection } from './platform/serverConnection'
 import { FormEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
@@ -103,6 +104,10 @@ export default function App() {
   const [serverUrl, setServerUrl] = useState(
     previousSession?.serverUrl || localStorage.getItem(SERVER_KEY) || '',
   )
+  const [addressMode, setAddressMode] = useState<'auto' | 'custom'>('auto')
+  const [allowUntrusted, setAllowUntrusted] = useState(readServerPolicy(serverUrl))
+  const [selectedAddress, setSelectedAddress] = useState('')
+  const connectionAttempt = useRef<AbortController | null>(null)
   const [mode, setMode] = useState<LoginMode>('account')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -221,6 +226,7 @@ export default function App() {
   }
 
   const verifyOrRefreshSession = async (storedSession: Session): Promise<Session> => {
+    await applyServerPolicy(storedSession.serverUrl, readServerPolicy(storedSession.serverUrl))
     let activeSession = storedSession
     setCustomApiUrl(storedSession.serverUrl)
     setCustomSocketUrl(storedSession.serverUrl)
@@ -228,7 +234,7 @@ export default function App() {
     let response = await request('/api/auth/me', {}, activeSession)
 
     if ((response.status === 401 || response.status === 403) && activeSession.refreshToken) {
-      const refreshResponse = await fetch(`${activeSession.serverUrl}/api/auth/refresh`, {
+      const refreshResponse = await fetch(connectionUrl(`${activeSession.serverUrl}/api/auth/refresh`), {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -282,10 +288,19 @@ export default function App() {
 
   const handleLogin = async (event: FormEvent) => {
     event.preventDefault()
+    if (loading) return
     setError('')
     setLoading(true)
+    const attempt = new AbortController()
+    connectionAttempt.current?.abort()
+    connectionAttempt.current = attempt
     try {
-      const normalizedServer = normalizeServerUrl(serverUrl)
+      resetSocket()
+      const normalizedServer = await selectServer(serverUrl, addressMode, allowUntrusted, attempt.signal)
+      attempt.signal.throwIfAborted()
+      if (selectedAddress !== normalizedServer) { setSelectedAddress(normalizedServer); return }
+      setSelectedAddress(normalizedServer)
+      saveServerPolicy(normalizedServer, allowUntrusted && normalizedServer.startsWith('https:'))
       resetSocket()
       clearAuthTokens()
       setCustomApiUrl(normalizedServer)
@@ -297,18 +312,19 @@ export default function App() {
       }
 
       const endpoint = mode === 'guest' ? '/api/auth/guest' : '/api/auth/login'
-      const response = await fetch(`${normalizedServer}${endpoint}`, {
+      const response = await fetch(connectionUrl(`${normalizedServer}${endpoint}`), {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: mode === 'guest' ? '{}' : JSON.stringify({ username: username.trim(), password }),
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.any([attempt.signal, AbortSignal.timeout(15000)]),
       })
       const data = (await response.json().catch(() => ({}))) as AuthResponse
       if (!response.ok || !data.success || !data.user || !data.accessToken) {
         throw new Error(data.message || `登录失败 (${response.status})`)
       }
 
+      attempt.signal.throwIfAborted()
       const nextSession: Session = {
         serverUrl: normalizedServer,
         accessToken: data.accessToken,
@@ -393,6 +409,9 @@ export default function App() {
   }
 
   const resetConnection = () => {
+    connectionAttempt.current?.abort()
+    if (session) void revokeServerConnection(session.serverUrl)
+    useSystemSettingsStore.getState().invalidate()
     resetSocket()
     clearAuthTokens()
     useAuthStore.getState().logout()
@@ -400,6 +419,7 @@ export default function App() {
     setSession(null)
     setRooms([])
     setError('')
+    setSelectedAddress('')
     setScreen('connect')
     navigate('/', { replace: true })
   }
@@ -425,7 +445,7 @@ export default function App() {
         </div>
         <div className="connection-pill">
           {connected ? <Wifi size={14} /> : <WifiOff size={14} />}
-          {restoring ? '连接中' : connected ? '已连接' : '未连接'}
+          {restoring ? '连接中' : connected ? '已连接' : '未连接'}{session && readServerPolicy(session.serverUrl) ? ' · 证书例外' : ''}
         </div>
       </header>
 
@@ -446,10 +466,18 @@ export default function App() {
                 autoCorrect="off"
                 placeholder="例如 192.168.1.10:3333"
                 value={serverUrl}
-                onChange={(event) => setServerUrl(event.target.value)}
+                disabled={loading}
+                onChange={(event) => { connectionAttempt.current?.abort(); setServerUrl(event.target.value); setSelectedAddress(''); setAllowUntrusted(readServerPolicy(event.target.value)) }}
               />
             </div>
 
+            <label className="field-label" htmlFor="address-mode">连接模式</label>
+            <select id="address-mode" value={addressMode} disabled={loading} onChange={event => { setAddressMode(event.target.value as 'auto' | 'custom'); setSelectedAddress('') }}>
+              <option value="auto">自动（优先 HTTPS）</option><option value="custom">自定义完整地址</option>
+            </select>
+            <label className="field-label"><input type="checkbox" checked={allowUntrusted} disabled={loading} onChange={event => { setAllowUntrusted(event.target.checked); setSelectedAddress('') }} /> 允许此服务器使用不受信任的证书</label>
+            {allowUntrusted && <p className="field-label">仅为当前服务器启用证书例外；独立语音服务器仍验证证书。</p>}
+            {selectedAddress && <p className="field-label">连接地址：{selectedAddress}</p>}
             <div className="mode-switch" role="tablist" aria-label="登录方式">
               <button
                 type="button"
@@ -516,9 +544,10 @@ export default function App() {
 
             <button className="primary-button" type="submit" disabled={loading}>
               {loading ? <RefreshCw className="spin" size={19} /> : <LogIn size={19} />}
-              {loading ? '正在连接' : mode === 'guest' ? '游客登录' : '登录并选择房间'}
+              {loading ? '正在连接' : !selectedAddress ? '检测服务器地址' : mode === 'guest' ? '游客登录' : '登录并选择房间'}
               {!loading && <ArrowRight size={19} />}
             </button>
+            {loading && <button type="button" className="field-label" onClick={() => connectionAttempt.current?.abort()}>取消连接</button>}
           </form>
 
           <div className="security-note">
@@ -534,6 +563,7 @@ export default function App() {
             <div className="server-summary">
               <span>{session?.user.username}</span>
               <small>{session?.serverUrl}</small>
+              {session && readServerPolicy(session.serverUrl) && <button type="button" className="text-xs" onClick={() => { saveServerPolicy(session.serverUrl, false); setAllowUntrusted(false); setSelectedAddress(''); resetConnection() }}>证书例外已启用 · 撤销并断开</button>}
             </div>
             <button
               className="icon-button refresh-button"

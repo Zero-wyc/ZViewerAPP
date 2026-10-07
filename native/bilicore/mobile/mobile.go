@@ -169,7 +169,11 @@ func apiError(w http.ResponseWriter, err error) {
 		code = http.StatusUnauthorized
 	}
 	w.WriteHeader(code)
-	io.WriteString(w, asJSON(map[string]any{"success": false, "message": err.Error()}))
+	errorCode := "RESOLVE_FAILED"
+	if e, ok := err.(*core.ResolveError); ok {
+		errorCode = e.Code
+	}
+	io.WriteString(w, asJSON(map[string]any{"success": false, "code": errorCode, "message": err.Error()}))
 }
 
 func (a *session) resolve(w http.ResponseWriter, r *http.Request) {
@@ -199,7 +203,12 @@ func (a *session) resolve(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), budget)
 	defer cancel()
-	result, err := core.ResolveMobile(ctx, core.ResolveOptions{Url: q.Get("bvid"), Cid: cid, Qn: qn, Cookie: cookie, QualityMode: mode, Capabilities: caps, FallbackQn: fallback, ForceDash: true})
+	page, _ := strconv.Atoi(q.Get("page"))
+	if cid < 0 || page < 0 || qn < 0 || fallback < 0 {
+		apiError(w, fmt.Errorf("解析参数范围无效"))
+		return
+	}
+	result, err := core.ResolveMobile(ctx, core.ResolveOptions{Url: resolveInput(q), Cid: cid, Qn: qn, Page: page, Cookie: cookie, QualityMode: mode, Capabilities: caps, FallbackQn: fallback, PreferMp4: q.Get("preferMp4") == "true" && q.Get("forceDash") != "true", ForceDash: q.Get("forceDash") == "true"})
 	if err != nil {
 		apiError(w, err)
 		return
@@ -326,4 +335,14 @@ func (a *session) proxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Error(w, "CDN unavailable", http.StatusBadGateway)
+}
+
+func resolveInput(q url.Values) string {
+	if q.Get("epId") != "" {
+		return "ep" + q.Get("epId")
+	}
+	if q.Get("seasonId") != "" {
+		return "ss" + q.Get("seasonId")
+	}
+	return q.Get("bvid")
 }

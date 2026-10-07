@@ -8,7 +8,12 @@ import type { WatchTogetherState, Movie } from '@/store/roomStore'
 import { safePlay } from '@/modules/sync-playback/safePlay'
 import { wasUserPaused } from '@/modules/player/services/pause-intent'
 import { getBilibiliParseOptions } from './parseOptions'
-import { extractBvid, resolveBilibiliViaCli } from './cliApi'
+import {
+  extractBvid,
+  extractBangumiId,
+  resolveBilibiliViaCli,
+  resolveBangumiViaCli,
+} from './cliApi'
 import {
   getActiveCliProxyUrl,
   getEffectivePreferMp4,
@@ -127,13 +132,24 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
           resolved = preResolved
         } else {
           const parsePrefs = getBilibiliParseOptions(movie.id)
-          const proxyUrl = parsePrefs.cliEnabled ? getActiveCliProxyUrl() : null
+          // cliOnly（仅允许CLI模式）：解析前强制校验 CLI 已连接——CLI 未连接
+          // 时服务器解析会产出裸 CDN URL，挂载后媒体流无法经本机 CLI（违反
+          // cliOnly 零媒体转发语义），直接报错阻止切换
+          const cliOnly = movie.cliOnly === true
+          const proxyUrl =
+            cliOnly || parsePrefs.cliEnabled ? getActiveCliProxyUrl() : null
+          if (cliOnly && !proxyUrl) {
+            throw new Error(
+              '该影片已开启「仅允许CLI模式」：请安装并连接 ZViewer CLI 后观看'
+            )
+          }
           if (proxyUrl) {
-            const bvid = extractBvid(movie.url)
-            if (bvid && movie.cid) {
-              resolved = await resolveBilibiliViaCli(
+            // PGC（番剧 ep/ss 链接）：按 epId 走 CLI 番剧解析分支
+            const bangumiId = extractBangumiId(movie.url)
+            if (bangumiId?.epId) {
+              resolved = await resolveBangumiViaCli(
                 proxyUrl,
-                bvid,
+                bangumiId.epId,
                 movie.cid,
                 qn,
                 false,
@@ -141,16 +157,35 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
                 isEmbeddedBilibiliHost() ? { qualityMode: getNativeQualityPolicy(movie.id).mode } : undefined
               )
             } else {
-              throw new Error('无法提取 BV 号或 cid，无法使用 CLI 代理')
+              const bvid = extractBvid(movie.url)
+              if (bvid && movie.cid) {
+                resolved = await resolveBilibiliViaCli(
+                  proxyUrl,
+                  bvid,
+                  movie.cid,
+                  qn,
+                  false,
+                  true
+                )
+              } else {
+                throw new Error('无法提取 BV 号或 cid，无法使用 CLI 代理')
+              }
             }
           } else {
             // CLI 未启用按影片偏好；CLI 启用未连接由 getEffectivePreferMp4
-            // 返回 true，回退服务器 MP4 直链
+            // 返回 true，回退服务器 MP4 直链。
+            // movieId：服务器解析统一以房间房主 Cookie 身份执行（后端按
+            // movieId 查 Room.ownerUserId），与播放路径的解析身份一致。
             resolved = await resolveBilibiliWithOptions(
               movie.url,
               qn,
               undefined,
-              { preferMp4: getEffectivePreferMp4(movie.id) }
+              {
+                preferMp4: getEffectivePreferMp4(movie.id),
+                movieId: movie.id,
+                // 多 P 视频：按当前分 P 解析（movie.url 不含分 P 信息）
+                page: movie.currentPage,
+              }
             )
           }
         }
@@ -164,6 +199,7 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
         const newState: WatchTogetherState = {
           ...state,
           sourceUrl: resolved.videoUrl,
+          epId: resolved.epId, seasonId: resolved.seasonId, seasonTitle: resolved.seasonTitle, preview: resolved.preview,
           audioUrl: resolved.audioUrl,
           videoCodec: resolved.videoCodec,
           audioCodec: resolved.audioCodec,

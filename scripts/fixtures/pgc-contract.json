@@ -1,0 +1,18 @@
+{
+  "season": {"season_id": 900, "title": "Contract season", "episodes": [
+    {"id":101,"cid":1001,"bvid":"BV1234567890","title":"1","long_title":"First","duration":600000},
+    {"ep_id":102,"cid":1002,"bvid":"BV1234567891","title":"2","long_title":"Second","badge":"会员","duration":600000}
+  ]},
+  "preview": {"quality":32,"accept_quality":[32],"is_preview":true,"durl":[{"url":"https://fixture.bilivideo.com/preview.mp4?platform=pc","length":30000}]},
+  "dash": {"quality":80,"accept_quality":[80,64,32],"dash":{
+    "video":[
+      {"id":80,"base_url":"https://fixture.bilivideo.com/80.m4s","codecs":"avc1.640028","width":1920,"height":1080,"frame_rate":"30","bandwidth":4000000},
+      {"id":64,"base_url":"https://fixture.bilivideo.com/64.m4s","codecs":"avc1.64001f","width":1280,"height":720,"frame_rate":"30","bandwidth":2000000},
+      {"id":32,"base_url":"https://fixture.bilivideo.com/32.m4s","codecs":"avc1.64001e","width":852,"height":480,"frame_rate":"30","bandwidth":1000000}
+    ],
+    "audio":[
+      {"id":30280,"base_url":"https://fixture.bilivideo.com/audio.m4s","codecs":"mp4a.40.2","bandwidth":192000},
+      {"id":30250,"base_url":"https://fixture.bilivideo.com/unsupported.m4s","codecs":"ec-3","bandwidth":999999}
+    ]
+  }}
+}

@@ -4,6 +4,20 @@ import { EventEmitter } from 'node:events'
 import { loadTs } from './test-ts-module.mjs'
 
 const defer = () => { let resolve; const promise = new Promise(r => resolve = r); return { promise, resolve } }
+test('voice badge uses the selected candidate pair and tolerates SDK/stat failures', async () => {
+  const { detectVoiceTransport, voicePeerConnections } = loadTs('src/upstream/modules/voice-chat/transport.ts')
+  const stats = new Map([
+    ['transport', { type: 'transport', selectedCandidatePairId: 'chosen' }],
+    ['old', { id: 'old', type: 'candidate-pair', nominated: true, state: 'succeeded', localCandidateId: 'udp' }],
+    ['chosen', { id: 'chosen', type: 'candidate-pair', state: 'succeeded', localCandidateId: 'tcp' }],
+    ['udp', { type: 'local-candidate', protocol: 'udp' }],
+    ['tcp', { type: 'local-candidate', protocol: 'tcp' }],
+  ])
+  assert.equal(await detectVoiceTransport({ connectionState: 'connected', getStats: async () => stats }), 'tcp')
+  assert.equal(await detectVoiceTransport({ connectionState: 'disconnected' }), null)
+  assert.equal(await detectVoiceTransport({ connectionState: 'connected', getStats: async () => { throw Error('unavailable') } }), null)
+  assert.equal(voicePeerConnections({}).length, 0)
+})
 function harness(options = {}) {
   let cursor = 0, output
   const slots = [], effects = [], rooms = [], streams = [], contexts = [], messages = [], requests = []
@@ -40,6 +54,8 @@ function harness(options = {}) {
   document.createElement = () => ({ play: async () => {}, pause() {}, remove() {} })
   let server = 'https://server.example'
   const { useVoiceChat } = loadTs('src/upstream/modules/voice-chat/hooks/useVoiceChat.ts', {
+    '../../../../platform/connectionTransport': loadTs('src/platform/connectionTransport.ts', {}, { URL }),
+    '../transport': loadTs('src/upstream/modules/voice-chat/transport.ts'),
     react, 'livekit-client': { Room, RoomEvent, Track: { Kind: { Audio: 'audio' }, Source: { Microphone: 'microphone' } }, AudioPresets: { music: {} }, ConnectionState: { Connected: 'connected' }, DisconnectReason: { DUPLICATE_IDENTITY: 2, PARTICIPANT_REMOVED: 3 } },
     '@/lib/api': { getApiUrl: () => server, apiFetch: async (url, init) => { requests.push({ url, init }); return options.token ? options.token() : { ok: true, status: 200, json: async () => ({ success: true, token: 'test-only', url: 'wss://rtc.example' }) } } },
     '@/components/ui/message': { message: { warning: m => messages.push(m), error: m => messages.push(m) } },

@@ -141,6 +141,8 @@ export function isStateEqual(
     a.format !== b.format ||
     a.videoCodec !== b.videoCodec ||
     a.audioCodec !== b.audioCodec ||
+    a.epId !== b.epId || a.seasonId !== b.seasonId || a.seasonTitle !== b.seasonTitle || a.preview !== b.preview ||
+    a.noProxyFallback !== b.noProxyFallback || a.playsvideoEnabled !== b.playsvideoEnabled ||
     a.cid !== b.cid
   ) {
     return false

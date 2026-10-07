@@ -57,11 +57,16 @@ import {
 import { setBilibiliParseOptions } from '@/modules/bilibili/parseOptions'
 import {
   extractBvid,
+  extractBangumiId,
   resolveBilibiliViaCli,
+  resolveBangumiViaCli,
   CliConnectionError,
   CliResolveError,
 } from '@/modules/bilibili/cliApi'
-import { getActiveCliProxyUrl } from '@/modules/room/watch-together/movie-source-resolver'
+import {
+  getActiveCliProxyUrl,
+  isBilibiliPgcMovie,
+} from '@/modules/room/watch-together/movie-source-resolver'
 import {
   resolveOpenList,
   fetchOpenListDirectUrl,
@@ -894,16 +899,43 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
     setResolveProgress('正在初始化解析...')
     try {
       const bvid = extractBvid(url.trim())
+      const shortLink = /^https?:\/\/(b23\.tv|bili2233\.cn)\//i.test(url.trim())
+      // PGC（番剧 ep/ss 链接）：CLI 分支按 epId 走番剧解析
+      const bangumiId = extractBangumiId(url.trim())
 
       let resolved: ResolvedSource | undefined
       // CLI 已连接时优先使用本地 CLI 代理解析（使用用户自己的 B站 Cookie，可获取高画质）
       const cliProxyUrl = getActiveCliProxyUrl()
-      if (cliProxyUrl && bvid) {
+      if (cliProxyUrl && bangumiId) {
+        try {
+          setResolveProgress('正在通过 CLI 代理解析番剧...')
+          resolved = await resolveBangumiViaCli(
+            cliProxyUrl,
+            bangumiId.epId ?? 0,
+            undefined,
+            undefined,
+            false,
+            true,
+            { seasonId: bangumiId?.seasonId }
+          )
+          resolvedViaCliRef.current = true
+        } catch (cliErr) {
+          if (isEmbeddedBilibiliHost()) throw cliErr
+          resolvedViaCliRef.current = false
+          if (cliErr instanceof CliConnectionError) {
+            console.warn(
+              '[MoviePushPanel] CLI 代理连接失败，回退到服务器端解析'
+            )
+          } else if (cliErr instanceof CliResolveError) {
+            message.warning(`${cliErr.message}，已回退到服务器端解析`)
+          }
+        }
+      } else if (cliProxyUrl && (bvid || shortLink)) {
         try {
           setResolveProgress('正在通过 CLI 代理解析...')
           resolved = await resolveBilibiliViaCli(
             cliProxyUrl,
-            bvid,
+            bvid || url.trim(),
             undefined,
             undefined,
             false,
@@ -934,6 +966,12 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
       }
 
       setResolvedMovie(resolved)
+      // PGC 试看提示：会员专享集 + 非大会员账号时后端只返回试看片段
+      if (resolved.preview) {
+        message.info(
+          `当前返回试看片段（约 ${Math.round((resolved.duration || 0) / 60)} 分钟）；完整播放取决于本机账号的内容授权`
+        )
+      }
       // 自动检测多 P 视频：若有多 P，弹出分集选择界面
       if (resolved.pages && resolved.pages.length > 1) {
         setShowPageSelector(true)
@@ -956,11 +994,36 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
     setResolveProgress('正在切换清晰度...')
     try {
       const bvid = extractBvid(url.trim())
+      const bangumiId = extractBangumiId(url.trim())
 
       let resolved: ResolvedSource | undefined
       // CLI 已连接时通过本地 CLI 代理切换清晰度（使用用户自己的 B站 Cookie）
       const cliProxyUrl = getActiveCliProxyUrl()
-      if (cliProxyUrl && bvid) {
+      if (cliProxyUrl && bangumiId) {
+        try {
+          setResolveProgress('正在通过 CLI 代理切换清晰度...')
+          resolved = await resolveBangumiViaCli(
+            cliProxyUrl,
+            bangumiId.epId ?? 0,
+            resolvedMovie.cid,
+            qn,
+            false,
+            true,
+            { seasonId: bangumiId?.seasonId }
+          )
+          resolvedViaCliRef.current = true
+        } catch (cliErr) {
+          if (isEmbeddedBilibiliHost()) throw cliErr
+          resolvedViaCliRef.current = false
+          if (cliErr instanceof CliConnectionError) {
+            console.warn(
+              '[MoviePushPanel] CLI 代理连接失败，回退到服务器端解析'
+            )
+          } else if (cliErr instanceof CliResolveError) {
+            message.warning(`${cliErr.message}，已回退到服务器端解析`)
+          }
+        }
+      } else if (cliProxyUrl && bvid) {
         try {
           setResolveProgress('正在通过 CLI 代理切换清晰度...')
           resolved = await resolveBilibiliViaCli(
@@ -1012,6 +1075,63 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
 
     setShowPageSelector(false)
     setPageSelectLoading(true)
+
+    // PGC（番剧分集，page 带 epId）：按目标集 ep 链接/epId 重解析
+    if (targetPage.epId) {
+      const epUrl = `https://www.bilibili.com/bangumi/play/ep${targetPage.epId}`
+      setResolveProgress(`正在解析第 ${page} 集 ${targetPage.part}...`)
+      try {
+        let resolved: ResolvedSource | undefined
+        const cliProxyUrl = getActiveCliProxyUrl()
+        if (cliProxyUrl) {
+          try {
+            setResolveProgress(`正在通过 CLI 代理解析第 ${page} 集...`)
+            resolved = await resolveBangumiViaCli(
+              cliProxyUrl,
+              targetPage.epId,
+              targetPage.cid,
+              resolvedMovie.currentQn,
+              false,
+              true
+            )
+            resolvedViaCliRef.current = true
+          } catch (cliErr) {
+            if (isEmbeddedBilibiliHost()) throw cliErr
+            resolvedViaCliRef.current = false
+            if (cliErr instanceof CliConnectionError) {
+              console.warn(
+                '[MoviePushPanel] CLI 代理连接失败，回退到服务器端解析'
+              )
+            } else if (cliErr instanceof CliResolveError) {
+              message.warning(`${cliErr.message}，已回退到服务器端解析`)
+            }
+          }
+        }
+        if (!resolved) {
+          setResolveProgress(`正在通过服务器解析第 ${page} 集...`)
+          resolvedViaCliRef.current = false
+          resolved = await resolveBilibiliWithOptions(
+            epUrl,
+            resolvedMovie.currentQn,
+            (_step, msg) => setResolveProgress(msg)
+          )
+        }
+        setResolvedMovie(resolved)
+        if (resolved.preview) {
+          message.info(
+            `当前返回试看片段（约 ${Math.round((resolved.duration || 0) / 60)} 分钟）；完整播放取决于本机账号的内容授权`
+          )
+        }
+      } catch (err) {
+        console.error('[MoviePushPanel] page select error:', err)
+        message.error(err instanceof Error ? err.message : '切换分集失败')
+      } finally {
+        setPageSelectLoading(false)
+        setResolveProgress('')
+      }
+      return
+    }
+
     setResolveProgress(`正在解析 P${page} ${targetPage.part}...`)
     try {
       const bvid = extractBvid(url.trim())
@@ -1088,6 +1208,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
           url: movieUrl,
           title,
           source: 'bilibili',
+          cliOnly: !!extractBangumiId(movieUrl) && useSystemSettingsStore.getState().bilibiliPgcDefaultMode === 'cliOnly',
           audioUrl: resolvedMovie.audioUrl,
           format: resolvedMovie.format,
           videoCodec: resolvedMovie.videoCodec,
@@ -1100,20 +1221,34 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
           currentPage: resolvedMovie.currentPage ?? 1,
         })
         // 对齐预览与正式播放的解析语义，消除引擎翻转：
-        // 新影片默认偏好（preferMp4=true、cliEnabled=false）会让播放时
-        // 的重新解析走服务器 MP4，而添加时的解析（CLI 连接=CLI DASH，
-        // 未连接=服务器默认 DASH）是 DASH——引擎在 videojs10-dash 与
+        // 添加时的解析（CLI 连接=CLI DASH，未连接=服务器默认 DASH）
+        // 与播放时的重新解析若偏好不一致，引擎会在 videojs10-dash 与
         // videojs10 间翻转。此处按实际解析路径持久化偏好：
         // - CLI 路径：启用 CLI 锁定 DASH（与一起看 cliPrevPreferMp4 同语义）
-        // - 服务器路径：preferMp4=false 保持服务器 DASH
+        // - 服务器路径：按管理员基础设置的默认解析参数物化
+        //   （普通视频走「默认解析模式」，番剧/影视走「番剧/影视默认模式」）
         // 均可在影片的解析设置中手动更改。
         if (added) {
-          setBilibiliParseOptions(
-            added.id,
-            resolvedViaCliRef.current
-              ? { cliEnabled: true, preferMp4: false }
-              : { cliEnabled: false, preferMp4: resolvedMovie.format !== 'dash' }
-          )
+          const sysSettings = useSystemSettingsStore.getState()
+          const pgc = isBilibiliPgcMovie(added)
+          // 番剧/影视默认模式为「仅 CLI」时物化 Movie.cliOnly：
+          // 全体成员必须连接本机 ZViewer CLI 观看，服务器仅做同步信令
+          const pgcCliOnly =
+            pgc && sysSettings.bilibiliPgcDefaultMode === 'cliOnly'
+
+          if (pgcCliOnly || resolvedViaCliRef.current) {
+            setBilibiliParseOptions(added.id, {
+              cliEnabled: true,
+              preferMp4: false,
+            })
+          } else {
+            const defaultMode = pgc
+              ? sysSettings.bilibiliPgcDefaultMode
+              : sysSettings.bilibiliDefaultParseMode
+            setBilibiliParseOptions(added.id, {
+              preferMp4: defaultMode !== 'dash',
+            })
+          }
         }
         resetForm()
         message.success('影片已添加')
@@ -2292,6 +2427,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
                         )}
                       >
                         {formatDuration(page.duration)}
+                        {page.badge ? ` · ${page.badge}` : ''}
                       </Text>
                     )}
                   </div>

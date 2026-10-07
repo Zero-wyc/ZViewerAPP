@@ -46,6 +46,7 @@ export function VoiceChatPanel({
   const [expanded, setExpanded] = useState(false)
   const [editingPeer, setEditingPeer] = useState<string | null>(null)
   const {
+    transport,
     joined,
     mediaConnected,
     joining,
@@ -117,7 +118,7 @@ export function VoiceChatPanel({
             语音聊天
           </span>
           <span className="text-[10px] uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
-            {joined ? mediaConnected ? `${memberCount} 人在线` : '媒体连接中断，正在恢复' : '未连接'}
+            {joined ? mediaConnected ? `${memberCount} 人在线${transport ? ' · ' + transport.toUpperCase() : ''}` : '媒体连接中断，正在恢复' : '未连接'}
           </span>
         </div>
         {!embedded && (

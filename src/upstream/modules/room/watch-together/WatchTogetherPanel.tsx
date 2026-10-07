@@ -30,6 +30,8 @@ import {
   requestFullscreen,
 } from '@/lib/fullscreen-utils'
 import { WatchTogetherCore } from './WatchTogetherCore'
+import { useRoomStore } from '@/store/roomStore'
+import { ViewerCliRequiredOverlay } from './ViewerCliRequiredOverlay'
 import '@/modules/art-player/art-overrides.css'
 
 interface WatchTogetherPanelProps {
@@ -84,6 +86,7 @@ export function WatchTogetherPanel({
   onToggleWebFullscreen: controlledToggleWebFullscreen,
   initialPlayback,
 }: WatchTogetherPanelProps) {
+  const playback = useRoomStore(s => s.viewerCliResolvedSource?.resolved ?? s.watchTogether)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const stageRef = useRef<HTMLDivElement | null>(null)
@@ -257,6 +260,9 @@ export function WatchTogetherPanel({
       }
     >
       <div ref={containerRef} className="zart-video-container h-full w-full" />
+      {/* 观众端「仅允许CLI模式」未满足时的安装引导覆盖层（cliOnly 影片不回退服务器） */}
+      {!isHost && <ViewerCliRequiredOverlay />}
+      {playback.preview && <div className="absolute top-2 left-2 z-20 rounded bg-black/70 px-3 py-1 text-xs text-white pointer-events-none">{playback.seasonTitle || '番剧/影视'} · 试看流（本机账号权限）</div>}
       {ready && (
         <WatchTogetherCore
           roomId={roomId}

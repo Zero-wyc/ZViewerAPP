@@ -1,3 +1,4 @@
+import { connectionUrl } from '../../platform/connectionTransport'
 /**
  * 统一 fetch 封装与后端地址配置中心。
  *
@@ -55,14 +56,14 @@ function normalizeUrl(url: string): string {
  * - "example.com"        → 相对路径，请求实际发到当前 origin，自定义后端静默失效
  * - "example.com:3000"   → "example.com" 被当作 URL scheme，fetch 直接拒绝
  *
- * 此函数在保存/计算时自动补全 http:// 前缀，确保地址始终是合法的绝对 URL。
+ * 此函数在保存/计算时自动补全 https:// 前缀，确保地址始终是合法的绝对 URL。
  * 以 "/" 开头的相对路径（如 FLV 的 /live）和空值不做处理。
  */
 function ensureProtocol(url: string): string {
   if (!url) return url
   if (url.startsWith('http://') || url.startsWith('https://')) return url
   if (url.startsWith('/')) return url // 相对路径，不处理
-  return `http://${url}`
+  return `https://${url}`
 }
 
 const rawApiUrl = normalizeUrl(import.meta.env.VITE_API_URL || '')
@@ -128,17 +129,17 @@ export let RTMP_PORT = computeRtmpPort()
 
 /** 实时获取当前生效的 REST API 地址（每次从 localStorage 读取，确保最新） */
 export function getApiUrl(): string {
-  return computeApiUrl()
+  return connectionUrl(computeApiUrl())
 }
 
 /** 实时获取当前生效的 socket.io 地址（每次从 localStorage 读取，确保最新） */
 export function getSocketUrl(): string {
-  return computeSocketUrl()
+  return connectionUrl(computeSocketUrl())
 }
 
 /** 实时获取当前生效的 FLV 拉流基础地址 */
 export function getFlvBaseUrl(): string {
-  return computeFlvBaseUrl()
+  return connectionUrl(computeFlvBaseUrl())
 }
 
 /** 实时获取当前生效的 RTMP 推流端口 */
@@ -155,7 +156,7 @@ export function getRtmpHost(): string {
   const apiUrl = getApiUrl()
   try {
     const parsed = new URL(apiUrl)
-    return parsed.hostname
+    return new URL(computeApiUrl()).hostname
   } catch {
     return window.location.hostname
   }
@@ -319,7 +320,7 @@ export async function apiFetch(
   const url =
     typeof input === 'string' && input.startsWith('/')
       ? `${currentApiUrl}${input}`
-      : input
+      : connectionUrl(String(input))
 
   const res = await fetch(url, {
     ...rest,

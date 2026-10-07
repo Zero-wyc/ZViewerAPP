@@ -5,12 +5,15 @@ import { picker } from '@kit.CoreFileKit';
 import { BilibiliLocalProxy } from '../services/BilibiliLocalProxy';
 import { DEBUG } from 'BuildProfile';
 import { NativeMediaSession, MediaSessionState } from '../services/NativeMediaSession';
+import { ServerConnection, ConnectionPolicy } from '../services/ServerConnection';
 
 const LOCAL_ORIGIN = 'https://zviewer.local';
 const LOCAL_PAGE = `${LOCAL_ORIGIN}/index.html`;
 
 interface PollQrArgument { key: string; }
 const bilibiliProxy = new BilibiliLocalProxy();
+const serverConnection = new ServerConnection();
+interface ProbeArgument { url: string; }
 
 function mimeType(path: string): string {
   if (path.endsWith('.html')) return 'text/html';
@@ -58,6 +61,8 @@ class HarmonyHost {
   }
 
   private async perform(action: string, argument: string): Promise<string | null> {
+    if (action === 'configureServerConnection') return JSON.stringify(await serverConnection.configure(JSON.parse(argument) as ConnectionPolicy));
+    if (action === 'probeServerConnection') return JSON.stringify(await serverConnection.probe((JSON.parse(argument) as ProbeArgument).url));
     if (action === 'updateMediaSession') {
       await this.media.update(JSON.parse(argument) as MediaSessionState);
       return null;

@@ -10,9 +10,10 @@
  * 本模块不触碰 React 状态 / store / message，所有副作用留在调用方。
  */
 import type { Movie } from '@/store/roomStore'
+import { useRoomStore } from '@/store/roomStore'
 import { detectMediaFormat, type MediaFormat } from '@/lib/mediaFormat'
 import { resolveBilibiliWithOptions } from '@/modules/bilibili/bilibiliApi'
-import { extractBvid, resolveBilibiliViaCli } from '@/modules/bilibili/cliApi'
+import { extractBvid, extractBangumiId, resolveBangumiViaCli, resolveBilibiliViaCli } from '@/modules/bilibili/cliApi'
 import { useCliAgentStore } from '@/store/cliAgentStore'
 import { getBilibiliParseOptions } from '@/modules/bilibili/parseOptions'
 import { useSystemSettingsStore } from '@/store/systemSettingsStore'
@@ -49,6 +50,11 @@ export interface RecoverySourceInfo {
 
 /** 解析出的播放源字段（供构建 WatchTogetherState） */
 export interface ResolvedMovieSource {
+  epId?: number
+  seasonId?: number
+  seasonTitle?: string
+  preview?: boolean
+
   sourceUrl: string
   audioUrl?: string
   format?: MediaFormat
@@ -125,30 +131,68 @@ export function getActiveCliProxyUrl(): string | null {
 }
 
 /**
- * 获取影片实际生效的 MP4 偏好（感知 CLI 连接状态）。
+ * 判断影片是否为 B站 PGC 内容（番剧 / 影视）。
+ *
+ * PGC 影片的 url 为 bangumi ep/ss 链接，或分集列表（pages）带 epId
+ * （UGC 普通 UP 主视频的分 P 无 epId 字段）。用于「仅允许 CLI 模式」
+ * 开关的显示与执行范围限定——UGC MP4 直链免防盗链可直连，不存在
+ * PGC 强制 B站 Referer 防盗链导致的必然代理问题。
+ */
+export function isBilibiliPgcMovie(
+  movie: Pick<Movie, 'url' | 'pages'> | null | undefined
+): boolean {
+  if (!movie) return false
+  if (/^(ep|ss)[1-9]\d*$|bangumi\/play\/(ep|ss)\d+|ep_id=\d+/i.test(movie.url)) return true
+  return !!movie.pages?.some((p) => p.epId != null)
+}
+
+/**
+ * 获取影片实际生效的 MP4 偏好（感知 CLI 连接状态与系统默认参数）。
  *
  * CLI 已启用且本地代理已连接：强制 DASH 高画质代理路径（preferMp4=false）。
  * CLI 已启用但本地代理未连接：回退服务器 MP4 直链（preferMp4=true），
  * 不抛错也不回退服务器 DASH（用户指定语义：CLI 未连接就回退 MP4）。
  *
- * CLI 未启用时：服务器端 DASH 被禁用（dashDisabled）强制 MP4，否则按偏好。
+ * CLI 未启用时：服务器端 DASH 被禁用（dashDisabled）强制 MP4；
+ * 影片已有显式解析配置按配置走；未显式配置时回退管理员基础设置的
+ * 默认解析参数（普通视频 bilibiliDefaultParseMode / 番剧影视
+ * bilibiliPgcDefaultMode，经 public-settings 下发，观众端同样生效）。
  */
 export function getEffectivePreferMp4(movieId: number): boolean {
-  const { preferMp4, cliEnabled } = getBilibiliParseOptions(movieId)
+  const parsePrefs = getBilibiliParseOptions(movieId)
+  const { preferMp4, cliEnabled } = parsePrefs
+  const moviePolicy = useRoomStore.getState().movies.find(m => m.id === movieId)
+  if (moviePolicy?.cliOnly === true) return false
   if (cliEnabled) {
     // CLI 已启用：已连接走 CLI DASH，未连接回退服务器 MP4
     return getActiveCliProxyUrl() ? false : true
   }
   // CLI 未启用：检查服务器端是否禁用了 DASH
-  const { dashDisabled } = useSystemSettingsStore.getState()
-  if (dashDisabled) {
+  const settings = useSystemSettingsStore.getState()
+  if (settings.dashDisabled) {
     return true
   }
-  return preferMp4
+  // 影片已有显式解析配置：按配置走
+  if (parsePrefs.configured) {
+    return preferMp4
+  }
+  // 未显式配置：按管理员基础设置的默认解析参数兜底
+  // （PGC 走番剧/影视默认模式，普通视频走普通默认模式；
+  // cliOnly 在此处仅映射 preferMp4=true——实际媒体路径由
+  // Movie.cliOnly 物化后的强制 CLI 分支决定，不经过本函数）
+  const movie = useRoomStore.getState().movies.find((m) => m.id === movieId)
+  const defaultMode = isBilibiliPgcMovie(movie)
+    ? settings.bilibiliPgcDefaultMode
+    : settings.bilibiliDefaultParseMode
+  return defaultMode !== 'dash'
 }
 
 function mapResolvedSourceToMovieSource(
   resolved: {
+    epId?: number
+    seasonId?: number
+    seasonTitle?: string
+    preview?: boolean
     videoUrl: string
     audioUrl?: string
     format?: MediaFormat
@@ -165,6 +209,8 @@ function mapResolvedSourceToMovieSource(
     throw new Error('未获取到对应清晰度的播放地址')
   }
   return {
+    epId: resolved.epId, seasonId: resolved.seasonId, seasonTitle: resolved.seasonTitle, preview: resolved.preview,
+    noProxyFallback: movie.cliOnly === true,
     sourceUrl: resolved.videoUrl,
     audioUrl: resolved.audioUrl,
     format: resolved.format,
@@ -199,9 +245,13 @@ function buildBilibiliResolveCacheKey(
   movieId: number,
   qn: number | null | undefined,
   preferMp4: boolean,
-  cliProxyUrl: string | null
+  cliProxyUrl: string | null,
+  useHostCookie: boolean,
+  page: number | null | undefined
 ): string {
-  return `${movieId}|${qn ?? '-'}|${preferMp4 ? 'mp4' : 'dash'}|${cliProxyUrl ?? 'server'}`
+  return `${movieId}|${qn ?? '-'}|${preferMp4 ? 'mp4' : 'dash'}|${
+    cliProxyUrl ?? 'server'
+  }|${useHostCookie ? 'host' : 'self'}|p${page ?? '-'}`
 }
 
 /** 强制绕过缓存时（旧 URL 已失败），清掉该影片的全部缓存条目避免膨胀 */
@@ -228,17 +278,20 @@ function purgeBilibiliResolveCache(movieId: number): void {
 export async function resolveBilibiliOnline(
   movie: Movie,
   onProgress?: (step: string, message: string) => void,
-  options?: { preferMp4?: boolean; forceRefresh?: boolean; timeoutMs?: number }
+  options?: { preferMp4?: boolean; forceRefresh?: boolean; timeoutMs?: number; page?: number; useHostCookie?: boolean }
 ): Promise<ResolvedMovieSource> {
   const parsePrefs = getBilibiliParseOptions(movie.id)
   const policy = getNativeQualityPolicy(movie.id)
   const qn = isEmbeddedBilibiliHost() ? policy.qn : undefined
-  const proxyUrl = parsePrefs.cliEnabled ? getActiveCliProxyUrl() : null
+  const cliOnly = movie.cliOnly === true
+  const proxyUrl = cliOnly || parsePrefs.cliEnabled ? getActiveCliProxyUrl() : null
+  if (cliOnly && !proxyUrl) throw new Error('该影片要求本机代理：请登录 B 站或重启内置代理后重试')
+  const useHostCookie = options?.useHostCookie !== false
   // CLI 已启用：已连接走 CLI DASH；未连接由 getEffectivePreferMp4
   // 返回 true，回退服务器 MP4 直链
   const effectivePreferMp4 =
     options?.preferMp4 ?? getEffectivePreferMp4(movie.id)
-  const forceDash = parsePrefs.cliEnabled && !!proxyUrl
+  const forceDash = (parsePrefs.cliEnabled || cliOnly) && !!proxyUrl
 
   if (parsePrefs.cliEnabled && !proxyUrl) {
     console.warn(
@@ -254,7 +307,9 @@ export async function resolveBilibiliOnline(
     movie.id,
     requestedQn,
     effectivePreferMp4,
-    proxyUrl
+    proxyUrl,
+    useHostCookie,
+    options?.page ?? movie.currentPage ?? 1
   ) + `|${movie.url}|${movie.cid ?? ''}|${isEmbeddedBilibiliHost() ? nativeQualityCacheKey(movie.id) : ''}|${capabilityKey}`
   if (!forceRefresh) {
     const cached = bilibiliResolveCache.get(cacheKey)
@@ -267,6 +322,12 @@ export async function resolveBilibiliOnline(
 
   let resolvedSource: ResolvedMovieSource
   if (proxyUrl) {
+    const pgc = extractBangumiId(movie.url)
+    const nativeOptions = { qualityMode: policy.mode, fallbackQn: policy.fallbackQn, timeoutMs: options?.timeoutMs, seasonId: pgc?.seasonId }
+    if (pgc) {
+      const resolved = await resolveBangumiViaCli(proxyUrl, pgc.epId ?? 0, movie.cid, requestedQn, effectivePreferMp4, forceDash, nativeOptions)
+      resolvedSource = mapResolvedSourceToMovieSource(resolved, movie)
+    } else {
     const bvid = extractBvid(movie.url)
     if (bvid && (movie.cid || isEmbeddedBilibiliHost())) {
       const resolved = await resolveBilibiliViaCli(
@@ -280,20 +341,32 @@ export async function resolveBilibiliOnline(
       )
       resolvedSource = mapResolvedSourceToMovieSource(resolved, movie)
     } else {
+      if (cliOnly) throw new Error('该影片要求本机解析，当前链接无法识别；请使用 BV / ep / ss 完整链接')
       const resolved = await resolveBilibiliWithOptions(
         movie.url,
         requestedQn,
         onProgress,
-        { preferMp4: effectivePreferMp4 }
+        {
+          preferMp4: effectivePreferMp4,
+          // PGC ep 链接无法走 CLI 的 bvid 分支，服务器 fallback 同样锚定房主
+          movieId: useHostCookie ? movie.id : undefined,
+          // UGC 多 P：按目标分 P 解析（切 P 后 movie.url 不变）
+          page: options?.page ?? movie.currentPage,
+        }
       )
       resolvedSource = mapResolvedSourceToMovieSource(resolved, movie)
+    }
     }
   } else {
     const resolved = await resolveBilibiliWithOptions(
       movie.url,
       requestedQn,
       onProgress,
-      { preferMp4: effectivePreferMp4 }
+      {
+        preferMp4: effectivePreferMp4,
+        movieId: useHostCookie ? movie.id : undefined,
+        page: options?.page ?? movie.currentPage,
+      }
     )
     resolvedSource = mapResolvedSourceToMovieSource(resolved, movie)
   }
@@ -368,7 +441,7 @@ export async function resolveMovieSource({
 }: ResolveMovieSourceOptions): Promise<ResolvedMovieSource> {
   if (sourceType === 'bilibili') {
     // 恢复场景且旧 URL 可用：直接复用，跳过在线解析
-    if (recovery?.sourceUrl && !isEmbeddedBilibiliHost()) {
+    if (movie.cliOnly !== true && recovery?.sourceUrl && !isEmbeddedBilibiliHost()) {
       // B站 源的防盗链由服务器代理（m4s）或直连（MP4）处理，不需要前端 headers。
       // recovery.headers 可能来自旧的非 B站 源（如 anime），复用时必须清除，
       // 否则 resolveProxyUrl 会因 hasHeaders=true 将 MP4 直链包装为服务器代理 URL。

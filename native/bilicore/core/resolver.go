@@ -52,6 +52,8 @@ var qnQualityMap = map[int]struct {
 
 // BilibiliVideoPage 分集信息。
 type BilibiliVideoPage struct {
+	EpID     int64  `json:"epId,omitempty"`
+	Badge    string `json:"badge,omitempty"`
 	Cid      int64  `json:"cid"`
 	Page     int    `json:"page"`
 	Part     string `json:"part"`
@@ -90,6 +92,8 @@ type DurlSegment struct {
 
 // BilibiliPlayUrlResult 播放地址结果。
 type BilibiliPlayUrlResult struct {
+	Duration      int
+	Preview       bool
 	Format        string           `json:"format"`
 	AllVideo      []DashMediaTrack `json:"-"`
 	Video         []DashMediaTrack `json:"video,omitempty"`
@@ -110,6 +114,8 @@ type QualityItem struct {
 
 // ResolvePageInfo 返回给前端的分集信息。
 type ResolvePageInfo struct {
+	EpID     int64  `json:"epId,omitempty"`
+	Badge    string `json:"badge,omitempty"`
 	Page     int    `json:"page"`
 	Cid      int64  `json:"cid"`
 	Part     string `json:"part"`
@@ -118,6 +124,11 @@ type ResolvePageInfo struct {
 
 // ResolveResult 解析结果。
 type ResolveResult struct {
+	EpID          int64             `json:"epId,omitempty"`
+	SeasonID      int64             `json:"seasonId,omitempty"`
+	SeasonTitle   string            `json:"seasonTitle,omitempty"`
+	Preview       bool              `json:"preview"`
+	ResolvedURL   string            `json:"resolvedUrl,omitempty"`
 	Title         string            `json:"title"`
 	Duration      int               `json:"duration"`
 	Cid           int64             `json:"cid"`
@@ -353,6 +364,7 @@ func bilibiliFetchContext(ctx context.Context, api string, cookie string, out an
 			Code    int             `json:"code"`
 			Message string          `json:"message"`
 			Data    json.RawMessage `json:"data"`
+			Result  json.RawMessage `json:"result"`
 		}
 		if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
 			res.Body.Close()
@@ -371,7 +383,17 @@ func bilibiliFetchContext(ctx context.Context, api string, cookie string, out an
 		}
 
 		if out != nil {
-			if err := json.Unmarshal(payload.Data, out); err != nil {
+			raw := payload.Result
+			if len(raw) == 0 || string(raw) == "null" {
+				raw = payload.Data
+				var nested struct {
+					Result json.RawMessage `json:"result"`
+				}
+				if json.Unmarshal(raw, &nested) == nil && len(nested.Result) > 0 {
+					raw = nested.Result
+				}
+			}
+			if err := json.Unmarshal(raw, out); err != nil {
 				return err
 			}
 		}

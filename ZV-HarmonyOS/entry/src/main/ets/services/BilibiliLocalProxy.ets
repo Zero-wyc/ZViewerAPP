@@ -1,7 +1,7 @@
 import { http, socket } from '@kit.NetworkKit';
 import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import { util } from '@kit.ArkTS';
-import { BilibiliResolution, resolveBilibili } from './BilibiliResolver';
+import { BilibiliResolution, CodecCapability, resolveBilibili } from './BilibiliResolver';
 import { BilibiliCredentialStore } from './BilibiliCredentialStore';
 
 const TRUSTED_ORIGIN = 'https://zviewer.local';
@@ -465,13 +465,15 @@ export class BilibiliLocalProxy {
 
   private async resolveEndpoint(connection: socket.TCPSocketConnection, path: string, origin: string): Promise<void> {
     try {
-      const bvid = queryValue(path, 'bvid');
+      const bvid = queryValue(path, 'epId') ? 'ep' + queryValue(path, 'epId') : queryValue(path, 'seasonId') ? 'ss' + queryValue(path, 'seasonId') : queryValue(path, 'bvid');
       const cid = Number(queryValue(path, 'cid')) || 0;
       const qn = Number(queryValue(path, 'qn')) || 0;
       const fallbackQn = Number(queryValue(path, 'fallbackQn')) || 0;
       const mode = queryValue(path, 'qualityMode') || 'autoMax';
       const epoch = this.sessionVersion;
-      const result: BilibiliResolution = await resolveBilibili(bvid, cid, qn, mode, fallbackQn, this.cookie, this.vipStatus);
+      const capabilityText = queryValue(path, 'capabilities');
+      const capabilities = capabilityText ? JSON.parse(capabilityText) as CodecCapability[] : undefined;
+      const result: BilibiliResolution = await resolveBilibili(bvid, cid, qn, mode, fallbackQn, this.cookie, this.vipStatus, queryValue(path, 'preferMp4') === 'true' && queryValue(path, 'forceDash') !== 'true', capabilities);
       if (epoch !== this.sessionVersion) throw new Error('账号已切换，请重新解析');
       const videoCandidates = trustedMediaCandidates(result.videoUrl, result.videoBackupUrls);
       const audioCandidates = result.audioUrl === '' ? [] : trustedMediaCandidates(result.audioUrl, result.audioBackupUrls);

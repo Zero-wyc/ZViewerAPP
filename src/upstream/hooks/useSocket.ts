@@ -50,7 +50,9 @@ export function reconnectSocket() {
 
 function ensureSocket() {
   if (connection.getState().socket) return
-  const socket = io(getSocketUrl(), {
+  const base = new URL(getSocketUrl())
+  const socket = io(base.origin, {
+    path: base.pathname.replace(/\/$/, '') + '/socket.io',
     autoConnect: false,
     transports: ['websocket', 'polling'],
     withCredentials: true,

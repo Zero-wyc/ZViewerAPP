@@ -1,6 +1,20 @@
 # HarmonyOS 应用维护架构整理
 
-更新日期：2026-10-04
+更新日期：2026-10-07
+
+## 2026-10-07：1.7.0 / 170 双端适配交付
+
+当前本地交付版本为 **1.7.0 / 170**，目标上游 `ba033096bc9c3a85a2058918a002b80a5f484ec8`。正式 HAP 使用既有密钥、证书与 release Profile，代码签名和内容摘要验证通过。与正式 APK、源码提交 ZIP、校验文件及脱敏证据同目录交付，尚未发布远端 Release。下方 1.6.0 及更早结论按原版本解释；本轮不涉及 iOS。详见 [1.7.0 交付记录](releases/client-1.7.0-adaptation.md)、[发行说明](releases/client-1.7.0.md)。
+
+`BilibiliResolver.ets` / `BilibiliLocalProxy.ets` 新增 ep/ss、整季、短链、会员/试看字段、PGC MP4/DASH 与明确业务错误。处理 result / data.result 包裹，按目标 ep 确定 cid/currentPage；与 Go 共用契约 fixture。沿用本机凭据存储、随机回环路径、Host/Origin 校验、CDN 域名和备用地址；编码能力与 AAC 筛选、手动质量失败行为保持一致。多段 MP4 不拼成伪单文件，提示 DASH。原 HEVC Main 10 限制不变。
+
+新增 `services/ServerConnection.ets`，经 `Index.ets` → `bridge-bootstrap.js` → `src/platform/serverConnection.ts` 实现按服务器证书例外和无凭据探测。只在选定 origin 的私有回环通道接受用户例外，原生 Cookie 不回传 JS，API/NDJSON/Range/HTTP 与 WS 升级同作用域；其他域名保持严格验证，撤销关闭旧 Socket。TLS Socket 先 bind 再注册监听，按响应长度/分块边界排空队列，处理 peer close 先于尾部 message 的顺序，避免空响应和媒体截断。保留连接数、头部与队列大小边界，没有全局 ArkWeb SSL 放行。
+
+共享 cliOnly、PGC 元数据、多 P/ep 竞态、默认模式、缓冲缓存身份隔离、HLS 连接路由、语音线路与一起听增量见 [Android 同期维护记录](android-maintenance-architecture.md)。本机账号不上传为服务器 Cookie，房主会员资格不代表观众权限。网页只通过 `npm run harmony:web` 生成 rawfile，不能手改。
+
+Pura 90 Pro / API 26 打包调试 HAP 实测自签名证书严格拒绝、例外 API/原生 Cookie/NDJSON/206/MP4 seek/Socket.IO WebSocket、外域隔离和撤销通过。已有本机会员账号实测免费集与会员 ep508405：实际时长约 1449.98 秒，跳至约 400 秒继续出帧、error=0，返回非试看。共享回归 30 项、Go 测试及 ArkTS 契约/尾包顺序回归通过，正式 Debug/Release 构建通过。
+
+本轮会员实播为 MP4；PGC DASH、非会员/服务端账号交叉、真实快速切集、穿透与 LiveKit 新线路双向听音、真机音频/蓝牙/后台/系统控件没有全部现场验收。未把帧统计或历史设备结果扩展为 1.7.0 全场景验收。签名材料只在构建时注入，构建后恢复干净 `build-profile.json5`；不提交私有配置或生成 HAP/rawfile。
 
 ## 2026-10-04：1.6.0 / 160 新服务端适配交付
 
@@ -22,8 +36,8 @@ HAP 已构建并安装到该模拟器；与 Android、桌面 SDK 的三方 LiveK
 
 | 客户端 | 当前状态 | 维护结论 |
 | --- | --- | --- |
-| Android | 当前发布 1.6.0 / 160；既有签名 APK | 共享网页功能和 B 站行为的主要参考宿主；1.6.0 签名通过，剩余真机场景待验收 |
-| HarmonyOS | 当前发布 1.6.0 / 160，适配上游 9827929；API 26 模拟器联调通过 | 维护共享网页、ArkWeb 桥接与 ArkTS 代理；剩余真机场景与 HEVC Main 10 限制单独记录 |
+| Android | 当前本地交付 1.7.0 / 170；既有签名 APK | 共享网页和 Go PGC/证书通道已适配；设备验收范围见 1.7.0 记录 |
+| HarmonyOS | 当前本地交付 1.7.0 / 170，适配上游 ba03309；API 26 模拟器验证通过 | ArkTS PGC/证书通道独立维护；剩余设备场景和 HEVC Main 10 限制保留 |
 | iOS | 1.5.0 / b15，用户已确认真机 UI 检测通过，授权未签名 IPA 构建及单独 iOS Release | RN + VLC；I13 与完整音视频/语音验收边界见 [iOS 交付记录](releases/ios-1.5.0-15-unsigned.md) |
 
 HarmonyOS 应用不是另写一套业务前端。它将根项目构建出的 `dist/` 放入 `entry/src/main/resources/rawfile/web/`，由 ArkWeb 以固定本地来源加载；平台能力通过 `zviewerHost` 注入，再由 `bridge-bootstrap.js` 暴露为共享前端识别的 `window.zviewerNative`。

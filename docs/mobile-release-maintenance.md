@@ -1,6 +1,6 @@
 # Android / HarmonyOS 维护与发布
 
-更新日期：2026-10-04。当前双端发布为 1.6.0 / 160，适配上游 `9827929`（v4.3.7 后 4 个提交），详见 [交付与验收边界](releases/client-1.6.0-adaptation.md)。此次发布原签名 Release APK/HAP、源码 ZIP 与 SHA-256。用户已确认鸿蒙纯外网域名语音可连接，其他真机场景仍按交付记录验收。**iOS 尚未适配新服务端与 LiveKit，本次不发布 IPA。** [1.6.0 发行说明](releases/client-1.6.0.md)。本篇同时保留 2026-10-02 将 iOS 1.5.0 / b15 未签名 IPA 追加到 `client-v1.5.0` Release 的历史说明，见 [iOS 交付](releases/ios-1.5.0-15-unsigned.md)。
+更新日期：2026-10-07。当前双端本地交付为 **1.7.0 / 170**，适配上游 `ba03309`，包括 PGC、本机 cliOnly 与服务器证书通道；正式 APK/HAP、提交源码 ZIP、SHA-256 和脱敏模拟器证据同目录交付，尚未发布远端 Release。见 [1.7.0 交付与验收边界](releases/client-1.7.0-adaptation.md)、[发行说明](releases/client-1.7.0.md)。本轮不涉及 iOS。以下保留旧版发布和设备结论，不能当作本版新增验收；1.6.0 的鸿蒙纯外网语音用户验收及 2026-10-02 的 iOS IPA 历史分别见 [1.6.0 记录](releases/client-1.6.0-adaptation.md)、[iOS 交付](releases/ios-1.5.0-15-unsigned.md)。
 
 从 1.6.0 起 `npm install` / `npm ci` 的 postinstall 使用 `patch-package --error-on-fail` 安装锁定的 playsvideo 0.4.7 补丁。不要跳过安装脚本或复制服务端依赖裁剪脚本。回归入口为 `npm run test:media` 与 `npm run test:adaptation`，当前测试脚本使用 Node 24 的 TypeScript 去类型能力。
 
@@ -16,7 +16,7 @@
 
 同时更新根 `package.json`、`package-lock.json`、Android `app/build.gradle` 和鸿蒙 `AppScope/app.json5`，两端 versionCode 必须高于旧版。iOS 版本与依赖不属于本次发布范围。
 
-1.3.5 从 GitHub 的 1.3.2 主分支创建独立发布工作树，再合入已验证的一起听修复。原开发目录中的未提交改动保持原样；发布前确认 `ZV-iOS/` 相对上一版没有变化。每次完成一个版本的构建后，本地提交 Git，源码 ZIP 从该发布提交生成。
+1.3.5 曾使用独立发布工作树，该流程属于历史。当前按根维护准则，全部客户端修改和 Git 操作在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。交付前确认 `ZV-iOS/` 相对本轮基线没有变化；每次完成一个版本构建后本地提交，源码 ZIP 从该提交生成。
 
 Android 使用仓库外持久发布密钥，通过 `ZVIEWER_KEYSTORE`、`ZVIEWER_STORE_PASSWORD`、`ZVIEWER_KEY_ALIAS`、`ZVIEWER_KEY_PASSWORD` 注入 Gradle，运行 `assembleRelease`。发布前以 apksigner 验证签名，并与上一版证书 SHA-256 比较。
 

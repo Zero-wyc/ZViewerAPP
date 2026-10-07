@@ -41,6 +41,8 @@ export interface PermissionsPort {
 }
 
 export interface HarmonyNativeBridge {
+  configureServerConnection?(policy: { url: string; allowUntrustedCertificate: boolean }): Promise<{ url: string }>
+  probeServerConnection?(options: { url: string }): Promise<{ ok: boolean; code: string; status?: number }>
   platform?: 'harmony'
   updateMediaSession?(state: SystemMediaState): Promise<void>
   clearMediaSession?(sessionId: string): Promise<void>

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Play, Trash2, Film, Monitor, ListVideo, Maximize } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -14,7 +14,12 @@ import {
   filterQualitiesByVip,
   getBilibiliUserInfo,
 } from '@/modules/bilibili/bilibiliApi'
-import { extractBvid, resolveBilibiliViaCli } from '@/modules/bilibili/cliApi'
+import {
+  extractBvid,
+  extractBangumiId,
+  resolveBilibiliViaCli,
+  resolveBangumiViaCli,
+} from '@/modules/bilibili/cliApi'
 import type { ResolvedSource } from '@/modules/bilibili/types'
 import { BilibiliParseSettings } from './BilibiliParseSettings'
 import {
@@ -27,7 +32,7 @@ import {
 } from '@/modules/bilibili/parseOptions'
 import { useCliAgentStore } from '@/store/cliAgentStore'
 import { cn } from '@/lib/utils'
-import { isEmbeddedBilibiliHost } from '../../../../platform/bilibiliProxy'
+import { isEmbeddedBilibiliHost, getEmbeddedProxyStatus } from '../../../../platform/bilibiliProxy'
 import { NativeQualitySelect } from '@/modules/bilibili/NativeQualitySelect'
 import { getNativeQualityPolicy } from '@/modules/bilibili/nativeQualityPolicy'
 
@@ -69,6 +74,7 @@ export function MovieListPanel({
   isHost,
   canManage = false,
 }: MovieListPanelProps) {
+  const operationSeq = useRef(0)
   const { socket } = useSocket()
   const movies = useRoomStore((state) => state.movies)
   const currentMovieId = useRoomStore((state) => state.currentMovieId)
@@ -198,34 +204,67 @@ export function MovieListPanel({
     const qn = Number(value)
     if (!Number.isFinite(qn) || qn === movie.currentQn) return
 
+    // cliOnly（仅允许CLI模式）：CLI 未连接时阻止切清晰度——切完也无法播放
+    // （解析/挂载链路均强制 CLI），提前给出可操作提示
+    if (movie.cliOnly === true && !getActiveCliProxyUrl()) {
+      message.error(
+        '该影片已开启「仅允许CLI模式」：请登录 B 站或重启内置代理后操作'
+      )
+      return
+    }
+
+    const operation = ++operationSeq.current
+    const session = getEmbeddedProxyStatus().sessionVersion
+    const current = () => operation === operationSeq.current && useRoomStore.getState().roomId === roomId && useRoomStore.getState().movies.find(m => m.id === movie.id)?.cid === movie.cid && getEmbeddedProxyStatus().sessionVersion === session
     setQualityLoadingId(movie.id)
     try {
       const parsePrefs = getBilibiliParseOptions(movie.id)
-      const proxyUrl = parsePrefs.cliEnabled ? getActiveCliProxyUrl() : null
+      // cliOnly 时强制走 CLI 解析分支（CLI 未连接已在上方拦截）
+      const proxyUrl =
+        parsePrefs.cliEnabled || movie.cliOnly === true
+          ? getActiveCliProxyUrl()
+          : null
       let resolved: ResolvedSource
 
       if (proxyUrl) {
         // CLI 已连接：使用本地 CLI 代理解析，强制 DASH，不再降级 MP4
-        const bvid = extractBvid(movie.url)
-        if (bvid && movie.cid) {
-          resolved = await resolveBilibiliViaCli(
+        // PGC（番剧 ep/ss 链接）按 epId 走 CLI 番剧解析分支
+        const bangumiId = extractBangumiId(movie.url)
+        if (bangumiId?.epId) {
+          resolved = await resolveBangumiViaCli(
             proxyUrl,
-            bvid,
+            bangumiId.epId,
             movie.cid,
             qn,
             false,
             true
           )
         } else {
-          throw new Error('无法提取 BV 号或 cid，无法使用 CLI 代理')
+          const bvid = extractBvid(movie.url)
+          if (bvid && movie.cid) {
+            resolved = await resolveBilibiliViaCli(
+              proxyUrl,
+              bvid,
+              movie.cid,
+              qn,
+              false,
+              true
+            )
+          } else {
+            throw new Error('无法提取 BV 号或 cid，无法使用 CLI 代理')
+          }
         }
       } else {
         // CLI 未启用按影片偏好；CLI 启用未连接由 getEffectivePreferMp4
-        // 返回 true，回退服务器 MP4 直链
+        // 返回 true，回退服务器 MP4 直链。
+        // movieId：服务器解析统一以房间房主 Cookie 身份执行。
         resolved = await resolveBilibiliWithOptions(movie.url, qn, undefined, {
           preferMp4: getEffectivePreferMp4(movie.id),
+          movieId: movie.id,
+          page: movie.currentPage,
         })
       }
+      if (!current()) return
       await updateMovie(roomId, movie.id, {
         audioUrl: resolved.audioUrl,
         format: resolved.format,
@@ -264,23 +303,40 @@ export function MovieListPanel({
       return
     }
 
-    const bvid = extractBvid(movie.url)
-    if (!bvid || !movie.cid) {
-      message.error('无法解析该 B站 影片')
-      return
+    // PGC（番剧 ep/ss 链接）按 epId 走 CLI 番剧解析分支
+    const bangumiId = extractBangumiId(movie.url)
+    if (!bangumiId?.epId) {
+      const bvid = extractBvid(movie.url)
+      if (!bvid || !movie.cid) {
+        message.error('无法解析该 B站 影片')
+        return
+      }
     }
 
+    const operation = ++operationSeq.current
+    const session = getEmbeddedProxyStatus().sessionVersion
+    const current = () => operation === operationSeq.current && useRoomStore.getState().roomId === roomId && useRoomStore.getState().movies.find(m => m.id === movie.id)?.cid === movie.cid && getEmbeddedProxyStatus().sessionVersion === session
     setQualityLoadingId(movie.id)
     try {
-      const resolved = await resolveBilibiliViaCli(
-        proxyUrl,
-        bvid,
-        movie.cid,
-        qn,
-        false,
-        true
-      )
-      setViewerCliResolvedSource({ movieId: movie.id, resolved })
+      const resolved = bangumiId?.epId
+        ? await resolveBangumiViaCli(
+            proxyUrl,
+            bangumiId.epId,
+            movie.cid,
+            qn,
+            false,
+            true
+          )
+        : await resolveBilibiliViaCli(
+            proxyUrl,
+            extractBvid(movie.url)!,
+            movie.cid,
+            qn,
+            false,
+            true
+          )
+      if (!current()) return
+      setViewerCliResolvedSource({ movieId: movie.id, sessionVersion: session, resolved })
       if (movie.id === currentMovieId) {
         triggerViewerSourceReload()
       }
@@ -303,12 +359,77 @@ export function MovieListPanel({
     const page = Number(value)
     if (!Number.isFinite(page) || page === movie.currentPage) return
 
+    // cliOnly（仅允许CLI模式）：CLI 未连接时阻止切分P——切完也无法播放
+    // （解析/挂载链路均强制 CLI），提前给出可操作提示
+    if (movie.cliOnly === true && !getActiveCliProxyUrl()) {
+      message.error(
+        '该影片已开启「仅允许CLI模式」：请安装并连接 ZViewer CLI 后操作'
+      )
+      return
+    }
+
+    const operation = ++operationSeq.current
+    const session = getEmbeddedProxyStatus().sessionVersion
+    const current = () => operation === operationSeq.current && useRoomStore.getState().roomId === roomId && useRoomStore.getState().movies.find(m => m.id === movie.id)?.cid === movie.cid && getEmbeddedProxyStatus().sessionVersion === session
     setPageLoadingId(movie.id)
     try {
       const parsePrefs = getBilibiliParseOptions(movie.id)
-      const proxyUrl = parsePrefs.cliEnabled ? getActiveCliProxyUrl() : null
+      // cliOnly 时强制走 CLI 解析分支（CLI 未连接已在上方拦截）
+      const proxyUrl =
+        parsePrefs.cliEnabled || movie.cliOnly === true
+          ? getActiveCliProxyUrl()
+          : null
       const targetPage = movie.pages?.find((p) => p.page === page)
       let resolved: ResolvedSource
+
+      // PGC（番剧分集，page 带 epId）：按目标集 ep 链接重解析。
+      // 与 UGC 分P 的差异：每集是独立 ep_id，不能靠 page 序号定位，
+      // 且必须同步更新 movie.url，否则后续切清晰度仍会解析旧集。
+      if (targetPage?.epId) {
+        const epUrl = `https://www.bilibili.com/bangumi/play/ep${targetPage.epId}`
+        if (proxyUrl) {
+          resolved = await resolveBangumiViaCli(
+            proxyUrl,
+            targetPage.epId,
+            targetPage.cid,
+            movie.currentQn,
+            false,
+            true
+          )
+        } else {
+          resolved = await resolveBilibiliWithOptions(
+            epUrl,
+            movie.currentQn,
+            undefined,
+            {
+              preferMp4: getEffectivePreferMp4(movie.id),
+              movieId: movie.id,
+            }
+          )
+        }
+        if (!current()) return
+        await updateMovie(roomId, movie.id, {
+          url: resolved.resolvedUrl || epUrl,
+          audioUrl: resolved.audioUrl,
+          format: resolved.format,
+          videoCodec: resolved.videoCodec,
+          audioCodec: resolved.audioCodec,
+          duration: resolved.duration,
+          cid: resolved.cid,
+          currentQn: resolved.currentQn,
+          acceptQuality: resolved.acceptQuality,
+          currentPage: resolved.currentPage ?? page,
+        })
+        if (resolved.preview) {
+          message.info(
+            `当前返回试看片段（约 ${Math.round((resolved.duration || 0) / 60)} 分钟）；完整播放取决于本机账号的内容授权`
+          )
+        }
+        if (movie.id === currentMovieId) {
+          setPendingQualityChange({ movieId: movie.id, resolved })
+        }
+        return
+      }
 
       if (proxyUrl && targetPage) {
         // CLI 已连接：使用本地 CLI 代理解析目标分P，强制 DASH，不再降级 MP4
@@ -327,17 +448,20 @@ export function MovieListPanel({
         }
       } else {
         // CLI 未启用按影片偏好；CLI 启用未连接由 getEffectivePreferMp4
-        // 返回 true，回退服务器 MP4 直链
+        // 返回 true，回退服务器 MP4 直链。
+        // movieId：服务器解析统一以房间房主 Cookie 身份执行。
         resolved = await resolveBilibiliWithOptions(
           movie.url,
           movie.currentQn,
           undefined,
           {
             preferMp4: getEffectivePreferMp4(movie.id),
+            movieId: movie.id,
             page,
           }
         )
       }
+      if (!current()) return
       await updateMovie(roomId, movie.id, {
         audioUrl: resolved.audioUrl,
         format: resolved.format,
@@ -515,7 +639,9 @@ export function MovieListPanel({
                           size="sm"
                           value={String(movie.currentPage ?? 1)}
                           options={movie.pages.map((p) => ({
-                            label: `P${p.page} ${p.part}`,
+                            label: `P${p.page} ${p.part}${
+                              p.badge ? ` · ${p.badge}` : ''
+                            }`,
                             value: String(p.page),
                           }))}
                           disabled={

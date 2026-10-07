@@ -21,6 +21,9 @@ export type NormalizedParseOptions = {
   cliEnabled: boolean
   /** 启用 CLI 之前保存的播放模式 */
   cliPrevPreferMp4?: boolean
+  /** 该影片是否有显式解析配置（localStorage 中存在配置条目）。
+   * false = 未配置，运行时应回退管理员基础设置的默认解析参数 */
+  configured: boolean
 }
 
 /** 存储格式：以 movieId 字符串为 key 的配置映射 */
@@ -91,6 +94,7 @@ function normalizeOptions(
     bufferMode: opts?.bufferMode ?? DEFAULT_PARSE_OPTIONS.bufferMode,
     cliEnabled: opts?.cliEnabled ?? nativeDefault,
     cliPrevPreferMp4: opts?.cliPrevPreferMp4,
+    configured: opts !== undefined,
   }
 }
 

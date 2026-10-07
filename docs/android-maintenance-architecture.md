@@ -1,6 +1,23 @@
 # Android 应用维护架构整理
 
-更新日期：2026-10-04
+更新日期：2026-10-07
+
+## 2026-10-07：1.7.0 / 170 双端适配交付
+
+当前本地交付版本为 **1.7.0 / 170**，目标上游 `ba033096bc9c3a85a2058918a002b80a5f484ec8`。正式 APK 与鸿蒙 HAP 均已构建并验证既有发布签名；本地源码提交、ZIP、SHA-256 和脱敏证据一起交付。尚未发布远端 Release。本轮不修改或构建 iOS，下方 1.6.0 及更早章节属于历史记录。详见 [1.7.0 交付记录](releases/client-1.7.0-adaptation.md)、[发行说明](releases/client-1.7.0.md)。
+
+| 功能 | 维护入口与约束 |
+| --- | --- |
+| PGC 解析 | `native/bilicore/core/pgc.go`、`mobile_input.go`、`quality.go`；ep/ss、整季、短链、试看/业务错误，与 ArkTS 使用同一 fixture。保留设备编码能力、普通画质和 AAC 筛选，手动档位不能静默降低；Cookie 留在 Go/原生。 |
+| 本机代理接口 | `native/bilicore/mobile/mobile.go` 的 `/resolve` 接收 epId/seasonId/bvid、cid、page、preferMp4/forceDash 与能力；AAR 由 `scripts/build-bilicore.mjs` 生成。 |
+| cliOnly / 分集 | 共享 `bilibili/`、`roomStore`、`movie-source-resolver`、`useVideoSource`、`buffer-mode`；影片先写 cliOnly，等待 cid 对应并检查账号会话。只在本机播放/下载时包装 CDN 地址，禁止服务器媒体兜底及广播回环地址；缓冲先解析本机身份再查缓存。 |
+| 服务器证书通道 | `src/platform/serverConnection.ts`、`connectionTransport.ts` → `ServerConnectionPlugin.java` → `native/bilicore/mobile/server_connection.go`；仅选定 origin 使用随机路径私有通道，原生 Cookie、HTTP 流、Range 和 WS 共用作用域；撤销关闭请求和升级 Socket，外域仍严格校验。 |
+| 连接入口 | `src/App.tsx`、`src/mobile/serverUrl.ts`；自动 HTTPS 优先，探测无凭据，HTTP 回退需要明确的同端口明文服务证据。自定义完整 URL 与每服务器证书例外分别保存。 |
+| 语音 / 一起听 | `voice-chat/transport.ts` 从实际 selected candidate 判断 UDP/TCP；保留音轨清理和原生路由。一起听末尾推荐、默认来源和房间评论已对齐，侧坞隐藏时保持挂载，语音仍是单实例。 |
+
+本轮 `test:adaptation` 26 项、`test:media` 4 项与 Go 测试通过。Medium Phone 打包调试 APK 实测自签名证书例外 API、原生 Cookie、NDJSON、206 Range、MP4 seek 和 Socket.IO WebSocket；外域与撤销隔离通过。已有本机会员账号实测免费/会员 PGC MP4，会员 ep508405 实际时长约 1449.98 秒，跳至约 400 秒后继续出帧，非试看。DASH 契约通过但未新增真实 PGC DASH 实播；不把模拟器帧统计称为人工听音。
+
+非会员/服务端房主身份交叉、真实房间快速分 P/切 ep、生产穿透地址、LiveKit UDP/TCP 双向音频和真机蓝牙/后台/系统控件仍按交付记录列为待验收。Android 既有最低 API 24 与媒体能力限制保留，生成网页与 AAR 不提交。
 
 ## 2026-10-04：1.6.0 / 160 新服务端适配交付
 
@@ -26,8 +43,8 @@ Android 调试 APK 已在 Medium Phone 模拟器安装。与隔离新服务端�
 
 | 客户端 | 当前状态 | 维护结论 |
 | --- | --- | --- |
-| Android | 当前发布 1.6.0 / 160；既有签名 APK | 优先在共享前端实现，再同步原生宿主；1.6.0 签名通过，剩余真机场景待验收 |
-| HarmonyOS | 当前发布 1.6.0 / 160，ArkWeb 正式签名 HAP | 共享网页业务，原生桥接、B 站代理和打包独立维护；签名通过，剩余真机场景待验收 |
+| Android | 当前本地交付 1.7.0 / 170；既有签名 APK | PGC 与证书通道模拟器验证通过；完整真机场景见 1.7.0 记录 |
+| HarmonyOS | 当前本地交付 1.7.0 / 170，ArkWeb 正式签名 HAP | 共享网页业务与 ArkTS PGC/证书通道已适配；剩余设备场景待验收 |
 | iOS | 1.5.0 / b15，用户已确认真机 UI 检测通过，授权未签名 IPA 构建及单独 iOS Release | RN + VLC；I13 与完整音视频/语音验收边界见 [iOS 交付记录](releases/ios-1.5.0-15-unsigned.md) |
 
 当前 Android 的发布入口是 `ZV-Android/`，网页入口是仓库根目录的 `src/`。`ZV-HarmonyOS/` 不应复制 Android Gradle 或 Java 代码；它通过 ArkWeb 加载同一份 `dist/`。

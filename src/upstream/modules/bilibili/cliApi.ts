@@ -1,4 +1,5 @@
 import type { ResolvedSource } from './types'
+import { logicalConnectionUrl } from '../../../platform/connectionTransport'
 import { embeddedBilibiliProxy, getEmbeddedProxyStatus, isEmbeddedBilibiliHost } from '../../../platform/bilibiliProxy'
 import { getWebViewCapabilities } from './nativeQualityPolicy'
 
@@ -11,6 +12,32 @@ export function extractBvid(url: string): string | null {
   if (!url) return null
   const match = url.match(BV_REGEX)
   return match ? match[0] : null
+}
+
+/**
+ * 从任意输入提取番剧/影视（PGC）标识：ep 集号或 ss 季号。
+ *
+ * 与后端 resolver.extractBangumiId 语义一致：显式 /bangumi/play/ 路径直接命中；
+ * 裸 ep(\d+)/ss(\d+) 仅在无 BV/av 上下文、且 ep/ss 前非字母数字时认定。
+ */
+export function extractBangumiId(
+  input: string
+): { epId?: number; seasonId?: number } | null {
+  if (!input) return null
+  const valid = (id: number) => Number.isSafeInteger(id) && id > 0
+  const pathMatch = input.match(/bangumi\/play\/(ep|ss)(\d+)/i)
+  if (pathMatch) {
+    if (!valid(Number(pathMatch[2]))) return null
+    return pathMatch[1].toLowerCase() === 'ep'
+      ? { epId: Number(pathMatch[2]) }
+      : { seasonId: Number(pathMatch[2]) }
+  }
+  if (extractBvid(input) || /av\d+/i.test(input)) return null
+  const epMatch = input.match(/(?:^|[^a-z0-9])ep(\d+)/i)
+  if (epMatch && valid(Number(epMatch[1]))) return { epId: Number(epMatch[1]) }
+  const ssMatch = input.match(/(?:^|[^a-z0-9])ss(\d+)/i)
+  if (ssMatch && valid(Number(ssMatch[1]))) return { seasonId: Number(ssMatch[1]) }
+  return null
 }
 
 /**
@@ -30,6 +57,7 @@ export function buildCliProxyUrl(proxyUrl: string, targetUrl: string): string {
 
 /** Remove device-local credentials before storing or broadcasting media URLs. */
 export function unwrapCliProxyUrl(raw: string): string {
+  raw = logicalConnectionUrl(raw)
   try {
     const url = new URL(raw)
     if ((url.hostname === '127.0.0.1' || url.hostname === 'localhost') && url.pathname.endsWith('/proxy')) return url.searchParams.get('url') || raw
@@ -84,8 +112,19 @@ interface CliResolveResponse {
     cid: number
     part: string
     duration: number
+    epId?: number
+    badge?: string
   }>
+  resolvedUrl?: string
   currentPage?: number
+  /** PGC：当前播放集 ep_id */
+  epId?: number
+  /** PGC：整季 season_id */
+  seasonId?: number
+  /** PGC：整季标题（番剧/影视名） */
+  seasonTitle?: string
+  /** PGC：当前集为试看/预览流 */
+  preview?: boolean
 }
 
 /** CLI 代理连接失败（网络不可达 / CORS / 进程未启动） */
@@ -133,6 +172,9 @@ export async function resolveBilibiliViaCli(
   const params = new URLSearchParams({
     bvid,
   })
+  const pgc = extractBangumiId(bvid)
+  if (pgc?.epId) { params.delete('bvid'); params.set('epId', String(pgc.epId)) }
+  if (pgc?.seasonId) { params.delete('bvid'); params.set('seasonId', String(pgc.seasonId)) }
   const sessionVersion = getEmbeddedProxyStatus().sessionVersion
   const embedded = isEmbeddedBilibiliHost() && proxyUrl === getEmbeddedProxyStatus().proxyUrl
   if (embedded) {
@@ -144,6 +186,7 @@ export async function resolveBilibiliViaCli(
   if (cid != null && Number.isFinite(cid)) {
     params.set('cid', String(cid))
   }
+  if (embedded && qn != null && nativeOptions?.qualityMode == null) params.set('qualityMode', 'manual')
   if (qn != null && Number.isFinite(qn)) {
     params.set('qn', String(qn))
   }
@@ -163,7 +206,7 @@ export async function resolveBilibiliViaCli(
   } catch {
     // fetch 抛出 TypeError：网络不可达、CORS 被拦截、进程未启动等
     throw new CliConnectionError(
-      embedded ? '内置 B 站代理连接失败，请重试或重新打开客户端' : 'CLI 代理连接失败，请确认本地 zcontrol-cli 已启动'
+      embedded ? '内置 B 站代理连接失败，请重试或重新打开客户端' : 'CLI 代理连接失败，请确认本地 ZViewer CLI 已启动'
     )
   }
 
@@ -198,10 +241,32 @@ export async function resolveBilibiliViaCli(
     vipStatus: data.vipStatus,
     pages: data.pages,
     currentPage: data.currentPage,
+    resolvedUrl: data.resolvedUrl,
+    epId: data.epId,
+    seasonId: data.seasonId,
+    seasonTitle: data.seasonTitle,
+    preview: data.preview,
   }
 
   // CLI /resolve 已返回代理 URL，但本地包装可确保旧版 CLI 与兜底场景也走代理。
   // Native media URLs are wrapped only during attachment. Room state keeps
   // upstream URLs so a localhost token can never leak to other participants.
   return embedded ? resolved : wrapResolvedSourceWithCliProxy(proxyUrl, resolved)
+}
+
+/**
+ * 通过本地 CLI 代理解析 B站 番剧/影视（PGC ep/ss）。
+ *
+ * 与 resolveBilibiliViaCli 的差异仅在于标识参数：epId（+ 可选 cid）替代 bvid。
+ * CLI 侧（Go）使用用户自己的 Cookie 调 pgc/player/web/playurl 获取播放地址。
+ */
+export async function resolveBangumiViaCli(
+  proxyUrl: string, epId: number, cid?: number, qn?: number,
+  preferMp4?: boolean, forceDash?: boolean,
+  nativeOptions?: { qualityMode?: 'autoMax' | 'manual'; fallbackQn?: number; timeoutMs?: number; seasonId?: number }
+): Promise<ResolvedSource> {
+  // Use the same cancellation, capabilities and account generation checks as UGC.
+  const input = epId > 0 ? 'ep' + epId : 'ss' + nativeOptions?.seasonId
+  if (!/^ep[1-9]\d*$|^ss[1-9]\d*$/.test(input)) throw new CliResolveError('番剧 ID 无效')
+  return resolveBilibiliViaCli(proxyUrl, input, cid, qn, preferMp4, forceDash, nativeOptions)
 }

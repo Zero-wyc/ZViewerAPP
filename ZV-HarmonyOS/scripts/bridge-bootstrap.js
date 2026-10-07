@@ -34,6 +34,8 @@
   });
   window.zviewerNative = {
     platform: 'harmony',
+    configureServerConnection: (policy) => request('configureServerConnection', policy),
+    probeServerConnection: (options) => request('probeServerConnection', options),
     updateMediaSession: (state) => request('updateMediaSession', state),
     clearMediaSession: (sessionId) => request('clearMediaSession', sessionId),
     minimizeApp: () => window.zviewerHost.minimizeApp(),

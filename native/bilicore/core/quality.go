@@ -98,26 +98,47 @@ func ResolveMobile(ctx context.Context, opts ResolveOptions) (*ResolveResult, er
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	bvid, err := extractBvid(opts.Url)
+	kind, _ := pgcIdentity(opts.Url)
+	expanded, expandErr := expandMobileInput(ctx, opts.Url)
+	if expandErr != nil {
+		return nil, expandErr
+	}
+	opts.Url = expanded
+	kind, _ = pgcIdentity(opts.Url)
+	var info *BilibiliVideoInfo
+	var pgc *pgcContext
+	var err error
+	bvid := ""
+	if kind != "" {
+		info, pgc, err = fetchPgcInfo(ctx, opts.Url, opts.Cookie, opts.Cid)
+	} else {
+		bvid, err = extractBvid(opts.Url)
+		if err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(opts.Cookie) == "" {
+			return nil, &ResolveError{Message: "B站登录已失效，请重新登录", Code: "NOT_LOGGED_IN"}
+		}
+		info, err = fetchVideoInfoContext(ctx, bvid, opts.Cookie)
+	}
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(opts.Cookie) == "" {
-		return nil, &ResolveError{Message: "B站登录已失效，请重新登录", Code: "NOT_LOGGED_IN"}
-	}
-	info, err := fetchVideoInfoContext(ctx, bvid, opts.Cookie)
-	if err != nil {
-		return nil, err
-	}
-	vip, err := getVipStatusContext(ctx, opts.Cookie)
-	if err != nil {
-		return nil, err
+	vip := false
+	if opts.Cookie != "" {
+		vip, err = getVipStatusContext(ctx, opts.Cookie)
+		if err != nil {
+			return nil, err
+		}
 	}
 	cid := opts.Cid
+	if pgc != nil {
+		cid = info.Cid
+	}
 	currentPage := 1
 	pages := []ResolvePageInfo{}
 	for _, p := range info.Pages {
-		pages = append(pages, ResolvePageInfo{Page: p.Page, Cid: p.Cid, Part: p.Part, Duration: p.Duration})
+		pages = append(pages, ResolvePageInfo{Page: p.Page, Cid: p.Cid, Part: p.Part, Duration: p.Duration, EpID: p.EpID, Badge: p.Badge})
 		if cid == 0 && (opts.Page == p.Page || opts.Page == 0 && p.Page == 1) {
 			cid = p.Cid
 		}
@@ -128,13 +149,20 @@ func ResolveMobile(ctx context.Context, opts ResolveOptions) (*ResolveResult, er
 	if cid == 0 {
 		cid = info.Cid
 	}
+	foundCid := false
+	for _, p := range info.Pages {
+		if p.Cid == cid {
+			foundCid = true
+		}
+	}
+	if !foundCid {
+		return nil, &ResolveError{Code: "CID_MISMATCH", Message: "分集不属于该视频"}
+	}
 	caps := opts.Capabilities
 	if caps == nil {
 		caps = []Capability{{Codec: "avc", MaxWidth: 1920, MaxHeight: 1080, MaxFrameRate: 30}}
 	}
-	if len(caps) == 0 {
-		return nil, &ResolveError{Message: "当前 WebView 不支持 DASH 视频解码", Code: "NO_SUPPORTED_TRACK"}
-	}
+
 	requestQn := 127
 	manual := 0
 	if opts.QualityMode == "manual" {
@@ -147,6 +175,9 @@ func ResolveMobile(ctx context.Context, opts ResolveOptions) (*ResolveResult, er
 	get := func(qn int) (*BilibiliPlayUrlResult, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
+		}
+		if pgc != nil {
+			return getPgcPlay(ctx, pgc, cid, opts.Cookie, qn, opts.PreferMp4)
 		}
 		return getPlayUrl(bvid, cid, opts.Cookie, &getPlayUrlOptions{Qn: qn, IsVip: vip, Fnval: 16 | 64 | 2048, Context: ctx})
 	}
@@ -166,6 +197,26 @@ func ResolveMobile(ctx context.Context, opts ResolveOptions) (*ResolveResult, er
 	}
 	if discovered == nil {
 		return nil, &NoPermissionError{}
+	}
+	if pgc != nil && discovered.Format == "mp4" && len(discovered.Durl) > 0 {
+		if manual > 0 && discovered.CurrentQn != manual {
+			return nil, &ResolveError{Code: "QUALITY_UNAVAILABLE", Message: "源站未返回所选 MP4 画质，请选择实际可用画质或 DASH"}
+		}
+		if len(discovered.Durl) != 1 {
+			return nil, &ResolveError{Code: "MULTIPART_UNSUPPORTED", Message: "当前番剧返回多段 MP4，请改用 DASH"}
+		}
+		duration := getCurrentPageDuration(info, cid)
+		actual := int((discovered.Durl[0].Length + 500) / 1000)
+		preview := discovered.Preview || actual > 0 && duration > actual+3
+		if preview && actual > 0 {
+			duration = actual
+		}
+		result := applyPgcMeta(&ResolveResult{Title: info.Title, Duration: duration, Cid: cid, VideoUrl: discovered.Durl[0].Url, Format: "mp4", LoggedIn: opts.Cookie != "", VipStatus: boolToInt(vip), CurrentQn: discovered.CurrentQn, AcceptQuality: discovered.AcceptQuality, Pages: pages, CurrentPage: currentPage}, pgc, discovered)
+		result.Preview = preview
+		return result, nil
+	}
+	if len(caps) == 0 {
+		return nil, &ResolveError{Message: "当前 WebView 不支持 DASH 视频解码", Code: "NO_SUPPORTED_TRACK"}
 	}
 	allTracks := append([]DashMediaTrack{}, discovered.AllVideo...)
 	selected := SelectTrack(allTracks, caps, vip, manual, opts.FallbackQn)
@@ -264,5 +315,5 @@ func ResolveMobile(ctx context.Context, opts ResolveOptions) (*ResolveResult, er
 	}
 	sort.Slice(available, func(i, j int) bool { return qualityRank(available[i].ID) > qualityRank(available[j].ID) })
 	videoBackups, audioBackups := collectBackupUrls(selected, audio)
-	return &ResolveResult{Title: info.Title, Duration: getCurrentPageDuration(info, cid), Cid: cid, VideoUrl: selected.BaseUrl, AudioUrl: audio.BaseUrl, VideoCodec: selected.Codecs, AudioCodec: audio.Codecs, Format: "dash", LoggedIn: true, VipStatus: boolToInt(vip), CurrentQn: selected.ID, AcceptQuality: available, Pages: pages, CurrentPage: currentPage, VideoBackupUrls: videoBackups, AudioBackupUrls: audioBackups}, nil
+	return applyPgcMeta(&ResolveResult{Title: info.Title, ResolvedURL: "https://www.bilibili.com/video/" + bvid, Duration: getCurrentPageDuration(info, cid), Cid: cid, VideoUrl: selected.BaseUrl, AudioUrl: audio.BaseUrl, VideoCodec: selected.Codecs, AudioCodec: audio.Codecs, Format: "dash", LoggedIn: opts.Cookie != "", VipStatus: boolToInt(vip), CurrentQn: selected.ID, AcceptQuality: available, Pages: pages, CurrentPage: currentPage, VideoBackupUrls: videoBackups, AudioBackupUrls: audioBackups}, pgc, discovered), nil
 }

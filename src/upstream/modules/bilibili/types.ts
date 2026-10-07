@@ -27,6 +27,10 @@ export interface BilibiliVideoPage {
   part: string
   /** 分集时长（秒） */
   duration: number
+  /** PGC：番剧分集 ep_id（切集时必须按 ep 链接重解析） */
+  epId?: number
+  /** PGC：B站 badge（'会员'/'限免'/''），用于标注会员专享集 */
+  badge?: string
 }
 
 export interface ResolvedSource {
@@ -54,6 +58,14 @@ export interface ResolvedSource {
    * 下游 BV 号提取 / 分 P 解析 / 弹幕匹配不再依赖短链可达性。
    */
   resolvedUrl?: string
+  /** PGC：当前播放集 ep_id */
+  epId?: number
+  /** PGC：整季 season_id */
+  seasonId?: number
+  /** PGC：整季标题（番剧/影视名，已拼进 title） */
+  seasonTitle?: string
+  /** PGC：当前集为试看/预览流（会员专享集 + 非大会员账号） */
+  preview?: boolean
 }
 
 export interface BilibiliQrData {
@@ -94,6 +106,14 @@ export interface ResolveProgressLine {
   currentPage?: number
   /** 展开短链后的完整视频地址（后端解析时对 b23.tv 等短链 302 展开） */
   resolvedUrl?: string
+  /** PGC：当前播放集 ep_id */
+  epId?: number
+  /** PGC：整季 season_id */
+  seasonId?: number
+  /** PGC：整季标题（番剧/影视名） */
+  seasonTitle?: string
+  /** PGC：当前集为试看/预览流 */
+  preview?: boolean
 }
 
 export interface BilibiliParseOptions {
@@ -111,12 +131,12 @@ export interface BilibiliParseOptions {
    */
   bufferMode?: boolean
   /**
-   * CLI 本地高画质代理：true=启用本地 zcontrol-cli 代理解析/播放该 B站 视频。
+   * CLI 本地高画质代理：true=启用本地 ZViewer CLI 代理解析/播放该 B站 视频。
    *
    * 启用后，前端通过本地 CLI（127.0.0.1:9333）使用用户自己的 B站 Cookie
    * 解析高画质地址并代理视频流，可获得大会员清晰度。
    *
-   * 需要用户事先在本地启动 zcontrol-cli 并连接同一房间；未检测到 CLI 时
+   * 需要用户事先在本地启动 ZViewer CLI 并连接同一房间；未检测到 CLI 时
    * 自动回退到服务端解析。
    */
   cliEnabled?: boolean

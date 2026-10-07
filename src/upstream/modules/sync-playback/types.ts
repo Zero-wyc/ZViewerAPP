@@ -32,6 +32,11 @@ export type VideoFormat = MediaFormat
  * store / hooks / components 均从此处导入。
  */
 export interface WatchTogetherState {
+  epId?: number
+  seasonId?: number
+  seasonTitle?: string
+  preview?: boolean
+
   sourceUrl: string
   sourceType: SourceType
   audioUrl?: string

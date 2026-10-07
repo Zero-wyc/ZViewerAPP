@@ -1,3 +1,5 @@
+import { connectionUrl } from '../../../../platform/connectionTransport'
+import { detectVoiceTransport, voicePeerConnections, type VoiceTransport } from '../transport'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AudioPresets, ConnectionState, DisconnectReason, Room, RoomEvent, Track } from 'livekit-client'
 import type { RemoteParticipant, RemoteTrack } from 'livekit-client'
@@ -15,6 +17,7 @@ function adminMuted(metadata?: string) {
 
 /** LiveKit owns transport/reconnection; native hosts retain permissions and audio routing. */
 export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
+  const [transport, setTransport] = useState<VoiceTransport | null>(null)
   const [joined, setJoined] = useState(false)
   const [joining, setJoining] = useState(false)
   const [mediaConnected, setMediaConnected] = useState(false)
@@ -86,6 +89,7 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
     peerVolumeRef.current.clear()
     micIntent.current = true
     monitorIntent.current = false
+    setTransport(null)
     setJoined(false)
     setJoining(false)
     setMediaConnected(false)
@@ -193,14 +197,14 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
         .on(RoomEvent.ParticipantConnected, () => refreshMembers(room))
         .on(RoomEvent.ParticipantDisconnected, p => { if (active()) { cleanupRemote(p.identity); refreshMembers(room) } })
         .on(RoomEvent.ParticipantMetadataChanged, () => refreshMembers(room))
-        .on(RoomEvent.ConnectionStateChanged, state => { if (active()) setMediaConnected(state === ConnectionState.Connected) })
+        .on(RoomEvent.ConnectionStateChanged, state => { if (active()) { setMediaConnected(state === ConnectionState.Connected); if (state !== ConnectionState.Connected) setTransport(null) } })
         .on(RoomEvent.AudioPlaybackStatusChanged, () => { if (active()) setAudioBlocked(!room.canPlaybackAudio) })
         .on(RoomEvent.Disconnected, reason => {
           if (!active()) return
           leave()
           message.warning(reason === DisconnectReason.DUPLICATE_IDENTITY ? '同一账号已在另一设备加入语音，本机已断开' : reason === DisconnectReason.PARTICIPANT_REMOVED ? '您已被移出语音聊天' : '语音连接已断开，可重新加入')
         })
-      await room.connect(data.url, data.token)
+      await room.connect(connectionUrl(data.url), data.token)
       if (!active()) { room.removeAllListeners(); void room.disconnect().catch(() => {}); return }
       refreshMembers(room)
       await room.localParticipant.publishTrack(track, { source: Track.Source.Microphone, audioPreset: AudioPresets.music, dtx: false, red: true })
@@ -321,5 +325,18 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
     }
   }, [roomId, leave, resumeAudio])
 
-  return { joined, joining, mediaConnected, micEnabled, selfId, members, globalVolume, peerVolumes, micVolume, monitorEnabled, audioLevels, voiceMutedIds, audioBlocked, resumeAudio, join, leave, toggleMic, toggleMonitor, setGlobalVolume, setPeerVolume, setMicVolume, muteVoiceMember, kickVoiceMember }
+  useEffect(() => {
+    if (!joined || !mediaConnected) return
+    let cancelled = false
+    const poll = async () => {
+      const room = roomRef.current
+      let detected: VoiceTransport | null = null
+      for (const pc of voicePeerConnections(room)) { detected = await detectVoiceTransport(pc); if (detected) break }
+      if (!cancelled && room === roomRef.current) setTransport(detected)
+    }
+    void poll()
+    const timer = setInterval(() => { void poll() }, 5000)
+    return () => { cancelled = true; clearInterval(timer) }
+  }, [joined, mediaConnected])
+  return { transport, joined, joining, mediaConnected, micEnabled, selfId, members, globalVolume, peerVolumes, micVolume, monitorEnabled, audioLevels, voiceMutedIds, audioBlocked, resumeAudio, join, leave, toggleMic, toggleMonitor, setGlobalVolume, setPeerVolume, setMicVolume, muteVoiceMember, kickVoiceMember }
 }

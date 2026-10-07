@@ -23,6 +23,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(AudioRoutingPlugin.class);
         registerPlugin(BilibiliProxyPlugin.class);
         registerPlugin(SystemMediaSessionPlugin.class);
+        registerPlugin(ServerConnectionPlugin.class);
         // Drop the launch theme before AppCompat creates native popup contexts.
         setTheme(R.style.AppTheme_NoActionBar);
         super.onCreate(savedInstanceState);

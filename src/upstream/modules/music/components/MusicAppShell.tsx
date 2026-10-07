@@ -427,7 +427,7 @@ function ShellInner({
       {/* ===== 右侧悬浮工具坞（语音聊天 / 房间状态 / 流量统计）：默认仅显示
           一条右缘竖线，hover 滑出侧边栏（悬浮不挤压内容）；
           完整播放器覆盖层打开期间整坞卸载，保持沉浸 ===== */}
-      {!playerOverlayOpen && !playerOverlayClosing && (
+      <div hidden={playerOverlayOpen || playerOverlayClosing}>
         <MusicSideDock
           showVoice={!voiceManagedExternally}
           socket={socket}
@@ -436,7 +436,7 @@ function ShellInner({
           isHost={isHost}
           canManage={canManage}
         />
-      )}
+      </div>
 
       {/* ===== 完整播放器覆盖层（ListenTogetherPanel 复用外层引擎；
           整页从视口底部滑入 / 滑出，对应 Hydrogen .player 过渡） ===== */}

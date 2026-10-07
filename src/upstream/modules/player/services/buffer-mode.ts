@@ -11,6 +11,11 @@
  * - 同一 cid+qn 对应同一视频流，跨用户缓存键一致（但 IndexedDB 是各自独立存储）
  */
 import type { WatchTogetherState } from '@/modules/sync-playback/types'
+import { useRoomStore } from '@/store/roomStore'
+import { isEmbeddedBilibiliHost, getEmbeddedProxyStatus } from '../../../../platform/bilibiliProxy'
+import { getActiveCliProxyUrl, resolveBilibiliOnline } from '@/modules/room/watch-together/movie-source-resolver'
+import { getBilibiliParseOptions } from '@/modules/bilibili/parseOptions'
+import { buildCliProxyUrl } from '@/modules/bilibili/cliApi'
 import {
   buildCacheKey,
   getCacheEntry,
@@ -62,6 +67,7 @@ export interface FetchBlobsResult {
  * 内存峰值过高（OOM/页面崩溃）与超长下载等待。
  */
 const MAX_BUFFER_TOTAL_BYTES = 800 * 1024 * 1024 // 800MB
+const nativeBufferScope = Date.now().toString(36) + Math.random().toString(36).slice(2)
 
 /**
  * 缓冲模式：从 B站 CDN 下载完整 m4s 流到 IndexedDB，缓存命中时直接复用。
@@ -80,13 +86,37 @@ const MAX_BUFFER_TOTAL_BYTES = 800 * 1024 * 1024 // 800MB
 export async function fetchBlobsForBufferMode(
   options: FetchBlobsOptions
 ): Promise<FetchBlobsResult> {
-  const { state, bvid = '', title, onProgress, signal } = options
+  const { bvid = '', title, onProgress, signal } = options
+  let state = options.state
+  const native = isEmbeddedBilibiliHost() && state.sourceType === 'bilibili'
+  if (native) {
+    const room = useRoomStore.getState().roomId
+    const id = useRoomStore.getState().currentMovieId
+    const deadline = Date.now() + 12000
+    let movie = useRoomStore.getState().movies.find(m => m.id === id && (state.cid == null || m.cid === state.cid))
+    while (!movie) {
+      signal?.throwIfAborted()
+      if (useRoomStore.getState().roomId !== room || useRoomStore.getState().currentMovieId !== id || Date.now() > deadline) throw new Error('缓冲取消：当前影片信息已变化或尚未到达')
+      await new Promise(resolve => setTimeout(resolve, 100))
+      movie = useRoomStore.getState().movies.find(m => m.id === id && (state.cid == null || m.cid === state.cid))
+    }
+    // Resolve with this device's account BEFORE consulting persisted blobs.
+    // A member host's stream/preview and cookies must not become viewer media.
+    const session = getEmbeddedProxyStatus().sessionVersion
+    const resolved = await resolveBilibiliOnline(movie)
+    signal?.throwIfAborted()
+    if (session !== getEmbeddedProxyStatus().sessionVersion || useRoomStore.getState().roomId !== room || useRoomStore.getState().currentMovieId !== id || useRoomStore.getState().movies.find(m => m.id === id)?.cid !== movie.cid) throw new Error('缓冲取消：账号或影片已变化')
+    const proxy = movie.cliOnly || getBilibiliParseOptions(movie.id).cliEnabled ? getActiveCliProxyUrl() : null
+    if (movie.cliOnly && !proxy) throw new Error('缓冲模式要求本机代理，请登录 B 站后重试')
+    state = { ...state, ...resolved, sourceUrl: proxy ? buildCliProxyUrl(proxy, resolved.sourceUrl) : resolved.sourceUrl,
+      audioUrl: resolved.audioUrl && proxy ? buildCliProxyUrl(proxy, resolved.audioUrl) : resolved.audioUrl }
+  }
 
   if (!state.audioUrl || !state.cid) {
     throw new Error('缓冲模式需要 DASH 源的 audioUrl 和 cid')
   }
 
-  const cacheKey = buildCacheKey(bvid, state.cid, state.currentQn)
+  const cacheKey = buildCacheKey(bvid, state.cid, state.currentQn) + (native ? `|native:${nativeBufferScope}:${getEmbeddedProxyStatus().sessionVersion}|preview:${state.preview === true}` : '')
   const displayTitle = title || '当前视频'
 
   // 命中缓存：直接返回 Blob

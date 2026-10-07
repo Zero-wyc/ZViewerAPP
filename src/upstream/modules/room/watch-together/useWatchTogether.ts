@@ -573,6 +573,8 @@ export function useWatchTogether({
 
         const newState: WatchTogetherState = {
           ...state,
+          epId: resolved.epId, seasonId: resolved.seasonId, seasonTitle: resolved.seasonTitle, preview: resolved.preview,
+          duration: resolved.duration, cid: resolved.cid,
           sourceUrl: resolved.sourceUrl,
           audioUrl: resolved.audioUrl,
           videoCodec: resolved.videoCodec,
@@ -727,9 +729,13 @@ export function useWatchTogether({
       try {
         if (cliEnabled && movie?.url && movie.cid && !hasOverride) {
           // CLI 已连接走本地代理 DASH；未连接由 getEffectivePreferMp4
-          // 返回 true，回退服务器 MP4 直链（不要求必须已连接才重解析）
+          // 返回 true，回退服务器 MP4 直链（不要求必须已连接才重解析）。
+          // 服务器解析默认以房间房主 Cookie 身份执行（resolveBilibiliOnline
+          // 默认行为），会员专享集与房主看到的一致。
           const resolved = await resolveBilibiliOnline(movie, undefined, {
             preferMp4: getEffectivePreferMp4(movie.id),
+            // 多 P 视频：切 P 后 url 不变，按当前分 P 解析
+            page: movie.currentPage,
           })
           const resolvedSource: ResolvedSource = {
             videoUrl: resolved.sourceUrl,
@@ -962,6 +968,7 @@ export function useWatchTogether({
 
       // 3. 构建播放状态
       const buildNewState = (r: ResolvedMovieSource): WatchTogetherState => ({
+        epId: r.epId, seasonId: r.seasonId, seasonTitle: r.seasonTitle, preview: r.preview,
         sourceUrl: r.sourceUrl,
         sourceType,
         audioUrl: r.audioUrl,

@@ -69,7 +69,7 @@ async function ensureViewerLocalOverride(
     const initialMovieId = useRoomStore.getState().currentMovieId
     await startEmbeddedProxy()
     const deadline = Date.now() + 12000
-    while (!useRoomStore.getState().movies.some(movie => movie.id === useRoomStore.getState().currentMovieId)) {
+    while (!useRoomStore.getState().movies.some(movie => movie.id === useRoomStore.getState().currentMovieId && (state.cid == null || movie.cid === state.cid))) {
       if (useRoomStore.getState().roomId !== roomId || (initialMovieId !== null && useRoomStore.getState().currentMovieId !== initialMovieId)) throw new DOMException('Source changed', 'AbortError')
       if (Date.now() >= deadline) throw new Error('当前影片信息尚未加载，请重载视频')
       await new Promise(resolve => setTimeout(resolve, 100))
@@ -86,6 +86,12 @@ async function ensureViewerLocalOverride(
     return null
   }
 
+  if (movie.cliOnly === true && !getActiveCliProxyUrl()) {
+    storeState.setViewerCliRequiredMovieId(movieId)
+    storeState.setViewerCliResolvedSource(null)
+    return null
+  }
+  storeState.setViewerCliRequiredMovieId(null)
   const sessionVersion = getEmbeddedProxyStatus().sessionVersion
   const effectivePreferMp4 = getEffectivePreferMp4(movieId)
   const hostIsMp4 = state.format === 'mp4'
@@ -99,7 +105,7 @@ async function ensureViewerLocalOverride(
   const adjustedPreferMp4 = forceViewerMp4 || effectivePreferMp4
 
   // 本地偏好与房主一致且房主源不是 CLI 代理地址：直接使用房主广播源
-  if (!isEmbeddedBilibiliHost() && adjustedPreferMp4 === hostIsMp4 && !isCliProxyUrl(state.sourceUrl)) {
+  if (movie.cliOnly !== true && !isEmbeddedBilibiliHost() && adjustedPreferMp4 === hostIsMp4 && !isCliProxyUrl(state.sourceUrl)) {
     if (existing?.movieId === movieId) {
       storeState.setViewerCliResolvedSource(null)
     }
@@ -107,17 +113,22 @@ async function ensureViewerLocalOverride(
   }
 
   // 已有匹配的本地覆盖时直接复用，避免重复解析
-  if (existing?.movieId === movieId && existing.sessionVersion === getEmbeddedProxyStatus().sessionVersion && existing.resolved.cid === movie.cid && existingIsMp4 === adjustedPreferMp4) {
+  if (existing?.movieId === movieId && existing.sessionVersion === getEmbeddedProxyStatus().sessionVersion && existing.resolved.cid === movie.cid && (state.cid == null || existing.resolved.cid === state.cid) && existingIsMp4 === adjustedPreferMp4) {
     return existing
   }
 
-  // 按本地偏好独立解析
+  // 按本地偏好独立解析（服务器解析默认以房间房主 Cookie 身份执行，
+  // 见 resolveBilibiliOnline 的 useHostCookie 说明）
   try {
     const resolved = await resolveBilibiliOnline(movie, undefined, {
       preferMp4: adjustedPreferMp4,
+      // 多 P 视频：切 P 只更新 movie.cid/currentPage，url 不变，
+      // 必须显式传 page 才能解析到当前分 P（否则固定解析第 1 P）
+      page: movie.currentPage,
     })
     if (useRoomStore.getState().currentMovieId !== movieId || useRoomStore.getState().movies.find(m => m.id === movieId)?.cid !== movie.cid || getEmbeddedProxyStatus().sessionVersion !== sessionVersion) throw new DOMException('Stale source', 'AbortError')
     const resolvedSource: ResolvedSource = {
+      epId: resolved.epId, seasonId: resolved.seasonId, seasonTitle: resolved.seasonTitle, preview: resolved.preview,
       videoUrl: resolved.sourceUrl,
       audioUrl: resolved.audioUrl,
       videoCodec: resolved.videoCodec,
@@ -136,6 +147,7 @@ async function ensureViewerLocalOverride(
     storeState.setViewerCliResolvedSource(override)
     return override
   } catch (err) {
+    if (movie.cliOnly === true) { storeState.setViewerCliResolvedSource(null); storeState.setViewerCliRequiredMovieId(movieId); return null }
     if (isEmbeddedBilibiliHost()) throw err
     console.error('[useVideoSource] 观众本地解析失败:', err)
     // 失败后清除旧覆盖，回退到房主源（可能无法播放，由上层提示）
@@ -160,6 +172,7 @@ function withViewerOverride(
     format: resolved.format,
     videoCodec: resolved.videoCodec,
     audioCodec: resolved.audioCodec,
+    epId: resolved.epId, seasonId: resolved.seasonId, seasonTitle: resolved.seasonTitle, preview: resolved.preview,
     duration: resolved.duration ?? state.duration,
     cid: resolved.cid ?? state.cid,
     currentQn: resolved.currentQn,
@@ -231,9 +244,15 @@ function toPlayerSource(
   let cliProxyActive = false
   // CLI 本地高画质代理：各客户端独立启用，不经房主广播。
   // 房主广播原始 B站 CDN URL；观众/房主各自在 attach 前决定是否走自己的 CLI 代理。
+  // cliOnly（仅允许CLI模式）影片强制包装——即使本机偏好未开 CLI，
+  // 媒体流也必须经本机 CLI（观众无 CLI 时已被 ensureViewerLocalOverride 拦截）。
   if (state.sourceType === 'bilibili' && movieId != null) {
+    const movie = useRoomStore.getState().movies.find((m) => m.id === movieId)
     const { cliEnabled } = getBilibiliParseOptions(movieId)
-    const proxyUrl = cliEnabled ? getActiveCliProxyUrl() : null
+    const cliOnly = movie?.cliOnly === true
+    const proxyUrl = cliEnabled || cliOnly ? getActiveCliProxyUrl() : null
+    if (cliOnly && !proxyUrl) throw new Error('本机代理不可用，请登录 B 站后重试')
+    if (cliOnly) source.noProxyFallback = true
     if (proxyUrl) {
       cliProxyActive = true
       source.url = buildCliProxyUrl(proxyUrl, state.sourceUrl)
@@ -436,6 +455,10 @@ export function useVideoSource({
 
       const effectiveState = await resolveViewerEffectiveState(state)
       if (!video.isConnected) return
+      if (useRoomStore.getState().viewerCliRequiredMovieId != null) {
+        cleanupMedia()
+        return
+      }
 
       const original = { time: startTime ?? video.currentTime ?? effectiveState.currentTime, playing: effectiveState.isPlaying && !wasUserPaused(video), rate: effectiveState.playbackRate }
       nativeAttachmentDepth.current++

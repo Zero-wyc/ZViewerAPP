@@ -9,6 +9,7 @@
  * ts 分片、密钥等），将跨域 URL 包装为服务器代理 URL，绕过浏览器 CORS 限制。
  */
 import Hls from 'hls.js'
+import { connectionUrl, logicalConnectionUrl } from '../../../../platform/connectionTransport'
 import type { PlayerEngine, PlayerSource, EngineAttachResult } from '../types'
 import { resetVideoElement, waitForMetadata } from '../utils'
 import {
@@ -41,7 +42,9 @@ function createProxyLoader(headers?: Record<string, string>) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     load(context: any, config: any, callbacks: any): void {
       const originalUrl = context.url
-      let manifestBaseUrl = originalUrl
+      let manifestBaseUrl = logicalConnectionUrl(originalUrl)
+      const channelUrl = connectionUrl(originalUrl)
+      const selectedServer = channelUrl !== originalUrl || manifestBaseUrl !== originalUrl
       try {
         const proxy = new URL(originalUrl)
         if (proxy.pathname.endsWith('/api/stream/proxy')) {
@@ -50,13 +53,14 @@ function createProxyLoader(headers?: Record<string, string>) {
       } catch { /* relative request */ }
       const shouldProxy =
         originalUrl &&
+        !selectedServer &&
         !isLocalUrl(originalUrl) &&
         !isRelativeUrl(originalUrl) &&
         !originalUrl.includes('/api/stream/proxy?url=')
 
       if (shouldProxy) {
         context.url = headers ? resolveProxyUrl(originalUrl, headers, 'hls') : buildProxyUrl(originalUrl)
-      }
+      } else if (selectedServer) context.url = channelUrl
       if (shouldProxy || manifestBaseUrl !== originalUrl) {
         // 包装 onSuccess 回调：加载完成后恢复原始 URL，
         // 确保 hls.js 基于原始 URL 解析 m3u8 中的相对路径

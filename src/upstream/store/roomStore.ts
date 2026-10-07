@@ -1,5 +1,6 @@
 import { getEmbeddedProxyStatus } from '../../platform/bilibiliProxy'
 import { create } from 'zustand'
+import { unwrapCliProxyUrl } from '@/modules/bilibili/cliApi'
 import { apiFetch, safeJson } from '@/lib/api'
 import type {
   ResolvedSource,
@@ -70,6 +71,8 @@ export interface Movie {
   directLink?: boolean
   /** 影片级浏览器播放引擎（playsvideo）开关：false 时强制原生直连播放 */
   playsvideoEnabled?: boolean
+  /** 仅允许 CLI 模式（B站 番剧/影视）：全房间必须各自连接 CLI 观看，服务器零媒体流量 */
+  cliOnly?: boolean
   // 以下为前端解析得到的临时字段（不持久化到后端）
   cid?: number
   duration?: number
@@ -109,7 +112,16 @@ export interface MovieDto {
   cid: number | null
   currentQn: number | null
   acceptQuality: { id: number; label: string; resolution?: string }[] | null
-  pages: { page: number; cid: number; part: string; duration: number }[] | null
+  pages:
+    | {
+        page: number
+        cid: number
+        part: string
+        duration: number
+        epId?: number
+        badge?: string
+      }[]
+    | null
   currentPage: number | null
   serverUrl: string | null
   path: string | null
@@ -117,6 +129,8 @@ export interface MovieDto {
   directLink: boolean
   /** 影片级浏览器播放引擎（playsvideo）开关 */
   playsvideoEnabled?: boolean
+  /** 仅允许 CLI 模式（B站 番剧/影视）：全房间必须各自连接 CLI 观看 */
+  cliOnly?: boolean
   /** ani-subs 番剧源元数据（仅 source='anime' 时有值） */
   sourceMeta: AniSubsSourceMeta | null
   order: number
@@ -138,6 +152,7 @@ export function mapDtoToMovie(dto: MovieDto): Movie {
     username: dto.username,
     directLink: dto.directLink,
     playsvideoEnabled: dto.playsvideoEnabled !== false,
+    cliOnly: dto.cliOnly === true,
     audioUrl: dto.audioUrl ?? undefined,
     format: (dto.format as Movie['format']) ?? undefined,
     videoCodec: dto.videoCodec ?? undefined,
@@ -226,6 +241,12 @@ interface RoomState {
   setViewerCliResolvedSource: (
     value: { movieId: number; resolved: ResolvedSource; sessionVersion?: number } | null
   ) => void
+  /**
+   * 观众端「仅允许CLI模式」未满足标记（当前影片 cliOnly 且本机 CLI 未连接）。
+   * 非空时播放器不挂载源并显示 CLI 安装引导，避免回退服务器转发或黑屏。
+   */
+  viewerCliRequiredMovieId: number | null
+  setViewerCliRequiredMovieId: (movieId: number | null) => void
   /** 待处理的预览播放请求（由 MoviePushPanel 触发，useWatchTogether 消费） */
   pendingPreviewPlay: PreviewPlayRequest | null
   /**
@@ -333,7 +354,16 @@ interface RoomState {
       cid?: number
       currentQn?: number
       acceptQuality?: { id: number; label: string; resolution?: string }[]
-      pages?: { page: number; cid: number; part: string; duration: number }[]
+      pages?:
+        | {
+            page: number
+            cid: number
+            part: string
+            duration: number
+            epId?: number
+            badge?: string
+          }[]
+        | null
       currentPage?: number
       serverUrl?: string
       path?: string
@@ -343,6 +373,7 @@ interface RoomState {
       /** 影片级浏览器播放引擎（playsvideo）开关：false 时强制原生直连播放 */
       playsvideoEnabled?: boolean
       sourceMeta?: AniSubsSourceMeta | null
+      cliOnly?: boolean
     }
   ) => Promise<ReturnType<typeof mapDtoToMovie> | undefined>
   updateMovie: (
@@ -361,7 +392,16 @@ interface RoomState {
       cid?: number
       currentQn?: number
       acceptQuality?: QualityOption[]
-      pages?: { page: number; cid: number; part: string; duration: number }[]
+      pages?:
+        | {
+            page: number
+            cid: number
+            part: string
+            duration: number
+            epId?: number
+            badge?: string
+          }[]
+        | null
       currentPage?: number
       serverUrl?: string
       path?: string
@@ -369,6 +409,8 @@ interface RoomState {
       password?: string
       directLink?: boolean
       sourceMeta?: AniSubsSourceMeta | null
+      /** 仅允许 CLI 模式（B站 番剧/影视） */
+      cliOnly?: boolean
     }
   ) => Promise<void>
   removeMovie: (roomId: string, movieId: number) => Promise<void>
@@ -405,6 +447,7 @@ const defaultState = {
   currentMovieId: null,
   pendingQualityChange: null,
   viewerCliResolvedSource: null,
+  viewerCliRequiredMovieId: null,
   pendingPreviewPlay: null,
   pendingReloadBilibili: 0,
   pendingViewerSourceReload: 0,
@@ -504,10 +547,11 @@ export const useRoomStore = create<RoomState>((set, get) => ({
       watchTogether: { ...state.watchTogether, ...updates },
     })),
   setMovies: (movies) => set({ movies }),
-  setCurrentMovieId: (id) => set({ currentMovieId: id }),
+  setCurrentMovieId: (id) => set({ currentMovieId: id, viewerCliRequiredMovieId: null }),
   setPendingQualityChange: (value) => set({ pendingQualityChange: value }),
   setViewerCliResolvedSource: (value) =>
     set({ viewerCliResolvedSource: value ? { ...value, sessionVersion: getEmbeddedProxyStatus().sessionVersion } : null }),
+  setViewerCliRequiredMovieId: (movieId) => set({ viewerCliRequiredMovieId: movieId }),
   setPendingPreviewPlay: (value) => set({ pendingPreviewPlay: value }),
   triggerReloadBilibili: () =>
     set((state) => ({
@@ -553,6 +597,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   },
 
   addMovie: async (roomId, payload) => {
+    payload = { ...payload, url: unwrapCliProxyUrl(payload.url), audioUrl: payload.audioUrl ? unwrapCliProxyUrl(payload.audioUrl) : undefined }
     const res = await apiFetch(
       `/api/rooms/${encodeURIComponent(roomId)}/movies`,
       {
@@ -576,6 +621,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   },
 
   updateMovie: async (roomId, movieId, payload) => {
+    payload = { ...payload, url: payload.url ? unwrapCliProxyUrl(payload.url) : undefined, audioUrl: payload.audioUrl ? unwrapCliProxyUrl(payload.audioUrl) : undefined }
     const res = await apiFetch(
       `/api/rooms/${encodeURIComponent(roomId)}/movies/${movieId}`,
       {
