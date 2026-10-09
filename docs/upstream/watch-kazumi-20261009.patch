@@ -1,0 +1,309 @@
+diff --git a/frontend/src/modules/room/RoomPage.tsx b/frontend/src/modules/room/RoomPage.tsx
+--- a/frontend/src/modules/room/RoomPage.tsx
++++ b/frontend/src/modules/room/RoomPage.tsx
+@@ -474,7 +474,7 @@
+             isHost
+             isWebFullscreen={isWebFullscreen}
+             onToggleWebFullscreen={() => setIsWebFullscreen((prev) => !prev)}
+-            initialPlayback={recoveredPlayback}
++            initialPlayback={playerRemountKey === 'init' ? recoveredPlayback : null}
+           />
+         ) : (
+           <div className="flex h-full w-full items-center justify-center">
+diff --git a/backend/src/modules/room/room-permission.service.ts b/backend/src/modules/room/room-permission.service.ts
+--- a/backend/src/modules/room/room-permission.service.ts
++++ b/backend/src/modules/room/room-permission.service.ts
+@@ -132,7 +132,7 @@
+     if (role === 'root') return true;
+     const [settingsRow, modRole] = await Promise.all([
+       AppDataSource.getRepository(SystemSettings)
+-        .findOne({ order: { id: 'ASC' } })
++        .findOne({ where: {}, order: { id: 'ASC' } })
+         .catch(() => null),
+       this.isRoomModerator(socket, roomId),
+     ]);
+diff --git a/backend/scripts/test-room-permission.cjs b/backend/scripts/test-room-permission.cjs
+new file mode 100644
+--- /dev/null
++++ b/backend/scripts/test-room-permission.cjs
+@@ -0,0 +1,26 @@
++const { test } = require('node:test');
++const assert = require('node:assert/strict');
++const { DataSource } = require('typeorm');
++const { SystemSettings } = require('../dist/entities/SystemSettings');
++const data = require('../dist/data-source');
++const { roomPermissionService: permission } = require('../dist/modules/room/room-permission.service');
++
++test('configured viewer permissions are read through real TypeORM, including explicit denial', async () => {
++  const db = new DataSource({ type: 'sqljs', entities: [SystemSettings], synchronize: true });
++  await db.initialize();
++  const original = data.AppDataSource;
++  data.AppDataSource = db;
++  permission.isRoomHost = async () => false;
++  permission.isRoomModerator = async () => false;
++  try {
++    const repo = db.getRepository(SystemSettings);
++    const settings = await repo.save(repo.create({ roomPermissionMatrix: { manageMovie: { user: true, admin: false } } }));
++    assert.equal(await permission.canViewerPerform({ data: { role: 'user' } }, 'fixture', 'manageMovie'), true);
++    assert.equal(await permission.canViewerPerform({ data: { role: 'user' } }, 'fixture', 'kickViewer'), false);
++    assert.equal(await permission.canViewerPerform({ data: { role: 'admin' } }, 'fixture', 'manageMovie'), false);
++    assert.equal(await permission.canViewerPerform({ data: { role: 'guest' } }, 'fixture', 'manageMovie'), false);
++    settings.roomPermissionMatrix = { manageMovie: { user: false } };
++    await repo.save(settings);
++    assert.equal(await permission.canViewerPerform({ data: { role: 'user' } }, 'fixture', 'manageMovie'), false);
++  } finally { data.AppDataSource = original; await db.destroy(); }
++});
+diff --git a/frontend/src/modules/room/watch-together/useWatchTogether.ts b/frontend/src/modules/room/watch-together/useWatchTogether.ts
+--- a/frontend/src/modules/room/watch-together/useWatchTogether.ts
++++ b/frontend/src/modules/room/watch-together/useWatchTogether.ts
+@@ -355,11 +355,9 @@
+     }
+ 
+     const handleCurrentMovie = (payload: { movieId: number | null }) => {
+-      // 房主刷新恢复期间，recovery 已通过 register-host 回调写入 currentMovieId，
+-      // 不接受后端 current-movie 事件的覆盖（后端 roomStateService 可能因状态丢失
+-      // 或预览模式残留返回 null，导致 recovery 被清空）。
+-      // 仅在 store 中无 currentMovieId 时才接受事件值（如观众端首次加入房间）。
+-      if (isHostRef.current && useRoomStore.getState().currentMovieId) return
++      // 保留恢复时的旧影片，但接受有权限成员发起的非空切片事件。
++      // 否则服务端已选择新片，房主仍持续广播旧片源。
++      if (isHostRef.current && useRoomStore.getState().currentMovieId && payload.movieId === null) return
+       setCurrentMovieId(payload.movieId)
+     }
+ 
+diff --git a/frontend/src/modules/player/engines/hls-engine.ts b/frontend/src/modules/player/engines/hls-engine.ts
+--- a/frontend/src/modules/player/engines/hls-engine.ts
++++ b/frontend/src/modules/player/engines/hls-engine.ts
+@@ -9,6 +9,8 @@
+  * ts 分片、密钥等），将跨域 URL 包装为服务器代理 URL，绕过浏览器 CORS 限制。
+  */
+ import Hls from 'hls.js'
++import { getApiUrl } from '@/lib/api'
++import { readHlsProxySource, buildHlsProxyRequest, isServerApiUrl } from '../services/hls-proxy'
+ import type { PlayerEngine, PlayerSource, EngineAttachResult } from '../types'
+ import { resetVideoElement, waitForMetadata } from '../utils'
+ import {
+@@ -16,6 +18,7 @@
+   isLocalUrl,
+   isRelativeUrl,
+   buildProxyUrl,
++  appendAuthToken,
+ } from '../services/url-proxy'
+ 
+ /** Safari 等原生 HLS 支持检测 */
+@@ -33,42 +36,40 @@
+  * 关键：加载完成后需恢复 context.url 与 response.url 为原始 URL，
+  * 否则 hls.js 会基于代理 URL 解析 m3u8 中的相对路径 ts 分片，导致拼接错误。
+  */
+-function createProxyLoader() {
++function createProxyLoader(sourceUrl: string, headers?: Record<string, string>) {
+   const BaseLoader = Hls.DefaultConfig.loader
++  const logicalUrl = (value: string) => value
++  const transportUrl = (value: string) => value
++  const apiBase = getApiUrl()
++  const proxySource = readHlsProxySource(logicalUrl(sourceUrl), apiBase)
+ 
+   return class ProxyLoader extends BaseLoader {
+     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     load(context: any, config: any, callbacks: any): void {
+       const originalUrl = context.url
+-      const shouldProxy =
+-        originalUrl &&
+-        !isLocalUrl(originalUrl) &&
+-        !isRelativeUrl(originalUrl) &&
+-        !originalUrl.includes('/api/stream/proxy?url=')
+-
+-      if (shouldProxy) {
+-        context.url = buildProxyUrl(originalUrl)
+-        // 包装 onSuccess 回调：加载完成后恢复原始 URL，
+-        // 确保 hls.js 基于原始 URL 解析 m3u8 中的相对路径
++      const logical = logicalUrl(originalUrl)
++      const proxyRequest = readHlsProxySource(logical, apiBase)
++      const manifestBaseUrl = proxyRequest?.url ?? logical
++      if (isServerApiUrl(logical, apiBase) || isLocalUrl(logical) || isRelativeUrl(logical)) {
++        // Includes Kazumi/AniSubs proxies: never proxy our own authenticated API.
++        context.url = transportUrl(originalUrl)
++      } else if (proxySource) {
++        // Child playlists, segments, maps and keys inherit the same proxy headers.
++        context.url = transportUrl(buildHlsProxyRequest(manifestBaseUrl, proxySource))
++      } else {
++        context.url = headers ? resolveProxyUrl(originalUrl, headers, 'hls') : buildProxyUrl(originalUrl)
++      }
++      context.url = appendAuthToken(context.url)
++      if (proxyRequest || context.url !== originalUrl || manifestBaseUrl !== originalUrl) {
+         const originalOnSuccess = callbacks.onSuccess
+-        callbacks.onSuccess = (
+-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+-          stats: any,
+-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+-          response: any,
+-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+-          ctx: any
+-        ) => {
+-          if (response) {
+-            response.url = originalUrl
+-          }
+-          if (ctx) {
+-            ctx.url = originalUrl
+-          }
+-          originalOnSuccess(stats, response, ctx)
++        // hls.js callback order is response, stats, context, networkDetails.
++        // Restore both URL fields before it resolves any relative playlist URI.
++        callbacks.onSuccess = (response: any, stats: any, ctx: any, networkDetails: any) => {
++          if (response) response.url = manifestBaseUrl
++          if (ctx) ctx.url = manifestBaseUrl
++          originalOnSuccess(response, stats, ctx, networkDetails)
+         }
+       }
+-
+       super.load(context, config, callbacks)
+     }
+   }
+@@ -144,7 +145,7 @@
+       const hls = new Hls({
+         enableWorker: true,
+         lowLatencyMode: false,
+-        loader: createProxyLoader(),
++        loader: createProxyLoader(targetUrl, source.headers),
+         // 内存控制：hls.js 默认 maxMaxBufferLength=600s、backBufferLength=Infinity——
+         // 已播数据永不清理，长视频播放 1-2 小时后 MSE SourceBuffer 累积到 GB 级内存。
+         // 前向缓冲 30s 保证平滑，硬上限 120s 兜底极低码率，已播仅保留 90s
+diff --git a/frontend/src/modules/player/services/hls-proxy.ts b/frontend/src/modules/player/services/hls-proxy.ts
+new file mode 100644
+--- /dev/null
++++ b/frontend/src/modules/player/services/hls-proxy.ts
+@@ -0,0 +1,34 @@
++/** The playlist base is the upstream URL, never the proxy endpoint. */
++export interface HlsProxySource {
++  url: string
++  endpoint: string
++  parameters: Record<string, string>
++}
++
++export function readHlsProxySource(raw: string, apiBase: string): HlsProxySource | null {
++  try {
++    const proxy = new URL(raw, apiBase)
++    if (!/\/api\/stream\/(?:kazumi\/|anisubs\/)?proxy$/.test(proxy.pathname)) return null
++    const target = proxy.searchParams.get('url')
++    if (!target || !/^https?:$/.test(new URL(target).protocol)) return null
++    const parameters: Record<string, string> = {}
++    // Preserve anti-leech headers, including explicitly empty values. Client
++    // authentication belongs to the proxy request and must never reach a CDN.
++    for (const key of ['referer', 'userAgent', 'origin', 'cookie']) {
++      if (proxy.searchParams.has(key)) parameters[key] = proxy.searchParams.get(key)!
++    }
++    return { url: target, endpoint: proxy.origin + proxy.pathname, parameters }
++  } catch { return null }
++}
++
++export function buildHlsProxyRequest(url: string, proxy: HlsProxySource): string {
++  return `${proxy.endpoint}?${new URLSearchParams({ url, ...proxy.parameters })}`
++}
++
++export function isServerApiUrl(raw: string, apiBase: string): boolean {
++  try {
++    const base = new URL(apiBase)
++    const url = new URL(raw, apiBase)
++    return url.origin === base.origin && url.pathname.startsWith(base.pathname.replace(/\/$/, '') + '/api/')
++  } catch { return false }
++}
+diff --git a/frontend/scripts/test-watch-kazumi.mjs b/frontend/scripts/test-watch-kazumi.mjs
+new file mode 100644
+--- /dev/null
++++ b/frontend/scripts/test-watch-kazumi.mjs
+@@ -0,0 +1,95 @@
++import test from 'node:test'
++import assert from 'node:assert/strict'
++import {readFileSync} from 'node:fs'
++import {stripTypeScriptTypes} from 'node:module'
++import {runInNewContext} from 'node:vm'
++import {fileURLToPath} from 'node:url'
++
++const root=fileURLToPath(new URL('../src/',import.meta.url))
++const read=path=>readFileSync(root+path,'utf8')
++test('remounted player cannot reuse the original room recovery snapshot',()=>{
++ const expression=read('modules/room/RoomPage.tsx').match(/initialPlayback=\{([^}]+)\}/)[1]
++ const recoveredPlayback={currentMovieId:3,currentTime:255}
++ assert.equal(runInNewContext(expression,{playerRemountKey:'init',recoveredPlayback}),recoveredPlayback)
++ for(const playerRemountKey of [1,2,3])assert.equal(runInNewContext(expression,{playerRemountKey,recoveredPlayback}),null)
++})
++const helpers={}
++runInNewContext(stripTypeScriptTypes(read('modules/player/services/hls-proxy.ts')).replace(/export /g,'')+';Object.assign(exports,{readHlsProxySource,buildHlsProxyRequest,isServerApiUrl})',{URL,URLSearchParams,exports:helpers})
++
++function loaderHarness(kind='kazumi', channel=false) {
++ const base='https://server.example/base'
++ const source=`${base}/api/stream/${kind}/proxy?url=${encodeURIComponent('https://cdn.example/show/master.m3u8?sig=a%2Fb')}&referer=&userAgent=Fixture&origin=https%3A%2F%2Fanime.example&cookie=source-cookie&token=host-token`
++ const channelBase='http://127.0.0.1:9988/private'
++ const logicalConnectionUrl=url=>channel?url.replace(channelBase,base):url
++ const connectionUrl=url=>channel?url.replace(base,channelBase):url
++ let request
++ class BaseLoader { load(context,config,callbacks){ request={context,config,callbacks} } }
++ const code=read('modules/player/engines/hls-engine.ts')
++ const start=code.indexOf('function createProxyLoader('),end=code.indexOf('/** 等待 hls.js',start)
++ const exports={}
++ runInNewContext(stripTypeScriptTypes(code.slice(start,end))+';exports.createProxyLoader=createProxyLoader',{
++  ...helpers,exports,URL,URLSearchParams,Hls:{DefaultConfig:{loader:BaseLoader}},getApiUrl:()=>base,
++  logicalConnectionUrl,connectionUrl,isLocalUrl:()=>false,isRelativeUrl:url=>url.startsWith('/'),
++  resolveProxyUrl:()=>{throw Error('Unexpected generic proxy')},buildProxyUrl:()=>{throw Error('Unexpected generic proxy')},
++  appendAuthToken:url=>{const u=new URL(logicalConnectionUrl(url));u.searchParams.set('token','viewer-token');return connectionUrl(u.href)}
++ })
++ const Loader=exports.createProxyLoader(connectionUrl(source))
++ const loader=new Loader()
++ return {source,base,loader,get request(){return request},logicalConnectionUrl,connectionUrl}
++}
++
++test('Kazumi and AniSubs master/child playlists, maps, segments and keys keep upstream bases and proxy headers',()=>{
++ for(const kind of ['kazumi','anisubs']){
++  const h=loaderHarness(kind)
++  const contexts=[h.source,'https://cdn.example/show/2000k/playlist.m3u8','https://other-cdn.example/init.mp4','https://cdn.example/show/2000k/0001.ts','https://cdn.example/key.bin?sig=signed%2Fkey']
++  for(const url of contexts){
++   let args
++   const config={timeout:1000},context={url}
++   h.loader.load(context,config,{onSuccess:(...values)=>{args=values}})
++   const proxy=new URL(h.request.context.url)
++   assert.equal(proxy.pathname,`/base/api/stream/${kind}/proxy`)
++   assert.equal(proxy.searchParams.get('token'),'viewer-token')
++   assert.equal(proxy.searchParams.get('referer'),'')
++   assert.equal(proxy.searchParams.get('userAgent'),'Fixture')
++   assert.equal(proxy.searchParams.get('cookie'),'source-cookie')
++   const upstream=proxy.searchParams.get('url')
++   assert.ok(!upstream.includes('/api/stream/'))
++   assert.ok(!upstream.includes('host-token')&&!upstream.includes('viewer-token'))
++   const response={url:h.request.context.url,data:'manifest'},stats={loaded:8},details={status:200}
++   h.request.callbacks.onSuccess(response,stats,context,details)
++   assert.equal(response.url,upstream);assert.equal(context.url,upstream)
++   assert.equal(args[0],response);assert.equal(args[1],stats);assert.equal(args[2],context);assert.equal(args[3],details)
++   assert.equal(h.request.config,config)
++  }
++ }
++})
++
++test('API origin and path prefix are exact; source credentials never become client authentication',()=>{
++ assert.equal(helpers.isServerApiUrl('https://server.example/base/api/file','https://server.example/base'),true)
++ assert.equal(helpers.isServerApiUrl('https://server.example/other/api/file','https://server.example/base'),false)
++ assert.equal(helpers.isServerApiUrl('https://other.example/base/api/file','https://server.example/base'),false)
++ assert.equal(helpers.readHlsProxySource('/api/stream/kazumi/proxy?url=javascript%3Aalert(1)','https://server.example'),null)
++ const h=loaderHarness('kazumi',true)
++ h.loader.load({url:h.connectionUrl(h.source)},{},{onSuccess(){}})
++ assert.ok(h.request.context.url.startsWith('http://127.0.0.1:9988/private/api/'))
++ const proxy=new URL(h.logicalConnectionUrl(h.request.context.url))
++ assert.equal(proxy.searchParams.get('token'),'viewer-token')
++ assert.ok(proxy.searchParams.get('url').startsWith('https://cdn.example/'))
++})
++
++test('a host accepts a permitted viewer selection while preserving recovery against stale null; viewers accept clear',()=>{
++ const code=read('modules/room/watch-together/useWatchTogether.ts')
++ const start=code.indexOf('const handleCurrentMovie ='),end=code.indexOf('// 观众端：',start)
++ const exports={},state={currentMovieId:1},isHostRef={current:true}
++ runInNewContext(stripTypeScriptTypes(code.slice(start,end))+';exports.receive=handleCurrentMovie',{
++  exports,isHostRef,useRoomStore:{getState:()=>state},setCurrentMovieId:id=>{state.currentMovieId=id}
++ })
++ exports.receive({movieId:2});assert.equal(state.currentMovieId,2)
++
++ exports.receive({movieId:null});assert.equal(state.currentMovieId,2)
++ isHostRef.current=false;exports.receive({movieId:null});assert.equal(state.currentMovieId,null)
++
++ isHostRef.current=true;exports.receive({movieId:3});assert.equal(state.currentMovieId,3)
++
++})
++

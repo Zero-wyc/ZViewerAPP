@@ -126,6 +126,22 @@ test('selected HTTPS media route is direct, private channel never becomes a serv
  transport.clearConnectionTransport()
 })
 
+test('private channel authenticates server API without sending tokens to upstream media',()=>{
+ transport.bindConnectionTransport('https://selected.test/base','http://127.0.0.1:3333/private/base')
+ const route=loadTs('src/upstream/modules/player/services/url-proxy.ts',{
+  '../../../../platform/connectionTransport':transport,
+  '@/lib/api':{getApiUrl:()=> 'http://127.0.0.1:3333/private/base'},
+  '../../../../mobile/serverUrl':urls,
+ },{...globals,localStorage:{getItem:()=> 'fixture-token'}})
+ const result=new URL(route.appendAuthToken('http://127.0.0.1:3333/private/base/api/stream/kazumi/proxy?url=https%3A%2F%2Fcdn.test%2Findex.m3u8'))
+ assert.equal(result.origin,'http://127.0.0.1:3333')
+ assert.equal(result.pathname,'/private/base/api/stream/kazumi/proxy')
+ assert.equal(result.searchParams.get('token'),'fixture-token')
+ assert.equal(result.searchParams.get('url'),'https://cdn.test/index.m3u8')
+ assert.equal(route.appendAuthToken('https://cdn.test/video.ts'),'https://cdn.test/video.ts')
+ transport.clearConnectionTransport()
+})
+
 test('cliOnly buffer checks this device before cache/download and never downloads a host stream',async()=>{
  let caches=0,downloads=0
  const movie={id:42,url:'ep102',cid:1002,cliOnly:true}

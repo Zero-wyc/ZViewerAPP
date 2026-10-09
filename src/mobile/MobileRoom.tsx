@@ -175,7 +175,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
                 ? <StreamPushViewer roomId={roomId} streamKey={streamKey || ''} streamStatus={streamStatus} playerOnly />
                 : <WebrtcWatchPage roomId={roomId} playerOnly />
               : <WatchTogetherPanel key={`${room.isHost}:${playerKey}`} roomId={roomId} isHost={room.isHost}
-                  isWebFullscreen={fullscreen} onToggleWebFullscreen={() => setFullscreen(value => !value)} initialPlayback={room.playback} />}
+                  isWebFullscreen={fullscreen} onToggleWebFullscreen={() => setFullscreen(value => !value)} initialPlayback={playerKey === 'init' ? room.playback : null} />}
           </div>
           <section className="mobile-room-details">
             <nav className="mobile-room-tabs" aria-label="房间面板">

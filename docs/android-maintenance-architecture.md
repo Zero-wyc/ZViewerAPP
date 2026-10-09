@@ -189,3 +189,10 @@ iOS 横幅改为加载原始宽图并等比铺满，去掉仅用于专辑封面�
 ### 2026-10-02 iOS 发布交接
 
 用户确认 iOS 真机 UI 通过；本轮 iOS 对齐版本 1.5.0，以未签名 IPA 独立发布。Android/鸿蒙源码已与现有 client-v1.5.0 发布提交核对一致，未重新构建双端包。由于 Expo Build 的额度限制，iOS 端更新与错误修复会出现延迟，不会与 Android/鸿蒙两端同步完成（除非有人有 Mac 帮忙编译）。
+
+
+## 2026-10-09 1.7.1 Kazumi 与授权切片修复
+
+共享 HLS loader 支持 Kazumi/AniSubs 代理上游基址及防盗链参数继承，避免重复代理和相对子清单错误；媒体鉴权先还原所选服务器逻辑 URL，再映射本机通道，token 仅附到同源 API。MobileRoom 只在首次播放器挂载传入恢复记录，切回原片不再恢复旧暂停状态。保留 src/platform/ 连接边界与既有原生播放策略。
+
+31 项适配、4 项媒体回归和 Android/HarmonyOS debug 构建通过；浏览器房主 + 已授权普通用户在两个模拟器顺序测试 Kazumi《成神之日》1/2/3 集，1280×720 解码、时间推进及切片同步通过。详见 [本地验收](watch-kazumi-local-validation-20261009.md)。服务端权限矩阵查询与浏览器事件修复见 [PR #11](https://github.com/Zero-wyc/ZViewer/pull/11)，NAS 未改动，完整生效需要后续更新服务端网页/后端及 App。此次未发布正式版本，未覆盖物理设备或 iOS；鸿蒙交付为 unsigned debug HAP。

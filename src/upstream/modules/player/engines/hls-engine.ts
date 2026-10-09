@@ -9,6 +9,8 @@
  * ts 分片、密钥等），将跨域 URL 包装为服务器代理 URL，绕过浏览器 CORS 限制。
  */
 import Hls from 'hls.js'
+import { getApiUrl } from '@/lib/api'
+import { readHlsProxySource, buildHlsProxyRequest, isServerApiUrl } from '../services/hls-proxy'
 import { connectionUrl, logicalConnectionUrl } from '../../../../platform/connectionTransport'
 import type { PlayerEngine, PlayerSource, EngineAttachResult } from '../types'
 import { resetVideoElement, waitForMetadata } from '../utils'
@@ -35,60 +37,40 @@ function canPlayNativeHls(video: HTMLVideoElement): boolean {
  * 关键：加载完成后需恢复 context.url 与 response.url 为原始 URL，
  * 否则 hls.js 会基于代理 URL 解析 m3u8 中的相对路径 ts 分片，导致拼接错误。
  */
-function createProxyLoader(headers?: Record<string, string>) {
+function createProxyLoader(sourceUrl: string, headers?: Record<string, string>) {
   const BaseLoader = Hls.DefaultConfig.loader
+  const logicalUrl = logicalConnectionUrl
+  const transportUrl = connectionUrl
+  const apiBase = getApiUrl()
+  const proxySource = readHlsProxySource(logicalUrl(sourceUrl), apiBase)
 
   return class ProxyLoader extends BaseLoader {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     load(context: any, config: any, callbacks: any): void {
       const originalUrl = context.url
-      let manifestBaseUrl = logicalConnectionUrl(originalUrl)
-      const channelUrl = connectionUrl(originalUrl)
-      const selectedServer = channelUrl !== originalUrl || manifestBaseUrl !== originalUrl
-      try {
-        const proxy = new URL(originalUrl)
-        if (proxy.pathname.endsWith('/api/stream/proxy')) {
-          manifestBaseUrl = proxy.searchParams.get('url') || originalUrl
-        }
-      } catch { /* relative request */ }
-      const shouldProxy =
-        originalUrl &&
-        !selectedServer &&
-        !isLocalUrl(originalUrl) &&
-        !isRelativeUrl(originalUrl) &&
-        !originalUrl.includes('/api/stream/proxy?url=')
-
-      if (shouldProxy) {
+      const logical = logicalUrl(originalUrl)
+      const proxyRequest = readHlsProxySource(logical, apiBase)
+      const manifestBaseUrl = proxyRequest?.url ?? logical
+      if (isServerApiUrl(logical, apiBase) || isLocalUrl(logical) || isRelativeUrl(logical)) {
+        // Includes Kazumi/AniSubs proxies: never proxy our own authenticated API.
+        context.url = transportUrl(originalUrl)
+      } else if (proxySource) {
+        // Child playlists, segments, maps and keys inherit the same proxy headers.
+        context.url = transportUrl(buildHlsProxyRequest(manifestBaseUrl, proxySource))
+      } else {
         context.url = headers ? resolveProxyUrl(originalUrl, headers, 'hls') : buildProxyUrl(originalUrl)
-      } else if (selectedServer) context.url = channelUrl
-      if (shouldProxy || manifestBaseUrl !== originalUrl) {
-        // 包装 onSuccess 回调：加载完成后恢复原始 URL，
-        // 确保 hls.js 基于原始 URL 解析 m3u8 中的相对路径
+      }
+      context.url = appendAuthToken(context.url)
+      if (proxyRequest || context.url !== originalUrl || manifestBaseUrl !== originalUrl) {
         const originalOnSuccess = callbacks.onSuccess
-        callbacks.onSuccess = (
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          response: any,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          stats: any,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ctx: any,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          networkDetails: any
-        ) => {
-          if (response) {
-            response.url = manifestBaseUrl
-          }
-          if (ctx) {
-            ctx.url = manifestBaseUrl
-          }
+        // hls.js callback order is response, stats, context, networkDetails.
+        // Restore both URL fields before it resolves any relative playlist URI.
+        callbacks.onSuccess = (response: any, stats: any, ctx: any, networkDetails: any) => {
+          if (response) response.url = manifestBaseUrl
+          if (ctx) ctx.url = manifestBaseUrl
           originalOnSuccess(response, stats, ctx, networkDetails)
         }
       }
-
-      // 服务器改写清单中的分片/密钥 URL 不带本地 Bearer token；
-      // Android 的 Cookie 不跨 localhost 壳域，逐请求补齐鉴权。
-      context.url = appendAuthToken(context.url)
-
       super.load(context, config, callbacks)
     }
   }
@@ -175,7 +157,7 @@ export const hlsEngine: PlayerEngine = {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        loader: createProxyLoader(source.headers),
+        loader: createProxyLoader(targetUrl, source.headers),
         // 内存控制：hls.js 默认 maxMaxBufferLength=600s、backBufferLength=Infinity——
         // 已播数据永不清理，长视频播放 1-2 小时后 MSE SourceBuffer 累积到 GB 级内存。
         // 前向缓冲 30s 保证平滑，硬上限 120s 兜底极低码率，已播仅保留 90s

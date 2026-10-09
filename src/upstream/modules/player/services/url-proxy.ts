@@ -192,7 +192,9 @@ function getStoredToken(): string {
  * 非 /api/ 路径、已带 token 参数或无 token 时原样返回。
  */
 export function appendAuthToken(url: string): string {
-  return authenticatedMediaUrl(getApiUrl(), url, getStoredToken())
+  return connectionUrl(authenticatedMediaUrl(
+    logicalConnectionUrl(getApiUrl()), logicalConnectionUrl(url), getStoredToken()
+  ))
 }
 
 /**
