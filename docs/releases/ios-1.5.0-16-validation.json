@@ -113,7 +113,7 @@
   "deviceAcceptance": "pending",
   "eas": {
     "id": "a7973a7c-db58-437a-8957-81b05a759250",
-    "url": "https://expo.dev/accounts/fredqin2006/projects/zviewer-ios/builds/a7973a7c-db58-437a-8957-81b05a759250",
+    "url": "https://expo.dev/accounts/YOUR_ACCOUNT/projects/zviewer-ios/builds/a7973a7c-db58-437a-8957-81b05a759250",
     "status": "FINISHED",
     "artifactUrl": "https://expo.dev/artifacts/eas/J-Bb1K9O9sMcYsQ2mRrnqzPN2Cq1GVDOJfOzyzmE9jM.ipa",
     "completedAt": "2026-10-02T23:37:52.188Z"

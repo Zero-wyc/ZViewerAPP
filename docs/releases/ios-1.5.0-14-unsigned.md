@@ -25,7 +25,7 @@
 
 ## 构建与交付
 
-[EAS b14](https://expo.dev/accounts/fredqin2006/projects/zviewer-ios/builds/95eec7cf-90b7-421f-91d1-e759ef2c794e)，unsigned-device / iphoneos Release / 1.5.0 / 14。
+[EAS b14](https://expo.dev/accounts/YOUR_ACCOUNT/projects/zviewer-ios/builds/95eec7cf-90b7-421f-91d1-e759ef2c794e)，unsigned-device / iphoneos Release / 1.5.0 / 14。
 
 **构建状态：CANCELED，2026-10-02T09:02:31Z。** 用户新增房间视频/音乐区域缺失反馈并要求先 Expo Go、避免继续耗构建额度，故取消该构建；没有将此快照下载或宣称为最终 IPA。早期 `0665bfa3…` b14 已由用户从 EAS 下载，它不含后续房间修复。当前见 [b15 源码预览](ios-1.5.0-15-preview.md)，未构建新 IPA。
 

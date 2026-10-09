@@ -2,7 +2,7 @@
 
 <img src="public/favicon.jpg" alt="ZViewer" width="88" height="88" />
 
-面向手机和平板的 ZViewer 客户端工程。现有 Android 应用使用 React、TypeScript 和 Capacitor；`ZV-iOS/` 是独立的 Expo/React Native 工程，已接入登录、房间、VLC 媒体、本机 B站与语音，HarmonyOS 保留独立宿主目录。Android/鸿蒙当前发布 1.7.0 已适配 [Zero-wyc/ZViewer](https://github.com/Zero-wyc/ZViewer) `ba03309`（2026-10-07 方案的固定目标），保留移动端与原生 B 站适配。
+面向手机和平板的 ZViewer 客户端工程。现有 Android 应用使用 React、TypeScript 和 Capacitor；`ZV-iOS/` 是独立的 Expo/React Native 工程，已接入登录、房间、VLC 媒体、本机 B站与语音，HarmonyOS 保留独立宿主目录。Android/鸿蒙当前发布 1.7.1 已适配 [Zero-wyc/ZViewer](https://github.com/Zero-wyc/ZViewer) `ba03309`（2026-10-07 方案的固定目标），保留移动端与原生 B 站适配。
 
 本仓库是 **移动客户端共享源码与原生宿主**，不是服务端，也不是直接加载远程网页的地址壳。应用界面与播放器随安装包打包，通过你填写的服务器地址连接 ZViewer 服务。
 
@@ -10,7 +10,11 @@
 
 [下载安装包](https://github.com/Zero-wyc/ZViewerAPP/releases) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md)
 
-## 当前发布：Android/鸿蒙 1.7.0 / 170
+## 当前发布：Android/鸿蒙 1.7.1 / 171
+
+修复 Kazumi 多级 HLS 播放与切片后的旧进度恢复。用户已确认双端测试通过，[ZViewer-Client V1.7.1](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.7.1) 提供正式签名 APK/HAP 和 SHA-256；源码使用 main 分支和 GitHub 自动生成的源码压缩包。浏览器房主与 App 观众切片需要同步更新服务端 [PR #11](https://github.com/Zero-wyc/ZViewer/pull/11) 并刷新房主网页。Kazumi 仍需手动启用；本次不更新 iOS。详见 [发行说明](docs/releases/client-1.7.1.md) 和 [联调记录](docs/watch-kazumi-local-validation-20261009.md)。
+
+## 历史发布：Android/鸿蒙 1.7.0 / 170
 
 双端支持 B 站 ep/ss 番剧影视、本机账号会员/试看解析与 cliOnly，增加 HTTPS 优先地址选择、按服务器证书例外、一起听末尾推荐/默认来源/房间评论和实际语音线路徽标。用户已确认双端真机验收通过，[client-v1.7.0 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.7.0) 提供正式签名 APK/HAP、源码 ZIP 和 SHA-256。30 项共享回归、Go 测试、双端模拟器证书通道及会员 MP4 约 400 秒位置出帧通过；详细证据与自动验证覆盖边界见 [1.7.0 交付记录](docs/releases/client-1.7.0-adaptation.md)。本轮不涉及 iOS。
 

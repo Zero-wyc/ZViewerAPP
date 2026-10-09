@@ -8,7 +8,7 @@
 
 ## 设备包
 
-- [EAS b9 构建](https://expo.dev/accounts/fredqin2006/projects/zviewer-ios/builds/10d2231e-6e5f-4269-8147-35b312846918)：FINISHED，2026-09-30 04:08:23 UTC。
+- [EAS b9 构建](https://expo.dev/accounts/YOUR_ACCOUNT/projects/zviewer-ios/builds/10d2231e-6e5f-4269-8147-35b312846918)：FINISHED，2026-09-30 04:08:23 UTC。
 - 本地：ZV-iOS/release-assets/ZViewer-1.2.1-b9-unsigned.ipa，**46,352,519 bytes**，不提交二进制。
 - SHA-256：`f5bbda4dd8fed7bf9c16f208a9dc3803ec015c74bbda6f6f1abe3683f285302c`。
 - com.zviewer.mobile；1.2.1 / 9；ARM64、Mach-O LC_BUILD_VERSION=IOS(2)，非模拟器；无app签名/描述文件/签名目录、无加密。

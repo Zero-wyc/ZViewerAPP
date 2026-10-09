@@ -1,5 +1,7 @@
 # Android / HarmonyOS 维护与发布
 
+2026-10-09 发布准则：当前双端为 [1.7.1 / 171](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.7.1)。发布地址固定 Zero-wyc/ZViewerAPP，源码推送 main；标题为 ZViewer-Client V版本号。附件为正式签名 APK、HAP、SHA256SUMS.txt，不发布 APP，也不单独打包源码，使用 GitHub 自动生成的源码压缩包。源码与安装包排除测试凭据、签名私钥及 AGENTS.md。以下旧版本源码 ZIP 的描述为历史记录。
+
 2026-10-07 发布补充：用户已确认双端 1.7.0 / 170 真机验收通过，授权发布 [client-v1.7.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.7.0)。沿用已验收签名 APK/HAP，补充文档后生成发布提交的源码 ZIP 与 SHA-256；以下本地交付状态保留为发布前阶段记录。
 
 更新日期：2026-10-07。当前双端本地交付为 **1.7.0 / 170**，适配上游 `ba03309`，包括 PGC、本机 cliOnly 与服务器证书通道；正式 APK/HAP、提交源码 ZIP、SHA-256 和脱敏模拟器证据同目录交付，尚未发布远端 Release。见 [1.7.0 交付与验收边界](releases/client-1.7.0-adaptation.md)、[发行说明](releases/client-1.7.0.md)。本轮不涉及 iOS。以下保留旧版发布和设备结论，不能当作本版新增验收；1.6.0 的鸿蒙纯外网语音用户验收及 2026-10-02 的 iOS IPA 历史分别见 [1.6.0 记录](releases/client-1.6.0-adaptation.md)、[iOS 交付](releases/ios-1.5.0-15-unsigned.md)。

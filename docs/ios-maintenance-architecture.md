@@ -117,7 +117,7 @@ python scripts/inspect-unsigned-ipa.py <IPA绝对路径>
 
 ### build 16 交付记录
 
-EAS：[1.5.0 / build 16](https://expo.dev/accounts/fredqin2006/projects/zviewer-ios/builds/a7973a7c-db58-437a-8957-81b05a759250)。状态 **FINISHED**，已下载并通过离线包检查。版本 **1.5.0 / 16**、bundle `com.zviewer.mobile`、iOS device ARM64、未签名/未加密、iPhone/iPad、最低 iOS 16.4，包含 VLC、自定义原生桥接、系统媒体及内置 JS（3,198,491 bytes）。检查到本轮播放设置/轨道/回执相关 JS 标记。
+EAS：[1.5.0 / build 16](https://expo.dev/accounts/YOUR_ACCOUNT/projects/zviewer-ios/builds/a7973a7c-db58-437a-8957-81b05a759250)。状态 **FINISHED**，已下载并通过离线包检查。版本 **1.5.0 / 16**、bundle `com.zviewer.mobile`、iOS device ARM64、未签名/未加密、iPhone/iPad、最低 iOS 16.4，包含 VLC、自定义原生桥接、系统媒体及内置 JS（3,198,491 bytes）。检查到本轮播放设置/轨道/回执相关 JS 标记。
 
 - 本地包：`ZV-iOS/release-assets/ZViewer-iOS-1.5.0-build16-unsigned.ipa`
 - 大小：45,094,781 bytes。

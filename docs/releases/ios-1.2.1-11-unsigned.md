@@ -16,7 +16,7 @@
 
 ## 包与构建
 
-- [EAS build 11](https://expo.dev/accounts/fredqin2006/projects/zviewer-ios/builds/3f8cb619-c4c1-4a40-9e23-ef0cd0903c6d)：FINISHED，2026-09-30 06:04:07 UTC。
+- [EAS build 11](https://expo.dev/accounts/YOUR_ACCOUNT/projects/zviewer-ios/builds/3f8cb619-c4c1-4a40-9e23-ef0cd0903c6d)：FINISHED，2026-09-30 06:04:07 UTC。
 - 本地目标：`ZV-iOS/release-assets/ZViewer-1.2.1-b11-unsigned.ipa`，不提交 IPA 到 Git。用户自行签名安装；Release 内置 JS，不用 Metro，Expo Go 不能验收原生模块。
 - 构建不要求 Apple 登录或设备注册；无 app 签名、描述文件或签名目录。ARM64 device/Mach-O IOS(2)，不使用模拟器包替代。
 

@@ -52,7 +52,7 @@
 | EAS `ios-simulator` 原生构建 | **FINISHED**，VLCKit pod/Swift 桥接/Xcode 编译通过 |
 | 签名 preview/真机 IPA | 无可用内部测试签名凭据；尚无 IPA |
 
-EAS 构建：[700fa19a-2710-4574-b675-6ce96fa44d8c](https://expo.dev/accounts/fredqin2006/projects/zviewer-ios/builds/700fa19a-2710-4574-b675-6ce96fa44d8c)。产物：[模拟器 archive](https://expo.dev/artifacts/eas/Mnzr8xO4zGXVcjcEL12_p8BdVEczDAJS3dQvp8S-F_k.tar.gz)，含 `ZViewer.app`，**不能安装到 iPhone/iPad**。
+EAS 构建：[700fa19a-2710-4574-b675-6ce96fa44d8c](https://expo.dev/accounts/YOUR_ACCOUNT/projects/zviewer-ios/builds/700fa19a-2710-4574-b675-6ce96fa44d8c)。产物：[模拟器 archive](https://expo.dev/artifacts/eas/Mnzr8xO4zGXVcjcEL12_p8BdVEczDAJS3dQvp8S-F_k.tar.gz)，含 `ZViewer.app`，**不能安装到 iPhone/iPad**。
 
 本地副本：`E:/Codex-bulid/ZViewer/local-ios-validation/zviewer-ios-1.2.1-b2-vlc-simulator.tar.gz`。SHA-256：`E6DB9CB7578F2DC1C05420748A2DC032D9E5F71A408356534AAB9A94A2F846F9`。原生构建捕获本轮播放器运行代码；之后仅整理测试脚本、注释和文档。
 

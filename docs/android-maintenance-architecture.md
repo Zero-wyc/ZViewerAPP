@@ -196,3 +196,10 @@ iOS 横幅改为加载原始宽图并等比铺满，去掉仅用于专辑封面�
 共享 HLS loader 支持 Kazumi/AniSubs 代理上游基址及防盗链参数继承，避免重复代理和相对子清单错误；媒体鉴权先还原所选服务器逻辑 URL，再映射本机通道，token 仅附到同源 API。MobileRoom 只在首次播放器挂载传入恢复记录，切回原片不再恢复旧暂停状态。保留 src/platform/ 连接边界与既有原生播放策略。
 
 31 项适配、4 项媒体回归和 Android/HarmonyOS debug 构建通过；浏览器房主 + 已授权普通用户在两个模拟器顺序测试 Kazumi《成神之日》1/2/3 集，1280×720 解码、时间推进及切片同步通过。详见 [本地验收](watch-kazumi-local-validation-20261009.md)。服务端权限矩阵查询与浏览器事件修复见 [PR #11](https://github.com/Zero-wyc/ZViewer/pull/11)，NAS 未改动，完整生效需要后续更新服务端网页/后端及 App。此次未发布正式版本，未覆盖物理设备或 iOS；鸿蒙交付为 unsigned debug HAP。
+
+
+## 2026-10-09：1.7.1 / 171 正式发布
+
+用户确认双端测试通过并授权发布 [ZViewer-Client V1.7.1](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.7.1)。正式签名 APK/HAP 沿用已有发布证书，校验版本、签名和共享资源；源码推送 Zero-wyc/ZViewerAPP 的 main，移除跟踪的 AGENTS.md 并加入忽略规则，排除测试账号、配置和签名私钥。Release 附件仅 APK、HAP、SHA256SUMS.txt，源码采用 GitHub 自动生成的 zip/tar.gz。此前 debug 联调记录保留其当时的验收边界；本次用户确认不补写未知真机型号或专项测量数据。
+
+服务端修复仍由 [PR #11](https://github.com/Zero-wyc/ZViewer/pull/11) 交付；NAS 未改动，完整切片修复需要服务端前后端和 App 一并更新。本次不构建 iOS IPA。

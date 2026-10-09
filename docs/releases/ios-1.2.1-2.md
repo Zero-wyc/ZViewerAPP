@@ -30,7 +30,7 @@
 - 关闭/被踢/离房停播并阻止旧加入回调；仅消费统一 sync-heartbeat，避免重复处理同一心跳；片单选片先确认服务端 ack。
 - 房主原生播放/暂停/倍速及全屏跳转接入广播。跳转通过原生进度事件的时间不连续检测，仍需 iOS 与 Android 真机对测；约两秒同步目标尚未验收。
 - 配色采用当前 Android 的绿色主色及深灰 surface/text token，大厅最大宽度 640。保留聊天/片单/房间页签与双列条件。完整旋转、语音入口、房间模块拆分与多尺寸截图验收属于 P1，本轮未宣布完成。
-- package/app 版本统一为 1.2.1，buildNumber 2；Expo 依赖通过 expo install 修正。EAS 关联 `@fredqin2006/zviewer-ios`，项目 ID `0b2a3a4d-2f06-4cb4-9ca7-6d57a123e31c`，版本由本地配置管理。
+- package/app 版本统一为 1.2.1，buildNumber 2；Expo 依赖通过 expo install 修正。EAS 关联 `@YOUR_ACCOUNT/zviewer-ios`，项目 ID `0b2a3a4d-2f06-4cb4-9ca7-6d57a123e31c`，版本由本地配置管理。
 
 ## 验证
 

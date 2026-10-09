@@ -21,7 +21,7 @@
 
 ## 未签名设备包
 
-- [EAS build 12](https://expo.dev/accounts/fredqin2006/projects/zviewer-ios/builds/b559808d-4da0-4828-a3a6-ebd5f985dce7)。FINISHED，2026-09-30T06:55:04.640Z。
+- [EAS build 12](https://expo.dev/accounts/YOUR_ACCOUNT/projects/zviewer-ios/builds/b559808d-4da0-4828-a3a6-ebd5f985dce7)。FINISHED，2026-09-30T06:55:04.640Z。
 - 本地目标：`ZV-iOS/release-assets/ZViewer-1.2.1-b12-unsigned.ipa`，不提交 IPA；Release 内置 JS，无需 Expo Go/Metro。不使用用户证书签名。
 - IPA **46,407,060 bytes**；SHA-256：`532efd15d4327b8219fda437224aa9b9b41407b60a3d56f22a545a034110374a`，与构建端摘要一致。
 - com.zviewer.mobile / 1.2.1 / 12；ARM64 Mach-O platform IOS(2)，无 app 签名、描述文件、签名目录或加密。内置 JS **2,988,995 bytes**，确认包含本次菜单和 SourcePicker 更新；VLCKit/WebRTC/Go/语音桥接及许可证齐全。

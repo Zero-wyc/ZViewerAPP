@@ -38,7 +38,7 @@ Web 布局预览：[深色外观](ios-1.5.0-13-ui/appearance-dark.png)、[手机
 
 ## 构建与包
 
-最终构建：[EAS b13](https://expo.dev/accounts/fredqin2006/projects/zviewer-ios/builds/39c98171-8b19-4e31-b68d-9639d6fac54f)。状态/完成时间、IPA 大小/SHA-256、离线检查见 [脱敏证据](ios-1.5.0-13-evidence.json)。
+最终构建：[EAS b13](https://expo.dev/accounts/YOUR_ACCOUNT/projects/zviewer-ios/builds/39c98171-8b19-4e31-b68d-9639d6fac54f)。状态/完成时间、IPA 大小/SHA-256、离线检查见 [脱敏证据](ios-1.5.0-13-evidence.json)。
 
 目标 `ZV-iOS/release-assets/ZViewer-1.5.0-b13-unsigned.ipa`，Release 内置 JS，用户自行签名。检查 ARM64/platform IOS(2)、无 app 签名/描述文件/加密、VLCKit/Go/Opus/系统媒体桥接、audio、方向、来源和许可证。
 
