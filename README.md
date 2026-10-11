@@ -2,166 +2,118 @@
 
 <img src="public/favicon.jpg" alt="ZViewer" width="88" height="88" />
 
-面向手机和平板的 ZViewer 客户端工程。现有 Android 应用使用 React、TypeScript 和 Capacitor；`ZV-iOS/` 是独立的 Expo/React Native 工程，已接入登录、房间、VLC 媒体、本机 B站与语音，HarmonyOS 保留独立宿主目录。Android/鸿蒙当前发布 1.7.1 已适配 [Zero-wyc/ZViewer](https://github.com/Zero-wyc/ZViewer) `ba03309`（2026-10-07 方案的固定目标），保留移动端与原生 B 站适配。
+面向手机和平板的 ZViewer 客户端，支持同步观影、一起听、房间语音、弹幕与字幕。Android 和 HarmonyOS 将界面与播放器打包进安装包，通过你填写的服务器地址连接 [ZViewer 服务端](https://github.com/Zero-wyc/ZViewer)。本仓库提供共享前端和原生宿主源码。
 
-本仓库是 **移动客户端共享源码与原生宿主**，不是服务端，也不是直接加载远程网页的地址壳。应用界面与播放器随安装包打包，通过你填写的服务器地址连接 ZViewer 服务。
+[下载安装包](https://github.com/Zero-wyc/ZViewerAPP/releases/latest) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md)
 
-现有共享前端已经按多平台边界整理：业务代码不直接依赖 Android 或 Capacitor，原生能力统一通过 `src/platform/` 调用。Expo iOS 工程独立移植业务与原生能力，真机 UI 已通过用户验收；完整后台业务同步及部分原生媒体场景仍有待验收；HarmonyOS 已通过 ArkWeb `JavaScriptProxy` 接入共享前端，详见 [移植指南](PORTING.md)。
+## 当前版本
 
-[下载安装包](https://github.com/Zero-wyc/ZViewerAPP/releases) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md)
+| 平台 | 版本 | 说明 |
+| --- | --- | --- |
+| Android | **1.7.3 / 173** | 正式签名 APK，内置 Go B 站代理 |
+| HarmonyOS | **1.7.3 / 173** | 正式签名 HAP，ArkWeb / ArkTS 宿主 |
+| iOS | 独立 1.5.1 源码 / Release | IPA 内部版本为 1.5.0（build 16）；本次未更新 |
 
-## 当前发布：Android/鸿蒙 1.7.1 / 171
+双端本轮对齐 **服务端 v4.4.7**，源码参考 `32d3cdecb498e12af7bd5e0f5acd49b6b8576e08`。用户已确认双端检测通过。[ZViewer-Client V1.7.3](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.7.3) 提供 APK、HAP 和 SHA256SUMS.txt；源码同步 main，使用 GitHub 自动生成的 Source code（zip / tar.gz），不另附源码 ZIP。
 
-修复 Kazumi 多级 HLS 播放与切片后的旧进度恢复。用户已确认双端测试通过，[ZViewer-Client V1.7.1](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.7.1) 提供正式签名 APK/HAP 和 SHA-256；源码使用 main 分支和 GitHub 自动生成的源码压缩包。浏览器房主与 App 观众切片需要同步更新服务端 [PR #11](https://github.com/Zero-wyc/ZViewer/pull/11) 并刷新房主网页。Kazumi 仍需手动启用；本次不更新 iOS。详见 [发行说明](docs/releases/client-1.7.1.md) 和 [联调记录](docs/watch-kazumi-local-validation-20261009.md)。
-
-## 历史发布：Android/鸿蒙 1.7.0 / 170
-
-双端支持 B 站 ep/ss 番剧影视、本机账号会员/试看解析与 cliOnly，增加 HTTPS 优先地址选择、按服务器证书例外、一起听末尾推荐/默认来源/房间评论和实际语音线路徽标。用户已确认双端真机验收通过，[client-v1.7.0 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.7.0) 提供正式签名 APK/HAP、源码 ZIP 和 SHA-256。30 项共享回归、Go 测试、双端模拟器证书通道及会员 MP4 约 400 秒位置出帧通过；详细证据与自动验证覆盖边界见 [1.7.0 交付记录](docs/releases/client-1.7.0-adaptation.md)。本轮不涉及 iOS。
-
-## 历史发布：Android/鸿蒙 1.6.0 / 160
-
-双端升级 LiveKit 语音、PGS 位图字幕和 AAC/seek 修复，新增本地 XML/JSON 弹幕及网易云 Cookie 登录/复制，清理我的音乐空 Tab。18 项自动回归与双端模拟器联调通过；发布沿用既有签名的正式 APK 和 HAP；用户已确认鸿蒙纯外网域名语音可连接，其他真机场景按交付记录保留验收边界，详见 [1.6.0 交付记录](docs/releases/client-1.6.0-adaptation.md)。新版本语音要求 LiveKit 服务端，不支持旧 v4.2.1 的语音协议。**iOS 目前尚未适配本次新版本服务端（含 LiveKit 语音），本次不发布 iOS 安装包。** 发行说明见 [1.6.0 Release](docs/releases/client-1.6.0.md)。
-
-## 历史发布：Android/鸿蒙 1.5.0，iOS 源码/Release 1.5.1
-
-Android 和 HarmonyOS 同步 ZViewer 服务端 v4.2.1，使用同一套连接页、房间、全局背景与深浅主题。双端接入系统播放控件、封面与歌词，完善后台播放和自动旋转；一起听横屏背景铺满屏幕，曲绘避让摄像头，追加视频弹窗适配主题与窄屏。一起看使用中间双击播放/暂停、全屏左右双击各跳转15秒；一起听仅在视频全屏采用相同手势。Android/鸿蒙包版本为 1.5.0，versionCode 为 150；iOS 源码与独立 `ios-v1.5.1` Release 版本为 1.5.1，本次未重新进行 Expo/EAS 构建，复用已修复的 1.5.0 / build 16 未签名 IPA；安装包内部版本仍为 1.5.0（16）。
-
-发布构建、源码清理边界与设备验收见 [双端维护与发布流程](docs/mobile-release-maintenance.md)，双端变更见 [1.5.0 发布记录](docs/releases/client-1.5.0.md)，iOS 修复及包版本说明见 [1.5.1 发行说明](docs/releases/ios-1.5.1-release-notes.md)。
-
-Android 内置 B 站登录与 Go 播放代理，无需另外安装 CLI。扫码登录后，默认选择账号有权限、视频有实际轨道、设备支持的最高普通画质，自动排除 HDR 和杜比视界。最高画质播放失败时，有限恢复后优先回退 720p；没有 720p 则使用真实可用的更低档位。
-
-手机端弹幕默认开启“随屏幕缩放”，让字号随播放区域变化；可以在弹幕设置中关闭，关闭后的选择会保留。桌面网页的默认值不变。
-
-手动选择按影片保留，房主与观众独立选择本机画质；Cookie 在 Android Keystore 加密后保存在不可备份目录。正式版包名 `com.zviewer.mobile`；调试包使用独立包名 `com.zviewer.mobile.debug`。本轮模拟器验收范围见 [适配记录](docs/android-v4.2.1-adaptation-report.md)。
-
-**iOS 更新说明：** 由于 Expo Build 的额度限制，iOS 端更新与错误修复会出现延迟，不会与 Android/鸿蒙两端同步完成（除非有人有 Mac 帮忙编译）。
-
-iOS 包为未签名的 iPhone/iPad ARM64 Release，需要自行签名安装；内置 JS，无需运行 Metro。UI 验收不代表后台同步、音视频及语音所有真机场景通过。构建完成后的包与校验记录见 [iOS 维护文档](docs/ios-maintenance-architecture.md)与 [1.5.1 发行说明](docs/releases/ios-1.5.1-release-notes.md)。
+本次新增 B 站搜索、片单触屏排序与自动连播、弹幕连续添加，以及 Emby/Jellyfin 海报墙和全选。单集恢复横向封面，媒体库放大后目录区使用更多可用空间。详见 [发行说明](docs/releases/client-1.7.3.md)、[对齐记录](docs/client-v1.7.2-alignment-447-validation-20261011.md) 和 [媒体库修复记录](docs/client-v1.7.3-media-browser-fix-20261011.md)。1.7.1 的 Kazumi HLS 与切片进度修复继续保留，对应服务端修复已包含在 v4.4.7 中；请同步更新服务器和房主网页。Kazumi 仍需在设置中手动启用。
 
 ## 安装与连接
 
-1. 从 Releases 下载 `ZViewer-Android-版本号-release.apk`，按系统提示允许对应来源安装应用。
-2. 准备可访问的 ZViewer 服务端，在客户端填写服务器地址。
-3. 使用服务器账号登录；服务器允许游客时，也可以游客身份进入。
-4. 选择房间，或在服务器授权允许的情况下创建同步观影、一起听房间。
+1. 从最新 Release 下载对应的 `ZViewer-Android-1.7.3-release.apk` 或 `ZViewer-HarmonyOS-1.7.3-release.hap`。Android 按系统提示允许安装；鸿蒙安装说明见 [维护文档](docs/harmonyos-maintenance-architecture.md)。
+2. 准备可访问的 ZViewer 服务端，填写服务器地址。支持完整 HTTP/HTTPS 地址、HTTPS 优先探测及按服务器授权的证书例外。
+3. 使用服务器账号登录；服务器允许游客时可使用游客身份。
+4. 选择房间，或在服务器授权允许时创建同步观影、一起听房间。
 
-Android 工程最低版本为 Android 7.0 / API 24。请保持 Android System WebView / Chrome 更新；系统版本达到最低要求，并不代表所有媒体编码、WebRTC 或 Web Audio 功能都能在该设备上使用。当前目标服务端为 v4.2.1，验证范围见 [安卓适配记录](docs/android-v4.2.1-adaptation-report.md)。
+Android 最低版本为 **Android 7.0 / API 24**；当前 APK 包含 ARM64 和 x86_64 原生库，需要 64 位 Android。保持 Android System WebView / Chrome 更新，媒体能力仍取决于设备。HarmonyOS 工程最低 SDK 配置为 `6.1.0(23)`，目标 SDK 为 26，设备支持以发布包和维护文档为准。
 
-推荐 HTTPS。为兼容局域网部署，本应用允许 HTTP 和混合内容；不要在不可信网络中使用明文连接。服务器或反向代理需要允许客户端来源的 API 请求及 Socket.IO 连接，客户端不会绕过服务端权限或跨域限制。
+推荐 HTTPS。应用允许局域网 HTTP 与混合内容；服务器或反向代理需要允许客户端来源的 API 和 Socket.IO 连接。证书例外仅作用于你选择的服务器，不全局关闭 TLS 校验。
 
-**安装迁移提醒：** 当前包名是 `com.zviewer.mobile`，v1.1.0 使用本次 Android 适配的独立发布签名，不保证能覆盖安装仓库旧版本。不同包名可能并存；若已有同包名的调试版或其他签名版本，安装可能被拒绝。请先记录服务器地址和设置，确认需要后再卸载旧包；卸载会清除其本地数据。
+正式 Android 包名为 `com.zviewer.mobile`，调试包为 `com.zviewer.mobile.debug`。本轮沿用既有发布签名；自行构建或其他签名的同包名应用不保证能覆盖安装。需要卸载旧包时先保存服务器地址和设置，卸载会清除本地数据。
 
-## 功能
+## 功能与使用
 
-- 自定义服务端、账号或游客登录、会话恢复、房间列表与权限检查。
-- 同步观影、片单、聊天、弹幕、字幕与播放控制。
-- Android 内置 B 站扫码登录、自动最高画质、真实档位展示与有限播放回退。
-- 一起听音乐，设置页适配窄屏，平板保留多列布局。
-- 观看桌面端发起的屏幕共享；手机端不提供屏幕采集或发起共享。
-- 房间语音：申请麦克风权限、加入与退出、静音和成员状态。折叠面板、切换标签或房间模式不主动结束通话。
-- 顶栏旋转屏幕控制，全屏播放时保留播放器内的旋转入口。
-- 手机字幕默认 12px，短边达到 600 CSS px 的平板默认 15px；可手动调整。
-- 与原网页项目一致的应用图标，原生启动背景与即时加载页，加载异常时可重试。
+- **房间与同步观影**：账号/游客登录、会话恢复、片单、聊天、评论、字幕与播放控制。可观看桌面端发起的屏幕共享，手机端不提供屏幕采集。
+- **片单管理**：展开完整片单进行搜索、上移/下移排序；排序仅限 root 或创建房间的管理员，搜索过滤时不能排序。房主可开启自动连播，默认关闭，按完整片单播放，末尾停止。
+- **B 站**：关键词搜索后直接解析，支持分 P、ep/ss 番剧影视与本机账号授权。双端内置登录与代理，无需另装 CLI；Cookie 保存在原生侧，房主与观众独立选择本机画质。
+- **媒体库**：Emby/Jellyfin 列表与海报墙切换、年份、剧集/季/单集导航、缺图占位。进入单集目录后可多选或全选，按目录顺序批量添加；放大扩展目录显示区域，原生返回先退出面板全屏，再关闭面板。
+- **弹幕与字幕**：连续添加多集并标记已添加，支持本地 XML/JSON 弹幕及文本/PGS 字幕。手机弹幕默认随画面缩放，字号和字幕大小可调整。
+- **一起听与语音**：音乐、歌单、歌词及 LiveKit 房间语音，保留麦克风权限、静音和成员管理；折叠面板或切换标签不主动结束通话。
+- **移动体验**：深浅主题、全局背景、窄屏设置、平板布局、旋转控制、系统播放信息与控件、二级面板内部滚动和返回层级。
 
-媒体来源、账号服务和房间权限仍由服务端及对应平台决定。部分格式依赖设备解码能力；本项目不承诺支持所有媒体。
+B 站默认选择本机账号有权限、视频实际提供且设备支持的最高普通画质，排除 HDR 和杜比视界；手动选择按影片保留。媒体来源、账号授权和房间权限由对应平台及服务端决定，格式播放还依赖设备解码能力。
 
-## 本地开发
+## iOS 状态
 
-推荐使用 Node.js 24、npm、Go 1.26.8、JDK 21、Android SDK Platform 36 / Build Tools 36 和 NDK r30。Gradle Wrapper 已包含在仓库内。详细环境配置见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+`ZV-iOS/` 为独立 Expo/React Native + VLC 工程，不直接使用双端共享界面。当前 iOS 源码及独立 Release 为 1.5.1，复用未签名的 1.5.0（build 16）IPA，需自行签名安装。本次未构建 IPA，也未完成 v4.4.7 与 LiveKit 的 iOS 对齐。
+
+iOS 更新受 Expo Build 额度及本地 Mac 构建条件影响，可能晚于双端。UI 验收与后台同步、音视频及语音覆盖边界见 [iOS 维护文档](docs/ios-maintenance-architecture.md) 和 [1.5.1 发行说明](docs/releases/ios-1.5.1-release-notes.md)。
+
+## 本地开发与检查
+
+使用 Node.js 24 和 npm；Android 原生构建还需要 Go 1.26.8、JDK 21、Android SDK Platform / Build Tools 36 和 NDK r30。HarmonyOS 使用 DevEco Studio 及对应 SDK，详见 [开发指南](CONTRIBUTING.md) 和平台维护文档。
 
 ```sh
 npm ci
 npm run dev -- --host 127.0.0.1
-```
-
-终端会显示访问地址。浏览器调试时仍需要自己的服务端。
-
-```sh
+npm run test:adaptation
+npm run test:media
 npm run build
 ```
 
-测试目录和测试脚本已从客户端交付树清理。发布前请按 Android/HarmonyOS 维护文档执行设备验收，并保留脱敏的发布记录。
+浏览器调试需要自己的 ZViewer 服务端。仓库保留适配与媒体回归测试；本轮 43 项适配、4 项媒体回归通过，另外完成 64 组媒体库布局、17 组选择行为与双端原生批量添加验证。用户已确认双端检测通过，自动化证据和具体覆盖边界保留在本轮验证记录中。
 
-## 跨平台边界
+### Android 构建
 
-- `src/platform/contracts.ts` 是现有 Capacitor/ArkWeb 客户端的原生能力契约；Expo iOS 工程尚未接入。
-- 显示、生命周期、音频路由和麦克风权限均通过 `src/platform/` 适配器访问。
-- Android 继续使用现有 Java Capacitor 插件；插件名与方法保持兼容。
-- iOS Expo 工程使用 React Native，需要单独迁移界面和平台能力。
-- HarmonyOS 在 ArkWeb 中注入 `zviewerNative`，不在 React 业务层引入 ArkTS 分支。
-- 平台边界由 `src/platform/` 目录和代码评审维护；业务模块不应直接导入 Capacitor。
-
-新平台适配、桥接方法和维护流程见 [PORTING.md](PORTING.md)。
-
-## Android 构建
-
-先配置 `JAVA_HOME`、Android SDK（`ANDROID_HOME` 或本机 `ZV-Android/local.properties`）和 `ANDROID_NDK_HOME`，确保 Go 与 Node 在 PATH，再同步前端资源：
-
-```sh
-npm ci
-npm run android:sync
-npm run android:open
-```
-
-Windows PowerShell 调试包：
+配置 `JAVA_HOME`、`ANDROID_HOME`（或本机 `ZV-Android/local.properties`）与 `ANDROID_NDK_HOME`，确保 Go 和 Node 在 PATH：
 
 ```powershell
+npm run android:sync
 cd ZV-Android
 .\gradlew.bat assembleDebug
 ```
 
-Gradle 自动从 `native/bilicore/` 构建 AAR，不需要手动复制预编译文件。当前 APK 包含 ARM64 和 x86_64 原生库，要求 64 位 Android。输出：`ZV-Android/app/build/outputs/apk/debug/app-debug.apk`。macOS / Linux 使用 `sh gradlew assembleDebug`。
+Gradle 自动从 `native/bilicore/` 构建 AAR，输出 `ZV-Android/app/build/outputs/apk/debug/app-debug.apk`；macOS/Linux 使用 `sh gradlew assembleDebug`。
 
-### 正式签名包
-
-签名密钥必须保存在仓库外。将以下环境变量注入当前构建进程：
+正式签名包需要在当前构建进程注入：
 
 | 变量 | 内容 |
 | --- | --- |
-| `ZVIEWER_KEYSTORE` | 发布密钥库的绝对路径 |
+| `ZVIEWER_KEYSTORE` | 仓库外发布密钥库的绝对路径 |
 | `ZVIEWER_STORE_PASSWORD` | 密钥库密码 |
-| `ZVIEWER_KEY_ALIAS` | 签名密钥别名 |
-| `ZVIEWER_KEY_PASSWORD` | 签名密钥密码 |
+| `ZVIEWER_KEY_ALIAS` | 签名别名 |
+| `ZVIEWER_KEY_PASSWORD` | 密钥密码 |
 
-配置后运行：
+随后运行 `assembleRelease`，输出 `ZV-Android/app/build/outputs/apk/release/app-release.apk`。缺少签名配置时构建失败；发布前使用 `apksigner verify` 并记录 SHA-256。不要提交密钥、密码、SDK 本地配置或登录令牌。
 
-```powershell
-npm run android:sync
-cd ZV-Android
-.\gradlew.bat assembleRelease
+### HarmonyOS 构建
+
+```sh
+npm run harmony:web
 ```
 
-输出：`ZV-Android/app/build/outputs/apk/release/app-release.apk`。缺少签名配置时 release 构建会失败，不会把未签名包当正式包发布。发布前使用 Android SDK 的 `apksigner verify --verbose --print-certs` 检查 APK，并记录 SHA-256。
+随后在 DevEco Studio 打开 `ZV-HarmonyOS/`，配置本机 SDK 与签名并构建 HAP。网页资源由脚本同步至 `entry/src/main/resources/rawfile/web/`，不手改生成文件。发布私钥和 Profile 不包含在公开源码中，详见 [HarmonyOS 维护文档](docs/harmonyos-maintenance-architecture.md)。
 
-维护者应安全备份密钥与密码，后续版本继续使用同一签名。不要提交密钥、密码、SDK 本地路径或登录令牌。仓库不包含现有发布密钥，自行构建的签名包不保证能覆盖安装官方发布包。
-
-## 目录
+## 代码与维护边界
 
 | 路径 | 用途 |
 | --- | --- |
-| `src/App.tsx` | 连接服务端、登录和房间大厅 |
-| `src/mobile/` | 移动端房间布局与平台无关的 React Hook |
-| `src/platform/` | 原生能力契约及 Android/iOS/HarmonyOS 适配边界 |
-| `src/upstream/` | 从 ZViewer 导入并适配的业务模块 |
-| `ZV-Android/` | Capacitor Android 工程、Gradle 配置与 Java 原生插件 |
-| `native/bilicore/` | 从 ZViewerCLI 4.1.2 提取的 Go 核心、移动代理与测试 |
-| `docs/` | 实施方案与验收报告 |
-| `ZV-iOS/` | Expo/React Native iOS 源码 1.5.1 与原生模块（复用 1.5.0 / build 16 IPA） |
-| `ZV-HarmonyOS/` | HarmonyOS ArkTS/ArkWeb 原生宿主（已完成） |
-| `public/` | 图标、字体及音频工作线程资源 |
-| `vendor/mediabunny/` | 媒体库本地副本及 DTS / FLAC 补丁 |
-| `docs/` | 平台维护架构、验收记录和发布说明 |
+| `src/App.tsx`、`src/mobile/` | 连接、登录、大厅和移动房间布局 |
+| `src/upstream/` | 从 ZViewer 导入并适配的共享业务 |
+| `src/platform/` | Capacitor / ArkWeb 原生能力契约与适配器 |
+| `ZV-Android/`、`native/bilicore/` | Android 宿主与内置 Go 播放代理 |
+| `ZV-HarmonyOS/` | ArkTS / ArkWeb 原生宿主 |
+| `ZV-iOS/` | 独立 Expo / React Native / VLC 工程 |
+| `scripts/` | 构建、资源同步与回归检查 |
+| `public/`、`vendor/mediabunny/` | 静态资源与媒体库本地补丁 |
+| `docs/` | 平台维护架构、验收记录与发行说明 |
 
-`scripts/generate-android-icons.ps1` 从 `public/favicon.jpg` 生成 Android 启动器图标。`scripts/import-core.mjs` 是维护用的上游导入工具，依赖相邻的 ZViewer 4.1.7 源码目录；普通安装、构建和测试**不需要运行它**。更新媒体库时请保留 [本地补丁](vendor/mediabunny/LOCAL-PATCHES.md)。
+共享业务通过 `src/platform/` 访问原生能力，不直接依赖 Capacitor 或 ArkTS。HarmonyOS 使用 `zviewerNative` 桥；iOS 独立移植业务和能力。新增评论独立窗口、全屏评论侧坞与修饰键快捷唤出不在本次移植范围，原有评论保留。
 
-## 验证范围
-
-自动化覆盖不等于所有设备实测。发布前已进行浏览器回归和 Android release 构建检查；1.1.1 音频测试版由用户确认手机测试通过，但其他设备、耳机型号、后台行为及具体媒体兼容性仍需实测。
-
-v1.1.0 修复了 24 位 FLAC 封装为 MP4 时位深声明不一致引起的 Chromium MSE 错误。回归使用合成音频，尚未取得用户原始报错媒体，因此不承诺所有类似播放错误均已解决。
+维护入口：[Android](docs/android-maintenance-architecture.md) · [HarmonyOS](docs/harmonyos-maintenance-architecture.md) · [跨平台移植](PORTING.md) · [双端发布流程](docs/mobile-release-maintenance.md)。`scripts/import-core.mjs` 为维护用上游导入工具，普通安装、构建和测试无需运行；更新媒体库时保留 [本地补丁](vendor/mediabunny/LOCAL-PATCHES.md)。历史变更见 [CHANGELOG](CHANGELOG.md) 和 [Releases](https://github.com/Zero-wyc/ZViewerAPP/releases)。
 
 ## 致谢与许可
 
-原项目由 **Zero-wyc** 开发，本项目保留原作者署名与 [MIT 许可证](UPSTREAM-LICENSE)。感谢原作者提供的播放器、同步、音乐、语音等基础功能。
+原项目由 **Zero-wyc** 开发，本项目保留原作者署名与 [MIT 许可证](UPSTREAM-LICENSE)，感谢原作者提供播放器、同步、音乐与语音等基础功能。
 
-第三方组件仍遵循各自许可证；本仓库的 `vendor/mediabunny` 文件保留 MPL-2.0 声明及本地修改记录，详见 [第三方说明](THIRD-PARTY-NOTICES.md)。本项目不附带服务端账号、受版权保护的影片或音乐资源。
+第三方组件遵循各自许可证；`vendor/mediabunny` 保留 MPL-2.0 声明和本地修改记录，详见 [第三方说明](THIRD-PARTY-NOTICES.md)。本项目不附带服务端账号、影片或音乐资源。
