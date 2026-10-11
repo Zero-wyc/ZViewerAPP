@@ -89,6 +89,8 @@ export default function EmbyBrowser({
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set())
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const episodeView = viewMode === 'wall' && entries.length > 0 && entries.every(entry => entry.embyType === 'Episode')
+  const currentFiles = useMemo(() => entries.filter(entry => entry.type === 'file'), [entries])
+  const allSelected = currentFiles.length > 0 && currentFiles.every(entry => selectedPaths.has(entry.path))
 
   const currentPath =
     crumbs.length > 0 ? crumbs[crumbs.length - 1].path : undefined
@@ -179,6 +181,12 @@ export default function EmbyBrowser({
     })
   }
 
+  const toggleSelectAll = () => {
+    if (loading || currentFiles.length === 0) return
+    setMultiSelectMode(true)
+    setSelectedPaths(allSelected ? new Set() : new Set(currentFiles.map(entry => entry.path)))
+  }
+
   const selectedFiles = useMemo(
     () =>
       [...selectedPaths]
@@ -220,7 +228,6 @@ export default function EmbyBrowser({
         className={cn(
           'group relative min-w-0 flex cursor-pointer items-center gap-3 rounded-lg p-2.5 transition-all',
           wall && '!flex-col !items-stretch !gap-2 !p-2',
-          wall && episodeView && 'min-h-[96px] pr-8',
           isSelected
             ? 'bg-[var(--md-sys-color-primary-container)] shadow-sm'
             : 'hover:bg-[var(--md-sys-color-surface-container-high)] hover:translate-x-0.5'
@@ -237,7 +244,7 @@ export default function EmbyBrowser({
           }
         }}
       >
-        {wall && !episodeView ? <MediaPoster url={mountId === null ? null : buildEmbyImageUrl(mountId, entry.path, entry.imageTag, imageApi)} name={entry.name} directory={isDirectory} /> : isDirectory ? (
+        {wall ? <MediaPoster url={mountId === null ? null : buildEmbyImageUrl(mountId, entry.path, entry.imageTag, imageApi)} name={entry.name} directory={isDirectory} episode={episodeView} /> : isDirectory ? (
           folderIcon
         ) : (
           <Film className="h-5 w-5 shrink-0 text-[var(--md-sys-color-on-surface-variant)]" />
@@ -294,7 +301,7 @@ export default function EmbyBrowser({
   const loadingSkeletons = (
     <>
       <div className="mb-4 h-5 w-2/3 animate-pulse rounded bg-[var(--md-sys-color-surface-container-high)]" />
-      <div className="grid h-[min(420px,50dvh)] grid-cols-1 gap-4 overflow-hidden rounded-2xl border border-[var(--md-sys-color-outline-variant)] md:grid-cols-2">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden rounded-2xl border border-[var(--md-sys-color-outline-variant)] md:grid-cols-2">
         <div className="hidden min-h-0 flex-col border-r border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)]/60 p-3 md:flex">
           <div className="mb-3 h-4 w-16 animate-pulse rounded bg-[var(--md-sys-color-surface-container-high)]" />
           <div className="flex-1 space-y-1 overflow-hidden">
@@ -321,7 +328,7 @@ export default function EmbyBrowser({
       onClose={onClose}
       title={title}
       expandable
-      className="max-w-4xl"
+      className="max-w-4xl h-[min(720px,85dvh)]"
       footer={
         <div className="flex w-full flex-wrap items-center justify-between gap-2">
           <Text
@@ -345,7 +352,7 @@ export default function EmbyBrowser({
               size="md"
               icon={<Plus className="h-4 w-4" />}
               onClick={confirmSelection}
-              disabled={selectedFiles.length === 0}
+              disabled={loading || selectedFiles.length === 0}
             >
               {multiSelectMode
                 ? `添加 (${selectedFiles.length})`
@@ -355,7 +362,7 @@ export default function EmbyBrowser({
         </div>
       }
     >
-      <div className="relative min-h-0">
+      <div className="relative flex min-h-0 flex-1 flex-col">
         {error ? (
           <div className="flex flex-col items-center gap-3 py-8">
             <Text className="text-base text-[var(--md-sys-color-error)]">
@@ -373,7 +380,7 @@ export default function EmbyBrowser({
           loadingSkeletons
         ) : (
           <>
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-3">
               <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1.5 text-sm text-[var(--md-sys-color-on-surface-variant)]">
                 {breadcrumb.map((item, index) => (
                   <span key={item.path ?? 'root'} className="flex min-w-0 max-w-full items-center">
@@ -397,6 +404,7 @@ export default function EmbyBrowser({
 
               <div className="flex flex-wrap items-center gap-2">
               <Button variant="secondary" size="sm" icon={viewMode === 'list' ? <LayoutGrid className="h-4 w-4" /> : <List className="h-4 w-4" />} onClick={() => setViewMode(mode => mode === 'list' ? 'wall' : 'list')}>{viewMode === 'list' ? '海报墙' : '列表'}</Button>
+              {currentFiles.length > 0 && <Button variant="secondary" size="sm" icon={allSelected ? <Square className="h-4 w-4" /> : <CheckSquare2 className="h-4 w-4" />} disabled={loading} onClick={toggleSelectAll}>{allSelected ? '取消全选' : `全选 (${currentFiles.length})`}</Button>}
               <Button
                 variant={multiSelectMode ? 'primary' : 'secondary'}
                 size="sm"
@@ -413,7 +421,7 @@ export default function EmbyBrowser({
               </div>
             </div>
 
-            <div className="grid h-[min(420px,50dvh)] grid-cols-1 gap-4 overflow-hidden rounded-2xl border border-[var(--md-sys-color-outline-variant)] backdrop-blur-sm md:grid-cols-2">
+            <div data-media-directory className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden rounded-2xl border border-[var(--md-sys-color-outline-variant)] backdrop-blur-sm md:grid-cols-2">
               {/* 左侧：上级目录（小屏单栏时隐藏，导航由面包屑承担） */}
               <div className="hidden min-h-0 flex-col border-r border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)]/60 md:flex">
                 <div className="shrink-0 border-b border-[var(--md-sys-color-outline-variant)] px-4 py-3 text-sm font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
@@ -475,9 +483,9 @@ export default function EmbyBrowser({
 }
 
 /** Missing/expired images retain a navigable tile and never block browsing. */
-function MediaPoster({ url, name, directory }: { url: string | null; name: string; directory: boolean }) {
+function MediaPoster({ url, name, directory, episode }: { url: string | null; name: string; directory: boolean; episode: boolean }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null)
-  return <div className="relative flex aspect-[2/3] w-full items-center justify-center overflow-hidden rounded-lg bg-[var(--md-sys-color-surface-container-high)]">
+  return <div className={cn('relative flex w-full items-center justify-center overflow-hidden rounded-lg bg-[var(--md-sys-color-surface-container-high)]', episode ? 'aspect-video' : 'aspect-[2/3]')}>
     {directory ? <Folder className="h-8 w-8 opacity-50" /> : <Film className="h-8 w-8 opacity-50" />}
     {url && failedUrl !== url && <img src={url} alt={name} loading="lazy" className="absolute inset-0 h-full w-full object-cover" onError={() => setFailedUrl(url)} />}
   </div>
