@@ -170,7 +170,7 @@ export const useDanmakuStore = create<DanmakuState>()(
       },
 
       setRoomId: (roomId) => {
-        set({ roomId })
+        set(roomId === get().roomId ? { roomId } : { roomId, tracks: [], realtimeLog: [], blockKeywords: [], deletedLog: [] })
       },
 
       loadTracks: async (roomId) => {
@@ -184,6 +184,7 @@ export const useDanmakuStore = create<DanmakuState>()(
             tracks?: DanmakuTrack[]
             message?: string
           }>(res, { success: false })
+          if (get().roomId !== roomId) return
           if (data.success && Array.isArray(data.tracks)) {
             // 按 trackId 去重：后端历史可能因重复 setDefaultTrack 调用
             // 累积多条相同 trackId 的记录，保留最后一条（最新的）

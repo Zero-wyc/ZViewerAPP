@@ -24,6 +24,7 @@ export default function JellyfinBrowser({
 }: JellyfinBrowserProps) {
   return (
     <EmbyBrowser
+      imageApi="jellyfin"
       mountId={mountId}
       open={open}
       onClose={onClose}

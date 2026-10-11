@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { appLifecycle } from '../platform/lifecycle'
+import { consumeOverlayBack } from '@/components/ui/overlayBack'
 
 export function useNativeBack(handler: () => void, intercept: boolean) {
   const latest = useRef({ handler, intercept })
@@ -9,6 +10,7 @@ export function useNativeBack(handler: () => void, intercept: boolean) {
     let disposed = false
     let remove = () => {}
     void appLifecycle.addBackListener(() => {
+      if (consumeOverlayBack()) return
       if (document.querySelector('[data-mobile-appearance]')) {
         window.dispatchEvent(new Event('mobile-appearance-close'))
         return

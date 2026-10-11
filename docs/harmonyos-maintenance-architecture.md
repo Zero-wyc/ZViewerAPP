@@ -1,6 +1,14 @@
 # HarmonyOS 应用维护架构整理
 
-更新日期：2026-10-07
+更新日期：2026-10-11
+
+## 2026-10-11：1.7.2 / 172 对齐服务端 v4.4.7
+
+本次本地版本 **1.7.2 / 172**，参考服务端 `32d3cdecb498e12af7bd5e0f5acd49b6b8576e08`。共享 B 站搜索、触屏片单排序/自动连播、弹幕连续添加、Emby/Jellyfin 海报墙与紧凑单集网格、二级面板布局和返回同步更新。入口及权限/生命周期约束见 [Android 同期记录](android-maintenance-architecture.md)，详细证据见 [1.7.2 验证记录](client-v1.7.2-alignment-447-validation-20261011.md)。下方为历史版本记录；未发布 GitHub，iOS 不涉及。
+
+海报地址通过共享 `connectionTransport` 使用当前服务器及原生私有通道，不误请求 ArkWeb 本地页面、不拼挂载 API Key。`Modal` 和 `overlayBack` 在原生返回中优先退出面板全屏/关闭顶层面板，继续既有播放与设置返回链；保留 ArkWeb、zviewerNative、原生凭据、AVSession 和后台任务边界。未修改 Go/ArkTS 解析协议，未移植评论新窗口/侧坞/快捷键。网页只通过 `harmony:web` 生成，不能手改 rawfile。
+
+43 项共享适配和 4 项媒体测试、TypeScript/Vite、Hvigor debug/release HAP 构建通过。最终 HAP 沿用既有发布密钥、证书和 Profile，代码签名、权限签名、内容摘要验证及模拟器安装通过。签名配置仅构建期间注入，完成后恢复干净 build-profile，不提交私密配置。Pura 90 Pro ArkWeb 359×789 通过 Emby/Jellyfin 海报/单集共 4 组，实际图片代理、整齐双列、多选、底部操作及面板返回通过；本地 v4.4.7 下手机房主 MP4 → HLS → MP4 自然连播、普通浏览器观众解码与时间推进、末尾停止通过。短片加载有过渡延迟，没有测量严格跨端同步误差。物理手机、真实媒体库、自签名设备通道、B 站/Kazumi 正片及听音/蓝牙/后台完整验收边界见验证记录。
 
 ### 1.7.0 真机验收与发布确认
 

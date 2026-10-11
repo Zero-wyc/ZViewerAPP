@@ -43,6 +43,8 @@ export interface JellyfinDirectoryEntry {
   /** Jellyfin 条目类型（CollectionFolder/Series/Season/Movie/Episode/Video） */
   embyType?: string
   childCount?: number
+  imageTag?: string
+  productionYear?: number
 }
 
 export interface JellyfinResolvedSource {

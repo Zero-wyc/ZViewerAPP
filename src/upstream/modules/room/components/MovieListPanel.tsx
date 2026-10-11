@@ -1,5 +1,8 @@
+import { canReorderPlaylist, movePlaylistItem } from './playlistOrder'
+import { apiFetch } from '@/lib/api'
+import { useAuthStore } from '@/store/authStore'
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { Play, Trash2, Film, Monitor, ListVideo, Maximize } from 'lucide-react'
+import { Play, Trash2, Film, Monitor, ListVideo, Maximize, ArrowUp, ArrowDown } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Text, Paragraph } from '@/components/ui/Typography'
@@ -95,6 +98,14 @@ export function MovieListPanel({
   )
   const mode = useRoomStore((state) => state.mode)
   const [search, setSearch] = useState('')
+  const user = useAuthStore(state => state.user)
+  const [owner, setOwner] = useState<{ roomId: string; userId: string; ownerId: number | null } | null>(null)
+  const autoContinueEnabled = useRoomStore(state => state.autoContinueEnabled)
+  const setAutoContinueEnabled = useRoomStore(state => state.setAutoContinueEnabled)
+  const [sorting, setSorting] = useState(false)
+  const sortingRef = useRef(false)
+  const [orderOpen, setOrderOpen] = useState(false)
+  const canSort = canReorderPlaylist(user?.role, user?.id, owner?.roomId === roomId && owner.userId === user?.id ? owner.ownerId : null)
   const [removingId, setRemovingId] = useState<number | null>(null)
   const [switchingId, setSwitchingId] = useState<number | null>(null)
   const [qualityLoadingId, setQualityLoadingId] = useState<number | null>(null)
@@ -104,6 +115,33 @@ export function MovieListPanel({
 
   // 弹窗显示完整影片列表
   const [showListModal, setShowListModal] = useState(false)
+
+  useEffect(() => {
+    if (!showListModal || user?.role !== 'admin') return
+    let cancelled = false
+    void apiFetch('/api/admin/rooms').then(async response => {
+      const data = await response.json() as { success?: boolean; rooms?: { roomId: string; ownerUserId: number | null }[] }
+      if (!cancelled && response.ok && data.success) setOwner({ roomId, userId: user.id, ownerId: data.rooms?.find(room => room.roomId === roomId)?.ownerUserId ?? null })
+    }).catch(() => { if (!cancelled) setOwner(null) })
+    return () => { cancelled = true }
+  }, [showListModal, roomId, user?.id, user?.role])
+  useEffect(() => { setOrderOpen(false); setSearch('') }, [roomId])
+
+  const moveMovie = async (movieId: number, direction: -1 | 1) => {
+    if (sortingRef.current || !canSort || isScreenShare || !roomId) return
+    const state = useRoomStore.getState()
+    const ids = movePlaylistItem(state.movies, movieId, direction, search)
+    if (!ids || state.roomId !== roomId) return
+    sortingRef.current = true
+    setSorting(true)
+    try { await state.reorderMovies(roomId, ids) }
+    catch (error) {
+      if (useRoomStore.getState().roomId === roomId) {
+        message.error(error instanceof Error ? error.message + '；排序仅允许 root 或创建房间的管理员' : '排序失败，请重试')
+        try { await state.fetchMovies(roomId) } catch { /* keep the last server broadcast; no optimistic order */ }
+      }
+    } finally { sortingRef.current = false; setSorting(false) }
+  }
 
   // 获取当前 B站 会员状态，用于过滤清晰度列表
   const hasBilibiliMovie = movies.some((m) => m.sourceType === 'bilibili')
@@ -485,7 +523,7 @@ export function MovieListPanel({
   }
 
   // 影片列表内容（卡片和弹窗共用）
-  const movieListContent = (
+  const renderMovieList = (expanded: boolean) => (
     <>
       {isScreenShare && (
         <div
@@ -505,19 +543,24 @@ export function MovieListPanel({
         </div>
       )}
 
-      <Input
+      {expanded && <div className="flex flex-wrap items-center gap-2 px-2.5">
+        {isHost && !isScreenShare && <label className="flex min-h-9 items-center gap-2 text-sm"><input type="checkbox" checked={autoContinueEnabled} onChange={event => setAutoContinueEnabled(event.target.checked)} />自动连播</label>}
+        {!isScreenShare && <Button size="sm" variant={orderOpen ? 'primary' : 'secondary'} disabled={!canSort || !!search.trim() || sorting} title="仅 root 或创建房间的管理员可排序；搜索时不可排序" onClick={() => setOrderOpen(value => !value)}>{orderOpen ? '完成排序' : '调整顺序'}</Button>}
+        {!canSort && !isScreenShare && <Text type="secondary" className="text-xs">排序仅限 root 或房间创建管理员</Text>}
+      </div>}
+      {expanded && <Input
         size="sm"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="搜索影片…"
         className="px-2.5"
-      />
+      />}
 
       {/* 影片列表滚动区域 — pl-2.5 平衡左右剩余宽度，
           scrollbar-gutter:stable 占右侧 10px，pl-2.5 补左侧 10px，
           使视频卡片左右距面板边缘宽度一致 */}
       <div className="movie-list-scroll min-h-[120px] min-w-0 flex-1 overflow-y-auto rounded-[var(--md-sys-shape-corner)] pl-2.5">
-        {filteredMovies.length === 0 && (
+        {(expanded ? filteredMovies : movies).length === 0 && (
           <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
             <div
               className="flex h-10 w-10 items-center justify-center rounded-full"
@@ -536,7 +579,7 @@ export function MovieListPanel({
           </div>
         )}
         <div className="flex flex-col gap-1.5">
-          {filteredMovies.map((movie, idx) => {
+          {(expanded ? filteredMovies : movies).map((movie, idx) => {
             const isActive = movie.id === currentMovieId
             return (
               <div
@@ -690,6 +733,10 @@ export function MovieListPanel({
                     />
                   )}
                 </div>
+                {expanded && orderOpen && canSort && !isScreenShare && !search.trim() && <div className="flex items-center justify-end gap-2">
+                  <Button size="sm" variant="secondary" icon={<ArrowUp className="h-4 w-4" />} disabled={sorting || movies[0]?.id === movie.id} onClick={() => void moveMovie(movie.id, -1)}>上移</Button>
+                  <Button size="sm" variant="secondary" icon={<ArrowDown className="h-4 w-4" />} disabled={sorting || movies[movies.length - 1]?.id === movie.id} onClick={() => void moveMovie(movie.id, 1)}>下移</Button>
+                </div>}
                 {/* B站解析设置：每个 B站 影片独享一份配置；房主可操作，观众可查看并独立开启 CLI 代理 */}
                 {movie.sourceType === 'bilibili' && !isScreenShare && (
                   <BilibiliParseSettings movieId={movie.id} isHost={isHost} />
@@ -723,7 +770,7 @@ export function MovieListPanel({
             type="secondary"
             className="text-[10px] uppercase tracking-wide"
           >
-            {filteredMovies.length} 部影片
+            {movies.length} 部影片
           </Text>
         </div>
         <button
@@ -740,7 +787,7 @@ export function MovieListPanel({
 
       {/* 卡片内容 — 外层 px-0.5(2px) + 内层 pl-2.5(10px)/scrollbar-gutter(10px) = 12px 左右剩余 */}
       <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-0.5 py-3">
-        {movieListContent}
+        {renderMovieList(false)}
       </div>
 
       {/* 完整影片列表弹窗 */}
@@ -748,10 +795,11 @@ export function MovieListPanel({
         open={showListModal}
         onClose={() => setShowListModal(false)}
         title={`影片列表 (${movies.length} 部)`}
+        expandable
         className="max-w-2xl"
       >
-        <div className="flex max-h-[70vh] flex-col gap-2.5 overflow-hidden">
-          {movieListContent}
+        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden">
+          {renderMovieList(true)}
         </div>
       </Modal>
     </div>

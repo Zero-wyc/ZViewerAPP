@@ -1,3 +1,4 @@
+import { BiliSearchModal } from './BiliSearchModal'
 import { isEmbeddedBilibiliHost } from '../../../../platform/bilibiliProxy'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
@@ -164,6 +165,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
   const roomId = useRoomStore((state) => state.roomId)
   const [sourceType, setSourceType] = useState<SourceType>('bilibili')
   const [url, setUrl] = useState('')
+  const [biliSearchOpen, setBiliSearchOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [qualityLoading, setQualityLoading] = useState(false)
   // 影片级浏览器播放引擎（playsvideo）开关：默认关闭——强制原生直连播放
@@ -880,9 +882,9 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
 
   // 仅 bilibili 需要 handleResolve：解析后显示清晰度选择器，再点"添加"
   // webdav/ftp/openlist/mp4 的 resolve+add 已合并到 handleAddMovie
-  const handleResolve = async () => {
+  const handleResolve = async (selectedUrl?: string) => {
     if (!isHost) {
-      message.info('只有房主可以添加影片')
+      message.info('没有添加影片权限')
       return
     }
     if (!roomId) {
@@ -890,7 +892,8 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
       return
     }
     if (sourceType !== 'bilibili') return
-    if (!url.trim()) {
+    const inputUrl = (selectedUrl ?? url).trim()
+    if (!inputUrl) {
       message.warning('请输入视频地址')
       return
     }
@@ -898,10 +901,10 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
     setLoading(true)
     setResolveProgress('正在初始化解析...')
     try {
-      const bvid = extractBvid(url.trim())
-      const shortLink = /^https?:\/\/(b23\.tv|bili2233\.cn)\//i.test(url.trim())
+      const bvid = extractBvid(inputUrl)
+      const shortLink = /^https?:\/\/(b23\.tv|bili2233\.cn)\//i.test(inputUrl)
       // PGC（番剧 ep/ss 链接）：CLI 分支按 epId 走番剧解析
-      const bangumiId = extractBangumiId(url.trim())
+      const bangumiId = extractBangumiId(inputUrl)
 
       let resolved: ResolvedSource | undefined
       // CLI 已连接时优先使用本地 CLI 代理解析（使用用户自己的 B站 Cookie，可获取高画质）
@@ -935,7 +938,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
           setResolveProgress('正在通过 CLI 代理解析...')
           resolved = await resolveBilibiliViaCli(
             cliProxyUrl,
-            bvid || url.trim(),
+            bvid || inputUrl,
             undefined,
             undefined,
             false,
@@ -958,9 +961,10 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
       }
 
       if (!resolved) {
+        if (isEmbeddedBilibiliHost()) throw new Error('本机 B 站代理不可用，请登录 B 站或重启内置代理后重试')
         setResolveProgress('正在通过服务器解析...')
         resolvedViaCliRef.current = false
-        resolved = await resolveBilibili(url.trim(), undefined, (_step, msg) =>
+        resolved = await resolveBilibili(inputUrl, undefined, (_step, msg) =>
           setResolveProgress(msg)
         )
       }
@@ -1563,7 +1567,9 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
 
     if (sourceType === 'bilibili' || sourceType === 'mp4') {
       return (
+        <div className="flex min-w-0 items-center gap-2">
         <Input
+          className="min-w-0 flex-1"
           size="sm"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
@@ -1582,6 +1588,9 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
             }
           }}
         />
+        {sourceType === 'bilibili' && <Button size="sm" variant="secondary" icon={<Search className="h-4 w-4" />} disabled={!isHost || loading} onClick={() => setBiliSearchOpen(true)}>搜索</Button>}
+        <BiliSearchModal open={biliSearchOpen} onClose={() => setBiliSearchOpen(false)} onSelect={selectedUrl => { if (!isHost || loading) { message.info('当前无法添加影片'); return }; setUrl(selectedUrl); setResolvedMovie(null); void handleResolve(selectedUrl) }} />
+        </div>
       )
     }
 

@@ -414,10 +414,15 @@ interface RoomState {
     }
   ) => Promise<void>
   removeMovie: (roomId: string, movieId: number) => Promise<void>
+  autoContinueRevision: number
+  autoContinueEnabled: boolean
+  setAutoContinueEnabled: (enabled: boolean) => void
   reorderMovies: (roomId: string, orderedIds: number[]) => Promise<void>
 }
 
 const defaultState = {
+  autoContinueRevision: 0,
+  autoContinueEnabled: false,
   roomId: '',
   roomName: '',
   password: '',
@@ -465,12 +470,13 @@ const defaultState = {
 
 export const useRoomStore = create<RoomState>((set, get) => ({
   ...defaultState,
-  setRoomId: (id) => set({ roomId: id }),
+  setAutoContinueEnabled: (enabled) => set(state => ({ autoContinueEnabled: enabled, autoContinueRevision: state.autoContinueRevision + 1 })),
+  setRoomId: (id) => set({ roomId: id, ...(id !== get().roomId ? { autoContinueEnabled: false } : {}) }),
   setRoomName: (name) => set({ roomName: name }),
   setModerators: (moderators) => set({ moderators }),
   setPassword: (password) => set({ password }),
   setMaxViewers: (max) => set({ maxViewers: max }),
-  setMode: (mode) => set({ mode }),
+  setMode: (mode) => set({ mode, ...(mode !== get().mode ? { autoContinueEnabled: false } : {}) }),
   setShareMethod: (method) => set({ shareMethod: method }),
   setStreamStatus: (status) => set({ streamStatus: status }),
   setStreamKey: (key) => set({ streamKey: key }),

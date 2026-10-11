@@ -496,9 +496,9 @@ export function KazumiSelector({
                   </div>
                 </button>
 
-                {expanded && (
+                <div className="grid transition-[grid-template-rows] duration-300" style={{ gridTemplateRows: expanded ? '1fr' : '0fr' }}><div className="min-h-0 overflow-hidden">
                   <div
-                    className="border-t px-3 pb-3"
+                    className={expanded ? "border-t px-3 pb-3" : "px-3"}
                     style={{
                       borderColor: 'var(--md-sys-color-outline-variant)',
                     }}
@@ -531,7 +531,7 @@ export function KazumiSelector({
                       />
                     )}
                   </div>
-                )}
+                </div></div>
               </div>
             )
           })}

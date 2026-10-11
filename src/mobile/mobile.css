@@ -358,3 +358,13 @@ button:focus-visible, input:focus-visible { outline: 2px solid #65d59b; outline-
   .app-shell { padding-inline: 14px; }
   .mobile-room-tabs button { gap: 4px; font-size: 13px; }
 }
+
+/* Secondary panels use their own scroll areas and the keyboard-visible viewport. */
+.secondary-panel { overscroll-behavior: contain; }
+.secondary-panel > .glass-strong { padding: 16px; }
+.secondary-panel .movie-list-scroll { min-height: 0; overscroll-behavior: contain; }
+@media (max-width: 600px) and (orientation: portrait) {
+  .danmaku-search-layout[data-episodes-open="true"] { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
+  .danmaku-search-layout[data-episodes-open="false"] { grid-template-columns: minmax(0, 1fr) !important; }
+  .danmaku-search-layout > div > .w-full { flex-wrap: wrap; }
+}

@@ -43,6 +43,8 @@ export interface EmbyDirectoryEntry {
   /** Emby 条目类型（CollectionFolder/Series/Season/Movie/Episode/Video） */
   embyType?: string
   childCount?: number
+  imageTag?: string
+  productionYear?: number
 }
 
 export interface EmbyResolvedSource {

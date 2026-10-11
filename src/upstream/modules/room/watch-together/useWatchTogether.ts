@@ -1,3 +1,4 @@
+import { createAutoContinueHandler } from './autoContinue'
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { formatDuration } from '@/lib/utils'
 import {
@@ -205,8 +206,48 @@ export function useWatchTogether({
   }, [])
 
   useEffect(() => {
+    if (isHostRef.current !== isHost) {
+      useRoomStore.setState(state => ({ autoContinueEnabled: false, autoContinueRevision: state.autoContinueRevision + 1 }))
+    }
     isHostRef.current = isHost
   }, [isHost])
+
+  // The controller survives setting/list changes; reads fresh state and invalidates retries on leave/transfer.
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !socket) return
+    const controller = createAutoContinueHandler({
+      read: () => {
+        const state = useRoomStore.getState()
+        return { eligible: isHostRef.current && state.roomId === roomId && state.mode === 'watch-together' && state.autoContinueEnabled && !state.watchTogether.isPreview && !state.pendingPreviewPlay && !suppressEventsRef.current && video.ended && video.duration > 0,
+          key: roomId + ':' + state.currentMovieId + ':' + loadSeqRef.current + ':' + state.autoContinueRevision, currentId: state.currentMovieId, movies: state.movies }
+      },
+      play: (movieId, stillCurrent) => new Promise<void>((resolve, reject) => {
+        if (!stillCurrent()) { resolve(); return }
+        if (!socket.connected) { reject(new Error('未连接房间，自动连播失败')); return }
+        const emitPlay = (retried = false) => {
+          if (!stillCurrent()) { resolve(); return }
+          socket.timeout(8000).emit('play-movie', { roomId, movieId }, (error: Error | null, ack?: { success?: boolean; message?: string }) => {
+            if (!stillCurrent()) { resolve(); return }
+            if (!retried && !error && ack?.message === '影片不存在') {
+              socket.timeout(8000).emit('register-host', { roomId }, (registerError: Error | null, registerAck?: { success?: boolean }) => {
+                if (!stillCurrent()) { resolve(); return }
+                if (registerError || !registerAck?.success) { reject(new Error('片单同步失败，请重新进入房间')); return }
+                emitPlay(true)
+              })
+            } else if (error || !ack?.success) reject(new Error(ack?.message || '自动连播失败，请手动重试'))
+            else resolve()
+          })
+        }
+        emitPlay()
+      }),
+      onEnd: () => message.info('已播放到片单末尾'),
+      onError: error => message.error(error instanceof Error ? error.message : '自动连播失败'),
+    })
+    const ended = () => { void controller.ended() }
+    video.addEventListener('ended', ended)
+    return () => { controller.dispose(); video.removeEventListener('ended', ended) }
+  }, [videoRef, roomId, socket, suppressEventsRef])
 
   // 1. 视频源管理：applySourceToVideo / cleanupMedia / restoredRef / seekTo / reloadVideo
   const { applySourceToVideo, cleanupMedia, seekTo, reloadVideo } =

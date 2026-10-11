@@ -3,7 +3,15 @@
  *
  * 与 webdav/openlist/ftp 挂载 API 结构对齐，路由前缀 /api/emby。
  */
-import { apiFetch } from '@/lib/api'
+import { apiFetch, getApiUrl } from '@/lib/api'
+import { connectionUrl } from '../../../platform/connectionTransport'
+
+/** Images are public server proxies; mount credentials never enter this URL. */
+export function buildEmbyImageUrl(mountId: number, itemId: string, tag?: string, imageApi: 'emby' | 'jellyfin' = 'emby', maxWidth = 320): string | null {
+  if (!tag) return null
+  const query = new URLSearchParams({ itemId, tag, maxWidth: String(maxWidth) })
+  return connectionUrl(`${getApiUrl().replace(/\/$/, '')}/api/${imageApi}/mounts/${mountId}/image?${query}`)
+}
 import { buildProxyUrl } from '@/modules/direct-link/directLinkApi'
 import type { MediaFormat } from '@/lib/mediaFormat'
 import type {

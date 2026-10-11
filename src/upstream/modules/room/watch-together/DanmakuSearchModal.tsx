@@ -61,6 +61,10 @@ export function DanmakuSearchModal({
   initialKeyword,
 }: DanmakuSearchModalProps) {
   const addTrack = useDanmakuStore((state) => state.addTrack)
+  const tracks = useDanmakuStore(state => state.tracks)
+  const roomId = useDanmakuStore(state => state.roomId)
+  const requestSeq = useRef(0)
+  const addBusy = useRef(false)
 
   const [source, setSource] = useState<DanmakuSource>(
     defaultSource ?? 'bilibili-video'
@@ -71,7 +75,7 @@ export function DanmakuSearchModal({
       // eslint-disable-next-line react-hooks/set-state-in-effect -- 同步 defaultSource 到内部状态
       setSource(defaultSource)
     }
-  }, [defaultSource, source])
+  }, [defaultSource])
   const [keyword, setKeyword] = useState('')
   const [results, setResults] = useState<DanmakuSearchResult[]>([])
   const [selectedResult, setSelectedResult] =
@@ -80,11 +84,14 @@ export function DanmakuSearchModal({
   const [step, setStep] = useState<Step>('search')
   const [loading, setLoading] = useState(false)
   const [addingEpisodeId, setAddingEpisodeId] = useState<string | null>(null)
+  const addedIds = new Set(tracks.filter(track => track.trackId !== addingEpisodeId).map(track => track.trackId))
+  useEffect(() => { ++requestSeq.current; setResults([]); setSelectedResult(null); setEpisodes([]); setStep('search'); setLoading(false) }, [roomId, open])
 
   const hasResult = results.length > 0
 
   const performSearch = useCallback(
     async (searchSource: DanmakuSource, searchKeyword: string) => {
+      const seq = ++requestSeq.current
       setLoading(true)
       setResults([])
       setSelectedResult(null)
@@ -92,15 +99,17 @@ export function DanmakuSearchModal({
       setStep('search')
       try {
         const list = await searchDanmaku(searchSource, searchKeyword)
+        if (seq !== requestSeq.current) return
         setResults(list)
         if (list.length === 0) {
           message.info('未找到相关结果')
         }
       } catch (err) {
+        if (seq !== requestSeq.current) return
         console.error('[DanmakuSearchModal] search error:', err)
         message.error(err instanceof Error ? err.message : '搜索失败')
       } finally {
-        setLoading(false)
+        if (seq === requestSeq.current) setLoading(false)
       }
     },
     []
@@ -134,44 +143,56 @@ export function DanmakuSearchModal({
   }, [open, initialKeyword, defaultSource, performSearch])
 
   const handleSelectResult = async (result: DanmakuSearchResult) => {
+    const seq = ++requestSeq.current
     setSelectedResult(result)
     setLoading(true)
     setEpisodes([])
     try {
       const list = await getDanmakuEpisodes(source, result.identifier)
+      if (seq !== requestSeq.current) return
       setEpisodes(list)
       setStep('episodes')
       if (list.length === 0) {
         message.info('该作品暂无可用集数')
       }
     } catch (err) {
+      if (seq !== requestSeq.current) return
       console.error('[DanmakuSearchModal] episodes error:', err)
       message.error(err instanceof Error ? err.message : '获取集数失败')
     } finally {
-      setLoading(false)
+      if (seq === requestSeq.current) setLoading(false)
     }
   }
 
   const handleAddEpisode = async (episode: DanmakuEpisode) => {
-    if (!selectedResult) return
+    if (!selectedResult || addBusy.current || !roomId) return
     const trackId = `${source}:${episode.id}`
 
-    setAddingEpisodeId(episode.id)
+    if (useDanmakuStore.getState().tracks.some(track => track.trackId === trackId)) return
+    addBusy.current = true
+    const sourceRoom = roomId
+    setAddingEpisodeId(trackId)
     try {
       const items = await fetchDanmaku(source, episode)
+      if (useDanmakuStore.getState().roomId !== sourceRoom) return
       const label = `${selectedResult.title} · ${episode.title}`
       await addTrack(trackId, label, source, items, 0)
+      if (useDanmakuStore.getState().roomId !== sourceRoom) return
       message.success(`已添加 ${label} 弹幕轨道（共 ${items.length} 条）`)
-      onClose()
+      // Keep the panel open; authoritative tracks provide the added markers.
     } catch (err) {
+      if (useDanmakuStore.getState().roomId !== sourceRoom) return
       console.error('[DanmakuSearchModal] fetch error:', err)
       message.error(err instanceof Error ? err.message : '添加弹幕轨道失败')
     } finally {
+      addBusy.current = false
       setAddingEpisodeId(null)
     }
   }
 
   const handleBack = () => {
+    ++requestSeq.current
+    setLoading(false)
     setStep('search')
     setSelectedResult(null)
     setEpisodes([])
@@ -192,13 +213,16 @@ export function DanmakuSearchModal({
       open={open}
       onClose={handleClose}
       title={modalTitle}
+      expandable
       className="max-w-4xl"
     >
       <div
-        className="grid min-h-0 flex-1 gap-3"
+        data-episodes-open={episodesOpen}
+        className="danmaku-search-layout grid min-h-0 flex-1 gap-3"
         style={{
-          minHeight: '60vh',
-          gridTemplateColumns: episodesOpen ? '1fr 340px' : '1fr 0fr',
+          height: 'min(532px, 60dvh)',
+          flex: '0 0 auto',
+          gridTemplateColumns: episodesOpen ? 'minmax(0, 1fr) minmax(0, 1fr)' : '1fr 0fr',
           transition: 'grid-template-columns 0.4s var(--ease-out-expo)',
         }}
       >
@@ -211,6 +235,8 @@ export function DanmakuSearchModal({
               options={DANMAKU_SOURCE_OPTIONS}
               onChange={(value) => {
                 const newSource = value as DanmakuSource
+                ++requestSeq.current
+                setResults([]); setSelectedResult(null); setEpisodes([]); setStep('search'); setLoading(false)
                 setSource(newSource)
                 onSourceChange?.(newSource)
               }}
@@ -247,6 +273,7 @@ export function DanmakuSearchModal({
           </Space>
 
           <div className="zen-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
+            {loading && step === 'search' && <div className="flex items-center justify-center gap-2 py-2"><Loader2 className="h-4 w-4 animate-spin" />加载中…</div>}
             {!hasResult && !loading && (
               <div className="glass flex flex-1 flex-col items-center justify-center gap-2 rounded-[var(--md-sys-shape-corner)] p-6 text-center">
                 <Search className="h-8 w-8 opacity-40" />
@@ -399,11 +426,11 @@ export function DanmakuSearchModal({
                       variant="primary"
                       size="sm"
                       className="h-7 shrink-0 px-2.5 text-xs"
-                      loading={addingEpisodeId === episode.id}
-                      disabled={!!addingEpisodeId}
+                      loading={addingEpisodeId === `${source}:${episode.id}`}
+                      disabled={!!addingEpisodeId || addedIds.has(`${source}:${episode.id}`)}
                       onClick={() => handleAddEpisode(episode)}
                     >
-                      添加
+                      {addedIds.has(`${source}:${episode.id}`) ? '已添加' : '添加'}
                     </Button>
                   </div>
                 ))}
@@ -422,15 +449,6 @@ export function DanmakuSearchModal({
         </div>
       </div>
 
-      {/* 左栏 loading 指示（独立于右侧面板） */}
-      {loading && step === 'search' && (
-        <div className="mt-2 flex items-center justify-center gap-2 py-2 text-[var(--md-sys-color-on-surface-variant)]">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <Text type="secondary" className="text-xs">
-            加载中…
-          </Text>
-        </div>
-      )}
     </Modal>
   )
 }

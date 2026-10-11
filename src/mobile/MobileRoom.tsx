@@ -19,6 +19,7 @@ import StreamPushViewer from '@/modules/screen-sharing/components/StreamPushView
 import { useStreamStatus } from '@/modules/screen-sharing/hooks/useStreamStatus'
 import { useShareMethod } from '@/modules/screen-sharing/hooks/useShareMethod'
 import { useViewerList } from '@/modules/sync-playback/hooks/useViewerList'
+import { consumeOverlayBack } from '@/components/ui/overlayBack'
 import { useMobileRoom } from './useMobileRoom'
 import { dispatchRoomMediaTeardown } from '@/lib/mediaTeardown'
 import { message } from '@/components/ui/message'
@@ -77,6 +78,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
 
   useEffect(() => {
     const back = () => {
+      if (consumeOverlayBack()) return
       if (document.fullscreenElement) { void document.exitFullscreen(); return }
       if (document.querySelector('[data-music-immersive="true"]')) {
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
