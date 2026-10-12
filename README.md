@@ -6,25 +6,21 @@
 
 [下载安装包](https://github.com/Zero-wyc/ZViewerAPP/releases/latest) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md)
 
-## 当前本地开发版本
-
-**Android / HarmonyOS 1.7.4 / 174** 已完成本地适配与签名构建，目标服务端 **v4.5.1**，提交 `c8fa5bad0c6efcffbc0dc3bfe4c199f8a9b8d8f6`。新增共享番剧选集与认证海报、媒体库搜索/整剧整季/多版本、一键清空和搜索多 P；保留 1.7.3 图片、全选、放大及移动端播放边界。用户要求排除公告。安装包和校验文件位于 `release/client-v1.7.4-test1/`；[验证记录](docs/client-v1.7.4-alignment-451-validation-20261012.md)说明模拟器与用户设备验收边界。尚未远端发布；以下表格描述既有正式发行。
-
 ## 当前正式发行
 
 | 平台 | 版本 | 说明 |
 | --- | --- | --- |
-| Android | **1.7.3 / 173** | 正式签名 APK，内置 Go B 站代理 |
-| HarmonyOS | **1.7.3 / 173** | 正式签名 HAP，ArkWeb / ArkTS 宿主 |
+| Android | **1.7.5 / 175** | 正式签名 APK，内置 Go B 站代理 |
+| HarmonyOS | **1.7.5 / 175** | 正式签名 HAP，ArkWeb / ArkTS 宿主 |
 | iOS | 独立 1.5.1 源码 / Release | IPA 内部版本为 1.5.0（build 16）；本次未更新 |
 
-双端本轮对齐 **服务端 v4.4.7**，源码参考 `32d3cdecb498e12af7bd5e0f5acd49b6b8576e08`。用户已确认双端检测通过。[ZViewer-Client V1.7.3](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.7.3) 提供 APK、HAP 和 SHA256SUMS.txt；源码同步 main，使用 GitHub 自动生成的 Source code（zip / tar.gz），不另附源码 ZIP。
+双端 1.7.5 对齐服务端 **v4.5.1**，本地核验的上游提交为 `c8fa5bad0c6efcffbc0dc3bfe4c199f8a9b8d8f6`。[ZViewer-Client V1.7.5](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.7.5) 提供 APK、HAP 和 SHA256SUMS.txt；源码同步 main，使用 GitHub 自动生成的 Source code（zip / tar.gz），不另附源码 ZIP。
 
-本次新增 B 站搜索、片单触屏排序与自动连播、弹幕连续添加，以及 Emby/Jellyfin 海报墙和全选。单集恢复横向封面，媒体库放大后目录区使用更多可用空间。详见 [发行说明](docs/releases/client-1.7.3.md)、[对齐记录](docs/client-v1.7.2-alignment-447-validation-20261011.md) 和 [媒体库修复记录](docs/client-v1.7.3-media-browser-fix-20261011.md)。1.7.1 的 Kazumi HLS 与切片进度修复继续保留，对应服务端修复已包含在 v4.4.7 中；请同步更新服务器和房主网页。Kazumi 仍需在设置中手动启用。
+本版新增共享 Kazumi/ani-subs 浏览器、认证海报、媒体库搜索/整剧整季/切集与多版本、一键清空及 B 站搜索分 P；修复媒体库转码 HLS 相对分片。长片名在普通和展开片单中完整换行，展开的番剧源菜单按名称增宽并保持单行。公告不加入客户端。保留此前海报墙、全选、触屏排序、自动连播及移动端播放边界。详见 [发行说明](docs/releases/client-1.7.5.md)、[1.7.5 界面与构建验证](docs/client-v1.7.5-ui-validation-20261012.md) 和 [此前 1.7.4 本地对齐记录](docs/client-v1.7.4-alignment-451-validation-20261012.md)。Kazumi 仍需在设置中手动启用；模拟器与协议验证不替代用户真机、实际媒体库及长期播放验收。
 
 ## 安装与连接
 
-1. 从最新 Release 下载对应的 `ZViewer-Android-1.7.3-release.apk` 或 `ZViewer-HarmonyOS-1.7.3-release.hap`。Android 按系统提示允许安装；鸿蒙安装说明见 [维护文档](docs/harmonyos-maintenance-architecture.md)。
+1. 从最新 Release 下载对应的 `ZViewer-Android-1.7.5-release.apk` 或 `ZViewer-HarmonyOS-1.7.5-release.hap`。Android 按系统提示允许安装；鸿蒙安装说明见 [维护文档](docs/harmonyos-maintenance-architecture.md)。
 2. 准备可访问的 ZViewer 服务端，填写服务器地址。支持完整 HTTP/HTTPS 地址、HTTPS 优先探测及按服务器授权的证书例外。
 3. 使用服务器账号登录；服务器允许游客时可使用游客身份。
 4. 选择房间，或在服务器授权允许时创建同步观影、一起听房间。

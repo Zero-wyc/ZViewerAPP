@@ -22,6 +22,8 @@ export interface SelectProps {
   disabled?: boolean
   /** 尺寸：md 默认，sm 紧凑（用于视频控制栏等空间受限场景） */
   size?: 'sm' | 'md'
+  /** 展开菜单按选项内容增宽，并限制在视口内；默认与触发器等宽。 */
+  menuWidth?: 'trigger' | 'content'
   className?: string
   /** 透传到 trigger 按钮上的 ARIA 属性 */
   'aria-label'?: string
@@ -51,6 +53,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
       placeholder = '请选择',
       disabled = false,
       size = 'md',
+      menuWidth = 'trigger',
       className,
       ...rest
     },
@@ -107,6 +110,21 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
         : Math.min(options.length * 36 + 12, 288)
       const gap = 6
       const margin = 8
+      let width = rect.width
+      if (menuWidth === 'content' && menuEl) {
+        const menuStyle = getComputedStyle(menuEl)
+        const menuPadding = parseFloat(menuStyle.paddingLeft) + parseFloat(menuStyle.paddingRight)
+        const scrollbar = menuEl.offsetWidth - menuEl.clientWidth
+        for (const option of menuEl.querySelectorAll('button')) {
+          const label = option.querySelector('span')
+          if (!label) continue
+          const style = getComputedStyle(option)
+          // 每个选项都预留勾选图标，切换选中项时菜单宽度不抖动。
+          const contentWidth = label.scrollWidth + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + parseFloat(style.columnGap) + 14
+          width = Math.max(width, Math.ceil(contentWidth + menuPadding + scrollbar))
+        }
+      }
+      width = Math.min(width, Math.max(0, window.innerWidth - margin * 2))
 
       const spaceBelow = window.innerHeight - rect.bottom - margin
       const spaceAbove = rect.top - margin
@@ -118,11 +136,11 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
 
       return {
         top,
-        left: rect.left,
-        width: rect.width,
+        left: Math.max(margin, Math.min(rect.left, window.innerWidth - margin - width)),
+        width,
         outOfView: false,
       }
-    }, [options.length])
+    }, [options, menuWidth])
 
     const closeMenu = useCallback(() => {
       if (!open && !closing) return
@@ -332,7 +350,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                     )}
                     style={{ '--item-delay': '0ms' } as React.CSSProperties}
                   >
-                    <span className="truncate">{opt.label}</span>
+                    <span className={menuWidth === 'content' ? 'shrink-0 whitespace-nowrap' : 'truncate'}>{opt.label}</span>
                     {active && <Check className="h-3.5 w-3.5 shrink-0" />}
                   </button>
                 )

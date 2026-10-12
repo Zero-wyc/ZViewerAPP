@@ -226,6 +226,7 @@ export function AnimeSourceBrowser({
         <div>
           <Select
             className="[&_button]:h-[42px]"
+            menuWidth="content"
             value={sourceId}
             options={sources.map((item) => ({
               value: item.id,

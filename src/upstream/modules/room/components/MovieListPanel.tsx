@@ -713,7 +713,7 @@ export function MovieListPanel({
                   </div>
                   <div className="min-w-0 overflow-hidden">
                     <Paragraph
-                      className="m-0 truncate text-xs font-medium"
+                      className="m-0 whitespace-normal break-words text-xs font-medium leading-relaxed [overflow-wrap:anywhere]"
                       title={movie.title}
                     >
                       {movie.title}
