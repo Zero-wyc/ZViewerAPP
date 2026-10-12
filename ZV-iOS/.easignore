@@ -11,6 +11,19 @@ dist/
 .claude/
 .vscode/
 CLAUDE.md
+[Aa][Gg][Ee][Nn][Tt][Ss].[Mm][Dd]
+.git/
+.env
+.env.*
+!.env.example
+*.log
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.mobileprovision
+__pycache__/
 # Unused Expo template assets are not part of the reviewed application.
 assets/expo.icon/
 assets/images/*

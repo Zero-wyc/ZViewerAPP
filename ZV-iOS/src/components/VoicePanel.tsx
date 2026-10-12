@@ -5,12 +5,14 @@ import type { Room, Participant } from 'livekit-client';
 import { AppDialog } from './AppDialog';
 import { nativeBridge } from '@/lib/nativeBridge';
 import { adminMuted, voiceToken } from '@/lib/livekitProtocol';
+import { changeVoiceMicrophone } from '@/lib/voiceMicrophone';
 import { messageFor } from '@/lib/server';
 import { useSession } from '@/state/session';
 import { RoomButton, RoomIconButton, ui as baseUi } from './RoomUi';
 
 const available = Platform.OS === 'ios' && !!NativeModules.WebRTCModule && !!NativeModules.LivekitReactNativeModule && !!nativeBridge?.voiceSessionActive;
 let audioQueue: Promise<unknown> = Promise.resolve();
+let rtcRegistered = false;
 type Member = { identity: string; name: string; muted: boolean; adminMuted: boolean; speaking: boolean; self: boolean };
 export function VoicePanel({ roomId, ready, host, compact = false }: { roomId: string; ready: boolean; host: boolean; compact?: boolean }) {
   const theme = useAppearance(); const ui = theme.styles(baseUi);
@@ -19,7 +21,7 @@ export function VoicePanel({ roomId, ready, host, compact = false }: { roomId: s
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const [members, setMembers] = useState<Member[]>([]); const [muted, setMuted] = useState(true); const [serverMuted, setServerMuted] = useState(false); const [error, setError] = useState(''); const [status, setStatus] = useState('未加入语音'); const [micBusy, setMicBusy] = useState(false);
   const [moderators, setModerators] = useState<number[]>([]); const room = useRef<Room | null>(null); const selfMuted = useRef(true); const scope = `${session?.serverUrl}:${session?.user.id}:${roomId}`;
-  useEffect(() => { const sub = AppState.addEventListener('change', value => { setForeground(value === 'active'); if (value !== 'active') { selfMuted.current = true; setMuted(true); } }); return () => sub.remove(); }, []);
+  useEffect(() => { const sub = AppState.addEventListener('change', value => { setForeground(value === 'active'); if (value !== 'active') { selfMuted.current = true; setMuted(true); void room.current?.localParticipant.setMicrophoneEnabled(false).catch(() => {}); } }); return () => sub.remove(); }, []);
   useEffect(() => { if (!socket) return; const changed = (value: { roomId?: string; moderators?: number[] }) => { if ((!value.roomId || value.roomId === roomId) && Array.isArray(value.moderators)) setModerators(value.moderators); }; socket.on('moderators-changed', changed); return () => { socket.off('moderators-changed', changed); }; }, [socket, roomId]);
   useEffect(() => {
     if (!wanted || !foreground || !ready || !connected || !session || !available) return;
@@ -30,7 +32,7 @@ export function VoicePanel({ roomId, ready, host, compact = false }: { roomId: s
       setMuted(true); setJoined(false); setError(''); setStatus('正在获取语音凭证…');
       // Register RTC globals before loading the JS SDK; never load native RTC in Web / Expo Go.
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      sdk = require('@livekit/react-native') as typeof import('@livekit/react-native'); sdk.registerGlobals();
+      sdk = require('@livekit/react-native') as typeof import('@livekit/react-native'); if (!rtcRegistered) { sdk.registerGlobals(); rtcRegistered = true; }
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { Room: LiveRoom, RoomEvent, DisconnectReason } = require('livekit-client') as typeof import('livekit-client');
       const credentials = voiceToken(await request('/api/voice/token', { method: 'POST', signal: controller.signal, body: JSON.stringify({ roomId, username: session.user.username }) }));
@@ -65,7 +67,13 @@ export function VoicePanel({ roomId, ready, host, compact = false }: { roomId: s
   const toggleMic = async () => {
     const call = room.current; if (!call || micBusy || serverMuted) return;
     setMicBusy(true); setError('');
-    try { const enabled = selfMuted.current; if (enabled && !await nativeBridge?.voicePermission()) throw new Error('请在 iOS 设置中允许麦克风访问，仍可只听'); if (call !== room.current || AppState.currentState !== 'active' || adminMuted(call.localParticipant.metadata)) return; await call.localParticipant.setMicrophoneEnabled(enabled); if (call !== room.current) return; selfMuted.current = !enabled; setMuted(!enabled); }
+    try {
+      const enabled = selfMuted.current;
+      if (enabled && !await nativeBridge?.voicePermission()) throw new Error('请在 iOS 设置中允许麦克风访问，仍可只听');
+      const published = await changeVoiceMicrophone(enabled, () => call === room.current && AppState.currentState === 'active' && !adminMuted(call.localParticipant.metadata), value => call.localParticipant.setMicrophoneEnabled(value));
+      if (call !== room.current) return;
+      selfMuted.current = !published; setMuted(!published);
+    }
     catch (failure) { setError(messageFor(failure)); } finally { setMicBusy(false); }
   };
   const manage = async (member: Member, kick = false) => {

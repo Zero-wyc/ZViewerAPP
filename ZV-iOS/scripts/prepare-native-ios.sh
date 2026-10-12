@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
+mkdir -p .native-tools
+xcrun clang -fobjc-arc -framework Foundation \
+  -I modules/zviewer-native/ios modules/zviewer-native/ios/ZVBiliSigning.m \
+  scripts/bili-signing-smoke.m -o .native-tools/bili-signing-smoke
+.native-tools/bili-signing-smoke
 root="$PWD"
 vendor="$root/modules/zviewer-native/ios/Vendor"
 work="$root/.native-tools"

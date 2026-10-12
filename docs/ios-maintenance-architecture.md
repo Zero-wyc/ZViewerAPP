@@ -1,6 +1,17 @@
 # iOS 客户端维护架构
 
-更新日期：2026-10-12。指定修改和 Git 仓库为 `E:/Codex-bulid/ZViewer/ZViewer-client`，iOS 工程位于 `ZV-iOS/`。当前为 **1.5.1 源码上的下一版预览候选**，对照 Android/HarmonyOS 1.7.5 与服务端 v4.5.1 更新；应用版本/buildNumber 暂未递增。按用户要求只启动 Expo，不运行 EAS、prebuild、原生构建或 IPA 打包。已发布安装包仍是 **1.5.0 / build 16**，不包含本轮新增原生能力。当前实现与验证边界见 [2026-10-12 预览记录](releases/ios-next-preview-2026-10-12.md)；下方 build 12/15/16 和 1.5.1 发布记录保留历史含义。
+更新日期：2026-10-12。指定修改和 Git 仓库为 `E:/Codex-bulid/ZViewer/ZViewer-client`，iOS 工程位于 `ZV-iOS/`。当前本地真机 IPA 为 **1.7.5 / build 17**，版本名与 Android/HarmonyOS 1.7.5 / 175 对齐，适配服务端 v4.5.1。用户确认 Expo Go 界面通过后授权原生构建；EAS、包检验、96 项 JS 测试、11 项 Go 测试、lint 和类型检查均通过。该 IPA 未签名，尚未推送 GitHub 或发布 Release；GitHub 旧安装包的版本保留原有含义。详情见 [1.7.5 / 17 构建与验证记录](releases/ios-1.7.5-17-unsigned.md)。
+
+## 2026-10-12：1.7.5 / build 17 原生验证与 IPA
+
+- EAS 构建 `89ddf07c-5855-46dd-b40b-6d09e58843aa` 完成，设备 Release IPA 位于 `ZV-iOS/release-assets/ZViewer-1.7.5-b17-unsigned.ipa`，47,277,098 字节。包内版本 1.7.5 / 17、设备 platform IOS、ARM64、iPhone/iPad、最低 iOS 16.4，内置 Release JS、VLCKit 与 LiveKitWebRTC。
+- 本机 SHA-256 与 macOS 构建机一致：`cfa4bd0478892f6ba21af4154c020eef3e75d7f52258e36a81615ede74a51302`。包内无主应用签名、无 provisioning profile；沿用个人签名侧载流程。
+- `LivekitReactNativeModule`、`WebRTCModule`、`LiveKitExpoAppDelegate` 和本机 B站桥均已进入可执行文件；构建检查强制核对 LiveKit RN/WebRTC Pods 版本，并拒绝另一套 react-native-webrtc Pod。包中仅有 LiveKitWebRTC 内核。
+- 修正 Go WBI 重排表、空格编码/特殊字符过滤与原生中文搜索编码。B站匿名公开视频信息及中文搜索实测成功，macOS 执行实际 Objective-C 中文签名测试成功，普通视频/DASH/AAC/分 P 与番剧协议测试通过。
+- LiveKit 对照当前服务端 token/mute/kick 合同，SDK 自动订阅、默认静音、麦克风授权及后台/禁言/离房竞态保护成立；进出房音频生命周期串行，VLC 不覆盖语音会话。这里只确认代码、协议和构建可行性，跨端互听与真机会员正片尚未验收。
+- 原生 Go 来源固定为 `a8abd646e0071a0708a4614e18d9d6cc31389f70` 的 12 文件清单，包内 provenance 和 source-manifest 与审核基线一致；阶段脚本拒绝生产源码增删或哈希漂移。检查工具 `scripts/inspect-unsigned-ipa.py` 使用当前审核基线，避免沿用旧版 9 文件断言。
+
+完整证据见 [IPA 检验 JSON](releases/ios-1.7.5-17-ipa-inspection.json) 和 [构建验证 JSON](releases/ios-1.7.5-17-validation.json)。下方预览及 build 12/15/16 记录为历史状态，不表示 build 17 的功能缺失或设备验收。
 
 ## 2026-10-12：下一版源码与 Expo 预览
 

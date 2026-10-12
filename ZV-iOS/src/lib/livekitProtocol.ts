@@ -5,4 +5,4 @@ export function voiceToken(raw: unknown): { url: string; token: string } {
   if (!['wss:', 'ws:'].includes(url.protocol) || url.username || url.password) throw new Error('服务器语音地址无效');
   return { url: value.url, token: value.token };
 }
-export function adminMuted(metadata?: string) { try { return JSON.parse(metadata || '{}').adminMuted === true; } catch { return false; } }
+export function adminMuted(metadata?: string) { try { return JSON.parse(metadata || '{}')?.adminMuted === true; } catch { return false; } }

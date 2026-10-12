@@ -1,5 +1,5 @@
 {
-  "referenceCommit": "40471c9eecc7c3651908dc027388480895a94ec3",
+  "referenceCommit": "a8abd646e0071a0708a4614e18d9d6cc31389f70",
   "source": "native/bilicore",
   "normalizedLineEndings": "LF",
   "license": "UPSTREAM-LICENSE",
@@ -12,7 +12,7 @@
     "core/quality.go": "56646aba2c44124eda18da959a6a3718799362be939a98b950ed320598fc2dfc",
     "core/resolver.go": "813f43c98e86cd00c791ba3420bf5de86b1bda7b11f8cb29e5802e3d2db74ff5",
     "core/runtime.go": "e27429abd10503be3a500770ad09728e53c2277f9f95b999da0f8d52625db4c3",
-    "core/wbi.go": "cf515ccf69bb57c8179408f2749b2e95831024d1a01ede23f539ee3745741b33",
+    "core/wbi.go": "32215df39431930fc0fcf4642fbf113737242d56c6ffb3241b476a89b3e1e02a",
     "mobile/mobile.go": "2bb0191fc9c625f1092be6ad0fe3fd692af47cc2d08c77c83935a3c089099e83",
     "mobile/server_connection.go": "7bf6572bf4d22bf7475df78abeccf37e9f0e0ab2beee6a2506495bd659998d7c",
     "go.mod": "f74c0187ee5d8f0e8d0363bc9790dda38d4d19b2561a242fb431314912641641",

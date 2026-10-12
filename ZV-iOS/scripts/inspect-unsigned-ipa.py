@@ -46,12 +46,24 @@ def inspect(path):
             manifests = [name for name in names if name.startswith(root) and name.endswith('/bilicore-source-provenance.json')]
             assert len(manifests) == 1, 'Missing bundled shared source provenance'
             provenance = json.loads(archive.read(manifests[0]))
-            assert provenance['referenceCommit'] == '1ca96fd46963ff5cb89beb6c3d31e1d7b9f501fc', 'Unexpected shared Go reference'
-            assert len(provenance['files']) == 9, 'Unexpected shared source manifest size'
+            baseline = json.loads((Path(__file__).parent / 'native-core-baseline.json').read_text(encoding='utf8'))
+            assert provenance['referenceCommit'] == baseline['referenceCommit'], 'Unexpected shared Go reference'
+            assert provenance['files'] == baseline['files'], 'Unexpected shared source manifest'
             source_manifest = json.loads(archive.read(manifests[0].replace('source-provenance.json', 'source-manifest.json')))
             assert provenance['files'] == source_manifest, 'Source manifests disagree'
             assert any(name.endswith('/OPUS-LICENSE') for name in names) and any(name.endswith('/BILICORE-LICENSE') for name in names), 'Missing native dependency licenses'
             continuation = dict(systemMedia=True, sharedSource=provenance, deviceFamilies=info.get('UIDeviceFamily'), minimumOS=info.get('MinimumOSVersion'), interfaceStyle=info.get('UIUserInterfaceStyle'))
+        if tuple(map(int, info['CFBundleShortVersionString'].split('.'))) >= (1, 7, 5):
+            rtc = {name: name.encode() in binary for name in ['LivekitReactNativeModule', 'WebRTCModule', 'LiveKitExpoAppDelegate']}
+            assert all(rtc.values()), 'Missing LiveKit native RTC modules or Expo startup registration'
+            assert 'LiveKitWebRTC.framework' in frameworks, 'Missing LiveKit WebRTC engine'
+            assert 'WebRTC.framework' not in frameworks, 'Conflicting original WebRTC engine'
+            assert info.get('NSLocalNetworkUsageDescription'), 'Missing local Bilibili proxy permission description'
+            continuation['livekitNative'] = rtc
+            js = archive.read(root + 'main.jsbundle')
+            features = {name: name.encode() in js for name in ['/api/voice/token', 'voicePermission', 'voiceSessionActive', 'adminMuted', 'search-bangumi', 'search-ft', 'cliOnly', 'epId', 'seasonId']}
+            assert all(features.values()), 'Missing expected Bilibili/LiveKit release JS contracts'
+            continuation['releaseContracts'] = features
         return dict(bundleId=info['CFBundleIdentifier'], version=info['CFBundleShortVersionString'], build=info['CFBundleVersion'], app=app, frameworks=frameworks, nativeBridges=bridges, jsBytes=archive.getinfo(root + 'main.jsbundle').file_size, background=info.get('UIBackgroundModes'), ats=info.get('NSAppTransportSecurity'), requiresFullScreen=info.get('UIRequiresFullScreen', False), orientations=info.get('UISupportedInterfaceOrientations'), ipadOrientations=info.get('UISupportedInterfaceOrientations~ipad'), **continuation)
 
 if __name__ == '__main__':

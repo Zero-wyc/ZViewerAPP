@@ -1,6 +1,8 @@
 # iOS 下一版源码预览记录（2026-10-12）
 
-本轮按 [iOS 更新计划](../ios-follow-up-update-plan-2026-10-12.md) 实施，对照双端 1.7.5 与本地服务端 v4.5.1 / `c8fa5bad0c6efcffbc0dc3bfe4c199f8a9b8d8f6`。交付范围是源码与 Expo 界面检查，**没有构建 IPA、运行 prebuild、触发 EAS 或发布 Release**。应用版本维持 1.5.1，buildNumber 16；已发布 1.5.0 / 16 安装包不含这些更新。
+本记录保留当时源码预览阶段的状态。用户确认 Expo Go 界面通过并授权构建后，已生成 **1.7.5 / build 17** 真机 IPA；新的功能复核、签名修复和实际包证据见 [构建记录](ios-1.7.5-17-unsigned.md)。
+
+预览阶段按 [iOS 更新计划](../ios-follow-up-update-plan-2026-10-12.md) 实施，对照双端 1.7.5 与本地服务端 v4.5.1 / `c8fa5bad0c6efcffbc0dc3bfe4c199f8a9b8d8f6`。当时交付范围是源码与 Expo 界面检查，**没有构建 IPA、运行 prebuild、触发 EAS 或发布 Release**。当时应用版本维持 1.5.1，buildNumber 16；已发布 1.5.0 / 16 安装包不含这些更新。
 
 ## 🚀 新特性 / Features
 

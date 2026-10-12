@@ -15,9 +15,16 @@ test -d "$app"
 test -s "$app/main.jsbundle"
 # Require the actual bridge classes in the app, not merely a successful build
 # of generated vendor libraries that never entered the CocoaPods graph.
-for symbol in ZViewerNativeModule ZVBiliBridge ZVVoiceCodec; do
+for symbol in ZViewerNativeModule ZVBiliBridge ZVVoiceCodec LivekitReactNativeModule WebRTCModule LiveKitExpoAppDelegate; do
   strings "$app/ZViewer" | grep "$symbol" > /dev/null || { echo "Missing native bridge: $symbol"; exit 1; }
 done
+grep -q 'livekit-react-native (3.0.0)' ios/Podfile.lock
+grep -q 'livekit-react-native-webrtc (144.2.0)' ios/Podfile.lock
+grep -q 'LiveKitWebRTC (144.7559.15)' ios/Podfile.lock
+if grep -Eq '^  - react-native-webrtc[ /(:]' ios/Podfile.lock; then
+  echo 'Conflicting non-LiveKit WebRTC pod.' >&2
+  exit 1
+fi
 # Prevent a simulator archive from being presented as a device IPA.
 xcrun vtool -show-build "$app/ZViewer" | grep -q 'platform IOS$'
 xcrun lipo -archs "$app/ZViewer" | grep -q 'arm64'

@@ -45,7 +45,7 @@ export async function resolveLocalBili(url: string, scope = '', policy?: BiliPol
     if (!selection.cid && selection.page > 1) {
       const part = media.pages?.find(value => value.page === selection.page);
       if (!part) throw new Error('该视频没有指定的分 P');
-      media = await biliOperation<BiliMedia>('resolve', JSON.stringify({ ...options, cid: part.cid }));
+      media = await biliOperation<BiliMedia>('resolve', JSON.stringify({ ...options, cid: part.cid, ...(part.epId ? { epId: part.epId } : {}) }));
     }
     if (revision !== epoch || media.sessionVersion !== status.sessionVersion) throw new Error('本机播放会话已变化，请重新选择');
     for (const value of [media.videoUrl, media.audioUrl].filter(Boolean) as string[]) {
@@ -86,11 +86,13 @@ export async function playbackSource(source: PlaybackSource, server: string, tok
   if ((source.cliOnly || selection.epId || selection.seasonId) && (!policy.cliEnabled || !status?.ready || !status.loggedIn)) throw new Error('此番剧仅支持本机 B站解析，请在此设备启用本机解析并登录有播放权限的 B站账号');
   if (status?.ready && status.loggedIn) {
     const media = await resolveLocalBili(source.sourceUrl, `${server}:${source.movieId ?? 'music'}:${source.cid ?? 0}`, policy);
+    if (signal?.aborted) throw new Error('播放任务已取消');
     const track = (uri: string): NativeVideoSource => ({ uri, identity: source.sourceUrl, headers: {}, serverApi: false, options: ['network-caching=1500'], contentType: 'progressive', slaves: [] });
     if (source.format === 'audio') return track(media.audioUrl || media.videoUrl);
     const video = track(media.videoUrl); if (media.audioUrl && source.format !== 'muted-video') video.slaves = [track(media.audioUrl)]; return video;
   }
   const media = await resolveServerBili(source.sourceUrl, server, token, { ...policy, preferMp4: policy.cliEnabled || policy.preferMp4 }, signal);
+  if (signal?.aborted) throw new Error('播放任务已取消');
   const proxy = (url: string) => `/api/stream/proxy?${new URLSearchParams({ url, referer: 'https://www.bilibili.com/', userAgent: 'Mozilla/5.0' })}`;
   return { ...nativeVideoSource({ ...source, sourceUrl: proxy(source.format === 'audio' ? media.audioUrl || media.videoUrl : media.videoUrl), format: media.format, audioUrl: source.format === 'audio' || source.format === 'muted-video' ? undefined : media.audioUrl ? proxy(media.audioUrl) : undefined }, server, token), identity: source.sourceUrl };
 }

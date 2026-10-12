@@ -2,7 +2,7 @@
 #import <Bilicore/Bilicore.h>
 #import <Security/Security.h>
 #import <VideoToolbox/VideoToolbox.h>
-#import <CommonCrypto/CommonDigest.h>
+#import "ZVBiliSigning.h"
 static NSLock *resolveLock;
 static NSMutableSet<NSURLSessionDataTask *> *resolveTasks;
 static NSUInteger resolveEpoch;
@@ -50,19 +50,7 @@ static NSDictionary *wbi(NSDictionary *params) {
   if (![images isKindOfClass:NSDictionary.class]) return nil;
   NSString *key = [[[[NSURL URLWithString:images[@"img_url"]] lastPathComponent] stringByDeletingPathExtension] stringByAppendingString:[[[NSURL URLWithString:images[@"sub_url"]] lastPathComponent] stringByDeletingPathExtension]];
   if (key.length != 64) return nil;
-  const int order[] = {46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,42,19,29,28,14,39,12,38,41,13};
-  NSMutableString *mixin = [NSMutableString string]; for (int i=0;i<32;i++) [mixin appendFormat:@"%C", [key characterAtIndex:order[i]]];
-  NSMutableDictionary *values = [params mutableCopy]; values[@"wts"] = @((NSInteger)NSDate.date.timeIntervalSince1970);
-  NSMutableArray *pairs = [NSMutableArray array];
-  NSMutableCharacterSet *allowed = [[NSCharacterSet alphanumericCharacterSet] mutableCopy]; [allowed addCharactersInString:@"-_.~"];
-  NSCharacterSet *bad = [NSCharacterSet characterSetWithCharactersInString:@"!'()*"];
-  for (NSString *name in [[values allKeys] sortedArrayUsingSelector:@selector(compare:)]) {
-    NSString *value = [[[values[name] description] componentsSeparatedByCharactersInSet:bad] componentsJoinedByString:@""]; values[name] = value;
-    [pairs addObject:[NSString stringWithFormat:@"%@=%@", [name stringByAddingPercentEncodingWithAllowedCharacters:allowed], [value stringByAddingPercentEncodingWithAllowedCharacters:allowed]]];
-  }
-  NSData *input = [[[pairs componentsJoinedByString:@"&"] stringByAppendingString:mixin] dataUsingEncoding:NSUTF8StringEncoding];
-  unsigned char hash[CC_MD5_DIGEST_LENGTH]; CC_MD5(input.bytes, (CC_LONG)input.length, hash);
-  NSMutableString *digest = [NSMutableString string]; for (int i=0;i<CC_MD5_DIGEST_LENGTH;i++) [digest appendFormat:@"%02x",hash[i]]; values[@"w_rid"] = digest; return values;
+  return ZVBiliSignedParameters(params, key, (NSInteger)NSDate.date.timeIntervalSince1970);
 }
 static NSArray *subtitleLines(NSString *address) {
   if ([address hasPrefix:@"//"]) address = [@"https:" stringByAppendingString:address];
@@ -149,9 +137,14 @@ static NSArray *subtitleLines(NSString *address) {
       prepareResolveRegistry(); [resolveLock lock]; if (resolveEpoch != requestGeneration) { [resolveLock unlock]; [session invalidateAndCancel]; return @{ @"success":@NO, @"message":@"播放任务已取消" }; } [resolveTasks addObject:task]; [resolveLock unlock];
       [task resume]; if (dispatch_semaphore_wait(ready, dispatch_time(DISPATCH_TIME_NOW, 46 * NSEC_PER_SEC))) [task cancel]; [session invalidateAndCancel];
       [resolveLock lock]; [resolveTasks removeObject:task]; [resolveLock unlock];
-      if (code != 200 || !body) return @{ @"success":@NO, @"message":@"本机 B站解析失败，请检查登录、权限和网络" };
-      NSMutableDictionary *result = [[NSJSONSerialization JSONObjectWithData:body options:0 error:nil] mutableCopy];
-      if (![result isKindOfClass:NSDictionary.class] || ![result[@"success"] boolValue]) return @{ @"success":@NO, @"message":@"本机 B站解析未返回可播放源" };
+      id decoded = body ? [NSJSONSerialization JSONObjectWithData:body options:0 error:nil] : nil;
+      if (![decoded isKindOfClass:NSDictionary.class]) return @{ @"success":@NO, @"message":@"本机 B站解析未返回可播放源" };
+      NSMutableDictionary *result = [decoded mutableCopy];
+      if (code != 200 || ![result[@"success"] boolValue]) {
+        NSDictionary *messages = @{ @"REGION_LIMITED":@"该番剧受地区限制", @"NO_PERMISSION":@"当前 B站账号没有该番剧的播放权限", @"NOT_LOGGED_IN":@"B站凭据已过期，请重新登录", @"EP_NOT_FOUND":@"该番剧暂无目标分集", @"CID_MISMATCH":@"番剧集号与 cid 不一致，请重新选集" };
+        NSString *reason = [result[@"code"] isKindOfClass:NSString.class] ? result[@"code"] : @"";
+        return @{ @"success":@NO, @"message":messages[reason] ?: @"本机 B站解析失败，请检查登录、权限和网络" };
+      }
       for (NSString *key in @[@"videoUrl", @"audioUrl"]) {
         NSString *target = result[key]; if (!target.length) continue;
         NSURLComponents *proxy = [NSURLComponents componentsWithString:[base stringByAppendingString:@"/proxy"]]; proxy.queryItems = @[[NSURLQueryItem queryItemWithName:@"url" value:target]]; result[key] = proxy.string;
