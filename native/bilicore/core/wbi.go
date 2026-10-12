@@ -16,7 +16,7 @@ import (
 // WBI mixin key 字符抽取表（与 backend/src/services/bilibili/wbi.ts 一致）。
 var wbiMixinKeyEncTable = []int{
 	46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35,
-	27, 43, 5, 49, 33, 9, 20, 42, 19, 29, 28, 14, 7, 41, 12, 1,
+	27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13,
 }
 
 // 缓存的 WBI 密钥对。
@@ -75,7 +75,12 @@ func signParamsWithWbi(params map[string]string, imgKey, subKey string) map[stri
 	mixinKey := getWbiMixinKey(imgKey, subKey)
 	signed := make(map[string]string, len(params)+2)
 	for k, v := range params {
-		signed[k] = v
+		signed[k] = strings.Map(func(r rune) rune {
+			if strings.ContainsRune("!'()*", r) {
+				return -1
+			}
+			return r
+		}, v)
 	}
 	signed["wts"] = strconv.FormatInt(time.Now().Unix(), 10)
 
@@ -100,9 +105,9 @@ func signParamsWithWbi(params map[string]string, imgKey, subKey string) map[stri
 		if i > 0 {
 			qs.WriteByte('&')
 		}
-		qs.WriteString(url.QueryEscape(k))
+		qs.WriteString(strings.ReplaceAll(url.QueryEscape(k), "+", "%20"))
 		qs.WriteByte('=')
-		qs.WriteString(url.QueryEscape(signed[k]))
+		qs.WriteString(strings.ReplaceAll(url.QueryEscape(signed[k]), "+", "%20"))
 	}
 
 	h := md5.Sum([]byte(qs.String() + mixinKey))
