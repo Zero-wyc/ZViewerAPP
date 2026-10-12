@@ -1,6 +1,16 @@
 # Android 应用维护架构整理
 
-更新日期：2026-10-11
+更新日期：2026-10-12
+
+## 2026-10-12：1.7.4 / 174 本地对齐服务端 v4.5.1
+
+本轮本地开发版本 **1.7.4 / 174**，服务端固定提交 `c8fa5bad0c6efcffbc0dc3bfe4c199f8a9b8d8f6`。共享番剧浏览器/认证海报、切源保留与失败项重试，Emby/Jellyfin 搜索/海报元数据/整剧整季/切集多版本、媒体库 HLS 相对分片、一键清空与播放生命周期、B 站搜索分 P 和音量拖动清理已实现。**按用户要求不加入公告**；评论新窗口/侧坞/快捷键仍排除，iOS 不涉及。
+
+维护入口：`AnimeSourceBrowser`/`AnimePoster`、`EmbyBrowser`/媒体库 API 与 `seriesPages.ts`/`mediaLibraryUrl.ts`、`MoviePushPanel`/`MovieListPanel`、`roomStore`、`library-hls-proxy.ts`/`hls-engine`、`useWatchTogether`、`useVolumeSliderDrag`/`bodyScrollLock`。播放/显示使用选定服务器通道，持久化与广播保持逻辑 URL；版本用真实 MediaSource ID，观众按房间影片 ID 播放，媒体凭据不进入房间状态。没有新增或替换原生桥、B 站解析和编解码能力。
+
+56 项适配、4 项媒体回归、102 组共享浏览器布局、两端实际 App 各两种媒体库普通/放大共 8 组、16 组房主/普通浏览器观众 MP4→切集→转码 HLS→清空记录通过。两端 Debug/Release 构建及既有发布签名验证通过，包内网页与最终 dist 比对。Medium Phone / Pura 90 Pro 均为模拟器；真实第三方番剧 10 组查询有结果/详情，首图 9 组成功、1 组上游 502。用户物理设备、真实媒体库正片、自签 HTTPS、后台/蓝牙与生产源仍需独立验收。
+
+本地交付 `release/client-v1.7.4-test1/`，源码本地提交；未上传 GitHub、发布 Release 或修改 NAS。完整证据与边界见 [1.7.4 对齐验证](client-v1.7.4-alignment-451-validation-20261012.md) 和 [发行说明](releases/client-1.7.4.md)。下方 1.7.3 及更早记录保留其历史发布状态。
 
 ### 1.7.3 用户验收与发布确认
 

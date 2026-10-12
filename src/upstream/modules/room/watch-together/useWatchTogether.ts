@@ -393,17 +393,20 @@ export function useWatchTogether({
       const filtered = payload.movies.filter(
         (m) => !m.roomId || m.roomId === currentRoomId
       )
+      if (payload.movies.length && !filtered.length) return
       setMovies(filtered.map(mapDtoToMovie))
+      const state = useRoomStore.getState()
+      if (state.currentMovieId !== null && !filtered.some(item => item.id === state.currentMovieId)) {
+        initialPlaybackRef.current = null
+        ++loadSeqRef.current
+        downloadAbortRef.current?.abort()
+        setCurrentMovieId(null)
+        useRoomStore.setState({ pendingQualityChange: null, viewerCliResolvedSource: null, autoContinueRevision: state.autoContinueRevision + 1, watchTogether: { ...state.watchTogether, isPlaying: false, sourceUrl: '' } })
+      }
     }
 
     const handleCurrentMovie = (payload: { movieId: number | null }) => {
-      // 房主恢复时忽略后端残留的空值，但必须接受其他有权限成员发起的
-      // 非空切片事件；否则服务器已切换 currentMovieId，房主仍持续广播旧片源。
-      if (
-        isHostRef.current &&
-        useRoomStore.getState().currentMovieId &&
-        payload.movieId === null
-      ) return
+      if (payload.movieId === null) { initialPlaybackRef.current = null; ++loadSeqRef.current; downloadAbortRef.current?.abort() }
       setCurrentMovieId(payload.movieId)
     }
 
@@ -1197,6 +1200,8 @@ export function useWatchTogether({
   // 避免已删除的影片继续在播放器中播放。房主与观众端均生效。
   useEffect(() => {
     if (currentMovieId !== null) return
+    ++loadSeqRef.current
+    downloadAbortRef.current?.abort()
     const video = videoRef.current
     if (video) {
       suppressEventsRef.current = true

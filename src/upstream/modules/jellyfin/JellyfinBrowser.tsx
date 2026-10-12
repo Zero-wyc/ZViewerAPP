@@ -5,13 +5,15 @@
  */
 import EmbyBrowser from '@/modules/emby/EmbyBrowser'
 import type { EmbyDirectoryEntry } from '@/modules/emby/types'
-import { browseJellyfinMount } from './jellyfinApi'
+import { browseJellyfinMount, searchJellyfinMount } from './jellyfinApi'
 
 interface JellyfinBrowserProps {
   mountId: number | null
   open: boolean
   onClose: () => void
-  onSelectFiles?: (paths: string[]) => void
+  onSelectFiles?: (paths: string[], entries?: EmbyDirectoryEntry[]) => void | Promise<void | string[]>
+  onQuickAddSeries?: (entry: EmbyDirectoryEntry) => void
+  disabled?: boolean
   selectable?: boolean
 }
 
@@ -21,10 +23,15 @@ export default function JellyfinBrowser({
   onClose,
   onSelectFiles,
   selectable = false,
+  onQuickAddSeries,
+  disabled,
 }: JellyfinBrowserProps) {
   return (
     <EmbyBrowser
       imageApi="jellyfin"
+      search={searchJellyfinMount}
+      onQuickAddSeries={onQuickAddSeries}
+      disabled={disabled}
       mountId={mountId}
       open={open}
       onClose={onClose}

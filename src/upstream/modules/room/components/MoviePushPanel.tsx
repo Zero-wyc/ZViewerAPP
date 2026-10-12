@@ -1,3 +1,5 @@
+import { enumerateSeriesPages } from '@/modules/emby/seriesPages'
+import { logicalConnectionUrl } from '../../../../platform/connectionTransport'
 import { BiliSearchModal } from './BiliSearchModal'
 import { isEmbeddedBilibiliHost } from '../../../../platform/bilibiliProxy'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -74,8 +76,16 @@ import {
 } from '@/modules/openlist/openlistApi'
 import { isInternalOpenListServer } from '@/modules/openlist/isInternal'
 import OpenListBrowser from '@/modules/openlist/OpenListBrowser'
-import { resolveEmby } from '@/modules/emby/embyApi'
-import { resolveJellyfin } from '@/modules/jellyfin/jellyfinApi'
+import {
+  resolveEmby,
+  browseEmbyMount,
+  buildEmbyImageUrl,
+} from '@/modules/emby/embyApi'
+import type { EmbyDirectoryEntry } from '@/modules/emby/types'
+import {
+  resolveJellyfin,
+  browseJellyfinMount,
+} from '@/modules/jellyfin/jellyfinApi'
 import { resolveWebDAV, fetchWebDAVDirectUrl } from '@/modules/webdav/webdavApi'
 import MountBrowser from '@/modules/mounts/MountBrowser'
 import WebDAVBrowser from '@/modules/webdav/WebDAVBrowser'
@@ -389,10 +399,13 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
         message.error(!isHost ? '只有房主可以添加影片' : '未连接房间')
         return []
       }
+      const revision = useRoomStore.getState().roomSessionRevision
+      const current = () => useRoomStore.getState().roomSessionRevision === revision && useRoomStore.getState().roomId === roomId
       const added: string[] = []
       setLoading(true)
       try {
         for (const [index, item] of items.entries()) {
+          if (!current()) break
           setResolveProgress(`正在添加 ${index + 1}/${items.length} 集...`)
           try {
             if (kind === 'anime') {
@@ -411,6 +424,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
                 item.sourceId,
                 item.episode
               )
+              if (!current()) break
               const url = needsKazumiProxy(resolved.url, resolved.headers)
                 ? buildKazumiProxyUrl(resolved.url, resolved.headers)
                 : resolved.url
@@ -430,6 +444,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
             )
           }
         }
+        if (!current()) return added
         if (added.length === items.length) {
           message.success(`已添加 ${added.length} 集`)
         } else {
@@ -659,6 +674,8 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
     if (current && current.type === sourceType) return
     const first = mounts.find((m) => m.type === (sourceType as MountType))
     if (first) {
+      // React Compiler 严格规则误报：预选挂载需同步多个关联 state（表单回填）
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 类型切换时的挂载预选
       handleMountSelect(String(first.id))
     } else if (selectedMountId) {
       setSelectedMountId('')
@@ -666,8 +683,104 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceType, mounts])
 
+  /**
+   * 剧集整卡添加：枚举剧集全部分集（逐季 browse），解析第一集作为初始播放源，
+   * 生成单张剧集卡——pages 存分集列表（{page, part, path, mountId, duration}），
+   * 播放列表卡片内切换分集时按 path 重新解析并更新 movie.path。
+   * 传入 Season 条目时等价于「添加整季」（该目录下枚举到的 Episode 全部入列）。
+   */
+  const mediaAddBusy = useRef(false)
+  const addEmbySeriesCard = useCallback(
+    async (
+      api: 'emby' | 'jellyfin',
+      seriesMountId: number,
+      series: EmbyDirectoryEntry
+    ) => {
+      const revision = useRoomStore.getState().roomSessionRevision
+      const current = () => useRoomStore.getState().roomId === roomId && useRoomStore.getState().roomSessionRevision === revision
+      const browse = api === 'emby' ? browseEmbyMount : browseJellyfinMount
+      const resolveFn = api === 'emby' ? resolveEmby : resolveJellyfin
+      const directLink = api === 'emby' ? embyDirectLink : jellyfinDirectLink
+
+      setResolveProgress(`正在枚举《${series.name}》的分集...`)
+      // 逐季枚举分集：Series 下为 Season（目录），Season 下为 Episode（file）
+      const episodes = await enumerateSeriesPages(seriesMountId, series, browse, current)
+      if (!current()) return
+      if (episodes.length === 0) {
+        throw new Error(`《${series.name}》下没有可播放的分集`)
+      }
+
+      // 解析第一集作为初始播放源（代理模式 url 会被后端重写为 stream URL）
+      setResolveProgress(
+        `正在解析《${series.name}》第 1 集（共 ${episodes.length} 集）...`
+      )
+      const firstPath = episodes[0].path
+      if (!firstPath) throw new Error('分集缺少条目 ID')
+      const first = await resolveFn(seriesMountId, firstPath)
+      if (!current()) return
+      const mount = mounts.find((m) => m.id === seriesMountId)
+      await addMovie(roomId!, {
+        url: directLink && first.directUrl ? first.directUrl : first.videoUrl,
+        title: series.name,
+        cover: logicalConnectionUrl(buildEmbyImageUrl(
+          seriesMountId,
+          series.path,
+          series.imageTag,
+          api,
+          300
+        ) || ""),
+        source: api,
+        format: first.format,
+        duration: first.duration,
+        serverUrl: mount?.serverUrl ?? undefined,
+        path: episodes[0].path,
+        directLink,
+        multiVersion: first.multiVersion,
+        pages: episodes,
+        currentPage: 1,
+      })
+    },
+    [embyDirectLink, jellyfinDirectLink, mounts, roomId, addMovie]
+  )
+
+  /** 一键添加整部影片（海报墙/列表条目快捷按钮）：Series=整部剧，Season=整季 */
+  const handleQuickAddSeries = useCallback(
+    async (entry: EmbyDirectoryEntry) => {
+      if (!isHost) {
+        message.info('只有房主可以添加影片')
+        return
+      }
+      if (!roomId) {
+        message.error('未连接房间')
+        return
+      }
+      const mountId = Number(selectedMountId)
+      if (!mountId) {
+        message.warning('请选择已保存的挂载')
+        return
+      }
+      if (sourceType !== 'emby' && sourceType !== 'jellyfin') return
+      if (mediaAddBusy.current) return
+      mediaAddBusy.current = true
+      const revision = useRoomStore.getState().roomSessionRevision
+      setLoading(true)
+      try {
+        await addEmbySeriesCard(sourceType, mountId, entry)
+        if (revision === useRoomStore.getState().roomSessionRevision) message.success(`已添加《${entry.name}》`)
+      } catch (err) {
+        console.error('[MoviePushPanel] quick add series error:', err)
+        message.error(err instanceof Error ? err.message : '添加整部影片失败')
+      } finally {
+        mediaAddBusy.current = false
+        setLoading(false)
+        setResolveProgress('')
+      }
+    },
+    [isHost, roomId, selectedMountId, sourceType, addEmbySeriesCard]
+  )
+
   const handleSelectFilesFromMount = useCallback(
-    async (paths: string[]) => {
+    async (paths: string[], entries?: EmbyDirectoryEntry[]) => {
       if (!isHost) {
         message.info('只有房主可以添加影片')
         return
@@ -683,11 +796,18 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
         return
       }
 
+      if (mediaAddBusy.current) return []
+      mediaAddBusy.current = true
+      const revision = useRoomStore.getState().roomSessionRevision
+      const current = () => useRoomStore.getState().roomSessionRevision === revision && useRoomStore.getState().roomId === roomId
+      const addedPaths: string[] = []
       setLoading(true)
       setResolveProgress(`正在批量解析 ${paths.length} 个文件...`)
       try {
         let added = 0
         for (const path of paths) {
+          if (!current()) break
+          try {
           const normalizedPath = normalizeMountPath(path)
           if (sourceType === 'webdav' || sourceType === 'openlist') {
             // WebDAV 与 OpenList 共用同一套协议逻辑，仅 API 前缀与直链获取不同
@@ -716,7 +836,8 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
               // 直链模式：后端通过挂载凭证获取直链 URL（OpenList 为 AList 签名直链，WebDAV 为拼接）
               const movieUrl = await fetchDirect(mountId, normalizedPath)
               const title = extractTitleFromUrl(normalizedPath)
-              await addMovie(roomId, {
+              if (!current()) break
+            await addMovie(roomId, {
                 url: movieUrl,
                 title,
                 source: sourceType,
@@ -729,7 +850,8 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
               const resolved = await resolveMount(mountId, normalizedPath)
               const title =
                 resolved.title || extractTitleFromUrl(normalizedPath)
-              await addMovie(roomId, {
+              if (!current()) break
+            await addMovie(roomId, {
                 url: resolved.videoUrl,
                 title,
                 source: sourceType,
@@ -744,6 +866,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
           } else if (sourceType === 'ftp') {
             const resolved = await resolveFTPNew(mountId, normalizedPath)
             const title = resolved.title || extractTitleFromUrl(normalizedPath)
+            if (!current()) break
             await addMovie(roomId, {
               url: resolved.videoUrl,
               title,
@@ -760,61 +883,76 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
             const resolved = await resolveEmby(mountId, normalizedPath)
             const title = resolved.title || extractTitleFromUrl(normalizedPath)
             const mount = mounts.find((m) => m.id === mountId)
+            if (!current()) break
             await addMovie(roomId, {
               url:
                 embyDirectLink && resolved.directUrl
                   ? resolved.directUrl
                   : resolved.videoUrl,
               title,
+              cover: (() => { const entry = entries?.find(item => item.path === normalizedPath); return logicalConnectionUrl(buildEmbyImageUrl(mountId, normalizedPath, entry?.imageTag, 'emby') || '') })(),
               source: 'emby',
               format: resolved.format,
               duration: resolved.duration,
               serverUrl: mount?.serverUrl ?? undefined,
               path: normalizedPath,
               directLink: embyDirectLink,
+              multiVersion: resolved.multiVersion,
             })
             added++
           } else if (sourceType === 'jellyfin') {
             const resolved = await resolveJellyfin(mountId, normalizedPath)
             const title = resolved.title || extractTitleFromUrl(normalizedPath)
             const mount = mounts.find((m) => m.id === mountId)
+            if (!current()) break
             await addMovie(roomId, {
               url:
                 jellyfinDirectLink && resolved.directUrl
                   ? resolved.directUrl
                   : resolved.videoUrl,
               title,
+              cover: (() => { const entry = entries?.find(item => item.path === normalizedPath); return logicalConnectionUrl(buildEmbyImageUrl(mountId, normalizedPath, entry?.imageTag, 'jellyfin') || '') })(),
               source: 'jellyfin',
               format: resolved.format,
               duration: resolved.duration,
               serverUrl: mount?.serverUrl ?? undefined,
               path: normalizedPath,
               directLink: jellyfinDirectLink,
+              multiVersion: resolved.multiVersion,
             })
             added++
           }
+          addedPaths.push(path)
+          } catch (error) { console.error("[MoviePushPanel] item add failed:", error) }
         }
-        message.success(`已添加 ${added} 部影片`)
+        if (!current()) return addedPaths
+        if (addedPaths.length !== paths.length) message.warning(`已添加 ${addedPaths.length} 部，${paths.length - addedPaths.length} 部失败，可重试`)
+        else message.success(`已添加 ${added} 部影片`)
       } catch (err) {
         console.error('[MoviePushPanel] batch add error:', err)
         message.error(err instanceof Error ? err.message : '批量添加失败')
       } finally {
+        mediaAddBusy.current = false
         setLoading(false)
         setResolveProgress('')
       }
+      return addedPaths
     },
     [
       isHost,
       roomId,
       selectedMountId,
       sourceType,
+      addEmbySeriesCard,
       webdav.serverUrl,
       webdavDirectLink,
+      isWebdavInternal,
       ftp.serverUrl,
       ftp.username,
       ftp.password,
       openlist.serverUrl,
       openlistDirectLink,
+      isOpenlistInternal,
       embyDirectLink,
       jellyfinDirectLink,
       mounts,
@@ -2336,6 +2474,8 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
           open={!!browsingMount}
           onClose={() => setBrowsingMount(null)}
           onSelectFiles={handleSelectFilesFromMount}
+          onQuickAddSeries={handleQuickAddSeries}
+          disabled={loading}
           selectable
         />
       )}

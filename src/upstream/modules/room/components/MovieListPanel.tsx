@@ -1,3 +1,8 @@
+import { beginMediaLibraryChange } from '@/modules/emby/mediaLibraryOperation'
+import { getEmbyApiMovieSource, resolveEmby } from '@/modules/emby/embyApi'
+import { resolveJellyfin } from '@/modules/jellyfin/jellyfinApi'
+import type { EmbyVersionInfo } from '@/modules/emby/types'
+import { logicalConnectionUrl } from '../../../../platform/connectionTransport'
 import { canReorderPlaylist, movePlaylistItem } from './playlistOrder'
 import { apiFetch } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
@@ -57,6 +62,8 @@ const SOURCE_LABELS: Record<string, string> = {
   ftp: 'FTP',
   openlist: 'OpenList',
   smb: 'SMB',
+  emby: 'Emby',
+  jellyfin: 'Jellyfin',
 }
 
 /** 格式标签映射，用于在影片卡片中显示真实媒体格式 */
@@ -97,6 +104,11 @@ export function MovieListPanel({
     (state) => state.viewerCliResolvedSource
   )
   const mode = useRoomStore((state) => state.mode)
+  const clearMovies = useRoomStore(state => state.clearMovies)
+  const clearingRef = useRef(false)
+  const confirmTimer = useRef<ReturnType<typeof setTimeout>>()
+  const [clearConfirming, setClearConfirming] = useState(false)
+  const [clearingAll, setClearingAll] = useState(false)
   const [search, setSearch] = useState('')
   const user = useAuthStore(state => state.user)
   const [owner, setOwner] = useState<{ roomId: string; userId: string; ownerId: number | null } | null>(null)
@@ -117,7 +129,7 @@ export function MovieListPanel({
   const [showListModal, setShowListModal] = useState(false)
 
   useEffect(() => {
-    if (!showListModal || user?.role !== 'admin') return
+    if (!roomId || user?.role !== 'admin') return
     let cancelled = false
     void apiFetch('/api/admin/rooms').then(async response => {
       const data = await response.json() as { success?: boolean; rooms?: { roomId: string; ownerUserId: number | null }[] }
@@ -125,7 +137,7 @@ export function MovieListPanel({
     }).catch(() => { if (!cancelled) setOwner(null) })
     return () => { cancelled = true }
   }, [showListModal, roomId, user?.id, user?.role])
-  useEffect(() => { setOrderOpen(false); setSearch('') }, [roomId])
+  useEffect(() => { setOrderOpen(false); setSearch(''); setClearConfirming(false); ++operationSeq.current; return () => { ++operationSeq.current; clearTimeout(confirmTimer.current) } }, [roomId])
 
   const moveMovie = async (movieId: number, direction: -1 | 1) => {
     if (sortingRef.current || !canSort || isScreenShare || !roomId) return
@@ -236,6 +248,66 @@ export function MovieListPanel({
       setRemovingId(null)
     }
   }
+
+  /**
+   * 移除全部影片（卡片与展开弹窗共用，权限由服务端校验）。
+   * 二次确认：首次点击进入「确认清空」态（3s 超时回退），再次点击才执行。
+   */
+  const handleClearAll = async () => {
+    if (
+      clearingRef.current ||
+      clearingAll ||
+      removingId !== null ||
+      movies.length === 0 ||
+      isScreenShare
+    )
+      return
+    if (!canSort) {
+      message.info('仅 root 或创建房间的管理员可以清空全部影片')
+      return
+    }
+    if (!roomId) {
+      message.error('未连接房间')
+      return
+    }
+    if (!clearConfirming) {
+      setClearConfirming(true)
+      confirmTimer.current = setTimeout(() => setClearConfirming(false), 3000)
+      return
+    }
+    setClearConfirming(false)
+    setClearingAll(true)
+    clearingRef.current = true
+    ++operationSeq.current
+    const revision = useRoomStore.getState().roomSessionRevision
+    try {
+      await clearMovies(roomId)
+      if (useRoomStore.getState().roomId !== roomId || useRoomStore.getState().roomSessionRevision !== revision) return
+      setSearch('')
+      message.success('已清空影片列表')
+    } catch (err) {
+      console.error('[MovieListPanel] clear movies error:', err)
+      message.error(err instanceof Error ? err.message : '移除全部影片失败')
+    } finally {
+      clearingRef.current = false
+      setClearingAll(false)
+    }
+  }
+
+  const renderClearButton = () =>
+    canSort && !isScreenShare ? (
+      <Button
+        size="sm"
+        variant={clearConfirming ? 'danger' : 'secondary'}
+        icon={<Trash2 className="h-3.5 w-3.5" />}
+        onClick={handleClearAll}
+        loading={clearingAll}
+        disabled={movies.length === 0 || removingId !== null || !roomId || !socket?.connected || clearingAll}
+        title="清空房间影片列表，包括搜索隐藏的影片"
+      >
+        {clearingAll ? '清空中…' : clearConfirming ? '确认清空全部？' : '清空全部'}
+      </Button>
+    ) : null
 
   const handleQualityChange = async (movie: Movie, value: string) => {
     if (!isHost || isScreenShare || !roomId) return
@@ -403,6 +475,23 @@ export function MovieListPanel({
       message.error(
         '该影片已开启「仅允许CLI模式」：请安装并连接 ZViewer CLI 后操作'
       )
+      return
+    }
+
+    if (movie.sourceType === 'emby' || movie.sourceType === 'jellyfin') {
+      const target = movie.pages?.find(item => item.page === page)
+      if (!target?.path || !target.mountId || clearingRef.current) return
+      const mediaCurrent = beginMediaLibraryChange(movie.id)
+      const operation = ++operationSeq.current
+      const revision = useRoomStore.getState().roomSessionRevision
+      setPageLoadingId(movie.id)
+      try {
+        const resolved = await (movie.sourceType === 'emby' ? resolveEmby : resolveJellyfin)(target.mountId, target.path)
+        const state = useRoomStore.getState()
+        if (!mediaCurrent() || operation !== operationSeq.current || state.roomSessionRevision !== revision || !state.movies.some(item => item.id === movie.id)) return
+        await updateMovie(roomId, movie.id, { path: target.path, url: logicalConnectionUrl(movie.directLink ? resolved.directUrl || resolved.videoUrl : `/api/${movie.sourceType}/stream?movieId=${movie.id}&ep=${page}`), format: resolved.format, audioCodec: resolved.audioCodec || '', duration: resolved.duration, currentPage: page, multiVersion: resolved.multiVersion })
+      } catch (error) { if (operation === operationSeq.current) message.error(error instanceof Error ? error.message : '切集失败') }
+      finally { if (operation === operationSeq.current) setPageLoadingId(null) }
       return
     }
 
@@ -648,7 +737,8 @@ export function MovieListPanel({
                             color: 'var(--md-sys-color-on-tertiary-container)',
                           }}
                         >
-                          <ListVideo className="h-2.5 w-2.5" />P
+                          <ListVideo className="h-2.5 w-2.5" />
+                          {movie.sourceType === 'bilibili' ? 'P' : ''}
                           {movie.currentPage ?? 1}/{movie.pages.length}
                         </Tag>
                       )}
@@ -674,7 +764,9 @@ export function MovieListPanel({
                         />
                       )}
                     {isHost &&
-                      movie.sourceType === 'bilibili' &&
+                      (movie.sourceType === 'bilibili' ||
+                        movie.sourceType === 'emby' ||
+                        movie.sourceType === 'jellyfin') &&
                       movie.pages &&
                       movie.pages.length > 1 && (
                         <Select
@@ -682,9 +774,12 @@ export function MovieListPanel({
                           size="sm"
                           value={String(movie.currentPage ?? 1)}
                           options={movie.pages.map((p) => ({
-                            label: `P${p.page} ${p.part}${
-                              p.badge ? ` · ${p.badge}` : ''
-                            }`,
+                            label:
+                              movie.sourceType === 'bilibili'
+                                ? `P${p.page} ${p.part}${
+                                    p.badge ? ` · ${p.badge}` : ''
+                                  }`
+                                : p.part,
                             value: String(p.page),
                           }))}
                           disabled={
@@ -693,6 +788,17 @@ export function MovieListPanel({
                             pageLoadingId === movie.id
                           }
                           onChange={(value) => handlePageChange(movie, value)}
+                        />
+                      )}
+                    {isHost &&
+                      !isScreenShare &&
+                      (movie.sourceType === 'emby' ||
+                        movie.sourceType === 'jellyfin') && (
+                        <EmbyVersionSelect
+                          movie={movie}
+                          api={
+                            movie.sourceType === 'emby' ? 'emby' : 'jellyfin'
+                          }
                         />
                       )}
                   </div>
@@ -751,7 +857,7 @@ export function MovieListPanel({
 
   return (
     <div className="glass-card zen-card flex h-full min-w-0 flex-col overflow-hidden rounded-[var(--md-sys-shape-corner)]">
-      {/* 卡片头部：图标 + 标题 + 影片数量 + 全屏按钮 */}
+      {/* 卡片头部：图标 + 标题 + 影片数量 + 清空/全屏按钮 */}
       <div className="flex items-center gap-2.5 border-b border-[var(--glass-border)] px-4 py-3">
         <div
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--md-sys-shape-corner)]"
@@ -773,6 +879,7 @@ export function MovieListPanel({
             {movies.length} 部影片
           </Text>
         </div>
+        {renderClearButton()}
         <button
           type="button"
           onClick={() => setShowListModal(true)}
@@ -799,6 +906,7 @@ export function MovieListPanel({
         className="max-w-2xl"
       >
         <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden">
+          <div className="flex shrink-0 flex-wrap justify-end gap-2">{renderClearButton()}</div>
           {renderMovieList(true)}
         </div>
       </Modal>
@@ -875,5 +983,114 @@ function BilibiliQualitySelect({
       }
       onChange={onChange}
     />
+  )
+}
+
+/**
+ * Emby/Jellyfin 多版本（多清晰度）选择器。
+ *
+ * 同一部影片在 Emby/Jellyfin 中可能有多个 MediaSource（如 1080P 与 4K 高码率版），
+ * 添加影片时默认取服务器默认版本（通常最高码率），低清晰度无法选择。
+ * 本选择器懒加载版本列表（首次点击下拉时请求 /api/{api}/movie-source），
+ * 房主选中某版本后重新解析并 updateMovie：
+ * - 代理模式：url 写为 /api/{api}/stream?movieId=N&ms=X（观众可访问，不依赖挂载归属）
+ * - 直链模式：url 写为带 MediaSourceId 的 Emby 直链
+ * 房主端检测到 movie.url 变化会自动重新加载并广播给观众（复用既有 loadMovie 链路）。
+ */
+interface EmbyVersionSelectProps {
+  movie: Movie
+  api: 'emby' | 'jellyfin'
+}
+
+function EmbyVersionSelect({ movie, api }: EmbyVersionSelectProps) {
+  const roomId = useRoomStore((s) => s.roomId)
+  const generation = useRef(0)
+  const switchingRef = useRef(false)
+  useEffect(() => { setVersions(null); setSelectedId(null); setLoadFailed(false); setLoading(false); setSwitching(false); ++generation.current; return () => { ++generation.current } }, [roomId, movie.id, movie.path, movie.url])
+  const [versions, setVersions] = useState<EmbyVersionInfo[] | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [switching, setSwitching] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
+
+  // 懒加载版本列表：首次点开下拉时请求（避免列表里每个 Emby 影片都打 API）
+  const ensureLoaded = () => {
+    if (versions || loading || loadFailed) return
+    setLoading(true)
+    const request = generation.current
+    getEmbyApiMovieSource(api, movie.id, new URL(movie.url, "https://placeholder.invalid").searchParams.get("ms") || undefined)
+      .then((data) => { if (request === generation.current) { setVersions(data.versions); setSelectedId(data.mediaSourceId) } })
+      .catch((err) => {
+        console.error('[MovieListPanel] load emby versions error:', err)
+        if (request === generation.current) setLoadFailed(true)
+      })
+      .finally(() => { if (request === generation.current) setLoading(false) })
+  }
+
+  const currentId = selectedId ?? versions?.[0]?.id ?? ''
+
+  const handleChange = async (value: string) => {
+    if (!roomId || switchingRef.current || switching || value === currentId) return
+    // 版本列表尚未加载完成时的占位项，不可选择
+    if (value === '__loading__') return
+    setSwitching(true)
+    switchingRef.current = true
+    const mediaCurrent = beginMediaLibraryChange(movie.id)
+    const request = ++generation.current
+    const revision = useRoomStore.getState().roomSessionRevision
+    try {
+      const data = await getEmbyApiMovieSource(api, movie.id, value)
+      // 代理模式影片 url 必须是 stream 形式（观众可访问）；直链模式用带
+      // MediaSourceId 的 Emby 直链。format/audioCodec 同步更新（切到的版本
+      // 音轨可能不兼容，format 会变为 hls 触发服务端转码）。
+      if (!mediaCurrent() || request !== generation.current || revision !== useRoomStore.getState().roomSessionRevision || !useRoomStore.getState().movies.some(item => item.id === movie.id && item.path === movie.path)) return
+      const nextUrl = movie.directLink
+        ? data.directUrl || data.streamUrl || data.videoUrl
+        : data.streamUrl || data.videoUrl
+      await useRoomStore.getState().updateMovie(roomId, movie.id, {
+        url: logicalConnectionUrl(nextUrl),
+        format: data.format,
+        audioCodec: data.audioCodec || "",
+        duration: data.duration,
+        multiVersion: data.multiVersion,
+      })
+      setSelectedId(value)
+      message.success('已切换清晰度')
+    } catch (err) {
+      console.error('[MovieListPanel] change emby version error:', err)
+      message.error(err instanceof Error ? err.message : '切换清晰度失败')
+    } finally {
+      switchingRef.current = false
+      if (request === generation.current) setSwitching(false)
+    }
+  }
+
+  if (loadFailed) return null
+  // 单版本影片不渲染选择框：添加时已物化 multiVersion；懒加载后仅 1 个版本同样隐藏
+  if (movie.multiVersion === false) return null
+  if (versions && versions.length <= 1) return null
+
+  return (
+    <div onClickCapture={ensureLoaded}>
+      <Select
+        className="mt-1.5"
+        size="sm"
+        value={currentId}
+        placeholder={loading ? '加载清晰度...' : '选择清晰度'}
+        options={
+          versions && versions.length > 0
+            ? versions.map((v) => ({ label: v.label, value: v.id }))
+            : [
+                {
+                  label: loading ? '加载中...' : '点击加载清晰度',
+                  value: '__loading__',
+                },
+              ]
+        }
+        disabled={switching}
+        onChange={handleChange}
+        aria-label="切换影片清晰度版本"
+      />
+    </div>
   )
 }

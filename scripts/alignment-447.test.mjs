@@ -124,6 +124,7 @@ test('Emby/Jellyfin posters use the chosen server and native exception channel w
   const api = loadTs(new URL('modules/emby/embyApi.ts', root), {
     '@/lib/api': { apiFetch: () => {}, getApiUrl: () => base },
     '../../../platform/connectionTransport': transport,
+    './mediaLibraryUrl': loadTs(new URL('modules/emby/mediaLibraryUrl.ts', root), {}, { URL }),
     '@/modules/direct-link/directLinkApi': { buildProxyUrl: () => {} },
   }, { URLSearchParams })
   for (const scheme of ['http', 'https']) for (const kind of ['emby', 'jellyfin']) {
@@ -132,11 +133,11 @@ test('Emby/Jellyfin posters use the chosen server and native exception channel w
     assert.equal(url.origin, `${scheme}://selected.example`)
     assert.equal(url.pathname, `/base/api/${kind}/mounts/7/image`)
     assert.equal(url.searchParams.get('itemId'), 'item/a?'); assert.equal(url.searchParams.get('tag'), 'tag/?')
-    assert.deepEqual([...url.searchParams.keys()], ['itemId', 'tag', 'maxWidth'])
+    assert.deepEqual([...url.searchParams.keys()].sort(), ['itemId', 'maxWidth', 'tag'])
   }
   transport.bindConnectionTransport(base, 'http://127.0.0.1:9988/private/base')
   assert.ok(api.buildEmbyImageUrl(7, 'a', 'b', 'jellyfin').startsWith('http://127.0.0.1:9988/private/base/api/jellyfin/'))
-  assert.equal(api.buildEmbyImageUrl(7, 'a'), null)
+  assert.equal(new URL(api.buildEmbyImageUrl(7, 'a')).searchParams.has('tag'), false)
 })
 test('native back consumes the top panel first and disposes handlers independently', () => {
   const stack = loadTs(new URL('components/ui/overlayBack.ts', root)), events = []

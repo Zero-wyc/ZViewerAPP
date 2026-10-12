@@ -1,3 +1,4 @@
+import { lockBodyScroll } from './bodyScrollLock'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Maximize, Minimize } from 'lucide-react'
@@ -71,19 +72,7 @@ export function Modal({
   // Modal 打开期间锁定 body 滚动，避免滚轮穿透到底层页面
   useEffect(() => {
     if (!visible) return
-    const prevOverflow = document.body.style.overflow
-    const prevPaddingRight = document.body.style.paddingRight
-    document.body.style.overflow = 'hidden'
-    // 补偿滚动条消失后的宽度跳变
-    const scrollbarWidth =
-      window.innerWidth - document.documentElement.clientWidth
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`
-    }
-    return () => {
-      document.body.style.overflow = prevOverflow
-      document.body.style.paddingRight = prevPaddingRight
-    }
+    return lockBodyScroll()
   }, [visible])
 
   useEffect(() => {

@@ -78,16 +78,16 @@ test('API origin and path prefix are exact; source credentials never become clie
  assert.ok(proxy.searchParams.get('url').startsWith('https://cdn.example/'))
 })
 
-test('a host accepts a permitted viewer selection while preserving recovery against stale null; viewers accept clear',()=>{
+test('host and viewers accept explicit clear; clear invalidates old recovery and asynchronous media loads',()=>{
  const code=read('modules/room/watch-together/useWatchTogether.ts')
  const start=code.indexOf('const handleCurrentMovie ='),end=code.indexOf('// 观众端：',start)
  const exports={},state={currentMovieId:1},isHostRef={current:true}
  runInNewContext(stripTypeScriptTypes(code.slice(start,end))+';exports.receive=handleCurrentMovie',{
-  exports,isHostRef,useRoomStore:{getState:()=>state},setCurrentMovieId:id=>{state.currentMovieId=id}
+  exports,isHostRef,initialPlaybackRef:{current:{}},loadSeqRef:{current:1},downloadAbortRef:{current:{abort:()=>{}}},useRoomStore:{getState:()=>state},setCurrentMovieId:id=>{state.currentMovieId=id}
  })
  exports.receive({movieId:2});assert.equal(state.currentMovieId,2)
 
- exports.receive({movieId:null});assert.equal(state.currentMovieId,2)
+ exports.receive({movieId:null});assert.equal(state.currentMovieId,null)
  isHostRef.current=false;exports.receive({movieId:null});assert.equal(state.currentMovieId,null)
 
  isHostRef.current=true;exports.receive({movieId:3});assert.equal(state.currentMovieId,3)

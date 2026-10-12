@@ -6,7 +6,11 @@
 
 [下载安装包](https://github.com/Zero-wyc/ZViewerAPP/releases/latest) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md)
 
-## 当前版本
+## 当前本地开发版本
+
+**Android / HarmonyOS 1.7.4 / 174** 已完成本地适配与签名构建，目标服务端 **v4.5.1**，提交 `c8fa5bad0c6efcffbc0dc3bfe4c199f8a9b8d8f6`。新增共享番剧选集与认证海报、媒体库搜索/整剧整季/多版本、一键清空和搜索多 P；保留 1.7.3 图片、全选、放大及移动端播放边界。用户要求排除公告。安装包和校验文件位于 `release/client-v1.7.4-test1/`；[验证记录](docs/client-v1.7.4-alignment-451-validation-20261012.md)说明模拟器与用户设备验收边界。尚未远端发布；以下表格描述既有正式发行。
+
+## 当前正式发行
 
 | 平台 | 版本 | 说明 |
 | --- | --- | --- |

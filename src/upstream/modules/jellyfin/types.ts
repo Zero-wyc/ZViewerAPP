@@ -42,12 +42,19 @@ export interface JellyfinDirectoryEntry {
   type: 'file' | 'directory'
   /** Jellyfin 条目类型（CollectionFolder/Series/Season/Movie/Episode/Video） */
   embyType?: string
+  indexNumber?: number
+  parentIndexNumber?: number
+  duration?: number
+  filePath?: string
+  recursiveItemCount?: number
   childCount?: number
   imageTag?: string
   productionYear?: number
 }
 
 export interface JellyfinResolvedSource {
+  versions?: import('../emby/types').EmbyVersionInfo[]
+  mediaSourceId?: string
   title: string
   videoUrl: string
   /** 直连 URL（浏览器可直连 Jellyfin 时使用） */
@@ -60,4 +67,6 @@ export interface JellyfinResolvedSource {
   needsAudioTranscode?: boolean
   /** 音轨不兼容但管理后台音频转码开关关闭，浏览器可能无声 */
   audioTranscodeDisabled?: boolean
+  /** 是否存在多版本（多个 MediaSource）；单版本时前端不渲染清晰度选择框 */
+  multiVersion?: boolean
 }

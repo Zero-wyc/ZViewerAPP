@@ -76,6 +76,8 @@ const DEFAULT_SETTINGS: SystemSettings = {
   dataSourceConfig: null,
 }
 
+let settingsRevision = 0
+
 export const useSystemSettingsStore = create<SystemSettingsState>(
   (set, get) => ({
     ...DEFAULT_SETTINGS,
@@ -83,6 +85,7 @@ export const useSystemSettingsStore = create<SystemSettingsState>(
     fetched: false,
     fetchSettings: async () => {
       if (get().loading || get().fetched) return
+      const revision = settingsRevision
       set({ loading: true })
       try {
         // 公开接口：所有用户（含 guest）均可访问，仅返回非敏感字段。
@@ -93,7 +96,7 @@ export const useSystemSettingsStore = create<SystemSettingsState>(
           settings?: Partial<SystemSettings>
           message?: string
         }>(res, { success: false })
-        if (data.success && data.settings) {
+        if (revision === settingsRevision && res.ok && data.success && data.settings) {
           set({
             ...DEFAULT_SETTINGS,
             ...data.settings,
@@ -103,10 +106,11 @@ export const useSystemSettingsStore = create<SystemSettingsState>(
       } catch (err) {
         console.error('[systemSettingsStore] fetch settings error:', err)
       } finally {
-        set({ loading: false })
+        if (revision === settingsRevision) set({ loading: false })
       }
     },
     fetchAdminSettings: async () => {
+      const revision = settingsRevision
       set({ loading: true })
       try {
         const res = await apiFetch('/api/admin/settings')
@@ -115,7 +119,7 @@ export const useSystemSettingsStore = create<SystemSettingsState>(
           settings?: Partial<SystemSettings>
           message?: string
         }>(res, { success: false })
-        if (data.success && data.settings) {
+        if (revision === settingsRevision && res.ok && data.success && data.settings) {
           set({
             ...DEFAULT_SETTINGS,
             ...data.settings,
@@ -125,10 +129,10 @@ export const useSystemSettingsStore = create<SystemSettingsState>(
       } catch (err) {
         console.error('[systemSettingsStore] fetch admin settings error:', err)
       } finally {
-        set({ loading: false })
+        if (revision === settingsRevision) set({ loading: false })
       }
     },
-    invalidate: () => set({ fetched: false }),
+    invalidate: () => { ++settingsRevision; set({ ...DEFAULT_SETTINGS, fetched: false, loading: false }) },
   })
 )
 

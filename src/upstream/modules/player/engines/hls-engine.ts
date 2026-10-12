@@ -12,6 +12,9 @@ import Hls from 'hls.js'
 import { getApiUrl } from '@/lib/api'
 import { readHlsProxySource, buildHlsProxyRequest, isServerApiUrl } from '../services/hls-proxy'
 import { connectionUrl, logicalConnectionUrl } from '../../../../platform/connectionTransport'
+import { getEmbyApiMovieSource } from '@/modules/emby/embyApi'
+import { resolveLibraryHlsProxySource, inheritLibraryHlsQuery } from '../services/library-hls-proxy'
+import type { HlsProxySource } from '../services/hls-proxy'
 import type { PlayerEngine, PlayerSource, EngineAttachResult } from '../types'
 import { resetVideoElement, waitForMetadata } from '../utils'
 import {
@@ -37,12 +40,12 @@ function canPlayNativeHls(video: HTMLVideoElement): boolean {
  * 关键：加载完成后需恢复 context.url 与 response.url 为原始 URL，
  * 否则 hls.js 会基于代理 URL 解析 m3u8 中的相对路径 ts 分片，导致拼接错误。
  */
-function createProxyLoader(sourceUrl: string, headers?: Record<string, string>) {
+function createProxyLoader(sourceUrl: string, headers?: Record<string, string>, libraryProxy?: HlsProxySource | null) {
   const BaseLoader = Hls.DefaultConfig.loader
   const logicalUrl = logicalConnectionUrl
   const transportUrl = connectionUrl
   const apiBase = getApiUrl()
-  const proxySource = readHlsProxySource(logicalUrl(sourceUrl), apiBase)
+  const proxySource = libraryProxy || readHlsProxySource(logicalUrl(sourceUrl), apiBase)
 
   return class ProxyLoader extends BaseLoader {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -50,7 +53,9 @@ function createProxyLoader(sourceUrl: string, headers?: Record<string, string>) 
       const originalUrl = context.url
       const logical = logicalUrl(originalUrl)
       const proxyRequest = readHlsProxySource(logical, apiBase)
-      const manifestBaseUrl = proxyRequest?.url ?? logical
+      const manifestBaseUrl = libraryProxy && logical === logicalUrl(sourceUrl)
+        ? libraryProxy.url
+        : libraryProxy ? inheritLibraryHlsQuery(proxyRequest?.url ?? logical, libraryProxy.url) : proxyRequest?.url ?? logical
       if (isServerApiUrl(logical, apiBase) || isLocalUrl(logical) || isRelativeUrl(logical)) {
         // Includes Kazumi/AniSubs proxies: never proxy our own authenticated API.
         context.url = transportUrl(originalUrl)
@@ -154,10 +159,17 @@ export const hlsEngine: PlayerEngine = {
     // 可利用 ProxyLoader 拦截跨域请求。仅当 hls.js 不支持时（如 iOS Safari
     // 不支持 MSE）才回退到原生 HLS。
     if (Hls.isSupported()) {
+      // Resolve by room movie ID for both host and viewers; upstream credentials
+      // stay inside this loader and never enter room state or Movie.url.
+      const libraryProxy = await resolveLibraryHlsProxySource(
+        logicalConnectionUrl(targetUrl), logicalConnectionUrl(getApiUrl()),
+        (api, movieId, version) => getEmbyApiMovieSource(api, movieId, version, source.signal)
+      )
+      source.signal?.throwIfAborted()
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        loader: createProxyLoader(targetUrl, source.headers),
+        loader: createProxyLoader(targetUrl, source.headers, libraryProxy),
         // 内存控制：hls.js 默认 maxMaxBufferLength=600s、backBufferLength=Infinity——
         // 已播数据永不清理，长视频播放 1-2 小时后 MSE SourceBuffer 累积到 GB 级内存。
         // 前向缓冲 30s 保证平滑，硬上限 120s 兜底极低码率，已播仅保留 90s

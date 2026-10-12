@@ -73,6 +73,8 @@ export interface Movie {
   playsvideoEnabled?: boolean
   /** 仅允许 CLI 模式（B站 番剧/影视）：全房间必须各自连接 CLI 观看，服务器零媒体流量 */
   cliOnly?: boolean
+  /** Emby/Jellyfin 专属：是否存在多版本；false 时影片卡不渲染清晰度选择框 */
+  multiVersion?: boolean
   // 以下为前端解析得到的临时字段（不持久化到后端）
   cid?: number
   duration?: number
@@ -120,6 +122,10 @@ export interface MovieDto {
         duration: number
         epId?: number
         badge?: string
+        /** Emby/Jellyfin 剧集卡：分集 itemId（切集解析用） */
+        path?: string
+        /** Emby/Jellyfin 剧集卡：分集所属挂载 ID */
+        mountId?: number
       }[]
     | null
   currentPage: number | null
@@ -131,6 +137,8 @@ export interface MovieDto {
   playsvideoEnabled?: boolean
   /** 仅允许 CLI 模式（B站 番剧/影视）：全房间必须各自连接 CLI 观看 */
   cliOnly?: boolean
+  /** Emby/Jellyfin 专属：是否存在多版本；false 时不渲染清晰度选择框 */
+  multiVersion?: boolean
   /** ani-subs 番剧源元数据（仅 source='anime' 时有值） */
   sourceMeta: AniSubsSourceMeta | null
   order: number
@@ -153,6 +161,7 @@ export function mapDtoToMovie(dto: MovieDto): Movie {
     directLink: dto.directLink,
     playsvideoEnabled: dto.playsvideoEnabled !== false,
     cliOnly: dto.cliOnly === true,
+    multiVersion: dto.multiVersion === true,
     audioUrl: dto.audioUrl ?? undefined,
     format: (dto.format as Movie['format']) ?? undefined,
     videoCodec: dto.videoCodec ?? undefined,
@@ -362,6 +371,10 @@ interface RoomState {
             duration: number
             epId?: number
             badge?: string
+            /** Emby/Jellyfin 剧集卡：分集 itemId（切集解析用） */
+            path?: string
+            /** Emby/Jellyfin 剧集卡：分集所属挂载 ID */
+            mountId?: number
           }[]
         | null
       currentPage?: number
@@ -370,6 +383,8 @@ interface RoomState {
       username?: string
       password?: string
       directLink?: boolean
+      /** Emby/Jellyfin 专属：是否存在多版本；false 时不渲染清晰度选择框 */
+      multiVersion?: boolean
       /** 影片级浏览器播放引擎（playsvideo）开关：false 时强制原生直连播放 */
       playsvideoEnabled?: boolean
       sourceMeta?: AniSubsSourceMeta | null
@@ -400,6 +415,10 @@ interface RoomState {
             duration: number
             epId?: number
             badge?: string
+            /** Emby/Jellyfin 剧集卡：分集 itemId（切集解析用） */
+            path?: string
+            /** Emby/Jellyfin 剧集卡：分集所属挂载 ID */
+            mountId?: number
           }[]
         | null
       currentPage?: number
@@ -411,9 +430,12 @@ interface RoomState {
       sourceMeta?: AniSubsSourceMeta | null
       /** 仅允许 CLI 模式（B站 番剧/影视） */
       cliOnly?: boolean
+      multiVersion?: boolean
     }
   ) => Promise<void>
   removeMovie: (roomId: string, movieId: number) => Promise<void>
+  clearMovies: (roomId: string) => Promise<void>
+  roomSessionRevision: number
   autoContinueRevision: number
   autoContinueEnabled: boolean
   setAutoContinueEnabled: (enabled: boolean) => void
@@ -421,6 +443,7 @@ interface RoomState {
 }
 
 const defaultState = {
+  roomSessionRevision: 0,
   autoContinueRevision: 0,
   autoContinueEnabled: false,
   roomId: '',
@@ -471,7 +494,7 @@ const defaultState = {
 export const useRoomStore = create<RoomState>((set, get) => ({
   ...defaultState,
   setAutoContinueEnabled: (enabled) => set(state => ({ autoContinueEnabled: enabled, autoContinueRevision: state.autoContinueRevision + 1 })),
-  setRoomId: (id) => set({ roomId: id, ...(id !== get().roomId ? { autoContinueEnabled: false } : {}) }),
+  setRoomId: (id) => set({ roomId: id, roomSessionRevision: get().roomSessionRevision + 1, ...(id !== get().roomId ? { autoContinueEnabled: false } : {}) }),
   setRoomName: (name) => set({ roomName: name }),
   setModerators: (moderators) => set({ moderators }),
   setPassword: (password) => set({ password }),
@@ -574,13 +597,13 @@ export const useRoomStore = create<RoomState>((set, get) => ({
     set((state) => ({ autoApproveRequests: !state.autoApproveRequests })),
   setActiveRoomId: (id) => set({ activeRoomId: id }),
   exitRoom: () => {
-    set({ ...defaultState })
+    set({ ...defaultState, roomSessionRevision: get().roomSessionRevision + 1 })
     // 离开房间时同步重置一起听模块状态（队列/播放镜像/提示等），
     // 避免进入下一个房间时残留上一房间的音乐状态
     useMusicStore.getState().reset()
   },
   reset: () => {
-    set({ ...defaultState })
+    set({ ...defaultState, roomSessionRevision: get().roomSessionRevision + 1 })
     // 同上：roomStore 重置（切换房间/创建新房间）时联动清理音乐状态
     useMusicStore.getState().reset()
   },
@@ -588,6 +611,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   // REST API 调用：成功后由后端 socket 广播 movie-list 刷新本地 state；
   // 失败时抛出错误，调用方负责提示用户且不更新本地 state。
   fetchMovies: async (roomId) => {
+    const revision = get().roomSessionRevision
     const res = await apiFetch(
       `/api/rooms/${encodeURIComponent(roomId)}/movies`
     )
@@ -599,11 +623,14 @@ export const useRoomStore = create<RoomState>((set, get) => ({
     if (!res.ok || !data.success || !Array.isArray(data.movies)) {
       throw new Error(data.message || '获取影片列表失败')
     }
-    set({ movies: data.movies.map(mapDtoToMovie) })
+    if (get().roomId === roomId && get().roomSessionRevision === revision) {
+      set({ movies: data.movies.map(mapDtoToMovie) })
+    }
   },
 
   addMovie: async (roomId, payload) => {
     payload = { ...payload, url: unwrapCliProxyUrl(payload.url), audioUrl: payload.audioUrl ? unwrapCliProxyUrl(payload.audioUrl) : undefined }
+    const context = get()
     const res = await apiFetch(
       `/api/rooms/${encodeURIComponent(roomId)}/movies`,
       {
@@ -646,6 +673,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   },
 
   removeMovie: async (roomId, movieId) => {
+    const revision = get().roomSessionRevision
     const res = await apiFetch(
       `/api/rooms/${encodeURIComponent(roomId)}/movies/${movieId}`,
       {
@@ -658,11 +686,17 @@ export const useRoomStore = create<RoomState>((set, get) => ({
     if (!res.ok || !data.success) {
       throw new Error(data.message || '删除影片失败')
     }
-    // 后端 REST 删除不会广播 current-movie 事件，需要本地清理
-    if (get().currentMovieId === movieId) {
-      set({ currentMovieId: null })
+    if (get().roomId === roomId && get().roomSessionRevision === revision && get().currentMovieId === movieId) set({ currentMovieId: null })
+  },
+
+  clearMovies: async (roomId) => {
+    const revision = get().roomSessionRevision
+    const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/movies`, { method: 'DELETE' })
+    const data = await parseResponse<{ success: boolean; removed?: number; message?: string }>(res)
+    if (!res.ok || !data.success) throw new Error(data.message || (res.status === 404 ? '当前服务端不支持清空片单，请升级服务端' : '清空影片失败'))
+    if (get().roomId === roomId && get().roomSessionRevision === revision) {
+      set({ movies: [], currentMovieId: null, pendingQualityChange: null, viewerCliResolvedSource: null, autoContinueRevision: get().autoContinueRevision + 1, watchTogether: { ...get().watchTogether, isPlaying: false, sourceUrl: '' } })
     }
-    // movies 列表由后端广播 movie-list 事件刷新
   },
 
   reorderMovies: async (roomId, orderedIds) => {

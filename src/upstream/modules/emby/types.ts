@@ -38,10 +38,15 @@ export interface EmbyTestResult {
 export interface EmbyDirectoryEntry {
   name: string
   path: string
-  /** file = 可播放条目（电影/单集），directory = 可继续浏览（媒体库/剧集/季） */
+  /** file = 可播放条目（电影/单集/剧集），directory = 可继续浏览（媒体库/季） */
   type: 'file' | 'directory'
   /** Emby 条目类型（CollectionFolder/Series/Season/Movie/Episode/Video） */
   embyType?: string
+  indexNumber?: number
+  parentIndexNumber?: number
+  duration?: number
+  filePath?: string
+  recursiveItemCount?: number
   childCount?: number
   imageTag?: string
   productionYear?: number
@@ -60,4 +65,21 @@ export interface EmbyResolvedSource {
   needsAudioTranscode?: boolean
   /** 音轨不兼容但管理后台音频转码开关关闭，浏览器可能无声 */
   audioTranscodeDisabled?: boolean
+  /** 是否存在多版本（多个 MediaSource）；单版本时前端不渲染清晰度选择框 */
+  multiVersion?: boolean
+  /** 多版本（多清晰度）列表（单版本时也返回，仅一项） */
+  versions?: EmbyVersionInfo[]
+  /** 当前选中版本的 MediaSource.Id */
+  mediaSourceId?: string
+}
+
+/** Emby/Jellyfin 影片版本条目（多清晰度/多版本选择用） */
+export interface EmbyVersionInfo {
+  /** MediaSource.Id（切换版本时回传 ms 参数） */
+  id: string
+  /** 展示标签，如 `1080P · MKV · 12.3GB` */
+  label: string
+  height?: number
+  size?: number
+  container?: string
 }
