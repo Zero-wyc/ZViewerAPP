@@ -1,6 +1,21 @@
 # iOS 客户端维护架构
 
-更新日期：2026-10-03。指定修改和 Git 仓库为 `E:/Codex-bulid/ZViewer/ZViewer-client`，iOS 工程位于 `ZV-iOS/`。当前 iOS 源码及 Release 版本为 **1.5.1**；本次未重新触发 Expo/EAS 构建，安装包复用 **1.5.0 / build 16**。IPA 内部版本仍为 1.5.0，不能将 Release 版本称为安装包内部版本；构建状态及摘要见本文末尾的交付记录。旧 b12/b15 的继续开发、预览和验收记录保留历史含义，不能替代本版本验收。
+更新日期：2026-10-12。指定修改和 Git 仓库为 `E:/Codex-bulid/ZViewer/ZViewer-client`，iOS 工程位于 `ZV-iOS/`。当前为 **1.5.1 源码上的下一版预览候选**，对照 Android/HarmonyOS 1.7.5 与服务端 v4.5.1 更新；应用版本/buildNumber 暂未递增。按用户要求只启动 Expo，不运行 EAS、prebuild、原生构建或 IPA 打包。已发布安装包仍是 **1.5.0 / build 16**，不包含本轮新增原生能力。当前实现与验证边界见 [2026-10-12 预览记录](releases/ios-next-preview-2026-10-12.md)；下方 build 12/15/16 和 1.5.1 发布记录保留历史含义。
+
+## 2026-10-12：下一版源码与 Expo 预览
+
+- 界面保留现有 RN 导航、主题、房间页签及 VLC 控件，入口名称/选集/片单行为对齐双端。长片名完整换行，来源菜单滚动且受屏幕宽度约束。
+- `MediaLibraryPicker` / `mediaLibrary.ts` 提供 Emby/Jellyfin 搜索、目录、逐集多选和整部/整季卡；`MovieSourceSettings` 根据真实 page.path/mountId 切集，根据服务端 MediaSourceId 切版本。房间持久化代理流为 movieId 身份，观众不依赖房主自己的挂载。
+- `SourcePoster` 外站直连失败后用服务端图片代理；媒体库图仅对选定服务器发送认证请求，再交给 Image 受限 data URI。取消旧请求，不把凭据放进图片 URL。
+- PGC 支持 ep/ss 输入、搜索番剧/影视、结果内选 P、整部多 P 卡及原生 ep/season/page/cid 桥接。cliOnly/PGC 在服务端回退前门控；每台设备独立登录和解析。服务器创建接口不物化 cliOnly 时，客户端按已有 PUT 合同补写该标记。
+- `canClearMovies` 区分 root/创建房间的 admin 与实时 host，清空二次确认、单次 DELETE、广播/权威刷新，current-movie null 立即暂停并停源。`useRoomPermissions` 的观众切片按公开权限矩阵走 play-movie Socket，观众不广播房主状态；排序和 REST 编辑权限另行判断。
+- 自动续播设置按服务器/账号/房间保存，房主读最新片单切下一条，末项停播。网易云 401 不清本站会话；补 Cookie 登录/主动复制、默认来源页、B站队列末尾推荐续播与一起听房间讨论，保留 FM/回执规则。
+- 本地弹幕补 dandanplay/protobuf JSON、5 MiB UTF-8 / 20000 条限制及请求体检查；在线连续添加不关面板，已添加标记来自房间实际轨道。PGS 同步保留经 PNG 签名/尺寸/坐标/总量校验的 bitmap，在视频内容画布比例内显示，仍与原生字幕互斥。
+- 连接页增加自动/自定义完整 URL。新的 `serverProbe` 使用 Go 的无凭据探测；仅 tls_unavailable 明文证据且同端口 HTTP 确认成功时回退，证书错误不降级。旧包/Expo Go 无桥时只做 HTTPS 探测，并允许明确填写完整 HTTP 地址。Socket.IO 使用 origin + 显式 prefix/socket.io 传输路径，避免把路径前缀误当 namespace。
+
+LiveKit 固定 `@livekit/react-native` 3.0.0、`@livekit/react-native-webrtc` 144.2.0、插件 1.0.3、`livekit-client` 2.22.3。ScreenShare 同步使用该 WebRTC 包，依赖树移除原 `react-native-webrtc`。新 `voicePermission` / `voiceSessionActive` 桥负责许可及 VLC 音频会话共存标记，不启动旧语音采集。Expo Go/旧开发包缺少新模块时仍可打开界面。
+
+自签证书例外的完整 REST/Socket/Image/VLC 传输通道、原生音频中断与跨端听音、媒体库真实 HLS/Range/seek、PGC 会员正片、VLC ASS/PGS 本机解码、后台独立业务 Socket 尚未完成本轮设备验收。证书例外通道和后台 Socket 仍为独立待实施项。源码和 JS bundle 检查不替代原生构建及设备验证。
 
 ## 1. 工程与运行边界
 
@@ -18,7 +33,7 @@ Expo SDK 57、React 19.2.3、React Native 0.86.3、Expo Router；最低 iOS 16.4
 | 字幕/弹幕 | `PlaybackControls.tsx`、`Subtitles.tsx`、`subtitleParser.ts`、`subtitleSync.ts`、`Danmaku.tsx`、`DanmakuManager.tsx` | 播放设置页签、原生字幕选择、文本字幕同步、弹幕导入/显示 |
 | 一起听 | `MusicPanel.tsx`、`musicSyncReceipt.ts`、`MusicLibrary.tsx`、`musicCollection.ts`、`personalFm.ts`、`usePersonalFm.ts` | 音乐发现/队列/歌词、完整歌单、持续漫游、同步回执 |
 | 系统媒体 | `useSystemMedia.ts`、`modules/zviewer-native/ios/ZVSystemMedia.swift` | 锁屏/控制中心信息及操作、原生 VLC 通知桥 |
-| 语音/投屏 | `VoicePanel.tsx`、`voiceBinding.ts`、`voiceProtocol.ts`、`ScreenShare.tsx` | 独立语音连接、Opus/PCM、共享观看 WebRTC 和 OBS 流媒体 |
+| 语音/投屏 | `VoicePanel.tsx`、`livekitProtocol.ts`、`ScreenShare.tsx` | LiveKit token/identity、管理 REST、共享 WebRTC SDK 和 OBS 流媒体 |
 
 Expo Go 和 Web 仅用于界面/业务验证，不包含 VLC、本机 B 站或自定义语音模块；不能用预览中的“原生模块不可用”代表安装包解码失败。
 
@@ -71,7 +86,7 @@ build 16 的 `MusicSyncReceipt` 按服务器、用户、房间、Socket 连接 I
 
 - `ZViewerNativeModule.swift`：JS/原生接口。
 - `ZVBiliBridge`：共享 Go B 站实现的 ARM64 XCFramework 桥接。
-- `ZVVoiceCodec`：AVAudioEngine 语音处理、Opus 1.6.1 编解码及旧版 PCM 接收。加入默认静音，后台/中断停止采集，离房释放连接和引擎。
+- 房间语音已改为 LiveKit RN：`/api/voice/token` 返回 URL/token，`/mute`、`/kick` 管理 identity，SDK 负责轨道与重连。旧 `ZVVoiceCodec` 和原生兼容引擎暂留构建链，但当前房间页面不再调用旧 PCM/Opus Socket 媒体流；后续原生验证后再独立移除。加入只听，主动开启麦克风才请求权限；管理员解禁不自动打开用户关闭的麦克风。
 - `ZVSystemMedia.swift`：Now Playing、远程控制及命令队列。`UIBackgroundModes` 包含 audio。
 
 系统媒体控件/后台音频声明不等于 JS 完全挂起时房间业务持续运行。独立原生业务 Socket（旧计划 I13）的长期心跳、切歌/审批仍未闭环；蓝牙、来电、后台、弱网及 Android/鸿蒙互通需要设备矩阵验证。本轮没有扩大此前 UI 验收为完整音视频/语音验收。
@@ -91,7 +106,7 @@ python scripts/check-ass-media.py "E:/Codex-bulid/ZViewer/TEST视频/败犬女�
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-ios-unsigned.ps1
 ```
 
-`unsigned-device` 是当前可复现的设备构建 profile。构建脚本在本仓库暂存 9 个共享 Go 来源及摘要；macOS EAS worker 校验固定 Go/Opus 下载摘要，构建 Bilicore/Opus 并执行编解码 smoke，CNG 应用 config plugins，安装 Pods 后以 iphoneos ARM64 Release 构建并打包内置 JS 的未签名 IPA。旧 simulator/development profile 没有相同 vendor 准备步骤，不能直接当作已可用的设备构建替代品。
+`unsigned-device` 是当前可复现的设备构建 profile。构建脚本在本仓库按 `scripts/native-core-baseline.json` 暂存 12 个共享 Go 来源/模块/许可文件及摘要；基线锁定 `40471c9eecc7c3651908dc027388480895a94ec3`，逐文件哈希、Git 内容及文件清单均必须一致。`--verify-only` 只验证来源，不构建；macOS EAS worker 校验固定 Go/Opus 下载摘要，构建 Bilicore/Opus 并执行编解码 smoke，CNG 应用 config plugins，安装 Pods 后以 iphoneos ARM64 Release 构建并打包内置 JS 的未签名 IPA。旧 simulator/development profile 没有相同 vendor 准备步骤，不能直接当作已可用的设备构建替代品。
 
 ```powershell
 python scripts/inspect-unsigned-ipa.py <IPA绝对路径>

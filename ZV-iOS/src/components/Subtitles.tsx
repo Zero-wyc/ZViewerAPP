@@ -1,6 +1,6 @@
 import { useAppearance } from '@/state/appearance';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Switch, Text, View } from 'react-native';
+import { Image, StyleSheet, Switch, Text, View } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { useSession } from '@/state/session';
 import type { VlcPlayer } from '@/lib/vlcPlayer';
@@ -41,11 +41,15 @@ export function useSubtitles(roomId: string, player: VlcPlayer, host: boolean, r
 }
 export function SubtitleOverlay({ subtitles, player }: { subtitles: ReturnType<typeof useSubtitles>; player: VlcPlayer }) {
   const theme = useAppearance();
+  const [bounds, setBounds] = useState({ width: 0, height: 0 });
 
   const [time, setTime] = useState(0); useEffect(() => { const subscription = player.addListener('timeUpdate', value => setTime(value.currentTime)); return () => { subscription.remove(); }; }, [player]);
   const { state } = subtitles; const track = state.tracks[state.activeIndex]; if (!state.enabled || !track || player.mediaSettings.subtitleUri || (player.mediaSettings.tracks.subtitle ?? -1) >= 0) return null;
   const cues = activeCues(track.cues, time - state.offset);
-  return <View pointerEvents="none" style={[StyleSheet.absoluteFill, { justifyContent: 'flex-end', alignItems: 'center', padding: 16, paddingBottom: 25 }]}>{cues.map((cue, index) => <Text key={index} style={{ color: theme.color('#fff', 'color'), backgroundColor: theme.color('#0006', 'backgroundColor'), fontSize: state.fontSize, textAlign: cue.align || 'center', textShadowColor: '#000', textShadowOffset: { width: state.strokeWidth, height: state.strokeWidth }, textShadowRadius: state.shadowBlur, maxWidth: '95%', ...(cue.line === undefined ? { transform: [{ translateX: state.shiftX * 3 }, { translateY: state.shiftY * 2 }] } : { position: 'absolute', top: `${cue.line}%`, left: `${Math.max(0, Math.min(90, (cue.position || 50) - 30))}%` }) }}>{subtitleText(cue.text)}</Text>)}</View>;
+  return <View pointerEvents="none" onLayout={event => setBounds(event.nativeEvent.layout)} style={[StyleSheet.absoluteFill, { justifyContent: 'flex-end', alignItems: 'center', padding: 16, paddingBottom: 25 }]}>{cues.map((cue, index) => {
+    if (cue.bitmap) { const bitmap = cue.bitmap; const scale = Math.min(bounds.width / bitmap.canvasWidth, bounds.height / bitmap.canvasHeight); return <Image key={index} source={{ uri: bitmap.src }} resizeMode="stretch" style={{ position: 'absolute', left: (bounds.width - bitmap.canvasWidth * scale) / 2 + bitmap.x * scale, top: (bounds.height - bitmap.canvasHeight * scale) / 2 + bitmap.y * scale, width: bitmap.width * scale, height: bitmap.height * scale }} />; }
+    return <Text key={index} style={{ color: theme.color('#fff', 'color'), backgroundColor: theme.color('#0006', 'backgroundColor'), fontSize: state.fontSize, textAlign: cue.align || 'center', textShadowColor: '#000', textShadowOffset: { width: state.strokeWidth, height: state.strokeWidth }, textShadowRadius: state.shadowBlur, maxWidth: '95%', ...(cue.line === undefined ? { transform: [{ translateX: state.shiftX * 3 }, { translateY: state.shiftY * 2 }] } : { position: 'absolute', top: `${cue.line}%`, left: `${Math.max(0, Math.min(90, (cue.position || 50) - 30))}%` }) }}>{subtitleText(cue.text)}</Text>;
+  })}</View>;
 }
 export function SubtitlePanel({ subtitles }: { subtitles: ReturnType<typeof useSubtitles> }) {
   const theme = useAppearance();

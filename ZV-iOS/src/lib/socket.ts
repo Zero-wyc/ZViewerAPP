@@ -1,8 +1,11 @@
 import { io, type Socket } from 'socket.io-client';
 import type { Session } from '@/lib/server';
+import { socketEndpoint } from './socketEndpoint';
 
 export function openSocket(session: Session): Socket {
-  return io(session.serverUrl, {
+  const endpoint = socketEndpoint(session.serverUrl);
+  return io(endpoint.origin, {
+    path: endpoint.path,
     transports: ['websocket', 'polling'],
     reconnection: true,
     withCredentials: true,

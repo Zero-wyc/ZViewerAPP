@@ -1,5 +1,5 @@
 import { useAppearance } from '@/state/appearance';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSession } from '@/state/session';
@@ -15,6 +15,7 @@ import { MountManager } from './MountManager';
 import { SourceDropdown } from './SourceDropdown';
 import { EpisodePicker } from './EpisodePicker';
 import { Surface } from './Surface';
+import { MediaLibraryPicker } from './MediaLibraryPicker';
 
 type Entry = { name: string; path: string; type: string };
 type Location = { kind: string; id?: number; path?: string; serverUrl?: string; name: string };
@@ -30,12 +31,14 @@ export function SourcePicker({ visible, onClose, onAdd }: { visible: boolean; on
 
   const { request, session } = useSession();
   const [sourceType, setSourceType] = useState('mp4');
+  const [animeKeyword, setAnimeKeyword] = useState('');
   const [childBusy, setChildBusy] = useState(false);
   const [biliUrl, setBiliUrl] = useState(''); const [bili, setBili] = useState<BiliMedia | null>(null);
   const [title, setTitle] = useState(''); const [url, setUrl] = useState('');
   const [audioUrl, setAudioUrl] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const [locations, setLocations] = useState<Location[]>([]); const [entries, setEntries] = useState<Entry[]>([]);
   const [history, setHistory] = useState<Location[]>([]); const version = useRef(0);
+  useEffect(() => { const invalidate = () => { ++version.current; }; invalidate(); return invalidate; }, [visible, session?.serverUrl, session?.user.id]);
   const location = history.at(-1);
   const task = async (work: () => Promise<void>) => { setBusy(true); setError(''); try { await work(); } catch (failure) { setError(messageFor(failure)); } finally { setBusy(false); } };
   const roots = () => task(async () => {
@@ -84,15 +87,16 @@ export function SourcePicker({ visible, onClose, onAdd }: { visible: boolean; on
     <RoomButton label="添加到片单" disabled={busy || !url.trim()} onPress={() => void task(() => add({ title: title.trim() || '视频直链', url: url.trim(), source: 'mp4', ...(audioUrl.trim() ? { audioUrl: audioUrl.trim() } : {}) }))} />
     </> : null}
     {sourceType === 'bilibili' ? <>
-    <BiliAccount /><BiliCatalog choose={item => { const next = `https://www.bilibili.com/video/${item.bvid}${item.cid ? `?cid=${item.cid}` : ''}`; setBiliUrl(next); setTitle(item.title); setBili(null); }} />
-    <Text style={ui.title}>B站视频</Text><RoomInput placeholder="B站视频链接 / BV 号（可附分 P）" value={biliUrl} onChangeText={value => { setBiliUrl(value); setBili(null); }} autoCapitalize="none" /><RoomButton label="解析分 P" secondary disabled={busy || !biliUrl.trim()} onPress={() => void task(async () => { const next = biliSelection(biliUrl).url; setBiliUrl(next); setBili(await resolveLocalBili(next)); })} />{bili ? <><Text style={ui.muted}>{bili.title} · 当前画质 {bili.currentQn}</Text><EpisodePicker key={biliUrl} episodes={(bili.pages?.length ? bili.pages : [{ page: 1, cid: 0, part: bili.title }]).map(part => ({ id: String(part.page), title: `P${part.page} · ${part.part}` }))} disabled={busy} onAdd={async ids => {
-      const added: string[] = []; setBusy(true);
-      try { for (const id of ids) { const part = bili.pages?.find(item => String(item.page) === id) || { page: 1, cid: 0, part: bili.title }; try { const target = new URL(biliUrl); target.searchParams.set('p', String(part.page)); if (part.cid) target.searchParams.set('cid', String(part.cid)); await add({ title: `${bili.title} · ${part.part}`, url: target.toString(), source: 'bilibili' }, false); added.push(id); } catch { /* Keep failed P selections for retry. */ } } }
+    <BiliAccount /><BiliCatalog allowPgc choose={item => { const next = item.url || `https://www.bilibili.com/video/${item.bvid}${item.cid ? `?cid=${item.cid}` : ''}`; setBiliUrl(next); setTitle(item.title); setBili(null); }} />
+    <Text style={ui.title}>B站视频</Text><RoomInput placeholder="B站链接 / BV / ep / ss（视频、番剧、影视）" value={biliUrl} onChangeText={value => { setBiliUrl(value); setBili(null); }} autoCapitalize="none" /><RoomButton label="解析分 P" secondary disabled={busy || !biliUrl.trim()} onPress={() => void task(async () => { const ticket = version.current; const next = biliSelection(biliUrl).url; setBiliUrl(next); const media = await resolveLocalBili(next); if (ticket === version.current) setBili(media); })} />{bili ? <><Text style={ui.muted}>{bili.title} · 当前画质 {bili.currentQn}</Text>{bili.pages && bili.pages.length > 1 ? <RoomButton label="添加整部 / 多 P 卡" secondary disabled={busy} onPress={() => void task(async () => { const part = bili.pages?.find(item => item.page === (bili.currentPage || 1)) || bili.pages?.[0]; if (!part) return; const parsed = new URL(biliSelection(part.epId ? `ep${part.epId}` : biliUrl).url); if (part.cid) parsed.searchParams.set('cid', String(part.cid)); await add({ title: bili.title, source: 'bilibili', url: parsed.toString(), pages: bili.pages, currentPage: part.page, cid: part.cid, duration: bili.duration, cliOnly: !!part.epId || !!biliSelection(biliUrl).epId || !!biliSelection(biliUrl).seasonId }, false); })} /> : null}<EpisodePicker key={biliUrl} episodes={(bili.pages?.length ? bili.pages : [{ page: 1, cid: 0, part: bili.title }]).map(part => ({ id: String(part.page), title: `P${part.page} · ${part.part}` }))} disabled={busy} onAdd={async ids => {
+      const added: string[] = []; const ticket = version.current; setBusy(true);
+      try { for (const id of ids) { if (ticket !== version.current) break; const part = bili.pages?.find(item => String(item.page) === id) || { page: 1, cid: 0, part: bili.title }; try { const target = new URL(biliSelection(part.epId ? `ep${part.epId}` : biliUrl).url); target.searchParams.set('p', String(part.page)); if (part.cid) target.searchParams.set('cid', String(part.cid)); await add({ title: `${bili.title} · ${part.part}`, url: target.toString(), source: 'bilibili', cid: part.cid, cliOnly: !!part.epId || !!biliSelection(biliUrl).epId || !!biliSelection(biliUrl).seasonId }, false); added.push(id); } catch { /* Keep failed P selections for retry. */ } } }
       finally { setBusy(false); } return added;
     }} /></> : null}
     </> : null}
-    {['anisubs', 'anime', 'kazumi'].includes(sourceType) ? <AnimePicker key={sourceType} initialKind={sourceType} onBusyChange={setChildBusy} add={value => add(value, false)} /> : null}
-    {kinds.includes(sourceType) || sourceType === 'server-files' ? <>
+    {['anisubs', 'anime', 'kazumi'].includes(sourceType) && visible ? <AnimePicker key={`${sourceType}:${session?.serverUrl}`} initialKind={sourceType} keyword={animeKeyword} onKeywordChange={setAnimeKeyword} onBusyChange={setChildBusy} add={value => add(value, false)} /> : null}
+    {['emby', 'jellyfin'].includes(sourceType) && visible ? <><MediaLibraryPicker key={`${sourceType}:${session?.serverUrl}`} kind={sourceType as 'emby' | 'jellyfin'} add={value => add(value, false)} onBusyChange={setChildBusy} /><MountManager /></> : null}
+    {['webdav', 'ftp', 'openlist'].includes(sourceType) || sourceType === 'server-files' ? <>
     <Text style={ui.title}>媒体来源</Text><RoomButton label="服务器文件与我的挂载" disabled={busy} onPress={() => void roots()} secondary />
     {location ? <><Text style={ui.muted}>{location.name}</Text><RoomButton label="返回上一级" disabled={busy} onPress={() => { const previous = history.slice(0, -1); if (previous.length) void browse(previous.at(-1)!, previous); else { setHistory([]); setEntries([]); } }} secondary />{entries.map(entry => <RoomButton key={entry.path} label={`${entry.type === 'directory' ? '▸' : '▶'} ${entry.name}`} disabled={busy} secondary onPress={() => select(entry)} />)}</> : locations.map(item => <RoomButton key={`${item.kind}:${item.id}:${item.path}`} label={item.name} onPress={() => void browse(item)} disabled={busy} secondary />)}
     {sourceType !== 'server-files' ? <MountManager /> : null}</> : null}

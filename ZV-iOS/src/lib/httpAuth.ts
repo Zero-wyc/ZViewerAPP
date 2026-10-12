@@ -8,3 +8,5 @@ export function authenticationFailure(status: number, text: string): boolean {
     return typeof message === 'string' && /认证令牌无效或已过期|令牌已失效|token.*(?:invalid|expired)|(?:invalid|expired).*token|unauthorized/i.test(message);
   } catch { return false; }
 }
+// Third-party account failures must never retire the site's authenticated lease.
+export function shouldRefreshAuth(path: string) { return !path.startsWith('/api/music/'); }

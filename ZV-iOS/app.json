@@ -42,6 +42,7 @@
           "supportsPictureInPicture": true
         }
       ],
+      "@livekit/react-native-expo-plugin",
       "@config-plugins/react-native-webrtc",
       "./plugins/with-voice-audio.cjs",
       [

@@ -1,6 +1,10 @@
 export type PlaybackSource = {
   movieId?: number;
   cid?: number;
+  epId?: number;
+  seasonId?: number;
+  cliOnly?: boolean;
+  currentPage?: number;
   biliPolicy?: { qn: number; cliEnabled: boolean; preferMp4: boolean; dashAllowed: boolean; revision: number };
   sourceUrl: string;
   sourceType?: string;
@@ -24,11 +28,11 @@ export function nativeVideoSource(source: PlaybackSource, serverUrl: string, acc
   if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) {
     throw new Error('影片地址无效');
   }
-  if (/^(localhost\.?|127\..*|\[::1\]|\[::ffff:7f[0-9a-f]{2}:.*\])$/i.test(parsed.hostname)) {
+  const serverApi = parsed.origin === base.origin && parsed.pathname.startsWith(`${base.pathname}api/`);
+  if (!serverApi && /^(localhost\.?|127\..*|\[::1\]|\[::ffff:7f[0-9a-f]{2}:.*\])$/i.test(parsed.hostname)) {
     throw new Error('影片地址指向其他设备无法访问的本机服务');
   }
 
-  const serverApi = parsed.origin === base.origin && parsed.pathname.startsWith(`${base.pathname}api/`);
   if ((relative && !serverApi) || (sourceType === 'server-files' && !serverApi)) {
     throw new Error('服务端影片地址无效');
   }

@@ -1,4 +1,4 @@
-import { withDeadline } from './deadline';
+import { withDeadline } from './deadline.ts';
 
 export class HttpError extends Error {
   status: number;

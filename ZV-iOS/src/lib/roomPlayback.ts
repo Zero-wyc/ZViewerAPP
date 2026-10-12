@@ -26,10 +26,12 @@ export class RoomPlayback {
   }
   get waiting() { return !!this.pending && this.pending.sourceType === 'bilibili' && !this.value(); }
   get revision() { return this.identity; }
+  get currentId() { return this.movieId; }
+  movie(id: number) { return this.movies.find(movie => movie.id === id); }
   value(): Playback | null {
     const state = this.pending;
     if (!state || this.movieId === null || state.movieId != null && this.movieId != null && state.movieId !== this.movieId) return null;
-    if (state.sourceType !== 'bilibili') return state;
+    if (!['bilibili', 'emby', 'jellyfin'].includes(state.sourceType || '')) return state;
     const movie = this.movies.find(item => item.id === this.movieId);
     if (!movie) return null;
     if (state.cid && movie.cid && state.cid !== movie.cid) return null;

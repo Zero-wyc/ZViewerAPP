@@ -5,6 +5,9 @@ export type VoiceFrame = { data: string; mediaTs: number };
 export type MediaCommand = { sessionId: string; mediaId: string; action: string; value?: number };
 export type SystemMediaState = { sessionId: string; mediaId: string; kind: 'video' | 'audio'; title: string; artist?: string; album?: string; cover?: string; host: boolean; uri: string; playing: boolean; position: number; duration: number; playbackRate: number; actions: string[] };
 type Bridge = {
+  serverProbe(url: string): Promise<{ ok: boolean; code: string; status?: number }>;
+  voiceSessionActive(active: boolean): Promise<void>;
+  voicePermission(): Promise<boolean>;
   biliCancelResolve(): Promise<void>;
   mediaUpdate(state: string): Promise<void>; mediaClear(sessionId: string): Promise<void>; mediaDrain(sessionId: string): Promise<MediaCommand[]>;
   bili(operation: string, value: string): Promise<Record<string, unknown>>;

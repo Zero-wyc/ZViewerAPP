@@ -7,7 +7,9 @@ import { fetchJson, HttpError, normalizeServerUrl, type AuthUser, type Session }
 import { openSocket } from '@/lib/socket';
 import { withDeadline } from '@/lib/deadline';
 import { SessionLease } from '@/lib/sessionLease';
-import { authenticationFailure } from '@/lib/httpAuth';
+import { authenticationFailure, shouldRefreshAuth } from '@/lib/httpAuth';
+import { selectServerUrl } from '@/lib/serverDiscovery';
+import { nativeBridge } from '@/lib/nativeBridge';
 
 const SESSION_KEY = 'zviewer-ios-session';
 const SERVER_KEY = 'zviewer-ios-server';
@@ -119,7 +121,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }, 15000, init.signal);
     };
     let response = await execute(active.accessToken);
-    if (authenticationFailure(response.status, response.text)) {
+    if (shouldRefreshAuth(path) && authenticationFailure(response.status, response.text)) {
       try {
         active = await refresh(active);
         if (current.current.value !== active) throw new Error('登录状态已改变，请重试');
@@ -132,7 +134,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
     const text = response.text;
     if (!response.ok) {
-      if (authenticationFailure(response.status, text) && current.current.value === active) await update(null);
+      if (shouldRefreshAuth(path) && authenticationFailure(response.status, text) && current.current.value === active) await update(null);
       let message = ''; try { message = JSON.parse(text).message; } catch {}
       throw new HttpError(message || `请求失败 (${response.status})`, response.status);
     }
@@ -184,7 +186,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (server: string, mode: 'account' | 'guest', username = '', password = '') => {
     const lease = current.current.capture();
-    const serverUrl = normalizeServerUrl(server);
+    const serverUrl = await selectServerUrl(server, async url => {
+      if (nativeBridge?.serverProbe) return nativeBridge.serverProbe(url);
+      try { await fetchJson(`${url}/api/auth/public-settings`, { credentials: 'omit', redirect: 'error' }); return { ok: true, code: 'response' }; }
+      catch { return { ok: false, code: 'network' }; }
+    });
     if (mode === 'account' && (!username.trim() || !password)) throw new Error('请输入用户名和密码');
     const data = await fetchJson<AuthPayload>(`${serverUrl}/api/auth/${mode === 'guest' ? 'guest' : 'login'}`, {
       method: 'POST',

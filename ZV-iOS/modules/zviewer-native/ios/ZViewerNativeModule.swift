@@ -28,6 +28,20 @@ public class ZViewerNativeModule: Module {
       }
     }
     AsyncFunction("biliCancelResolve") { ZVBiliBridge.cancelResolve() }
+    AsyncFunction("serverProbe") { (url: String, promise: Promise) in
+      self.biliQueue.async { promise.resolve(ZVBiliBridge.perform("server-probe", value: url)) }
+    }
+    // LiveKit owns capture/RTC; this bridge only handles permission and VLC coexistence.
+    AsyncFunction("voicePermission") { (promise: Promise) in
+      AVAudioSession.sharedInstance().requestRecordPermission { allowed in promise.resolve(allowed) }
+    }.runOnQueue(.main)
+    AsyncFunction("voiceSessionActive") { (active: Bool) in
+      UserDefaults.standard.set(active, forKey: "ZViewerVoiceActive")
+      if !active {
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+        try? AVAudioSession.sharedInstance().setActive(true)
+      }
+    }.runOnQueue(.main)
     AsyncFunction("voiceStart") { (promise: Promise) in
       self.voiceRevision += 1; let revision = self.voiceRevision
       AVAudioSession.sharedInstance().requestRecordPermission { allowed in

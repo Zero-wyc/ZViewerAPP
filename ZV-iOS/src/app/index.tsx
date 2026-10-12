@@ -14,6 +14,7 @@ import { Surface } from '@/components/Surface';
 import { AppDialog } from '@/components/AppDialog';
 import { RoomIconButton } from '@/components/RoomUi';
 import { BiliAccount } from '@/components/BiliAccount';
+import { SourceDropdown } from '@/components/SourceDropdown';
 
 function Action({ label, onPress, disabled = false, secondary = false, inRow = false }: { label: string; onPress: () => void; disabled?: boolean; secondary?: boolean; inRow?: boolean }) {
   const theme = useAppearance();
@@ -60,6 +61,7 @@ export default function HomeScreen() {
   const { session, savedServer, restoring, socket, connected, login, logout, request } = useSession();
   const pathname = usePathname();
   const [server, setServer] = useState<string | null>(null);
+  const [connectionMode, setConnectionMode] = useState('auto');
   const [mode, setMode] = useState<'account' | 'guest'>('account');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -96,7 +98,7 @@ export default function HomeScreen() {
 
   const signIn = async () => {
     setBusy(true); setError('');
-    try { await login(server ?? savedServer, mode, username, password); setPassword(''); }
+    try { if (connectionMode === 'custom' && !/^https?:\/\//i.test((server ?? savedServer).trim())) throw new Error('自定义连接请填写包含 http:// 或 https:// 的完整地址'); await login(server ?? savedServer, mode, username, password); setPassword(''); }
     catch (failure) { setError(messageFor(failure)); }
     finally { setBusy(false); }
   };
@@ -141,12 +143,13 @@ export default function HomeScreen() {
           <Surface readable testID="connection-heading" style={{ borderRadius: theme.preferences.radius, padding: 12 }}><Text style={styles.heading}>连接服务器</Text></Surface>
           <Surface testID="login-card" style={[styles.create, { padding: 22, borderWidth: 1, borderColor: theme.color('#343d41') }]}>
           <Text style={styles.label}>服务端地址</Text>
+          <SourceDropdown label="连接方式" value={connectionMode} options={[{ id: 'auto', name: '自动（HTTPS 优先）' }, { id: 'custom', name: '自定义完整地址' }]} disabled={isDisabled} onChange={setConnectionMode} />
           <TextInput style={styles.input} value={server ?? savedServer} onChangeText={setServer} placeholder="https://example.com" placeholderTextColor={theme.color('#a8b3b6')} autoCapitalize="none" keyboardType="url" autoCorrect={false} editable={!isDisabled} />
           <View style={styles.row}><Action inRow label="账号登录" onPress={() => setMode('account')} secondary={mode !== 'account'} disabled={isDisabled} /><Action inRow label="游客进入" onPress={() => setMode('guest')} secondary={mode !== 'guest'} disabled={isDisabled} /></View>
           {mode === 'account' ? <><Text style={styles.label}>用户名</Text><TextInput style={styles.input} value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} textContentType="username" placeholder="用户名" placeholderTextColor={theme.color('#a8b3b6')} editable={!isDisabled} /><Text style={styles.label}>密码</Text><View style={[styles.input, { flexDirection: 'row', alignItems: 'center' }]}><TextInput style={{ flex: 1, minHeight: 48, color: theme.color('#edf1ef') }} value={password} onChangeText={setPassword} secureTextEntry={!showPassword} textContentType="password" placeholder="密码" placeholderTextColor={theme.color('#a8b3b6')} editable={!isDisabled} /><RoomIconButton label={showPassword ? '隐藏密码' : '显示密码'} icon={showPassword ? 'eye-off' : 'eye'} onPress={() => setShowPassword(value => !value)} /></View></> : <View style={styles.account}><Feather name="shield" size={22} color={theme.color('#65d59b')} /><View style={{ flex: 1 }}><Text style={styles.accountName}>以 guest 身份进入</Text><Text style={styles.muted}>可以浏览和加入房间，部分管理功能不可用。</Text></View></View>}
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Action label={busy ? '连接中…' : mode === 'guest' ? '游客登录' : '登录并选择房间'} onPress={() => void signIn()} disabled={isDisabled} />
-          </Surface><Surface readable testID="connection-help" style={{ borderRadius: theme.preferences.radius, padding: 12 }}><Text style={[styles.hint, { fontSize: 14, lineHeight: 20 }]}>推荐使用 HTTPS 服务地址；局域网测试可使用 HTTP。</Text></Surface>
+          </Surface><Surface readable testID="connection-help" style={{ borderRadius: theme.preferences.radius, padding: 12 }}><Text style={[styles.hint, { fontSize: 14, lineHeight: 20 }]}>自动连接优先探测 HTTPS；自定义地址支持协议、端口和路径前缀。证书错误会单独提示。</Text></Surface>
         </> : <>
           <Surface style={styles.account}><RoomIconButton label="退出登录 / 更换服务器" icon="arrow-left" onPress={() => void logout().catch(failure => setError(messageFor(failure)))} /><View style={{ flex: 1 }}><Text style={styles.accountName}>{session.user.username}</Text><Text style={styles.muted} numberOfLines={1}>{session.serverUrl}</Text></View><RoomIconButton label="刷新房间" icon="refresh-cw" onPress={() => { if (!loadingRooms) void loadRooms(); }} /></Surface>
           <Surface style={styles.toolbar}><View style={{ flex: 1 }}><Text style={[styles.muted, { color: theme.color('#65d59b') }]}>在线放映室</Text><Text style={styles.heading}>选择房间</Text></View>{session.user.role !== 'guest' && (canUserCreate || session.user.role === 'admin' || session.user.role === 'root') ? <Action label="创建房间" onPress={() => setShowCreate(true)} secondary /> : null}<Text style={styles.accountName}>{rooms.length}</Text></Surface>

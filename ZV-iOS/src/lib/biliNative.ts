@@ -5,7 +5,7 @@ import { biliSelection } from './biliSelection';
 import { ScopedCache } from './scopedCache';
 import { parseResolvedMedia } from './resolvers';
 export type BiliStatus = { ready: boolean; loggedIn: boolean; sessionVersion: number; user?: { name: string; vipStatus: number } };
-export type BiliMedia = { videoUrl: string; audioUrl?: string; title: string; duration?: number; currentQn: number; currentPage?: number; pages?: { page: number; cid: number; part: string }[]; fallbackReason?: string; sessionVersion: number };
+export type BiliMedia = { videoUrl: string; audioUrl?: string; title: string; duration?: number; currentQn: number; currentPage?: number; pages?: { page: number; cid: number; part: string; epId?: number; seasonId?: number; duration?: number }[]; fallbackReason?: string; sessionVersion: number };
 export type BiliPolicy = NonNullable<PlaybackSource['biliPolicy']>;
 export const defaultBiliPolicy: BiliPolicy = { qn: 0, cliEnabled: true, preferMp4: true, dashAllowed: true, revision: 0 };
 export const qualities = [0, 127, 120, 116, 112, 80, 74, 64, 32, 16];
@@ -38,7 +38,7 @@ export async function resolveLocalBili(url: string, scope = '', policy?: BiliPol
   const qn = policy?.qn ?? savedQn;
   if (revision !== epoch) throw new Error('本机播放会话已变化');
   const count = failures.get(url) || 0; const selection = biliSelection(url);
-  const options = { url: selection.url, cid: selection.cid, qn: count || !qualities.includes(qn) ? 0 : qn, fallbackQn: count ? count === 1 ? 64 : 32 : 0 };
+  const options = { url: selection.url, cid: selection.cid, page: selection.page, epId: selection.epId || 0, seasonId: selection.seasonId || 0, qn: count || !qualities.includes(qn) ? 0 : qn, fallbackQn: count ? count === 1 ? 64 : 32 : 0 };
   const key = JSON.stringify([scope, status.sessionVersion, selection, options, policy?.revision]);
   const result = await cache.get(key, async () => {
     let media = await biliOperation<BiliMedia>('resolve', JSON.stringify(options));
@@ -82,6 +82,8 @@ export async function playbackSource(source: PlaybackSource, server: string, tok
   let status: BiliStatus | null = null;
   if (policy.cliEnabled) try { status = await biliOperation<BiliStatus>('start'); } catch {}
   if (signal?.aborted) throw new Error('播放任务已取消');
+  const selection = biliSelection(source.sourceUrl);
+  if ((source.cliOnly || selection.epId || selection.seasonId) && (!policy.cliEnabled || !status?.ready || !status.loggedIn)) throw new Error('此番剧仅支持本机 B站解析，请在此设备启用本机解析并登录有播放权限的 B站账号');
   if (status?.ready && status.loggedIn) {
     const media = await resolveLocalBili(source.sourceUrl, `${server}:${source.movieId ?? 'music'}:${source.cid ?? 0}`, policy);
     const track = (uri: string): NativeVideoSource => ({ uri, identity: source.sourceUrl, headers: {}, serverApi: false, options: ['network-caching=1500'], contentType: 'progressive', slaves: [] });

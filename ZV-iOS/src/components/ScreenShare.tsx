@@ -1,16 +1,16 @@
 import { useAppearance } from '@/state/appearance';
 import { useEffect, useState } from 'react';
 import { NativeModules, Platform, Text, View } from 'react-native';
-import type { RTCPeerConnection, MediaStream, RTCIceCandidate, RTCSessionDescription } from 'react-native-webrtc';
+import type { RTCPeerConnection, MediaStream, RTCIceCandidate, RTCSessionDescription } from '@livekit/react-native-webrtc';
 import { useSession } from '@/state/session';
 import { NativeMediaAdapter } from '@/lib/mediaAdapter';
 import { emitAck } from '@/lib/socket';
 import { VlcVideo, useVlcVideo } from './VlcVideo';
 import { RoomButton, RoomInput, ui as baseUi } from './RoomUi';
 // Web/Expo Go can open rooms without loading a missing native module.
-const rtc: typeof import('react-native-webrtc') | null = Platform.OS === 'ios' && NativeModules.WebRTCModule
+const rtc: typeof import('@livekit/react-native-webrtc') | null = Platform.OS === 'ios' && NativeModules.WebRTCModule
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- capability detection precedes native import.
-  ? require('react-native-webrtc') : null;
+  ? require('@livekit/react-native-webrtc') : null;
 export type ShareState = { shareMethod?: 'webrtc' | 'stream-push'; streamKey?: string | null };
 export function ScreenShare({ roomId, share, height }: { roomId: string; share: ShareState; height: number }) {
   const theme = useAppearance();

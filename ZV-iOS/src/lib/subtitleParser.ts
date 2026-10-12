@@ -29,6 +29,7 @@ export interface ParsedCue {
   position?: number
   /** 文本对齐方式 */
   align?: 'left' | 'center' | 'right'
+  bitmap?: { src: string; x: number; y: number; width: number; height: number; canvasWidth: number; canvasHeight: number }
 }
 
 // ── 格式检测 ──────────────────────────────────────────────

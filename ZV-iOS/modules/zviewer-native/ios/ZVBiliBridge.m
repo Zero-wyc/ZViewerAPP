@@ -88,7 +88,8 @@ static NSArray *subtitleLines(NSString *address) {
 + (NSDictionary *)perform:(NSString *)operation value:(NSString *)value {
   @synchronized(self) {
     NSError *error = nil; NSString *raw = @"{}";
-    if ([operation isEqual:@"start"]) raw = [decode(MobileStatus())[@"ready"] boolValue] ? MobileStatus() : MobileStart(readCookie(), &error);
+    if ([operation isEqual:@"server-probe"]) { raw = MobileProbeServer(value, &error); if (error) return @{ @"success":@NO, @"message":@"服务器探测失败" }; return decode(raw); }
+    else if ([operation isEqual:@"start"]) raw = [decode(MobileStatus())[@"ready"] boolValue] ? MobileStatus() : MobileStart(readCookie(), &error);
     else if ([operation isEqual:@"status"]) raw = MobileStatus();
     else if ([operation isEqual:@"qr"]) raw = MobileQR(&error);
     else if ([operation isEqual:@"poll"]) {
@@ -110,7 +111,7 @@ static NSArray *subtitleLines(NSString *address) {
       NSString *mid = [user isKindOfClass:NSDictionary.class] ? [user[@"mid"] description] ?: @"0" : @"0";
       NSInteger page = MAX(1, MIN(1000, [options[@"page"] integerValue]));
       NSString *path; NSDictionary *params;
-      if ([kind isEqual:@"search"]) { path = @"/x/web-interface/wbi/search/type"; params = wbi(@{ @"keyword": options[@"keyword"] ?: @"", @"search_type":@"video", @"page":@(page) }); }
+      if ([kind isEqual:@"search"] || [kind isEqual:@"search-bangumi"] || [kind isEqual:@"search-ft"]) { path = @"/x/web-interface/wbi/search/type"; NSString *searchType = [kind isEqual:@"search-bangumi"] ? @"media_bangumi" : [kind isEqual:@"search-ft"] ? @"media_ft" : @"video"; params = wbi(@{ @"keyword": options[@"keyword"] ?: @"", @"search_type":searchType, @"page":@(page) }); }
       else if ([kind isEqual:@"lyrics"]) { path = @"/x/player/wbi/v2"; params = wbi(@{ @"bvid": options[@"bvid"] ?: @"", @"cid": options[@"cid"] ?: @0 }); }
       else if ([kind isEqual:@"recommended"]) { path = @"/x/web-interface/index/top/rcmd"; params = @{ @"ps":@20 }; }
       else if ([kind isEqual:@"folders"]) { path = @"/x/v3/fav/folder/created/list-all"; params = @{ @"up_mid":mid }; }
@@ -140,7 +141,7 @@ static NSArray *subtitleLines(NSString *address) {
       if (VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC)) [caps addObject:@{ @"codec":@"hevc", @"maxWidth":@3840, @"maxHeight":@2160, @"maxFrameRate":@60 }];
       NSString *capText = [[NSString alloc] initWithData:[NSJSONSerialization dataWithJSONObject:caps options:0 error:nil] encoding:NSUTF8StringEncoding];
       NSURLComponents *url = [NSURLComponents componentsWithString:[base stringByAppendingString:@"/resolve"]];
-      url.queryItems = @[[NSURLQueryItem queryItemWithName:@"bvid" value:options[@"url"] ?: @""], [NSURLQueryItem queryItemWithName:@"cid" value:[options[@"cid"] description] ?: @"0"], [NSURLQueryItem queryItemWithName:@"qn" value:[options[@"qn"] description] ?: @"0"], [NSURLQueryItem queryItemWithName:@"qualityMode" value:[options[@"qn"] intValue] > 0 ? @"manual" : @"autoMax"], [NSURLQueryItem queryItemWithName:@"fallbackQn" value:[options[@"fallbackQn"] description] ?: @"0"], [NSURLQueryItem queryItemWithName:@"capabilities" value:capText], [NSURLQueryItem queryItemWithName:@"timeoutMs" value:@"40000"]];
+      url.queryItems = @[[NSURLQueryItem queryItemWithName:@"bvid" value:options[@"url"] ?: @""], [NSURLQueryItem queryItemWithName:@"epId" value:[options[@"epId"] longLongValue] > 0 ? [options[@"epId"] description] : @""], [NSURLQueryItem queryItemWithName:@"seasonId" value:[options[@"seasonId"] longLongValue] > 0 ? [options[@"seasonId"] description] : @""], [NSURLQueryItem queryItemWithName:@"page" value:[options[@"page"] description] ?: @"1"], [NSURLQueryItem queryItemWithName:@"forceDash" value:@"true"], [NSURLQueryItem queryItemWithName:@"cid" value:[options[@"cid"] description] ?: @"0"], [NSURLQueryItem queryItemWithName:@"qn" value:[options[@"qn"] description] ?: @"0"], [NSURLQueryItem queryItemWithName:@"qualityMode" value:[options[@"qn"] intValue] > 0 ? @"manual" : @"autoMax"], [NSURLQueryItem queryItemWithName:@"fallbackQn" value:[options[@"fallbackQn"] description] ?: @"0"], [NSURLQueryItem queryItemWithName:@"capabilities" value:capText], [NSURLQueryItem queryItemWithName:@"timeoutMs" value:@"40000"]];
       dispatch_semaphore_t ready = dispatch_semaphore_create(0); __block NSData *body = nil; __block NSInteger code = 0;
       NSURLSessionConfiguration *config = NSURLSessionConfiguration.ephemeralSessionConfiguration; config.timeoutIntervalForRequest = 45; config.HTTPShouldSetCookies = NO;
       NSURLSession *session = [NSURLSession sessionWithConfiguration:config];
