@@ -1,4 +1,4 @@
-import { nativeVideoSource, type PlaybackSource } from './media.ts';
+import { nativeVideoSource, type NativeVideoSource, type PlaybackSource } from './media.ts';
 
 export type RangeCheck = { name: string; status: number; valid: boolean; bodyChecked: boolean };
 export type MediaProbe = {
@@ -69,6 +69,12 @@ async function rangeCheck(uri: string, headers: Record<string, string>, name: st
 export async function probeMedia(source: PlaybackSource, serverUrl: string, token: string,
   signal?: AbortSignal): Promise<MediaProbe> {
   const video = nativeVideoSource(source, serverUrl, token);
+  return probeNativeMedia(video, signal);
+}
+
+// Accept only a source already produced by the playback resolver. Its owned
+// loopback capability is valid on this device; a room URL is never trusted here.
+export async function probeNativeMedia(video: NativeVideoSource, signal?: AbortSignal): Promise<MediaProbe> {
   const base = { source: video.serverApi ? 'server' as const : 'external' as const };
   const controller = new AbortController();
   const cancel = () => controller.abort();

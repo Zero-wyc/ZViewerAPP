@@ -7,12 +7,12 @@ import type { VlcPlayer } from '@/lib/vlcPlayer';
 import { trackTimeline, upperBound, type DanmakuItem, type DanmakuTrack } from '@/lib/timeline';
 import { readPreference, writePreference } from '@/lib/preferences';
 import { RoomButton, ui as baseUi } from './RoomUi';
-const defaults = { enabled: true, scaleWithScreen: true, size: 20, opacity: 0.85, speed: 8 };
+import { defaultDanmakuPreferences as defaults, danmakuArea, danmakuLanes } from '@/lib/danmakuLayout';
 type Preferences = typeof defaults;
 type Active = DanmakuItem & { key: number; lane: number; start: number };
 export function useDanmaku(roomId: string, player: VlcPlayer, enabled: boolean) {
   const { request, socket } = useSession(); const [preferences, setPreferences] = useState(defaults); const [tracks, setTracks] = useState<DanmakuTrack[]>([]); const [live, setLive] = useState<DanmakuItem[]>([]);
-  useEffect(() => { let active = true; void readPreference('zviewer-danmaku', defaults).then(value => { if (active) setPreferences(value); }); return () => { active = false; }; }, []);
+  useEffect(() => { let active = true; void readPreference('zviewer-danmaku', defaults).then(value => { if (active) setPreferences({ ...defaults, ...value }); }); return () => { active = false; }; }, []);
   useEffect(() => {
     if (!enabled || !socket) return;
     let active = true; const updated = (payload: { roomId: string; tracks: DanmakuTrack[] }) => { if (payload.roomId === roomId) setTracks(payload.tracks || []); };
@@ -41,7 +41,7 @@ export function DanmakuOverlay({ player, state, width, height }: { player: VlcPl
       const due: DanmakuItem[] = [];
       while (cursor < timeline.length && timeline[cursor].time <= currentTime) { if (timeline[cursor].time >= currentTime - 0.6) due.push(timeline[cursor]); cursor++; }
       due.push(...liveRef.current.filter(item => !seen.current.has(item.id) && item.time <= currentTime + 0.5 && item.time >= currentTime - 2));
-      const active: Active[] = []; const lanes = Math.max(1, Math.floor(height * 0.7 / (font + 8)));
+      const active: Active[] = []; const lanes = danmakuLanes(height, preferences.displayArea, font);
       for (const item of due.slice(0, 12)) {
         seen.current.add(item.id); const lane = Array.from({ length: lanes }, (_, i) => i).find(i => (laneEnd.current[i] || 0) <= currentTime);
         if (lane === undefined) continue;
@@ -54,7 +54,7 @@ export function DanmakuOverlay({ player, state, width, height }: { player: VlcPl
     return () => { tick.remove(); status.remove(); load.remove(); };
   }, [player, tracks, width, height, font, preferences]);
   if (!preferences.enabled) return null;
-  return <View pointerEvents="none" style={StyleSheet.absoluteFill}>{items.map(item => <FlyingText key={item.key} item={item} width={width} font={font} opacity={preferences.opacity} duration={preferences.speed} playing={playing} time={last} />)}</View>;
+  return <View pointerEvents="none" style={[StyleSheet.absoluteFill, { bottom: undefined, height: danmakuArea(height, preferences.displayArea), overflow: 'hidden' }]}>{items.map(item => <FlyingText key={item.key} item={item} width={width} font={font} opacity={preferences.opacity} duration={preferences.speed} playing={playing} time={last} />)}</View>;
 }
 function FlyingText({ item, width, font, opacity, duration, playing, time }: { item: Active; width: number; font: number; opacity: number; duration: number; playing: boolean; time: number }) {
   useAppearance();
@@ -72,5 +72,5 @@ export function DanmakuSettings({ state }: { state: ReturnType<typeof useDanmaku
   const ui = theme.styles(baseUi);
 
   const [open, setOpen] = useState(false); const { preferences: p, change } = state;
-  return <View style={ui.content}><View style={ui.row}><Text style={ui.text}>弹幕</Text><Switch value={p.enabled} onValueChange={value => change({ enabled: value })} /><RoomButton label="弹幕设置" secondary onPress={() => setOpen(value => !value)} /></View>{open ? <View style={ui.card}><View style={ui.row}><Text style={ui.text}>随屏幕缩放</Text><Switch value={p.scaleWithScreen} onValueChange={value => change({ scaleWithScreen: value })} /></View><Text style={ui.text}>字号 {Math.round(p.size)}</Text><Slider minimumValue={12} maximumValue={36} value={p.size} onSlidingComplete={value => change({ size: value })} /><Text style={ui.text}>不透明度 {Math.round(p.opacity * 100)}%</Text><Slider minimumValue={0.2} maximumValue={1} value={p.opacity} onSlidingComplete={value => change({ opacity: value })} /><Text style={ui.text}>穿屏时间 {p.speed.toFixed(0)} 秒</Text><Slider minimumValue={4} maximumValue={15} value={p.speed} onSlidingComplete={value => change({ speed: value })} /><Text style={ui.muted}>已加载 {state.tracks.length} 条弹幕轨道</Text></View> : null}</View>;
+  return <View style={ui.content}><View style={ui.row}><Text style={ui.text}>弹幕</Text><Switch value={p.enabled} onValueChange={value => change({ enabled: value })} /><RoomButton label="弹幕设置" secondary onPress={() => setOpen(value => !value)} /></View>{open ? <View style={ui.card}><View style={ui.row}><Text style={ui.text}>随屏幕缩放</Text><Switch value={p.scaleWithScreen} onValueChange={value => change({ scaleWithScreen: value })} /></View><Text style={ui.text}>显示区域 {Math.round(p.displayArea * 100)}%</Text><Slider accessibilityLabel="弹幕显示区域" minimumValue={0.25} maximumValue={1} step={0.05} value={p.displayArea} onValueChange={value => change({ displayArea: value })} /><Text style={ui.text}>字号 {Math.round(p.size)}</Text><Slider minimumValue={12} maximumValue={36} value={p.size} onSlidingComplete={value => change({ size: value })} /><Text style={ui.text}>不透明度 {Math.round(p.opacity * 100)}%</Text><Slider minimumValue={0.2} maximumValue={1} value={p.opacity} onSlidingComplete={value => change({ opacity: value })} /><Text style={ui.text}>穿屏时间 {p.speed.toFixed(0)} 秒</Text><Slider minimumValue={4} maximumValue={15} value={p.speed} onSlidingComplete={value => change({ speed: value })} /><Text style={ui.muted}>已加载 {state.tracks.length} 条弹幕轨道</Text></View> : null}</View>;
 }

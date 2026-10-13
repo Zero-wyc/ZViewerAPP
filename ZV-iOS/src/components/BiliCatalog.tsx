@@ -1,20 +1,23 @@
 import { useAppearance } from '@/state/appearance';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Keyboard, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Keyboard, Pressable, Text, useWindowDimensions, View } from 'react-native';
 import { biliOperation, nativeBridge } from '@/lib/nativeBridge';
 import { resolveLocalBili } from '@/lib/biliNative';
 import { biliCount, biliGrid, chooseBiliPage, normalizeBiliCatalog, type BiliCatalogItem, type BiliView } from '@/lib/biliCatalog';
 import { formatTime } from '@/lib/sources';
 import { useSession } from '@/state/session';
 import { messageFor } from '@/lib/server';
-import { RoomButton, RoomInput, ui as baseUi } from './RoomUi';
+import { RoomButton, RoomInput, RoomIconButton, ui as baseUi } from './RoomUi';
 import { SourceDropdown } from './SourceDropdown';
 import { SourcePoster } from './SourcePoster';
+import { AppDialog } from './AppDialog';
 
 type Container = { id: number; title: string; season_id?: number };
-export function BiliCatalog({ choose, allowPgc = false, active = true }: { allowPgc?: boolean; active?: boolean; choose: (item: BiliCatalogItem) => void | Promise<void> }) {
+export function BiliCatalog({ choose, allowPgc = false, active = true, popup = false }: { popup?: boolean; allowPgc?: boolean; active?: boolean; choose: (item: BiliCatalogItem) => void | Promise<void> }) {
   const theme = useAppearance(); const ui = theme.styles(baseUi); const { request } = useSession();
-  const generation = useRef(0); useEffect(() => { const lifecycle = generation; ++lifecycle.current; return () => { ++lifecycle.current; }; }, [active]);
+  const [dialog, setDialog] = useState<'search' | 'personal' | null>(null); const [wide, setWide] = useState(false); const { width } = useWindowDimensions();
+  const catalogActive = active && (!popup || dialog !== null);
+  const generation = useRef(0); useEffect(() => { const lifecycle = generation; ++lifecycle.current; return () => { ++lifecycle.current; }; }, [catalogActive]);
   const [detail, setDetail] = useState<{ item: BiliCatalogItem; view: BiliView } | null>(null);
   const [keyword, setKeyword] = useState(''); const [searchKind, setSearchKind] = useState('search'); const [kind, setKind] = useState('search');
   const [items, setItems] = useState<BiliCatalogItem[]>([]); const [groups, setGroups] = useState<Container[]>([]); const [total, setTotal] = useState<number | null>(null);
@@ -60,7 +63,7 @@ export function BiliCatalog({ choose, allowPgc = false, active = true }: { allow
     } catch (failure) { if (ticket === generation.current) { setNotice(''); setError(messageFor(failure)); } }
     finally { setBusy(false); }
   };
-  return <View style={{ gap: 12 }} onLayout={event => setContainerWidth(event.nativeEvent.layout.width)}>
+  const content = <View style={{ gap: 12 }} onLayout={event => setContainerWidth(event.nativeEvent.layout.width)}>
     {detail ? <>
       <RoomButton label="返回搜索结果" secondary disabled={busy} onPress={() => { setDetail(null); setNotice(''); }} />
       <View style={ui.row}><SourcePoster uri={detail.item.cover} width={140} naturalRatio /><Text style={[ui.text, { flex: 1 }]}>{detail.view.title}</Text></View>
@@ -68,7 +71,7 @@ export function BiliCatalog({ choose, allowPgc = false, active = true }: { allow
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: grid.gap }}>{detail.view.pages?.map(part => <View key={part.page} style={{ width: grid.width }}><RoomButton label={`${part.epId ? '第' : 'P'}${part.page}${part.epId ? '集' : ''} · ${part.part}`} secondary disabled={busy} onPress={() => void select(detail.item, detail.view, part)} /></View>)}</View>
     </> : <>
       <View style={ui.row}><RoomInput value={keyword} onChangeText={setKeyword} placeholder="搜索 B站视频" style={{ flex: 1, minWidth: 110 }} onSubmitEditing={() => { if (!busy && keyword.trim()) void load(searchKind); }} /><RoomButton label="搜索" disabled={busy || !keyword.trim()} onPress={() => void load(searchKind)} /></View>
-      <View style={ui.row}>{allowPgc ? <View style={{ flex: 1, minWidth: 130 }}><SourceDropdown label="搜索类型" value={searchKind} options={[{ id: 'search', name: '视频' }, { id: 'search-bangumi', name: '番剧' }, { id: 'search-ft', name: '影视' }]} disabled={busy} onChange={setSearchKind} /></View> : null}<RoomButton label={more ? '收起栏目' : '我的栏目'} secondary disabled={busy} onPress={() => setMore(value => !value)} /></View>
+      <View style={ui.row}>{allowPgc ? <View style={{ flex: 1, minWidth: 130 }}><SourceDropdown label="搜索类型" value={searchKind} options={[{ id: 'search', name: '视频' }, { id: 'search-bangumi', name: '番剧' }, { id: 'search-ft', name: '影视' }]} disabled={busy} onChange={setSearchKind} /></View> : null}<RoomButton label={more ? '收起栏目' : '我的栏目'} secondary disabled={busy} onPress={() => { if (popup) { setMore(true); setDialog('personal'); } else setMore(value => !value); }} /></View>
       {more ? <View style={ui.card}><View style={ui.row}>{[{ id: 'recommended', name: '推荐视频' }, { id: 'folders', name: '我的收藏' }, { id: 'following', name: '关注番剧' }].map(value => <RoomButton key={value.id} label={value.name} secondary disabled={busy} onPress={() => void load(value.id)} />)}</View><RoomInput value={collection} onChangeText={setCollection} autoCapitalize="none" placeholder="B站合集链接" /><RoomButton label="浏览合集" secondary disabled={busy || !collection} onPress={() => void load('collection')} /></View> : null}
       {groups.map(item => <RoomButton key={item.id} label={item.title} secondary disabled={busy} onPress={() => void load(groupKind, 1, item.id)} />)}
       {items.length ? <Text style={ui.muted}>{total == null ? `本页 ${items.length} 条结果` : `共 ${total} 条结果`} · 点击封面添加播放</Text> : null}
@@ -82,4 +85,6 @@ export function BiliCatalog({ choose, allowPgc = false, active = true }: { allow
     </>}
     {busy ? <ActivityIndicator color={theme.color('#65d59b')} /> : null}{notice ? <Text accessibilityLiveRegion="polite" style={ui.muted}>{notice}</Text> : null}{error ? <Text accessibilityLiveRegion="assertive" style={ui.error}>{error}</Text> : null}
   </View>;
+  if (!popup) return content;
+  return <><View style={ui.row}><RoomButton label="搜索 B站视频" secondary onPress={() => { setMore(false); setDialog('search'); }} /><RoomButton label="我的栏目" secondary onPress={() => { setMore(true); setDialog('personal'); }} /></View><AppDialog visible={active && dialog !== null} title={dialog === 'personal' ? '我的栏目' : '搜索 B站视频'} maxWidth={wide ? Math.max(280, width - 32) : 960} titleActions={<RoomIconButton label={wide ? '还原弹窗' : '展开弹窗'} icon={wide ? 'minimize' : 'maximize'} onPress={() => setWide(value => !value)} />} close={() => { ++generation.current; setDialog(null); }}>{content}</AppDialog></>;
 }

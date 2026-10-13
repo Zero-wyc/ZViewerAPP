@@ -14,7 +14,7 @@ export function useSystemMedia(player: VlcPlayer, state: Omit<SystemMediaState, 
       void nativeBridge?.mediaUpdate(JSON.stringify({ ...value, sessionId: id, uri: !value.sourceIdentity || value.sourceIdentity === player.sourceIdentity ? player.sourceUri : '', playing: (!value.sourceIdentity || value.sourceIdentity === player.sourceIdentity) && player.playing, position: !value.sourceIdentity || value.sourceIdentity === player.sourceIdentity ? player.currentTime : 0, duration: !value.sourceIdentity || value.sourceIdentity === player.sourceIdentity ? player.duration : 0, playbackRate: player.playbackRate })).catch(() => {});
     };
     publish();
-    const listeners = [player.addListener('sourceLoad', publish), player.addListener('playingChange', publish), player.addListener('playbackRateChange', publish)];
+    const listeners = [player.addListener('statusChange', publish), player.addListener('sourceLoad', publish), player.addListener('playingChange', publish), player.addListener('playbackRateChange', publish)];
     let last = 0; listeners.push(player.addListener('timeUpdate', () => { if (Date.now() - last > 1000) { last = Date.now(); publish(); } }));
     const subscription = nativeBridge.addListener('onMediaCommand', data => { if (data.sessionId === id && latest.current.state?.mediaId === data.mediaId) latest.current.command(data.action, data.value); });
     const app = AppState.addEventListener('change', phase => { if (phase === 'active') { void nativeBridge?.mediaDrain(id).then(values => { for (const data of values) if (latest.current.state?.mediaId === data.mediaId) latest.current.command(data.action, data.value); publish(); }); } });

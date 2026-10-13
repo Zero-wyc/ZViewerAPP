@@ -12,6 +12,7 @@ import { useAppearance } from '@/state/appearance';
 import { AppDialog } from './AppDialog';
 import { MediaImage } from './MediaImage';
 import { MusicVideo } from './MusicVideo';
+import { MusicModeIcon } from './MusicModeIcon';
 import { RoomButton, ui as baseUi } from './RoomUi';
 
 type Mode = 'sequence' | 'order' | 'repeat-one' | 'shuffle';
@@ -60,7 +61,7 @@ export function ExpandedMusicPlayer(props: Props) {
   useEffect(() => { followLyric(); }, [followLyric, props.trackKey, showLyrics, lyricOnly]);
   const changeTone = () => { const mode = dark ? 'light' : 'dark'; setTone(mode); void writePreference('zviewer-player-ui-tone', { mode }).catch(() => {}); };
   const icon = (label: string, name: React.ComponentProps<typeof Feather>['name'], action: () => void, disabled = false, selected = false) =>
-    <Pressable key={label} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled, selected }} disabled={disabled} onPress={action} style={[styles.icon, { opacity: disabled ? .35 : 1, backgroundColor: selected ? (dark ? '#ffffff25' : '#00000015') : 'transparent' }]}><Feather name={name} size={22} color={ink} /></Pressable>;
+    <Pressable key={label} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled, selected }} disabled={disabled} onPress={action} style={[styles.icon, { opacity: disabled ? .35 : 1, backgroundColor: selected ? (dark ? '#ffffff25' : '#00000015') : 'transparent' }]}>{label.startsWith('播放模式：') ? <MusicModeIcon mode={props.mode} color={ink} /> : <Feather name={name} size={22} color={ink} />}</Pressable>;
   return <View testID="expanded-music-player" onLayout={event => { const { width, height } = event.nativeEvent.layout; setSize(old => old.width === width && old.height === height ? old : { width, height }); }} style={[styles.root, { backgroundColor: theme.dark ? '#20272a' : '#e8edf3' }]}>
     {props.song?.cover ? <View pointerEvents="none" style={StyleSheet.absoluteFill}><MediaImage source={{ uri: props.song.cover }} blurRadius={40} resizeMode="cover" style={StyleSheet.absoluteFill} /><View style={[StyleSheet.absoluteFill, { backgroundColor: theme.dark ? 'rgba(0,0,0,.55)' : 'rgba(255,255,255,.5)' }]} /></View> : null}
     <MusicVideo trackKey={props.trackKey} expanded={props.expanded} pure={props.pure} setPure={props.setPure} audio={props.audio} control={props.control}>{video => {
@@ -68,7 +69,7 @@ export function ExpandedMusicPlayer(props: Props) {
         {icon(mobile ? (lyricOnly ? '显示播放卡' : '显示歌词') : (showLyrics ? '隐藏歌词' : '显示歌词'), 'align-left', () => { if (mobile) setMobileLyrics(value => !value); else setLyricsOpen(value => !value); }, !props.lyrics.length, mobile ? lyricOnly : showLyrics)}
         {icon('追加 / 更换视频', 'video', video.openPicker, !props.trackKey)}
         {video.hasVideo ? icon('纯净视频', 'maximize', video.enterPure, !video.videoReady) : null}
-        {icon(`播放模式：${modeNames[modes.indexOf(props.mode)]}`, props.mode === 'shuffle' ? 'shuffle' : 'repeat', () => props.setMode(modes[(modes.indexOf(props.mode) + 1) % modes.length]), !props.host || !props.trackKey)}
+        {icon(`播放模式：${modeNames[modes.indexOf(props.mode)]}`, props.mode === 'shuffle' ? 'shuffle' : props.mode === 'order' ? 'arrow-right' : props.mode === 'repeat-one' ? 'rotate-cw' : 'repeat', () => props.setMode(modes[(modes.indexOf(props.mode) + 1) % modes.length]), !props.host || !props.trackKey)}
         {icon('歌曲评论', 'message-circle', props.openComments, !props.song?.songId)}
         {icon('播放队列', 'list', props.openQueue)}
         {icon('音乐设置', 'sliders', () => setSettings(true))}

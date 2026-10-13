@@ -4,7 +4,9 @@ export type BiliView = { title: string; duration?: number; cid?: number; pic?: s
 export function biliGrid(width: number) {
   const available = Math.max(1, Number.isFinite(width) ? width : 1); const gap = 12;
   const columns = Math.max(1, Math.min(4, Math.floor((available + gap) / (220 + gap))));
-  return { columns, gap, width: (available - gap * (columns - 1)) / columns };
+  // onLayout may round the fractional CSS/Yoga width up. Integer card widths
+  // leave room for that rounding so the final column cannot wrap unexpectedly.
+  return { columns, gap, width: Math.max(1, Math.floor((available - gap * (columns - 1)) / columns)) };
 }
 export function posterHeight(width: number, originalWidth = 16, originalHeight = 9) {
   const ratio = originalWidth > 0 && originalHeight > 0 && Number.isFinite(originalWidth / originalHeight) ? originalWidth / originalHeight : 16 / 9;

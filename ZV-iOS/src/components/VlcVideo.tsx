@@ -51,7 +51,7 @@ function VlcSurface({ player, snapshot, style, background }: { player: VlcPlayer
     onTimeChanged={event => player.progress(snapshot.id, event.value)}
     onPlaying={() => player.playingChanged(snapshot.id, true)}
     onPaused={() => player.playingChanged(snapshot.id, false)}
-    onStopped={() => player.playingChanged(snapshot.id, false)}
+    onStopped={() => player.stopped(snapshot.id)}
     onESAdded={event => player.tracks(snapshot.id, event)}
     onEncounteredError={() => player.fail(snapshot.id, '播放失败，请检查媒体编码、分段读取与鉴权')}
     onDialogDisplay={() => player.fail(snapshot.id, '媒体需要额外鉴权，请刷新登录或重新选择影片')}

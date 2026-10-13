@@ -39,6 +39,20 @@ function patchVlcTracks(root) {
     .replace('let subtitle = [disableTrack]', 'let subtitle = [subtitleDisabled]')
     .replace('          setPlayerDelays()', '          setPlayerDelays()\n          view.onESAdded(getMediaTracks())')
     .replace('    view.onTimeChanged(["value": player.time.intValue])', '    view.onESAdded(getMediaTracks())\n    view.onTimeChanged(["value": player.time.intValue])'));
+  patch('Player/MediaPlayer.swift', 'ZViewerDeferredSlaves', source => {
+    const early = '    addPlayerSlaves(view.slaves)';
+    const add = '      mediaPlayer?.addPlaybackSlave(url, type: slaveType, enforce: selected)';
+    if (source.split(early).length !== 2 || source.split(add).length !== 2) throw new Error('Review VLC slave initialization order');
+    return source
+      .replace('  private var firstPlay: Bool = true', '  private var firstPlay: Bool = true\n  // ZViewerDeferredSlaves: libvlc rejects add_slave before a playing input exists.\n  private var zviewerAddedSlaves = Set<String>()')
+      .replace(early + '\n', '')
+      .replace('    mediaPlayer!.delegate = self', '    mediaPlayer!.delegate = self\n    zviewerAddedSlaves.removeAll()')
+      .replace('  func addPlayerSlaves(_ slaves: [Slave]) {', '  func addPlayerSlaves(_ slaves: [Slave]) {\n    guard mediaPlayer?.isPlaying == true else { return }')
+      .replace('      let selected = slave.selected ?? false', '      let selected = slave.selected ?? false\n      let key = type + "|" + source\n      if zviewerAddedSlaves.contains(key) { continue }')
+      .replace(add, '      if mediaPlayer?.addPlaybackSlave(url, type: slaveType, enforce: selected) == 0 {\n        zviewerAddedSlaves.insert(key)\n      }')
+      .replace('      if newState == .playing {', '      if newState == .playing {\n        addPlayerSlaves(view.slaves)')
+      .replace('    view.onTimeChanged(["value": player.time.intValue])', '    addPlayerSlaves(view.slaves)\n    view.onTimeChanged(["value": player.time.intValue])');
+  });
 }
 module.exports = config => withDangerousMod(config, ['ios', async value => {
   patchVlcTracks(path.dirname(require.resolve('expo-libvlc-player/package.json', { paths: [value.modRequest.projectRoot] })));

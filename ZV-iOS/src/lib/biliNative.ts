@@ -4,6 +4,7 @@ import { readPreference, writePreference } from './preferences';
 import { biliSelection } from './biliSelection';
 import { ScopedCache } from './scopedCache';
 import { parseResolvedMedia } from './resolvers';
+import { serverBiliSource } from './biliRoomProtocol';
 export type BiliStatus = { ready: boolean; loggedIn: boolean; sessionVersion: number; user?: { name: string; vipStatus: number } };
 export type BiliMedia = { videoUrl: string; audioUrl?: string; title: string; duration?: number; currentQn: number; currentPage?: number; pages?: { page: number; cid: number; part: string; epId?: number; seasonId?: number; duration?: number }[]; fallbackReason?: string; sessionVersion: number };
 export type BiliPolicy = NonNullable<PlaybackSource['biliPolicy']>;
@@ -63,13 +64,14 @@ async function fetchLimited<T>(url: string, init: RequestInit, milliseconds: num
   try { return await consume(await fetch(url, { ...init, signal: cancellation.signal })); }
   finally { clearTimeout(timeout); signal?.removeEventListener('abort', abort); }
 }
-export async function resolveServerBili(url: string, server: string, token: string, policy = defaultBiliPolicy, signal?: AbortSignal) {
+export async function resolveServerBili(url: string, server: string, token: string, policy = defaultBiliPolicy, signal?: AbortSignal, movieId?: number) {
   url = biliSelection(url).url;
   // Public setting governs server DASH only; local CLI remains independent.
   let dashAllowed = false;
   try { const value = await fetchLimited(`${server.replace(/\/+$/, '')}/api/auth/public-settings`, {}, 10000, response => response.json(), signal); dashAllowed = value.settings?.dashDisabled === false; } catch {}
   policy = { ...policy, dashAllowed };
   const params = new URLSearchParams({ url, preferMp4: String(policy.preferMp4 || !policy.dashAllowed), forceDash: String(!policy.preferMp4 && policy.dashAllowed), qn: String(policy.qn || 64) });
+  if (movieId) params.set('movieId', String(movieId));
   return fetchLimited(`${server.replace(/\/+$/, '')}/api/stream/resolve-bilibili?${params}`, { headers: { Authorization: `Bearer ${token}` } }, 45000, async response => {
     if (!response.ok) throw new Error('服务器 B站解析失败');
     return parseResolvedMedia(await response.text());
@@ -91,8 +93,13 @@ export async function playbackSource(source: PlaybackSource, server: string, tok
     if (source.format === 'audio') return track(media.audioUrl || media.videoUrl);
     const video = track(media.videoUrl); if (media.audioUrl && source.format !== 'muted-video') video.slaves = [track(media.audioUrl)]; return video;
   }
-  const media = await resolveServerBili(source.sourceUrl, server, token, { ...policy, preferMp4: policy.cliEnabled || policy.preferMp4 }, signal);
+  const media = await resolveServerBili(source.sourceUrl, server, token, { ...policy, preferMp4: policy.cliEnabled || policy.preferMp4 }, signal, source.movieId);
   if (signal?.aborted) throw new Error('播放任务已取消');
-  const proxy = (url: string) => `/api/stream/proxy?${new URLSearchParams({ url, referer: 'https://www.bilibili.com/', userAgent: 'Mozilla/5.0' })}`;
-  return { ...nativeVideoSource({ ...source, sourceUrl: proxy(source.format === 'audio' ? media.audioUrl || media.videoUrl : media.videoUrl), format: media.format, audioUrl: source.format === 'audio' || source.format === 'muted-video' ? undefined : media.audioUrl ? proxy(media.audioUrl) : undefined }, server, token), identity: source.sourceUrl };
+  return { ...nativeVideoSource(serverBiliSource(source, media), server, token), identity: source.sourceUrl };
+}
+
+export async function resolveSharedBili(source: PlaybackSource, server: string, token: string, signal?: AbortSignal) {
+  if (source.cliOnly || source.epId || source.seasonId) return { ...source, cliOnly: true, audioUrl: undefined };
+  const media = await resolveServerBili(source.sourceUrl, server, token, { ...defaultBiliPolicy, cliEnabled: false, preferMp4: true }, signal, source.movieId);
+  return serverBiliSource(source, media);
 }

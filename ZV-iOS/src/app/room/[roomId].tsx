@@ -16,7 +16,7 @@ import { DanmakuOverlay, useDanmaku } from '@/components/Danmaku';
 import { DanmakuManager } from '@/components/DanmakuManager';
 import { MusicPanel } from '@/components/MusicPanel';
 import { ScreenShare, type ShareState } from '@/components/ScreenShare';
-import { playbackSource, onBiliChange, biliFallback, stopBiliPlayback } from '@/lib/biliNative';
+import { playbackSource, onBiliChange, biliFallback, stopBiliPlayback, resolveSharedBili } from '@/lib/biliNative';
 import { RoomIconButton } from '@/components/RoomUi';
 import { RoomPlayback, requestRoomPlayback } from '@/lib/roomPlayback';
 import { useWatchControl } from '@/hooks/useWatchControl';
@@ -33,7 +33,9 @@ import Feather from '@expo/vector-icons/Feather';
 import { emitAck } from '@/lib/socket';
 import { nativeVideoSource } from '@/lib/media';
 import { NativeMediaAdapter, type Playback } from '@/lib/mediaAdapter';
-import { classifyPlayerError, probeMedia, safeMediaError, type MediaProbe } from '@/lib/mediaDiagnostics';
+import { classifyPlayerError, probeNativeMedia, safeMediaError, type MediaProbe } from '@/lib/mediaDiagnostics';
+import { sharedPlayback } from '@/lib/biliRoomProtocol';
+import { retainMusicPlayback } from '@/lib/roomConnection';
 import { messageFor } from '@/lib/server';
 import { useSession } from '@/state/session';
 import { readPreference, writePreference } from '@/lib/preferences';
@@ -108,8 +110,10 @@ export default function RoomScreen() {
   const passwordRef = useRef('');
   const adapterRef = useRef<NativeMediaAdapter | null>(null);
   const playbackRef = useRef<Playback | null>(null);
+  const sharedSource = useRef<ReturnType<typeof moviePlayback> | null>(null);
   const roomPlayback = useRef(new RoomPlayback());
   const [waitingMovie, setWaitingMovie] = useState(false);
+  const [joined, setJoined] = useState(false);
   const [manualLock, setManualLock] = useState(false);
   const [orientationAvailable, setOrientationAvailable] = useState(false);
   const [orientationOpen, setOrientationOpen] = useState(false);
@@ -133,7 +137,8 @@ export default function RoomScreen() {
     playbackRef.current = state;
     setSource(state);
     if (action) socket.emit('watch-together-control', { roomId, action, value });
-    socket.emit('watch-together-state', { roomId, state });
+    const broadcast = sharedPlayback(state, sharedSource.current);
+    if (broadcast) socket.emit('watch-together-state', { roomId, state: broadcast });
   }, [player, socket, roomId]);
   useEffect(() => {
     const adapter = new NativeMediaAdapter(player, playbackSource); adapterRef.current = adapter;
@@ -212,6 +217,7 @@ export default function RoomScreen() {
   }, [socket, roomId, applyPlayback]);
 
   const applyRoom = useCallback((data: JoinData = {}) => {
+    setJoined(true);
     if (data.shareMethod) setShare({ shareMethod: data.shareMethod, streamKey: data.streamKey });
     if (data.name) setRoomName(data.name);
     if (data.mode) setMode(data.mode);
@@ -375,6 +381,20 @@ export default function RoomScreen() {
     return () => { current = false; adapter?.cancelPending(); };
   }, [source, mode, session, player, retryTick, phase]);
   useEffect(() => {
+    const identity = playbackRef.current;
+    if (!host || phase !== 'ready' || mode !== 'watch-together' || identity?.sourceType !== 'bilibili' || !session || sharedPlayback(identity, sharedSource.current)) return;
+    const controller = new AbortController();
+    void resolveSharedBili(identity, session.serverUrl, session.accessToken, controller.signal).then(shared => {
+      if (controller.signal.aborted) return;
+      const current = playbackRef.current;
+      const state = current && sharedPlayback(current, shared);
+      if (!state) return;
+      sharedSource.current = shared;
+      if (socket?.connected) socket.emit('watch-together-state', { roomId, state });
+    }).catch(failure => { if (!controller.signal.aborted) setPlaybackError(`观众播放地址准备失败：${safeMediaError(messageFor(failure))}`); });
+    return () => controller.abort();
+  }, [host, phase, mode, source?.sourceUrl, source?.movieId, source?.cid, source?.currentPage, session, socket, roomId, retryTick]);
+  useEffect(() => {
     const subscription = player.addListener('statusChange', ({ status, error: videoError }) => {
       setMediaStatus(status);
       if (status === 'error') {
@@ -405,7 +425,7 @@ export default function RoomScreen() {
     const controller = new AbortController();
     probeController.current = controller;
     setDiagnosing(true);
-    try { const result = await probeMedia(source, session.serverUrl, session.accessToken, controller.signal); if (!controller.signal.aborted) setMediaProbe(result); }
+    try { const media = await playbackSource(source, session.serverUrl, session.accessToken, controller.signal); const result = await probeNativeMedia(media, controller.signal); if (!controller.signal.aborted) setMediaProbe(result); }
     catch (failure) { if (!controller.signal.aborted) setMediaProbe({ category: classifyPlayerError(messageFor(failure)), source: 'external', detail: safeMediaError(messageFor(failure)) }); }
     finally { if (probeController.current === controller && !controller.signal.aborted) setDiagnosing(false); }
   };
@@ -463,6 +483,7 @@ export default function RoomScreen() {
     const version = generation.current;
     const operation = ++movieOperation.current;
     let resolved = moviePlayback(movie);
+    let broadcastSource: ReturnType<typeof moviePlayback> | null = resolved;
     try {
       if (movie.source === 'anime' && movie.sourceMeta) {
         const media = await request<{ url: string; headers?: Record<string, string>; format?: string }>('/api/stream/anisubs/resolve', { method: 'POST', body: JSON.stringify({ source: movie.sourceMeta.sourceId, episode: movie.sourceMeta.episode }) });
@@ -470,14 +491,19 @@ export default function RoomScreen() {
         resolved = { movieId: movie.id, sourceUrl: `/api/stream/anisubs/proxy?${query}`, sourceType: 'anime', format: media.format };
       }
       if (version !== generation.current || operation !== movieOperation.current || !readyRef.current) return;
-      nativeVideoSource(resolved, session.serverUrl, session.accessToken);
+      // Local playback does not wait for the server's Bili account. The effect
+      // above prepares ordinary browser media independently and broadcasts only
+      // a usable server stream. PGC keeps its explicit per-device CLI contract.
+      if (resolved.sourceType === 'bilibili') broadcastSource = resolved.cliOnly || resolved.epId || resolved.seasonId ? { ...resolved, cliOnly: true } : null;
+      else { nativeVideoSource(resolved, session.serverUrl, session.accessToken); broadcastSource = resolved; }
     }
     catch (failure) { setPlaybackError(safeMediaError(messageFor(failure))); return; }
     setPlaybackError('');
     if (version !== generation.current || operation !== movieOperation.current || !readyRef.current) return;
     const state: Playback = { ...resolved, isPlaying: true, currentTime: 0, playbackRate: 1 };
+    sharedSource.current = broadcastSource;
     roomPlayback.current.current(movie.id); applyPlayback(roomPlayback.current.state(state));
-    socket.emit('watch-together-state', { roomId, state });
+    if (broadcastSource) socket.emit('watch-together-state', { roomId, state: { ...state, ...broadcastSource } });
   };
 
   const playMovieRef = useRef(playMovie); useEffect(() => { playMovieRef.current = playMovie; activateMovieRef.current = movie => playMovie(movie, false); });
@@ -510,7 +536,7 @@ export default function RoomScreen() {
       {mode !== 'listen-together' ? <RoomIconButton label={portrait ? (sideVisible ? '收起下方菜单' : '展开下方菜单') : (sideVisible ? '收起侧栏' : '展开侧栏')} icon={portrait ? (sideVisible ? 'chevron-up' : 'chevron-down') : (sideVisible ? 'sidebar' : 'menu')} onPress={() => setSideOpen(!sideVisible)} /> : null}
     </Surface>
     {!connected && !fullScreen ? <Text style={styles.error}>连接已断开，正在重连</Text> : null}
-    {phase !== 'ready' ? <View style={styles.join}><ActivityIndicator color="#65d59b" animating={phase === 'joining' || phase === 'connecting' || phase === 'waiting'} /><Text style={styles.title}>{phase === 'password' ? '请输入房间密码' : phase === 'waiting' ? '等待房主批准' : phase === 'closed' ? '房间已关闭' : phase === 'error' ? '无法加入房间' : '正在加入房间'}</Text>{error ? <Text style={styles.error}>{error}</Text> : null}{phase === 'password' ? <><TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholder="房间密码" placeholderTextColor="#a8b3b6" /><Button label="进入房间" disabled={!connected} onPress={() => { passwordRef.current = password; attempted.current = true; void join(hostRef.current); }} /></> : null}{phase === 'error' ? <Button label="重试" disabled={!connected} onPress={() => void join(hostRef.current)} /> : null}<Button label="返回房间列表" onPress={leave} /></View> : <>
+    {phase !== 'ready' && !retainMusicPlayback(joined, mode, phase) ? <View style={styles.join}><ActivityIndicator color="#65d59b" animating={phase === 'joining' || phase === 'connecting' || phase === 'waiting'} /><Text style={styles.title}>{phase === 'password' ? '请输入房间密码' : phase === 'waiting' ? '等待房主批准' : phase === 'closed' ? '房间已关闭' : phase === 'error' ? '无法加入房间' : '正在加入房间'}</Text>{error ? <Text style={styles.error}>{error}</Text> : null}{phase === 'password' ? <><TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholder="房间密码" placeholderTextColor="#a8b3b6" /><Button label="进入房间" disabled={!connected} onPress={() => { passwordRef.current = password; attempted.current = true; void join(hostRef.current); }} /></> : null}{phase === 'error' ? <Button label="重试" disabled={!connected} onPress={() => void join(hostRef.current)} /> : null}<Button label="返回房间列表" onPress={leave} /></View> : <>
       <View testID="room-body" onLayout={event => setBodySize(event.nativeEvent.layout)} style={[roomLayout.body, wide && roomLayout.wide, fullScreen && { gap: 0 }]}>
         <View testID="room-media-frame" onLayout={event => setMediaSize(event.nativeEvent.layout)} style={[roomLayout.mediaFrame, wide && sideVisible && columns.media, stacked && roomLayout.stackedMedia, stacked && { height: stackedMediaHeight(bodySize.height || Math.max(0, height - 150)) }]}>
         {mode === 'listen-together' ? <MusicPanel roomId={roomId} host={host} onExpandedLandscape={setMusicImmersive} switchMode={value => { if (host && socket) void emitAck(socket, 'update-room-mode', { roomId, mode: value }).catch(failure => setError(messageFor(failure))); }} /> : <ScrollView ref={mediaColumn} scrollEnabled={!fullScreen} style={roomLayout.mediaScroll} contentContainerStyle={[styles.mediaContent, fullScreen && { flexGrow: 1, paddingBottom: 0, gap: 0 }]}>

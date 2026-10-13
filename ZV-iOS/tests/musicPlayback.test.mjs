@@ -82,10 +82,13 @@ async function mountPanel({ host = false, trackKey = 'ncm:420', playMode = 'sequ
   exports.MusicPanel({ roomId: 'room', host, onExpandedLandscape: noop, switchMode: noop });
   for (const effect of effects) { const cleanup = effect(); if (typeof cleanup === 'function') cleanups.push(cleanup); }
   await tick();
+  player.attach(snapshot.id, { play: async () => {}, pause: async () => {}, stop: async () => {}, seek: async () => {} });
   player.loaded(snapshot.id, 100_000);
+  player.progress(snapshot.id, 0);
   await tick();
   return {
     player, fm, socket, sent, receive,
+    native: { progress: ms => player.progress(snapshot.id, ms), paused: () => player.playingChanged(snapshot.id, false), stopped: () => player.stopped(snapshot.id) },
     control: async (action, value) => { systemControl(action, value); await tick(); },
     heartbeat: async () => { clock += 2000; for (const timer of timers) timer(); await tick(); },
     dispose: () => { for (const cleanup of cleanups.reverse()) cleanup(); fm.dispose(); player.dispose(); },
@@ -174,7 +177,7 @@ test('explicit repeat-one repeats the FM song; disconnect stops its pending sele
   try {
     await panel.fm.start();
     const before = panel.sent.filter(item => item.event === 'music:queue-upsert').length;
-    panel.player.currentTime = 100;
+    panel.native.progress(100_000); panel.native.stopped();
     await panel.heartbeat();
     assert.equal(panel.player.currentTime, 0);
     assert.equal(panel.sent.filter(item => item.event === 'music:queue-upsert').length, before);
@@ -201,5 +204,21 @@ test('late native events from the previous track cannot publish the new track cl
     await panel.heartbeat();
     assert.equal(panel.sent.length, before);
     assert.equal(panel.fm.state.current.songId, 421);
+  } finally { panel.dispose(); }
+});
+
+test('tail seek and transient native pause cannot broadcast a room pause or advance the queue', async () => {
+  const panel = await mountPanel({ host: true, playMode: 'order' });
+  try {
+    await panel.control('play'); await panel.control('seek', 99);
+    panel.native.paused(); panel.native.stopped();
+    await panel.heartbeat();
+    assert.equal(panel.player.currentTime, 99);
+    assert.equal(panel.player.ended, false);
+    assert.equal(panel.sent.filter(item => item.event === 'music:host-heartbeat').at(-1).payload.isPlaying, true);
+    assert.equal(panel.sent.filter(item => item.event === 'music:queue-upsert').length, 0);
+    await panel.control('seek', 100); assert.equal(panel.player.currentTime, 99.75);
+    await panel.control('pause'); await panel.heartbeat();
+    assert.equal(panel.sent.filter(item => item.event === 'music:host-heartbeat').at(-1).payload.isPlaying, false);
   } finally { panel.dispose(); }
 });

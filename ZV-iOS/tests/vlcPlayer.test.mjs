@@ -33,7 +33,7 @@ test('VLC adapts milliseconds, initial seek, rate and the shared room clock', as
   assert.equal(snapshot.initialTime, 120);
   f.player.attach(snapshot.id, f.view); f.player.loaded(snapshot.id, 1446200);
   assert.deepEqual(f.calls.find(Array.isArray), ['seek', 120000]); assert.equal(f.player.duration, 1446.2);
-  f.player.progress(snapshot.id, 125000); assert.equal(f.player.currentTime, 125);
+  f.player.progress(snapshot.id, 120000); f.player.progress(snapshot.id, 125000); assert.equal(f.player.currentTime, 125);
   f.player.playingChanged(snapshot.id, true); assert.equal(f.player.playing, true);
   f.player.playbackRate = 1.25; assert.equal(f.snapshots.at(-1).rate, 1.25);
 });
@@ -77,7 +77,7 @@ test('track changes stay local and a new movie clears stale track IDs and subtit
 test('token refresh preserves VLC position without changing the room source', async () => {
   const f = fixture(); const adapter = new NativeMediaAdapter(f.player);
   await adapter.apply(state, server, 'old'); let id = f.snapshots.at(-1).id;
-  f.player.attach(id, f.view); f.player.loaded(id, 1446200); f.player.progress(id, 160000);
+  f.player.attach(id, f.view); f.player.loaded(id, 1446200); f.player.progress(id, 120000); f.player.progress(id, 160000);
   await adapter.apply(state, server, 'new');
   assert.equal(f.snapshots.at(-1).initialTime, 160); assert.equal(new URL(f.snapshots.at(-1).source.uri).searchParams.get('token'), 'new');
   assert.doesNotMatch(state.sourceUrl, /token=/);

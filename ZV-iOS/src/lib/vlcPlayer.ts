@@ -30,6 +30,8 @@ export class VlcPlayer implements NativePlayerPort {
   private actualPlaying = false;
   private prepared = false;
   private pendingSeek: number | null = null;
+  private activeSeek: { target: number; started: number; revision: number } | null = null;
+  private completed = false;
   private disposed = false;
   private listeners = new Map<keyof Events, Set<(value: never) => void>>();
   private settings: VlcSettings = { tracks: {}, volume: 100, subtitleDelay: 0 };
@@ -47,6 +49,7 @@ export class VlcPlayer implements NativePlayerPort {
   set currentTime(time: number) {
     if (this.disposed || !Number.isFinite(time)) return;
     const next = Math.max(0, time);
+    this.completed = false;
     this.position = next; this.pendingSeek = next;
     if (this.snapshot) { this.snapshot = { ...this.snapshot, initialTime: next }; this.render(this.snapshot); }
     if (this.prepared) this.seekPending();
@@ -60,6 +63,8 @@ export class VlcPlayer implements NativePlayerPort {
   }
   get playing() { return this.actualPlaying; }
   get preparing() { return !!this.snapshot && !this.prepared; }
+  get seeking() { return this.pendingSeek !== null || this.activeSeek !== null; }
+  get ended() { return this.completed; }
   get duration() { return this.length; }
   get mediaTracks() { return this.availableTracks; }
   get mediaSettings() { return this.settings; }
@@ -96,13 +101,19 @@ export class VlcPlayer implements NativePlayerPort {
   private seekPending() {
     if (!this.vlc || this.pendingSeek === null) return;
     const time = this.pendingSeek; this.pendingSeek = null;
-    this.command(() => this.vlc?.seek(Math.round(time * 1000), 'time'));
+    const seek = { target: time, started: Date.now(), revision: this.revision }; this.activeSeek = seek;
+    void this.vlc.seek(Math.round(time * 1000), 'time').then(() => {
+      if (!this.accepts(seek.revision) || this.activeSeek !== seek) return;
+      // Seeking can pause the native input. Restore the current intent after
+      // the command; an explicit pause issued meanwhile must still win.
+      if (this.desiredPlaying) this.command(() => this.vlc?.play());
+    }).catch(() => { if (this.accepts(seek.revision) && this.activeSeek === seek) { this.activeSeek = null; this.fail(seek.revision, '拖动进度失败，请重试'); } });
   }
   async replaceAsync(source: VideoSource | null) {
     if (this.disposed) return;
     ++this.revision;
     const old = this.vlc; this.vlc = null; this.snapshot = null;
-    this.prepared = false; this.pendingSeek = null; this.actualPlaying = false; this.desiredPlaying = false;
+    this.prepared = false; this.pendingSeek = null; this.activeSeek = null; this.completed = false; this.actualPlaying = false; this.desiredPlaying = false;
     this.availableTracks = { audio: [], video: [], subtitle: [] };
     this.settings = { ...this.settings, tracks: {}, subtitleUri: undefined, subtitleDelay: 0 };
     this.emit('settingsChange', this.settings);
@@ -131,6 +142,13 @@ export class VlcPlayer implements NativePlayerPort {
   }
   progress(id: number, milliseconds: number) {
     if (!this.accepts(id) || !Number.isFinite(milliseconds) || this.pendingSeek !== null) return;
+    if (this.activeSeek) {
+      const elapsed = (Date.now() - this.activeSeek.started) / 1000;
+      const reported = milliseconds / 1000;
+      const arrived = Math.abs(reported - this.activeSeek.target) <= 1.5 || this.desiredPlaying && reported >= this.activeSeek.target && reported <= this.activeSeek.target + elapsed * this.rate + 1.5;
+      if (!arrived && elapsed < 5) return;
+      this.activeSeek = null;
+    }
     this.position = Math.max(0, milliseconds / 1000);
     this.emit('timeUpdate', { currentTime: this.position });
   }
@@ -139,9 +157,15 @@ export class VlcPlayer implements NativePlayerPort {
     // A native start-paused callback while preparing must not overwrite the
     // room's requested play state before VLC has applied the initial intent.
     if (!playing && !this.prepared && this.desiredPlaying) return;
+    if (!playing && this.seeking && this.desiredPlaying) return;
     if (playing && !this.desiredPlaying) { this.command(() => this.vlc?.pause()); return; }
     this.actualPlaying = playing;
     this.emit('playingChange', { isPlaying: playing });
+  }
+  stopped(id: number) {
+    if (!this.accepts(id)) return;
+    this.completed = this.desiredPlaying && !this.seeking && this.length > 0 && this.position >= this.length - 1.5;
+    this.playingChanged(id, false);
   }
   tracks(id: number, tracks: { audio: unknown[]; video: unknown[]; subtitle: unknown[] }) {
     if (!this.accepts(id)) return;
@@ -153,7 +177,7 @@ export class VlcPlayer implements NativePlayerPort {
   }
   fail(id: number, message: string) {
     if (!this.accepts(id)) return;
-    this.desiredPlaying = false; this.actualPlaying = false; this.prepared = false;
+    this.desiredPlaying = false; this.actualPlaying = false; this.prepared = false; this.activeSeek = null; this.pendingSeek = null; this.completed = false;
     this.emit('statusChange', { status: 'error', error: { message } });
   }
   private accepts(id: number) { return !this.disposed && id === this.revision; }

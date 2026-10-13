@@ -19,9 +19,9 @@ export function moviePlayback(movie: Movie): PlaybackSource {
   let url = movie.url;
   const page = movie.pages?.find(item => item.page === (movie.currentPage || 1));
   const epId = page?.epId || movie.epId;
-  const cid = movie.cid || page?.cid;
+  const cid = page?.cid || movie.cid;
   if ((movie.source || movie.sourceType) === 'bilibili') { const parsed = new URL(biliSelection(epId ? `ep${epId}` : url).url); if (cid) parsed.searchParams.set('cid', String(cid)); if (!epId && movie.currentPage) parsed.searchParams.set('p', String(movie.currentPage)); url = parsed.toString(); }
-  return { movieId: movie.id, cid, epId, seasonId: page?.seasonId || movie.seasonId, cliOnly: movie.cliOnly, currentPage: movie.currentPage, sourceUrl: url, sourceType: movie.source || movie.sourceType || 'mp4', format: movie.format, audioUrl: movie.audioUrl, headers: movie.headers };
+  return { movieId: movie.id, cid, epId, seasonId: page?.seasonId || movie.seasonId, cliOnly: movie.cliOnly, currentPage: movie.currentPage, sourceUrl: url, sourceType: movie.source || movie.sourceType || 'mp4', format: movie.format, audioUrl: (movie.source || movie.sourceType) === 'bilibili' ? undefined : movie.audioUrl, headers: movie.headers };
 }
 export function formatTime(time: number) {
   const seconds = Math.max(0, Math.floor(Number.isFinite(time) ? time : 0));

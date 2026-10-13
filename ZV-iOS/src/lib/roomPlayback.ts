@@ -89,12 +89,16 @@ export class RoomPlayback {
   value(): Playback | null {
     const state = this.pending;
     if (!state || this.movieId === null || state.movieId != null && this.movieId != null && state.movieId !== this.movieId) return null;
-    if (!['bilibili', 'emby', 'jellyfin'].includes(state.sourceType || '')) return state;
     const movie = this.movies.find(item => item.id === this.movieId);
+    // The movie DTO owns the provider identity. Older broadcasts may omit or
+    // mislabel it while carrying the host's loopback/proxy address.
+    const sourceType = movie?.source || movie?.sourceType || state.sourceType;
+    if (!['bilibili', 'emby', 'jellyfin'].includes(sourceType || '')) return state;
     if (!movie) return null;
-    if (state.cid && movie.cid && state.cid !== movie.cid) return null;
-    const page = ['emby', 'jellyfin'].includes(state.sourceType || '') ? libraryPage(state) : undefined;
+    const resolved = moviePlayback(movie);
+    if (state.cid && resolved.cid && state.cid !== resolved.cid) return null;
+    const page = ['emby', 'jellyfin'].includes(sourceType || '') ? libraryPage(state) : undefined;
     if (page != null && page !== (movie.currentPage || 1)) return null;
-    return { ...state, ...moviePlayback(movie), movieId: movie.id, cid: movie.cid ?? state.cid };
+    return { ...state, ...resolved, movieId: movie.id, cid: resolved.cid ?? state.cid };
   }
 }
