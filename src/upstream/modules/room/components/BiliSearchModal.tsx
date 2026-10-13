@@ -7,7 +7,7 @@ import { connectionUrl } from '../../../../platform/connectionTransport'
  * 关键词搜索 + 结果缓存），选中后把 BV 链接回填到添加面板并自动解析。
  *
  * UI 对标 Kazumi / ani-subs 番剧源面板（FullscreenOverlay 大面板），
- * 结果区采用瀑布流布局（CSS multi-column，卡片按列填充、高度不齐自然错落）。
+ * 结果区采用自适应网格，按行保持搜索结果顺序。
  *
  * - 标题清洗：B站 搜索接口的 title 含 <em class="keyword"> 高亮标记，展示前剥离
  * - 封面经 buildBilibiliImageProxyUrl 代理（hdslb.com 防盗链）
@@ -198,7 +198,7 @@ export function BiliSearchModal({
               }
             }}
             placeholder="输入关键词搜索 B站 视频"
-            className="flex-1"
+            className="min-w-0 flex-1"
           />
           <Button
             variant="primary"
@@ -240,7 +240,7 @@ export function BiliSearchModal({
                   />
                 </div>
               ) : (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-2">
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,230px),1fr))] gap-2">
                   {detailPages.map((p) => (
                     <button
                       key={p.page}
@@ -288,18 +288,16 @@ export function BiliSearchModal({
               </Text>
             </div>
 
-            {/* 结果区：瀑布流（外层滚动，内层 multi-column 平衡分列，
-            列内卡片 break-inside-avoid 不跨列截断） */}
-            <div className="zen-scroll min-h-0 flex-1 overflow-y-auto pr-0.5">
-              {/* column-width 260px 自适应列数：网页全屏/高分辨率下自动
-              显示更多列（卡片更小），而不是固定列数把卡片拉大 */}
-              <div className="[columns:auto_200px] gap-3">
+            {/* 结果按可用宽度排成多列，窄屏保持两列且不溢出。 */}
+            <div className="zen-scroll min-h-0 flex-1 overflow-y-auto pr-0.5" style={{ containerType: 'inline-size' }}>
+              {/* 依照结果容器宽度缩放卡片下限；手机两列，宽屏增加列数。 */}
+              <div className="grid items-start gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(min(100%,clamp(112px,24cqw,160px)),1fr))' }} data-bili-search-grid>
                 {items.map((v) => (
                   <button
                     key={v.bvid}
                     type="button"
                     onClick={() => void handleCardClick(v)}
-                    className="group mb-3 block w-full break-inside-avoid overflow-hidden rounded-[var(--md-sys-shape-corner)] border border-[var(--md-sys-color-outline-variant)] text-left transition-all hover:-translate-y-0.5 hover:border-[var(--md-sys-color-primary)] hover:shadow-sm"
+                    className="group block min-w-0 w-full overflow-hidden rounded-[var(--md-sys-shape-corner)] border border-[var(--md-sys-color-outline-variant)] text-left transition-all hover:-translate-y-0.5 hover:border-[var(--md-sys-color-primary)] hover:shadow-sm"
                   >
                     {/* 封面：16:9 + 时长角标 */}
                     <div className="relative aspect-video w-full overflow-hidden bg-[var(--glass-bg)]">
@@ -339,7 +337,7 @@ export function BiliSearchModal({
                         {v.upName}
                       </Text>
                       <div
-                        className="flex items-center gap-2 text-[10px] leading-tight"
+                        className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] leading-tight"
                         style={{
                           color: 'var(--md-sys-color-on-surface-variant)',
                         }}
@@ -357,7 +355,7 @@ export function BiliSearchModal({
 
                 {/* 加载中 / 空态：横跨所有列 */}
                 {loading && items.length === 0 && (
-                  <div className="flex [column-span:all] flex-col items-center justify-center gap-3 py-16">
+                  <div className="flex col-span-full flex-col items-center justify-center gap-3 py-16">
                     <div
                       className="flex h-14 w-14 items-center justify-center rounded-full"
                       style={{ backgroundColor: 'var(--glass-bg)' }}
@@ -374,7 +372,7 @@ export function BiliSearchModal({
                 )}
 
                 {searched && !loading && items.length === 0 && (
-                  <div className="flex [column-span:all] flex-col items-center justify-center gap-3 py-16">
+                  <div className="flex col-span-full flex-col items-center justify-center gap-3 py-16">
                     <div
                       className="flex h-14 w-14 items-center justify-center rounded-full"
                       style={{ backgroundColor: 'var(--glass-bg)' }}
@@ -394,7 +392,7 @@ export function BiliSearchModal({
 
                 {/* 首次打开空态：横跨所有列 */}
                 {!searched && !loading && items.length === 0 && (
-                  <div className="flex [column-span:all] flex-col items-center justify-center gap-3 py-16">
+                  <div className="flex col-span-full flex-col items-center justify-center gap-3 py-16">
                     <div
                       className="flex h-14 w-14 items-center justify-center rounded-full"
                       style={{ backgroundColor: 'var(--glass-bg)' }}
@@ -419,7 +417,7 @@ export function BiliSearchModal({
                     block
                     loading={loadingMore}
                     onClick={() => void doSearch(keyword, page + 1, true)}
-                    className="mb-3 [column-span:all]"
+                    className="mb-3 col-span-full"
                   >
                     加载更多
                   </Button>

@@ -31,7 +31,7 @@ function harmony(play='preview',nested=false){
   requests.push({url,options});const data=url.includes('/season?')?fixture.season:fixture[play]
   return {responseCode:200,result:JSON.stringify(nested?{code:0,data:{result:data}}:{code:0,result:data})}
  }})}
- return {requests,...loadTs('ZV-HarmonyOS/entry/src/main/ets/services/BilibiliResolver.ets',{'@kit.NetworkKit':{http},'@kit.CryptoArchitectureKit':{cryptoFramework:{}},'@kit.ArkTS':{util:{TextEncoder}}})}
+ return {requests,...loadTs('ZV-HarmonyOS/entry/src/main/ets/services/BilibiliResolver.ets',{'./BilibiliWbi':loadTs('ZV-HarmonyOS/entry/src/main/ets/services/BilibiliWbi.ets'),'@kit.NetworkKit':{http},'@kit.CryptoArchitectureKit':{cryptoFramework:{}},'@kit.ArkTS':{util:{TextEncoder}}})}
 }
 test('ArkTS PGC shares Go fixture: ep2, season, badge, actual preview length',async()=>{
  const h=harmony('preview',true),r=await h.resolveBilibili('ep102',0,32,'manual',0,'',0,true,[])

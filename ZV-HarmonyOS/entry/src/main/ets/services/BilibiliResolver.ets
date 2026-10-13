@@ -1,6 +1,7 @@
 import { http } from '@kit.NetworkKit';
 import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import { util, url } from '@kit.ArkTS';
+import { wbiMixinKey, wbiQuery } from './BilibiliWbi';
 
 interface WbiImages { img_url: string; sub_url: string; }
 interface NavData { wbi_img: WbiImages; }
@@ -104,18 +105,7 @@ async function pgcPlay(epId: number, cid: number, qn: number, cookie: string, mp
   return play;
 }
 
-const MIXIN_INDEX = [46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49, 33, 9, 20, 42, 19, 29, 28, 14, 7, 41, 12, 1];
 const USER_AGENT = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36';
-
-function query(parameters: Map<string, string>): string {
-  const keys = Array.from(parameters.keys()).sort();
-  const parts: string[] = [];
-  for (const key of keys) {
-    const value = parameters.get(key) ?? '';
-    if (value !== '') parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
-  }
-  return parts.join('&');
-}
 
 function hex(bytes: Uint8Array): string {
   let value = '';
@@ -146,10 +136,7 @@ async function signedPlayUrl(bvid: string, cid: number, qn: number, cookie: stri
   const nav = await getJson<NavResponse>('https://api.bilibili.com/x/web-interface/nav', cookie);
   // Anonymous nav reports code -101 while still returning the public WBI image keys.
   if (!nav.data?.wbi_img) throw new Error('B 站 WBI 密钥不可用');
-  const raw = imageKey(nav.data.wbi_img.img_url) + imageKey(nav.data.wbi_img.sub_url);
-  let mixin = '';
-  for (const index of MIXIN_INDEX) if (index < raw.length) mixin += raw[index];
-  mixin = mixin.slice(0, 32);
+  const mixin = wbiMixinKey(imageKey(nav.data.wbi_img.img_url), imageKey(nav.data.wbi_img.sub_url));
   const params = new Map<string, string>();
   params.set('bvid', bvid);
   params.set('cid', String(cid));
@@ -159,9 +146,9 @@ async function signedPlayUrl(bvid: string, cid: number, qn: number, cookie: stri
   params.set('fourk', '1');
   params.set('wts', String(Math.floor(Date.now() / 1000)));
   const md = cryptoFramework.createMd('MD5');
-  await md.update({ data: new util.TextEncoder().encode(query(params) + mixin) });
+  await md.update({ data: new util.TextEncoder().encode(wbiQuery(params) + mixin) });
   params.set('w_rid', hex((await md.digest()).data));
-  const play = await getJson<PlayResponse>(`https://api.bilibili.com/x/player/wbi/playurl?${query(params)}`, cookie);
+  const play = await getJson<PlayResponse>(`https://api.bilibili.com/x/player/wbi/playurl?${wbiQuery(params)}`, cookie);
   if (play.code !== 0 || !play.data) throw new Error(play.message || 'B 站播放地址不可用');
   return play.data;
 }

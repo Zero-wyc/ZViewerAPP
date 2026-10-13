@@ -385,7 +385,7 @@ function ShellInner({
         {page === 'home' && <MusicHomePage {...pageProps} />}
         {page === 'search' && <MusicSearchPage {...pageProps} />}
         {page === 'fm' && (
-          <MusicFmPage socket={socket} roomId={roomId} canManage={canManage} />
+          <MusicFmPage roomId={roomId} isHost={isHost} />
         )}
         {page === 'mymusic' && <MusicMyPage {...pageProps} />}
         {page === 'cloud' && <MusicCloudPage {...pageProps} />}

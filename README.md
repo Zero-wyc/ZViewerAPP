@@ -1,5 +1,7 @@
 # ZViewer Mobile Client
 
+2026-10-13：Android/HarmonyOS 本地候选 **1.7.6 / 176** 已对齐服务端 v4.5.3，增加默认音量/FM 连续漫游、鸿蒙 WBI 修复和 B站搜索自适应多列。签名包位于 `release/client-v1.7.6/`，尚未发布 Release；验证与设备边界见 [记录](docs/client-v1.7.6-alignment-453-validation-20261013.md)。下方发布链接保留已发布版本。
+
 <img src="public/favicon.jpg" alt="ZViewer" width="88" height="88" />
 
 面向手机和平板的 ZViewer 客户端，支持同步观影、一起听、房间语音、弹幕与字幕。Android 和 HarmonyOS 将界面与播放器打包进安装包，通过你填写的服务器地址连接 [ZViewer 服务端](https://github.com/Zero-wyc/ZViewer)。本仓库提供共享前端和原生宿主源码。

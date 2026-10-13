@@ -1,5 +1,7 @@
 # Android / HarmonyOS 维护与发布
 
+2026-10-13：双端本地候选 **1.7.6 / 176** 对齐 v4.5.3，默认音量、FM 会话续播、鸿蒙 WBI 和 B站搜索多列已实现。已生成并校验签名 APK/HAP，当前未发布、未安装到设备。详见 [1.7.6 验证](client-v1.7.6-alignment-453-validation-20261013.md)；下方已发布/设备记录为历史。
+
 2026-10-12：当前双端版本为 [1.7.5 / 175](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.7.5)，对齐服务端 v4.5.1，包含此前 1.7.4 本地更新、片单完整多行标题及源菜单按内容增宽。公告排除，iOS 未更新。源码与 Git 操作仍全部在指定 ZViewer-client 仓库，推送 main；附件只上传签名 APK、HAP、SHA256SUMS.txt，源码使用 GitHub 自动生成归档。双端维护入口和本轮验证见 [1.7.5 记录](client-v1.7.5-ui-validation-20261012.md)，下方旧版本状态属于历史。
 
 2026-10-09 发布准则：当前双端为 [1.7.1 / 171](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.7.1)。发布地址固定 Zero-wyc/ZViewerAPP，源码推送 main；标题为 ZViewer-Client V版本号。附件为正式签名 APK、HAP、SHA256SUMS.txt，不发布 APP，也不单独打包源码，使用 GitHub 自动生成的源码压缩包。源码与安装包排除测试凭据、签名私钥及 AGENTS.md。以下旧版本源码 ZIP 的描述为历史记录。

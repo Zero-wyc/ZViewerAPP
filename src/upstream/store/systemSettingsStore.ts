@@ -22,6 +22,8 @@ export interface SystemSettings {
   roomCreationMode: RoomCreationMode
   /** 房间可执行动作权限矩阵（null/缺省=按兼容默认：房管+管理员允许、普通用户禁止） */
   roomPermissionMatrix: PermissionMatrix | null
+  /** 初始音乐音量百分比；本地有效偏好优先。 */
+  roomDefaultMusicVolume: number
   betaFeaturesEnabled: boolean
   /** 禁用服务器端 DASH 模式，强制 MP4（仅服务器端，不影响 CLI） */
   dashDisabled: boolean
@@ -64,6 +66,7 @@ const DEFAULT_SETTINGS: SystemSettings = {
   registrationMode: 'approval',
   roomCreationMode: 'admin-only',
   roomPermissionMatrix: null,
+  roomDefaultMusicVolume: 50,
   betaFeaturesEnabled: false,
   dashDisabled: false,
   bilibiliDefaultParseMode: 'mp4',
