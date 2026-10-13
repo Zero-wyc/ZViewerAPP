@@ -22,6 +22,43 @@ function patchSystemMedia(root) {
       .replace('    switch newState {', `    NotificationCenter.default.post(name: NSNotification.Name("ZViewerVlcProgress"), object: nil, userInfo: ["uri": view.source ?? "", "playing": player.isPlaying])
     switch newState {`));
     patch('Managers/MediaPlayerManager.swift', 'ZViewerPlaybackUri', source => source.replace('      if !view.pictureInPicture {', '      // Only the business media owner may continue ordinary background audio.\n      if view.source != UserDefaults.standard.string(forKey: "ZViewerPlaybackUri") && !view.pictureInPicture {'));
+    patch('LibVlcPlayerModule.swift', 'Prop("backgroundAudio"', source => source.replace('      Prop("pictureInPicture", false)', `      Prop("backgroundAudio", false) { (view: LibVlcPlayerView, backgroundAudio: Bool) in
+        view.backgroundAudio = backgroundAudio
+      }
+
+      Prop("pictureInPicture", false)`));
+    patch('LibVlcPlayerView.swift', 'var backgroundAudio:', source => source.replace('  var pictureInPicture:', `  var backgroundAudio: Bool = false {
+    didSet { if oldValue != backgroundAudio { player.shouldInit = true } }
+  }
+
+  var pictureInPicture:`));
+    patch('Player/MediaPlayer.swift', 'ZViewerAudioOnly', source => source.replace('    var args = view.options', `    // ZViewerAudioOnly: music must not keep a hidden video/PiP output alive.
+    var args = view.options
+    if view.backgroundAudio { args.append(":no-video") }`));
+    patch('Managers/MediaPlayerManager.swift', 'ZViewerBackgroundAudio', source => source
+      .replace('  func onModuleBackground() {', `  func onModuleBackground() {
+    // ZViewerBackgroundAudio: prepare synchronously before iOS suspends JS.
+    audioSessionManager.prepareForBackgroundAudio()`)
+      .replace('      if view.source !=', '      if !view.backgroundAudio && view.source !='));
+    patch('Managers/AudioSessionManager.swift', 'func prepareForBackgroundAudio()', source => source.replace('  private func setAudioSession() {', `  func prepareForBackgroundAudio() {
+    guard !UserDefaults.standard.bool(forKey: "ZViewerVoiceActive"),
+      expoViews.allObjects.contains(where: { $0.backgroundAudio && $0.mediaPlayer?.isPlaying == true })
+    else { return }
+    // Preserve an already playing owner; never resume a paused item.
+    let session = AVAudioSession.sharedInstance()
+    do {
+      try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+      try session.setActive(true)
+    } catch { log.warn("ZViewer background audio session failed") }
+  }
+
+  private func setAudioSession() {`)
+      .replace('    let audioMixingMode = findAudioMixingMode()', `    let audioMode: AVAudioSession.Mode = expoViews.allObjects.contains {
+      $0.backgroundAudio && $0.mediaPlayer?.isPlaying == true
+    } ? .default : .moviePlayback
+    let audioMixingMode = findAudioMixingMode()`)
+      .replace('audioSession.mode != .moviePlayback', 'audioSession.mode != audioMode')
+      .replace('mode: .moviePlayback,', 'mode: audioMode,'));
 }
 module.exports = config => {
   config = withInfoPlist(config, value => { value.modResults.UIBackgroundModes = [...new Set([...(value.modResults.UIBackgroundModes || []), 'audio'])]; return value; });

@@ -204,11 +204,15 @@ private final class ZVVoiceEngine {
   }
   func drop(_ peer: String) { if let target = peers.removeValue(forKey: peer) { target.player.stop(); engine?.detach(target.player) } }
   func stop() {
+    let ownedAudioSession = engine != nil
     generation += 1; muted = true; samples.removeAll(); observers.forEach { NotificationCenter.default.removeObserver($0) }; observers.removeAll()
     for peer in Array(peers.keys) { drop(peer) }
     engine?.inputNode.removeTap(onBus: 0); engine?.stop(); engine = nil; converter = nil; encoder = nil
+    // An idle legacy voice engine does not own VLC/LiveKit's shared session.
+    guard ownedAudioSession else { return }
     UserDefaults.standard.set(false, forKey: "ZViewerVoiceActive")
     // Restore playback after leaving voice while VLC may still be playing.
     try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+    try? AVAudioSession.sharedInstance().setActive(true)
   }
 }

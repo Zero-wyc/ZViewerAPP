@@ -8,12 +8,13 @@ const { patchVlcTracks } = require('../plugins/with-vlc-tracks.cjs');
 // Reapply the same patches after that step, then fail closed before compilation.
 function verify(root) {
   const required = {
-    'Managers/AudioSessionManager.swift': ['ZViewerVoiceActive'],
-    'Managers/MediaPlayerManager.swift': ['ZViewerPlaybackUri'],
-    'LibVlcPlayerView.swift': ['ZViewer queued playback intent', 'zviewerRemoteObserver'],
+    'Managers/AudioSessionManager.swift': ['ZViewerVoiceActive', 'func prepareForBackgroundAudio()', 'mode: audioMode,', 'ZViewer background audio session failed'],
+    'Managers/MediaPlayerManager.swift': ['ZViewerPlaybackUri', 'audioSessionManager.prepareForBackgroundAudio()', 'if !view.backgroundAudio && view.source !='],
+    'LibVlcPlayerModule.swift': ['Prop("backgroundAudio", false)', 'view.backgroundAudio = backgroundAudio'],
+    'LibVlcPlayerView.swift': ['ZViewer queued playback intent', 'zviewerRemoteObserver', 'var backgroundAudio: Bool = false'],
     'Records/Tracks.swift': ['var audio: Int? = nil', 'var video: Int? = nil', 'var subtitle: Int? = nil'],
     'Records/MediaTrack.swift': ['var selected: Bool = false'],
-    'Player/MediaPlayer.swift': ['ZViewerVlcProgress', 'ZViewerExclusiveTracks', 'ZViewerDeferredSlaves',
+    'Player/MediaPlayer.swift': ['ZViewerVlcProgress', 'ZViewerExclusiveTracks', 'ZViewerDeferredSlaves', 'if view.backgroundAudio { args.append(":no-video") }',
       'guard mediaPlayer?.isPlaying == true else { return }', 'zviewerAddedSlaves.removeAll()',
       'if mediaPlayer?.addPlaybackSlave(url, type: slaveType, enforce: selected) == 0',
       'if newState == .playing {\n        addPlayerSlaves(view.slaves)'],

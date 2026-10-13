@@ -7,7 +7,7 @@ import { readPreference } from '@/lib/preferences';
 
 // Expo Go/Web previews must report a missing kernel rather than crash during
 // startup. There is deliberately no alternate playback engine in this app.
-const VlcView: ComponentType<LibVlcPlayerViewProps> | null = Platform.OS === 'ios' && requireOptionalNativeModule('ExpoLibVlcPlayer')
+const VlcView: ComponentType<LibVlcPlayerViewProps & { backgroundAudio?: boolean }> | null = Platform.OS === 'ios' && requireOptionalNativeModule('ExpoLibVlcPlayer')
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- native capability detection must precede package loading.
   ? require('expo-libvlc-player').LibVlcPlayerView : null;
 
@@ -19,13 +19,13 @@ export function useVlcVideo(silent = false) {
   return { player, snapshot };
 }
 
-export function VlcVideo({ video, style, background = false }: { video: ReturnType<typeof useVlcVideo>; style: StyleProp<ViewStyle>; background?: boolean }) {
+export function VlcVideo({ video, style, background = false, backgroundAudio = false }: { video: ReturnType<typeof useVlcVideo>; style: StyleProp<ViewStyle>; background?: boolean; backgroundAudio?: boolean }) {
   const { player, snapshot } = video;
   if (!snapshot || !VlcView) return null;
-  return <VlcSurface key={snapshot.id} player={player} snapshot={snapshot} style={style} background={background} />;
+  return <VlcSurface key={snapshot.id} player={player} snapshot={snapshot} style={style} background={background} backgroundAudio={backgroundAudio} />;
 }
 
-function VlcSurface({ player, snapshot, style, background }: { player: VlcPlayer; snapshot: VlcSnapshot; style: StyleProp<ViewStyle>; background: boolean }) {
+function VlcSurface({ player, snapshot, style, background, backgroundAudio }: { player: VlcPlayer; snapshot: VlcSnapshot; style: StyleProp<ViewStyle>; background: boolean; backgroundAudio: boolean }) {
   const ref = useRef<LibVlcPlayerViewRef | null>(null);
   useEffect(() => {
     player.attach(snapshot.id, ref.current);
@@ -42,7 +42,8 @@ function VlcSurface({ player, snapshot, style, background }: { player: VlcPlayer
     volume={snapshot.settings.volume}
     delays={{ subtitle: Math.round(snapshot.settings.subtitleDelay * 1000000) }}
     autoplay={snapshot.autoplay}
-    pictureInPicture={!background}
+    pictureInPicture={!background && !backgroundAudio}
+    backgroundAudio={backgroundAudio}
     time={Math.round(snapshot.initialTime * 1000)}
     rate={snapshot.rate}
     contentFit={background ? 'cover' : 'contain'}

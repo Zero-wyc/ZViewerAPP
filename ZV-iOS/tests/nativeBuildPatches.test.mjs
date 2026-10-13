@@ -20,8 +20,30 @@ test('native compilation guard detects missing slave retry and background patche
       assert.throws(() => verify(root), /VLC native patch missing/);
     }
     writeFileSync(file, original);
+    for (const [relative, marker] of [
+      ['Managers/MediaPlayerManager.swift', 'if !view.backgroundAudio && view.source !='],
+      ['Managers/AudioSessionManager.swift', 'func prepareForBackgroundAudio()'],
+      ['LibVlcPlayerModule.swift', 'Prop("backgroundAudio", false)'],
+      ['Player/MediaPlayer.swift', 'if view.backgroundAudio { args.append(":no-video") }'],
+    ]) {
+      const target = join(root, 'ios', relative);
+      const saved = readFileSync(target, 'utf8');
+      writeFileSync(target, saved.replace(marker, 'removed-by-dependency-reinstall'));
+      assert.throws(() => verify(root), /VLC native patch missing/);
+      writeFileSync(target, saved);
+    }
     verify(root);
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('music uses explicit native audio background ownership without hidden PiP', () => {
+  const music = readFileSync(new URL('../src/components/MusicPanel.tsx', import.meta.url), 'utf8');
+  const view = readFileSync(new URL('../src/components/VlcVideo.tsx', import.meta.url), 'utf8');
+  assert(music.includes('<VlcVideo video={video} backgroundAudio'));
+  assert(view.includes('pictureInPicture={!background && !backgroundAudio}'));
+  assert(view.includes('backgroundAudio={backgroundAudio}'));
+  const native = readFileSync(new URL('../modules/zviewer-native/ios/ZViewerNativeModule.swift', import.meta.url), 'utf8');
+  assert(native.includes('guard ownedAudioSession else { return }'));
 });
 
 test('unsigned pipeline restores patches after EAS prebuild and checks before xcodebuild', () => {
