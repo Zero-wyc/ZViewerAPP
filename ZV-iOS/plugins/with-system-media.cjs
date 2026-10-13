@@ -3,6 +3,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 function patchSystemMedia(root) {
     const patch = (relative, marker, edit) => { const file = path.join(root, 'ios', relative); const source = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n'); if (source.includes(marker)) return; const next = edit(source); if (next === source || !next.includes(marker)) throw new Error(`Review VLC system-media integration: ${relative}`); fs.writeFileSync(file, next); };
+    // VLCKit 4 defaults to inline callbacks under libvlc's recursive player
+    // lock. A synchronous hop from that callback to UIKit can deadlock with
+    // the main thread waiting for the same lock. Configure every new player
+    // to release the libvlc callback before running its delegate on main.
+    patch('Player/MediaPlayer.swift', 'ZViewerAsyncVlcEvents', source => source
+      .replace('    library = VLCLibrary()', `    // ZViewerAsyncVlcEvents: VLCKit 4.0.0-a24 legacy means async main, not an older playback engine.
+    VLCLibrary.sharedEventsConfiguration = VLCEventsLegacyConfiguration()
+    library = VLCLibrary()`)
+      .replace('    mediaPlayer?.stop()\n    mediaPlayer = nil', '    mediaPlayer?.delegate = nil\n    mediaPlayer?.stop()\n    mediaPlayer = nil'));
     patch('LibVlcPlayerView.swift', 'zviewerRemoteObserver', source => source
       .replace('  private var oldVolume:', '  private var zviewerRemoteObserver: NSObjectProtocol?\n  private var oldVolume:')
       .replace('    player = MediaPlayer(self)', `    player = MediaPlayer(self)

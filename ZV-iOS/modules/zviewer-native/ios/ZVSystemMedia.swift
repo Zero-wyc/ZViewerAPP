@@ -15,11 +15,16 @@ final class ZVSystemMedia {
   private var pending: [[String: Any]] = []
   private var info: [String: Any] = [:]
   init() {
-    observer = NotificationCenter.default.addObserver(forName: NSNotification.Name("ZViewerVlcProgress"), object: nil, queue: .main) { [weak self] note in
-      guard let self, let data = note.userInfo, data["uri"] as? String == self.state["uri"] as? String else { return }
-      if let position = data["position"] as? Double { self.state["position"] = position; self.info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = position }
-      if let playing = data["playing"] as? Bool { self.state["playing"] = playing; self.info[MPNowPlayingInfoPropertyPlaybackRate] = playing ? (self.state["playbackRate"] as? Double ?? 1) : 0 }
-      MPNowPlayingInfoCenter.default().nowPlayingInfo = self.info
+    // NotificationCenter's queue delivery waits for its observer. Never wait
+    // for main from a VLC callback that may hold libvlc's player lock.
+    observer = NotificationCenter.default.addObserver(forName: NSNotification.Name("ZViewerVlcProgress"), object: nil, queue: nil) { [weak self] note in
+      guard let data = note.userInfo else { return }
+      DispatchQueue.main.async { [weak self] in
+        guard let self, let uri = data["uri"] as? String, !uri.isEmpty, uri == self.state["uri"] as? String else { return }
+        if let position = data["position"] as? Double { self.state["position"] = position; self.info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = position }
+        if let playing = data["playing"] as? Bool { self.state["playing"] = playing; self.info[MPNowPlayingInfoPropertyPlaybackRate] = playing ? (self.state["playbackRate"] as? Double ?? 1) : 0 }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = self.info
+      }
     }
     let audioSession = AVAudioSession.sharedInstance()
     let pauseForSystem = { [weak self] in
@@ -27,11 +32,11 @@ final class ZVSystemMedia {
       if self.state["host"] as? Bool == true { _ = self.handle("pause") }
       else { NotificationCenter.default.post(name: NSNotification.Name("ZViewerVlcCommand"), object: nil, userInfo: ["uri": uri, "action": "pause"]) }
     }
-    audioObservers.append(NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: audioSession, queue: .main) { note in
-      if (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.uintValue == AVAudioSession.InterruptionType.began.rawValue { pauseForSystem() }
+    audioObservers.append(NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: audioSession, queue: nil) { note in
+      if (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.uintValue == AVAudioSession.InterruptionType.began.rawValue { DispatchQueue.main.async { pauseForSystem() } }
     })
-    audioObservers.append(NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: audioSession, queue: .main) { note in
-      if (note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? NSNumber)?.uintValue == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue { pauseForSystem() }
+    audioObservers.append(NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: audioSession, queue: nil) { note in
+      if (note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? NSNumber)?.uintValue == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue { DispatchQueue.main.async { pauseForSystem() } }
     })
     let center = MPRemoteCommandCenter.shared()
     for (remote, action) in [(center.playCommand, "play"), (center.pauseCommand, "pause"), (center.stopCommand, "pause"), (center.nextTrackCommand, "next"), (center.previousTrackCommand, "prev")] {

@@ -1,6 +1,6 @@
 # ZViewer iOS
 
-独立 Expo SDK 57 / React Native 工程，当前 **源码及真机测试 IPA 为 1.8.5 / build 21**。保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，LiveKit 用于房间语音，WebRTC 用于投屏接收。本包补充一起听原生后台音频配置，并修正云构建依赖重装覆盖 VLC 音轨补丁的问题。完整交付与真机清单见 [build 21 验证记录](../docs/releases/ios-1.8.5-21-validation.md)。本次未发布 GitHub Release。
+独立 Expo SDK 57 / React Native 工程，当前源码 **1.8.5 / build 22**。build 21 经用户真机测试存在播放卡死回归，停止推荐。正在修复 VLC 回调与主线程互等，保留 B站音轨及一起听后台音频配置；新的构建和测试记录完成后更新。保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，LiveKit 用于房间语音，WebRTC 用于投屏接收。本次未发布 GitHub Release。
 
 按用户授权完成云端真机 Release 构建和离线包检验，交用户自行签名和验收。**1.8.5 / 21 的 B站有声播放、后台/锁屏及跨端同步仍待用户真机测试**。175 项测试、lint、类型检查和云端两次补丁核验通过。历史 [b15 预览记录](../docs/releases/ios-1.5.0-15-preview.md)和 [原计划](../docs/ios-continuation-plan.md)保留，不作为新包设备验收结果。
 

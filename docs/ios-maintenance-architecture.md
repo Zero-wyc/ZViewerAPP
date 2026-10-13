@@ -1,5 +1,18 @@
 # iOS 客户端维护架构
 
+## 2026-10-13：build 21 起播卡死回归与异步 VLC 回调修复（build 22）
+
+**build 21 已经用户真机确认存在严重回归，停止作为可用测试包推荐。** 加载时卡顿，Jellyfin 添加后点播放卡死，B站视频和一起听也无法正常播放。此前构建/离线检查通过只证明产物结构及补丁存在，没有覆盖原生线程运行安全。
+
+- 与锁定依赖对应的 VLCKit `4.0.0-a24` 源码核对：默认 `VLCEventsDefaultConfiguration` 无 dispatch queue、同步执行；VLC 状态回调经 `VLCEventsHandler` 直接调用 delegate。libvlc 的播放器调用持递归锁，该锁只允许同线程重入。补丁从该回调发布 `ZViewerVlcProgress`，其 `NotificationCenter` 主队列 observer 又同步等待主线程；主线程执行播放器方法等待 VLC 锁时形成互等。此路径覆盖一起看、Jellyfin 和一起听，符合用户描述；未获取真机线程栈。
+- 创建每个 VLC 播放器之前设置 `VLCLibrary.sharedEventsConfiguration = VLCEventsLegacyConfiguration()`。该类在当前依赖版本表示 `dispatch_get_main_queue()` + `isAsync=YES`，播放内核仍为 VLCKit 4。构建前检查配置位置；打包前检查主可执行文件确实引用该类。
+- 系统媒体进度、中断和路由通知以 `queue:nil` 接收，再显式 `DispatchQueue.main.async` 更新状态或暂停，避免通知发布线程同步等待 UI。进度处理拒绝空 URI、保留当前来源比较。销毁播放器先解除 delegate，再停止，避免延迟回调继续访问已释放视图。
+- 保留 B站 deferred audio slaves、成功去重及重试；保留音乐专用 backgroundAudio、关闭隐藏 PiP/视频、后台 playback 会话。普通视频和装饰视频没有扩大后台权限。
+- 新增真正的 worker 线程锁模型：旧同步通知等待链可观察到 UI 阻塞，异步方式连续 10 次释放；它是等待链回归模型，不是设备或 VLCKit 解码测试。缺配置、配置晚于播放器创建、旧主队列 observer、缺后台/音轨补丁均被检查器拒绝。未修改的 npm 57.0.54 依赖完整应用成功且可重复执行。
+
+本轮目标 1.8.5 / 22；178 项测试、lint、类型检查、192 项上传文件审计及 12 个共享来源文件核验通过，按用户指示提交一次 IPA 构建。实际出声、桌面/息屏连续播放和系统命令仍须用户在新包真机复验，不能以 Web/JS 测试替代。
+
+
 ## 2026-10-13：一起听后台音频与 VLC 分离音轨修复（build 21）
 
 用户重新授权合并修复并构建 IPA。源码版本 1.8.5 / 21，build 20 已取消，不作为交付包。
