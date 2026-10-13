@@ -172,6 +172,16 @@ EAS：[1.5.0 / build 16](https://expo.dev/accounts/YOUR_ACCOUNT/projects/zviewer
 
 本轮记录：[build 16 验证证据](releases/ios-1.5.0-16-validation.json)。既有 build 15 的发布/安装信息见 [build 15 交付记录](releases/ios-1.5.0-15-unsigned.md)。Expo API 与构建方式按 [SDK 57 文档](https://docs.expo.dev/versions/v57.0.0/)、[config mods](https://docs.expo.dev/config-plugins/mods/) 和 [EAS Build](https://docs.expo.dev/build/introduction/) 核对。
 
+## 2026-10-13 目录片源弹窗对齐（Expo 预览）
+
+OpenList、FTP、WebDAV、服务器文件统一使用 `ZV-iOS/src/components/DirectoryPicker.tsx`。添加影片面板仅保留空间/挂载选择、浏览、手动路径与添加；目录在独立 `AppDialog` 中打开，可展开/还原。弹窗包含上级目录、当前目录、路径、空间切换及多选；固定底栏显示选择数量、成功/失败反馈、取消和添加。内容宽度不足 600 时两栏上下排列，宽屏并排；长文件名允许完整换行。
+
+`ZV-iOS/src/lib/directorySources.ts` 集中 roots、browse、resolve 和批量添加协议。挂载保留 `mountId`、`serverUrl`、原始文件 `path` 与 `directLink:false`；服务器文件保留 `uploads:/` 或 `custom:N:/` 前缀，手动路径绑定当前空间。父目录不能越出配置根目录，目录不作为文件添加。切换目录/空间清空选择，批量部分失败只移除成功项，失败项保留供重试。请求使用 RN 兼容的 `checkAbort`，卸载取消旧请求；刷新空间列表后，已打开弹窗会重新读取根目录。
+
+本轮 lint、typecheck 和 **114/114 测试**通过。隔离本机接口中实际操作了四种来源的浏览/单文件添加、服务器文件的空间切换/目录进入/单个与批量添加/手动路径，以及弹窗展开/还原。390×844、844×390、768×1024、1366×1024 的页面检查确认横向无溢出、固定底栏在视口内；手机竖屏堆叠，其他尺寸并排。横屏高度较小时目录内容滚动。
+
+这是源码和 Expo UI 预览验证，未启动 EAS/IPA 构建，未改变原生模块/共享 Go 来源。隔离测试数据不证明真实挂载、原生 VLC 播放或 iOS 安全区/键盘的设备验收。详细记录见 [目录弹窗验证说明](releases/ios-directory-dialog-preview-2026-10-13.md)。
+
 ## 9. iOS 1.5.1 发布（2026-10-03）
 
 - 独立 iOS Release/标签：[ios-v1.5.1](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/ios-v1.5.1)。源码 app.json、package.json 和 package-lock.json 版本同步为 1.5.1；构建号保留 16，本轮没有构建新的 IPA。

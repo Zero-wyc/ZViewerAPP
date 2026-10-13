@@ -19,9 +19,9 @@ import { SourceDropdown } from './SourceDropdown';
 import { EpisodePicker } from './EpisodePicker';
 import { Surface } from './Surface';
 import { MediaLibraryPicker } from './MediaLibraryPicker';
+import { DirectoryPicker } from './DirectoryPicker';
+import type { DirectoryKind } from '@/lib/directorySources';
 
-type Entry = { name: string; path: string; type: string };
-type Location = { kind: string; id?: number; path?: string; serverUrl?: string; name: string };
 const kinds = ['webdav', 'ftp', 'openlist', 'emby', 'jellyfin'];
 const sourceOptions = [
   { id: 'bilibili', name: '哔哩哔哩' }, { id: 'mp4', name: '视频直链' },
@@ -32,7 +32,7 @@ export function SourcePicker({ visible, onClose, onAdd }: { visible: boolean; on
   const theme = useAppearance();
   const ui = theme.styles(baseUi);
 
-  const { request, session } = useSession();
+  const { session } = useSession();
   const [sourceType, setSourceType] = useState('mp4');
   const [animeKeyword, setAnimeKeyword] = useState('');
   const [childBusy, setChildBusy] = useState(false);
@@ -41,27 +41,9 @@ export function SourcePicker({ visible, onClose, onAdd }: { visible: boolean; on
   const biliSubmit = useRef(false); const { width } = useWindowDimensions();
   const [title, setTitle] = useState(''); const [url, setUrl] = useState('');
   const [audioUrl, setAudioUrl] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
-  const [locations, setLocations] = useState<Location[]>([]); const [entries, setEntries] = useState<Entry[]>([]);
-  const [history, setHistory] = useState<Location[]>([]); const version = useRef(0);
+  const version = useRef(0);
   useEffect(() => { const invalidate = () => { ++version.current; }; invalidate(); return invalidate; }, [visible, session?.serverUrl, session?.user.id]);
-  const location = history.at(-1);
   const task = async (work: () => Promise<void>) => { setBusy(true); setError(''); try { await work(); } catch (failure) { setNotice(''); setError(messageFor(failure)); } finally { setBusy(false); } };
-  const roots = () => task(async () => {
-    const id = ++version.current; setHistory([]); setEntries([]);
-    const results = await Promise.allSettled(kinds.filter(kind => kind === sourceType).map(kind => request<{ mounts: { id: number; name: string; serverUrl: string; path?: string }[] }>(`/api/${kind}/mounts`).then(data => data.mounts.map(mount => ({ kind, id: mount.id, serverUrl: mount.serverUrl, path: mount.path || '/', name: mount.name })))));
-    const values: Location[] = results.flatMap(result => result.status === 'fulfilled' ? result.value : []);
-    if (sourceType === 'server-files' && session?.user.role === 'root') {
-      const data = await request<{ roots: { key: string; name: string }[] }>('/api/server-files/roots');
-      values.unshift(...data.roots.map(root => ({ kind: 'server-files', path: `${root.key}:/`, name: root.name })));
-    }
-    if (id === version.current) { setLocations(values); if (!values.length) setError('没有可用挂载；请先在账号中配置媒体来源，或添加视频直链'); }
-  });
-  const browse = (next: Location, stack = [...history, next]) => task(async () => {
-    const id = ++version.current;
-    const route = next.kind === 'server-files' ? '/api/server-files/browse' : `/api/${next.kind}/mounts/${next.id}/browse`;
-    const data = await request<{ entries: Entry[] }>(`${route}?path=${encodeURIComponent(next.path || '/')}`);
-    if (id === version.current) { setHistory(stack); setEntries(data.entries); }
-  });
   const add = async (value: SourceSelection, closeAfter = true, playAfterAdd = false) => {
     if (!session) return;
     await onAdd(canonicalSelection(value, session.serverUrl, session.accessToken), playAfterAdd);
@@ -74,15 +56,6 @@ export function SourcePicker({ visible, onClose, onAdd }: { visible: boolean; on
     catch (failure) { if (ticket === version.current) { setNotice(''); setError(`添加播放失败：${messageFor(failure)}，可重试`); } throw failure; }
     finally { biliSubmit.current = false; setBusy(false); }
   };
-  const select = (entry: Entry) => {
-    if (!location) return;
-    if (entry.type === 'directory') { void browse({ ...location, path: entry.path, name: entry.name }); return; }
-    void task(async () => {
-      const query = new URLSearchParams({ path: entry.path, ...(location.id ? { mountId: String(location.id) } : {}) });
-      const data = await request<{ title?: string; videoUrl: string; format?: string }>(`/api/${location.kind}/resolve?${query}`);
-      await add({ title: data.title || entry.name, url: data.videoUrl, source: location.kind, format: data.format, ...(location.id ? { serverUrl: location.serverUrl, path: entry.path, directLink: false } : {}) });
-    });
-  };
   const locked = busy || childBusy;
   const close = () => { if (locked) return; ++version.current; onClose(); };
   // Match the app's orientation mask: a portrait-only modal conflicts with
@@ -91,7 +64,7 @@ export function SourcePicker({ visible, onClose, onAdd }: { visible: boolean; on
     <View style={ui.row}><Text style={[ui.title, { flex: 1 }]}>添加影片</Text><RoomButton label="完成" onPress={close} disabled={locked} secondary /></View>
     <ScrollView style={{ flexGrow: 0, flexShrink: 1, minHeight: 0 }} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
     <SourceDropdown label="影片来源" testID="movie-source" value={sourceType} options={sourceOptions.filter(item => item.id !== 'server-files' || session?.user.role === 'root')} disabled={locked}
-      onChange={value => { ++version.current; setSourceType(value); setHistory([]); setEntries([]); setLocations([]); setError(''); setNotice(''); setBiliSearchOpen(false); }} />
+      onChange={value => { ++version.current; setSourceType(value); setError(''); setNotice(''); setBiliSearchOpen(false); }} />
     {sourceType === 'mp4' ? <>
     <Text style={ui.title}>视频直链</Text><RoomInput placeholder="影片名称" value={title} onChangeText={setTitle} />
     <RoomInput placeholder="MP4 / MKV / HLS / FLV 等 HTTP(S) 媒体地址" value={url} onChangeText={setUrl} autoCapitalize="none" keyboardType="url" />
@@ -109,10 +82,7 @@ export function SourcePicker({ visible, onClose, onAdd }: { visible: boolean; on
     </> : null}
     {['anisubs', 'anime', 'kazumi'].includes(sourceType) && visible ? <AnimePicker key={`${sourceType}:${session?.serverUrl}`} initialKind={sourceType} keyword={animeKeyword} onKeywordChange={setAnimeKeyword} onBusyChange={setChildBusy} add={value => add(value, false)} /> : null}
     {['emby', 'jellyfin'].includes(sourceType) && visible ? <><MediaLibraryPicker key={`${sourceType}:${session?.serverUrl}`} kind={sourceType as 'emby' | 'jellyfin'} add={value => add(value, false)} onBusyChange={setChildBusy} /><MountManager /></> : null}
-    {['webdav', 'ftp', 'openlist'].includes(sourceType) || sourceType === 'server-files' ? <>
-    <Text style={ui.title}>媒体来源</Text><RoomButton label="服务器文件与我的挂载" disabled={busy} onPress={() => void roots()} secondary />
-    {location ? <><Text style={ui.muted}>{location.name}</Text><RoomButton label="返回上一级" disabled={busy} onPress={() => { const previous = history.slice(0, -1); if (previous.length) void browse(previous.at(-1)!, previous); else { setHistory([]); setEntries([]); } }} secondary />{entries.map(entry => <RoomButton key={entry.path} label={`${entry.type === 'directory' ? '▸' : '▶'} ${entry.name}`} disabled={busy} secondary onPress={() => select(entry)} />)}</> : locations.map(item => <RoomButton key={`${item.kind}:${item.id}:${item.path}`} label={item.name} onPress={() => void browse(item)} disabled={busy} secondary />)}
-    {sourceType !== 'server-files' ? <MountManager /> : null}</> : null}
+    {['webdav', 'ftp', 'openlist', 'server-files'].includes(sourceType) && visible ? <><DirectoryPicker key={`${sourceType}:${session?.serverUrl}`} kind={sourceType as DirectoryKind} add={value => add(value, false)} onBusyChange={setChildBusy} />{sourceType !== 'server-files' ? <MountManager /> : null}</> : null}
     {busy ? <ActivityIndicator color="#65d59b" /> : null}{notice ? <Text accessibilityLiveRegion="polite" style={ui.muted}>{notice}</Text> : null}{error ? <Text accessibilityLiveRegion="assertive" style={ui.error}>{error}</Text> : null}
   </ScrollView></Surface></KeyboardAvoidingView></SafeAreaView><AppDialog visible={visible && biliSearchOpen} title="搜索 B站视频" maxWidth={biliSearchWide ? Math.max(300, width - 32) : 960} titleActions={<RoomIconButton label={biliSearchWide ? '还原弹窗' : '展开搜索'} icon={biliSearchWide ? 'minimize' : 'maximize'} onPress={() => setBiliSearchWide(value => !value)} />} close={() => setBiliSearchOpen(false)}><BiliCatalog allowPgc active={visible && biliSearchOpen} choose={selectBili} /></AppDialog></Modal>;
 }
