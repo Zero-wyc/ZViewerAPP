@@ -10,7 +10,7 @@ type Events = {
   playingChange: { isPlaying: boolean };
   playbackRateChange: { playbackRate: number };
   timeUpdate: { currentTime: number };
-  sourceLoad: { duration: number; availableAudioTracks: unknown[]; availableVideoTracks: unknown[]; availableSubtitleTracks: unknown[] };
+  sourceLoad: { duration: number; availableAudioTracks: VlcTrack[]; availableVideoTracks: VlcTrack[]; availableSubtitleTracks: VlcTrack[] };
   statusChange: { status: string; error?: { message: string } };
   settingsChange: VlcSettings;
 };

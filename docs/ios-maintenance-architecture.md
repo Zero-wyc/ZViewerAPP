@@ -2,14 +2,14 @@
 
 ## 2026-10-13：iOS 1.8.5 / build 19 真机测试包
 
-按用户授权构建 **1.8.5 / 19**，源码提交 `6c2beba786a6768d95e3248145aad7f79f9e79d0`。EAS `unsigned-device` / Release 构建 `1f04643c-ac62-4f5e-abe0-efa1dca2dee5` 于 2026-10-13 18:30:06（北京时间）完成；本轮所有 build 18 发布后的播放与界面修复已进入新包。旧 build 18 不包含这些反馈修复。
+按用户授权构建 **1.8.5 / 19**，源码提交 `6c2beba786a6768d95e3248145aad7f79f9e79d0`。EAS `unsigned-device` / Release 构建 `1f04643c-ac62-4f5e-abe0-efa1dca2dee5` 于 2026-10-13 18:30:06（北京时间）完成；JS 界面修复已进入新包；后续发现 prebuild 后重装依赖覆盖了 VLC 原生补丁，详见下述 build 20 修复记录。旧 build 18 不包含这些反馈修复。
 
 - 安装包：`ZV-iOS/release-assets/ZViewer-1.8.5-b19-unsigned.ipa`，47,325,737 字节；未签名，用户自行签名后安装，无需 Metro。
 - SHA-256：`034e03ffdde43fd1e4f7857f0c18d844a443fc64da16c172198e6b020c49e93e`，构建机和本地下载一致。
 - 172 项 JS 测试、lint、类型检查通过。12 个 Go 来源文件核验通过；上传审计通过。ARM64 iOS 设备可执行文件、包内 1.8.5 / 19、VLC、LiveKit、系统媒体、本机 B站桥、Release JS 合同与来源清单检查通过，139 个 ZIP 项 CRC 正常。
 - 本轮只交付 iOS 真机测试 IPA，未推送或发布 GitHub Release。真机解码、声音、后台/锁屏、跨端同步、触摸拖动及原生 Modal 验收由用户继续测试；离线包检验不代表这些功能已在设备通过。
 
-修复范围、交付证据及真机清单见 [1.8.5 / build 19 验证记录](releases/ios-1.8.5-19-validation.md)。下方“未构建”说明均为授权构建前的历史记录，现已包含在本包中。
+修复范围、交付证据及真机清单见 [1.8.5 / build 19 验证记录](releases/ios-1.8.5-19-validation.md)。下方“未构建”说明均为授权构建前的历史记录，JS 修改已进入本包；VLC 依赖补丁需 build 20 重新构建。
 
 ## 2026-10-13：删除重复房间侧栏、评论入口拖动与全屏隐藏
 

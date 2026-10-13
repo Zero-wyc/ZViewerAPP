@@ -9,6 +9,9 @@ build:
         command: bash scripts/prepare-native-ios.sh
     - eas/prebuild
     - run:
+        name: Restore and verify VLC native patches after dependency reinstall
+        command: node scripts/patch-vlc-native.cjs
+    - run:
         name: Install iOS pods
         working_directory: ios
         command: pod install

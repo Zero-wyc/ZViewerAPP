@@ -1,11 +1,8 @@
 const { withDangerousMod, withInfoPlist } = require('expo/config-plugins');
 const fs = require('node:fs');
 const path = require('node:path');
-module.exports = config => {
-  config = withInfoPlist(config, value => { value.modResults.UIBackgroundModes = [...new Set([...(value.modResults.UIBackgroundModes || []), 'audio'])]; return value; });
-  return withDangerousMod(config, ['ios', async value => {
-    const root = path.dirname(require.resolve('expo-libvlc-player/package.json', { paths: [value.modRequest.projectRoot] }));
-    const patch = (relative, marker, edit) => { const file = path.join(root, 'ios', relative); const source = fs.readFileSync(file, 'utf8'); if (source.includes(marker)) return; const next = edit(source); if (next === source || !next.includes(marker)) throw new Error(`Review VLC system-media integration: ${relative}`); fs.writeFileSync(file, next); };
+function patchSystemMedia(root) {
+    const patch = (relative, marker, edit) => { const file = path.join(root, 'ios', relative); const source = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n'); if (source.includes(marker)) return; const next = edit(source); if (next === source || !next.includes(marker)) throw new Error(`Review VLC system-media integration: ${relative}`); fs.writeFileSync(file, next); };
     patch('LibVlcPlayerView.swift', 'zviewerRemoteObserver', source => source
       .replace('  private var oldVolume:', '  private var zviewerRemoteObserver: NSObjectProtocol?\n  private var oldVolume:')
       .replace('    player = MediaPlayer(self)', `    player = MediaPlayer(self)
@@ -25,6 +22,14 @@ module.exports = config => {
       .replace('    switch newState {', `    NotificationCenter.default.post(name: NSNotification.Name("ZViewerVlcProgress"), object: nil, userInfo: ["uri": view.source ?? "", "playing": player.isPlaying])
     switch newState {`));
     patch('Managers/MediaPlayerManager.swift', 'ZViewerPlaybackUri', source => source.replace('      if !view.pictureInPicture {', '      // Only the business media owner may continue ordinary background audio.\n      if view.source != UserDefaults.standard.string(forKey: "ZViewerPlaybackUri") && !view.pictureInPicture {'));
+}
+module.exports = config => {
+  config = withInfoPlist(config, value => { value.modResults.UIBackgroundModes = [...new Set([...(value.modResults.UIBackgroundModes || []), 'audio'])]; return value; });
+  return withDangerousMod(config, ['ios', async value => {
+    const root = path.dirname(require.resolve('expo-libvlc-player/package.json', { paths: [value.modRequest.projectRoot] }));
+    patchSystemMedia(root);
     return value;
   }]);
 };
+
+module.exports.patchSystemMedia = patchSystemMedia;

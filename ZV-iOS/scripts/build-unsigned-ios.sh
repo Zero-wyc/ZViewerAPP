@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Runs only on the EAS macOS worker. CNG owns ios/, no local generated project.
+node scripts/patch-vlc-native.cjs --check
 mkdir -p ios/build
 xcodebuild -workspace ios/ZViewer.xcworkspace -scheme ZViewer \
   -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \

@@ -405,7 +405,7 @@ export default function RoomScreen() {
       }
     });
     const loaded = player.addListener('sourceLoad', ({ duration, availableAudioTracks, availableVideoTracks, availableSubtitleTracks }) => {
-      setTrackSummary(`时长 ${Math.round(duration)} 秒 · 视频 ${availableVideoTracks.length} 轨 · 音频 ${availableAudioTracks.length} 轨 · 字幕 ${availableSubtitleTracks.length} 轨`);
+      setTrackSummary(`时长 ${Math.round(duration)} 秒 · 视频 ${availableVideoTracks.filter(track => track.id !== -1).length} 轨 · 音频 ${availableAudioTracks.filter(track => track.id !== -1).length} 轨 · 字幕 ${availableSubtitleTracks.filter(track => track.id !== -1).length} 轨`);
     });
     return () => { subscription.remove(); loaded.remove(); };
   }, [player]);
