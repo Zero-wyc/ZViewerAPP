@@ -1,3 +1,4 @@
+import { checkAbort } from './cancellation.ts';
 export type Song = { songId: number; name: string; artist: string; album: string; cover: string; durationMs: number; vip: boolean; biliBvid?: string; biliCid?: number };
 export type NcmSong = { id: number; name: string; ar?: { name: string }[]; artists?: { name: string }[]; al?: { name: string; picUrl?: string }; album?: { name: string; picUrl?: string }; dt?: number; duration?: number; fee?: number };
 export type MusicCollection = { title: string; playlistId?: number; total?: number; daily?: { date: string; dates: string[]; historyNote?: string } };
@@ -35,9 +36,9 @@ export async function completeCollection(ncm: NcmRequest, collection: MusicColle
   const pages = new Set<string>();
   if (initial.length) pages.add(initial.slice(-PLAYLIST_PAGE_SIZE).map(song => song.songId).join(','));
   while (collection.total === undefined ? offset === 0 || offset % PLAYLIST_PAGE_SIZE === 0 : songs.length < collection.total) {
-    signal.throwIfAborted();
+    checkAbort(signal);
     const page = await playlistPage(ncm, collection.playlistId, offset, signal);
-    signal.throwIfAborted();
+    checkAbort(signal);
     if (!page.length) { if (collection.total !== undefined && songs.length < collection.total) throw new Error('歌单未完整加载，请刷新后重试；原播放列表尚未替换'); break; }
     const signature = page.map(song => song.songId).join(',');
     if (pages.has(signature)) throw new Error('歌单分页返回重复内容，请刷新后重试');

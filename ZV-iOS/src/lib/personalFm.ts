@@ -1,4 +1,12 @@
 import type { Song } from './musicCollection.ts';
+import { checkAbort } from './cancellation.ts';
+export async function queueFmSong<T extends Song>(item: Song, signal: AbortSignal, port: { isHost: () => boolean; upsert: (song: Song) => Promise<unknown>; restore: () => Promise<T[]> }) {
+  const check = () => { checkAbort(signal); if (!port.isHost()) throw new Error('由房主控制漫游'); };
+  check(); await port.upsert(item); check(); const queue = await port.restore(); check();
+  const added = [...queue].reverse().find(song => song.songId === item.songId && !song.biliBvid);
+  if (!added) throw new Error('漫游歌曲未成功入队');
+  return { queue, added };
+}
 export type FmMode = 'DEFAULT' | 'FAMILIAR' | 'EXPLORE' | 'SCENE_RCMD' | 'aidj';
 export type FmScene = 'EXERCISE' | 'FOCUS' | 'NIGHT_EMO';
 export const fmModes: { value: FmMode; label: string }[] = [{ value: 'DEFAULT', label: '默认推荐' }, { value: 'FAMILIAR', label: '熟悉偏好' }, { value: 'EXPLORE', label: '探索发现' }, { value: 'SCENE_RCMD', label: '场景推荐' }, { value: 'aidj', label: 'AI DJ' }];

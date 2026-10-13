@@ -1,3 +1,4 @@
+import { checkAbort } from '@/lib/cancellation';
 import { RoomDiscussion } from './RoomDiscussion';
 import * as Clipboard from 'expo-clipboard';
 import { MediaImage as Image } from './MediaImage';
@@ -29,7 +30,7 @@ import { AppDialog } from './AppDialog';
 import { Surface } from './Surface';
 import { applyCollection, completeCollection, dailySongs, localDate, openNcmPlaylist, playlistPage, PLAYLIST_PAGE_SIZE, type MusicCollection } from '@/lib/musicCollection';
 import { usePersonalFm } from '@/hooks/usePersonalFm';
-import type { PersonalFm } from '@/lib/personalFm';
+import { queueFmSong, type PersonalFm } from '@/lib/personalFm';
 import { PersonalFmPanel } from './PersonalFmPanel';
 import { SourceDropdown } from './SourceDropdown';
 type Song = { songId: number; name: string; artist: string; album: string; cover: string; durationMs: number; vip: boolean; biliBvid?: string; biliCid?: number };
@@ -102,7 +103,7 @@ export function MusicPanel({ roomId, host, onExpandedLandscape, switchMode }: { 
       if (!next && command.action === 'next' && current.playMode === 'order' && current.trackKey?.startsWith('bili:') && recommendation.current.enabled && hostRef.current) {
         if (recommendation.current.pending) return;
         recommendation.current.pending = true; const controller = new AbortController(); recommendationAbort.current = controller;
-        const check = () => { controller.signal.throwIfAborted(); if (!hostRef.current || !socket.connected || stateRef.current.trackKey !== current.trackKey || !recommendation.current.enabled) throw new Error('推荐续播已取消'); };
+        const check = () => { checkAbort(controller.signal); if (!hostRef.current || !socket.connected || stateRef.current.trackKey !== current.trackKey || !recommendation.current.enabled) throw new Error('推荐续播已取消'); };
         try {
           const data = await request<{ items: { bvid: string; cid: number; title: string; upName?: string; pic?: string; duration?: number }[] }>(`/api/stream/bilibili/related?bvid=${encodeURIComponent(current.trackKey.split(':')[1])}`, { signal: controller.signal }); check();
           const existing = new Set(queueRef.current.map(keyFor)); const fresh = data.items.filter(item => /^BV[0-9A-Za-z]+$/.test(item.bvid) && Number.isSafeInteger(item.cid) && item.cid > 0 && !existing.has(`bili:${item.bvid}:${item.cid}`)).slice(0, 3);
@@ -124,7 +125,10 @@ export function MusicPanel({ roomId, host, onExpandedLandscape, switchMode }: { 
     if (command.action === 'seek') player.currentTime = positionSec;
     update({ ...current, isPlaying: command.action === 'play' ? true : command.action === 'pause' ? false : current.isPlaying, positionSec, updatedAt: Date.now() }, true);
   }, [socket, roomId, player, choose, update, request]);
-  const playFm = useCallback(async (item: Song, signal: AbortSignal) => { signal.throwIfAborted(); if (!hostRef.current || !socket) throw new Error('由房主控制漫游'); await emitAck(socket, 'music:queue-upsert', { roomId, item }); signal.throwIfAborted(); if (!hostRef.current) throw new Error('由房主控制漫游'); const restored = await emitAck<{ queue: QueueItem[] }>(socket, 'music:get-state', { roomId }); signal.throwIfAborted(); queueRef.current = restored.queue; setQueue(restored.queue); const added = restored.queue.at(-1); if (added && keyFor(added) === keyFor(item)) choose(added); else throw new Error('漫游歌曲未成功入队'); }, [socket, roomId, choose]);
+  const playFm = useCallback(async (item: Song, signal: AbortSignal) => {
+    const { queue: restored, added } = await queueFmSong(item, signal, { isHost: () => hostRef.current && !!socket?.connected, upsert: song => emitAck(socket!, 'music:queue-upsert', { roomId, item: song }), restore: async () => (await emitAck<{ queue: QueueItem[] }>(socket!, 'music:get-state', { roomId })).queue });
+    queueRef.current = restored; setQueue(restored); choose(added);
+  }, [socket, roomId, choose]);
   const roaming = usePersonalFm({ ncm, requestText, play: playFm, visible: page === 'fm', host, scope: JSON.stringify([session?.serverUrl, session?.user.id, roomId]), accountRevision });
   useEffect(() => { fmPort.current = roaming.fm; }, [roaming.fm]);
   const task = async (work: () => Promise<unknown>) => { setBusy(true); setError(''); try { await work(); } catch (failure) { setError(messageFor(failure)); } finally { setBusy(false); } };

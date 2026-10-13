@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { useAppearance } from '@/state/appearance';
 import { useSession } from '@/state/session';
-import { enumerateLibrary, libraryImage, libraryRoute, librarySelection, resolveLibrary, type LibraryEntry, type LibraryKind } from '@/lib/mediaLibrary';
+import { addLibraryEntry, libraryImage, libraryRoute, type LibraryEntry, type LibraryKind } from '@/lib/mediaLibrary';
 import type { SourceSelection } from '@/lib/sources';
 import { messageFor } from '@/lib/server';
 import { RoomButton, RoomInput, ui as baseUi } from './RoomUi';
@@ -46,10 +46,7 @@ export function MediaLibraryPicker({ kind, add, onBusyChange }: { kind: LibraryK
       const targets = series ? [series] : entries.filter(item => ids.includes(item.path));
       for (const entry of targets) {
         try {
-          const pages = series ? await enumerateLibrary(request, kind, mount.id, entry, controller.signal) : undefined;
-          if (pages && !pages.length) throw new Error('该目录没有可播放的分集');
-          const media = await resolveLibrary(request, kind, mount.id, pages?.[0]?.path || entry.path, controller.signal);
-          controller.signal.throwIfAborted(); await add(librarySelection(kind, mount, entry, media, pages)); controller.signal.throwIfAborted(); added.push(entry.path);
+          await addLibraryEntry(request, kind, mount, entry, !!series, add, controller.signal); added.push(entry.path);
         } catch (failure) { if (controller.signal.aborted) break; setError(messageFor(failure)); }
       }
       if (!controller.signal.aborted) { if (added.length) setNotice(`已添加 ${series ? '整部 / 整季卡' : `${added.length} 个条目`}，可继续选择`); if (series && added.length) setConfirmSeries(null); }

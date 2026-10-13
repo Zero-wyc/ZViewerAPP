@@ -100,6 +100,7 @@ static NSArray *subtitleLines(NSString *address) {
       NSInteger page = MAX(1, MIN(1000, [options[@"page"] integerValue]));
       NSString *path; NSDictionary *params;
       if ([kind isEqual:@"search"] || [kind isEqual:@"search-bangumi"] || [kind isEqual:@"search-ft"]) { path = @"/x/web-interface/wbi/search/type"; NSString *searchType = [kind isEqual:@"search-bangumi"] ? @"media_bangumi" : [kind isEqual:@"search-ft"] ? @"media_ft" : @"video"; params = wbi(@{ @"keyword": options[@"keyword"] ?: @"", @"search_type":searchType, @"page":@(page) }); }
+      else if ([kind isEqual:@"view"]) { path = @"/x/web-interface/wbi/view"; params = wbi(@{ @"bvid": options[@"bvid"] ?: @"" }); }
       else if ([kind isEqual:@"lyrics"]) { path = @"/x/player/wbi/v2"; params = wbi(@{ @"bvid": options[@"bvid"] ?: @"", @"cid": options[@"cid"] ?: @0 }); }
       else if ([kind isEqual:@"recommended"]) { path = @"/x/web-interface/index/top/rcmd"; params = @{ @"ps":@20 }; }
       else if ([kind isEqual:@"folders"]) { path = @"/x/v3/fav/folder/created/list-all"; params = @{ @"up_mid":mid }; }

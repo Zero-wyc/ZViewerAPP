@@ -1,3 +1,5 @@
+import { checkAbort } from '@/lib/cancellation';
+import { MovieAddTransaction } from '@/lib/movieAddition';
 import { useAppearance } from '@/state/appearance';
 import { useEffect, useRef, useState } from 'react';
 import { ScrollView, Switch, Text, View } from 'react-native';
@@ -17,6 +19,7 @@ export function MoviePanel({ roomId, movies, host, canSwitch, play, reload, curr
   const ui = theme.styles(baseUi);
 
   const { request, session } = useSession(); const [adding, setAdding] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+  const [notice, setNotice] = useState(''); const addition = useRef(new MovieAddTransaction());
   const [owner, setOwner] = useState<{ scope: string; id: number | null } | null>(null);
   const scope = `${session?.serverUrl}:${session?.user.id}:${roomId}`;
   const [confirmation, setConfirmation] = useState<'all' | Movie | null>(null); const lock = useRef(false); const operation = useRef<AbortController | null>(null);
@@ -33,14 +36,18 @@ export function MoviePanel({ roomId, movies, host, canSwitch, play, reload, curr
   const remove = async () => {
     if (!canManage || !confirmation || lock.current) return;
     lock.current = true; const controller = new AbortController(); operation.current = controller; setBusy(true); setError('');
-    try { await request(confirmation === 'all' ? path : `${path}/${confirmation.id}`, { method: 'DELETE', signal: controller.signal }); controller.signal.throwIfAborted(); await reload(); if (!controller.signal.aborted) setConfirmation(null); }
+    try { await request(confirmation === 'all' ? path : `${path}/${confirmation.id}`, { method: 'DELETE', signal: controller.signal }); addition.current.reset(); checkAbort(controller.signal); await reload(); if (!controller.signal.aborted) setConfirmation(null); }
     catch (failure) { if (!controller.signal.aborted) setError(messageFor(failure)); }
     finally { lock.current = false; if (!controller.signal.aborted) setBusy(false); }
   };
-  const add = async (value: SourceSelection) => { const created = await request<{ movie: Movie }>(path, { method: 'POST', body: JSON.stringify(value) }); if (!created.movie?.id) throw new Error('服务器未返回新影片身份'); if (value.cliOnly && !created.movie.cliOnly) await request(`${path}/${created.movie.id}`, { method: 'PUT', body: JSON.stringify({ cliOnly: true }) }); await reload(); };
+  const add = async (value: SourceSelection, playAfterAdd = false) => {
+    try { await addition.current.run(scope, value, playAfterAdd, { create: async item => (await request<{ movie: Movie }>(path, { method: 'POST', body: JSON.stringify(item) })).movie, patchLocalOnly: async id => { await request(`${path}/${id}`, { method: 'PUT', body: JSON.stringify({ cliOnly: true }) }); }, refresh: reload, play, status: setNotice }); }
+    catch (failure) { setNotice(''); throw failure; }
+  };
   const move = (index: number, delta: number) => task(async () => { const orderedIds = movies.map(movie => movie.id); [orderedIds[index], orderedIds[index + delta]] = [orderedIds[index + delta], orderedIds[index]]; await request(`${path}/reorder`, { method: 'POST', body: JSON.stringify({ orderedIds }) }); await reload(); });
   return <View style={{ flex: 1, minHeight: 0, gap: 8 }}>
     <View style={ui.row}><Text style={[ui.title, { flex: 1 }]}>影片列表 · {movies.length}</Text>{host ? <RoomButton label="添加影片" disabled={busy} onPress={() => setAdding(true)} secondary /> : null}<RoomIconButton label="刷新片单" icon="refresh-cw" onPress={() => { if (!busy) void task(reload); }} /></View>
+    {notice ? <Text accessibilityLiveRegion="polite" style={ui.muted}>{notice}</Text> : null}
     <View style={ui.row}><Text style={ui.muted}>自动续播</Text><Switch value={autoContinue} onValueChange={setAutoContinue} disabled={!host} />{canManage ? <RoomButton label="清空片单" secondary disabled={busy || !movies.length} onPress={() => setConfirmation('all')} /> : null}</View>
     <RoomInput value={search} onChangeText={setSearch} placeholder="搜索影片…" />
     <ScrollView contentContainerStyle={ui.content}>{!movies.filter(movie => movie.title.toLowerCase().includes(search.trim().toLowerCase())).length ? <View style={{ alignItems: 'center', padding: 28, gap: 12 }}><Feather name="film" size={28} color={theme.color('#a8b3b6')} /><Text style={ui.muted}>{search ? '未找到匹配的影片' : '暂无影片，请先添加'}</Text></View> : movies.filter(movie => movie.title.toLowerCase().includes(search.trim().toLowerCase())).map(movie => {

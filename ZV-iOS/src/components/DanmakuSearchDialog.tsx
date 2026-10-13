@@ -1,3 +1,4 @@
+import { checkAbort } from '@/lib/cancellation';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { useSession } from '@/state/session';
@@ -32,16 +33,16 @@ export function DanmakuSearchDialog({ roomId, close, imported, tracks }: { track
     try { await work(controller.signal); } catch (failure) { if (!controller.signal.aborted) setError(messageFor(failure)); }
     finally { if (!controller.signal.aborted) setBusy(false); }
   };
-  const search = () => void task(async signal => { setSelected(null); setEpisodes([]); const data = await request<{ results: Entry[] }>(`/api/stream/danmaku/search?${new URLSearchParams({ source, keyword: keyword.trim() })}`, { signal }); signal.throwIfAborted(); setResults(data.results); if (!data.results.length) setError('没有找到弹幕源，请换个关键词'); });
-  const select = (item: Entry) => void task(async signal => { setSelected(item); setEpisodes([]); const data = await request<{ episodes: Entry[] }>(`/api/stream/danmaku/episodes?${new URLSearchParams({ source, identifier: item.id })}`, { signal }); signal.throwIfAborted(); setEpisodes(data.episodes); if (!data.episodes.length) setError('这个条目没有可导入的集数'); });
+  const search = () => void task(async signal => { setSelected(null); setEpisodes([]); const data = await request<{ results: Entry[] }>(`/api/stream/danmaku/search?${new URLSearchParams({ source, keyword: keyword.trim() })}`, { signal }); checkAbort(signal); setResults(data.results); if (!data.results.length) setError('没有找到弹幕源，请换个关键词'); });
+  const select = (item: Entry) => void task(async signal => { setSelected(item); setEpisodes([]); const data = await request<{ episodes: Entry[] }>(`/api/stream/danmaku/episodes?${new URLSearchParams({ source, identifier: item.id })}`, { signal }); checkAbort(signal); setEpisodes(data.episodes); if (!data.episodes.length) setError('这个条目没有可导入的集数'); });
   const importEpisode = (episode: Entry) => void task(async signal => {
     importing.current = true;
     try {
       const data = await request<{ danmaku: DanmakuTrack['items'] }>('/api/stream/danmaku/fetch', { method: 'POST', signal, body: JSON.stringify({ source, episode }) });
-      signal.throwIfAborted(); const items = importDanmaku(JSON.stringify(data.danmaku));
+      checkAbort(signal); const items = importDanmaku(JSON.stringify(data.danmaku));
       if (!items.length) throw new Error('该集没有可用弹幕，请选择其他集数');
       await request(`/api/rooms/${encodeURIComponent(roomId)}/danmaku-tracks`, { method: 'POST', signal, body: danmakuBody({ trackId: `${source}:${episode.id}`, label: `${selected?.title || ''} · ${episode.title}`, source, items, offset: 0, hidden: false }) });
-      signal.throwIfAborted(); imported(`已导入 ${episode.title} · ${items.length} 条弹幕`);
+      checkAbort(signal); imported(`已导入 ${episode.title} · ${items.length} 条弹幕`);
     } finally { importing.current = false; }
   });
   const listHeight = Math.min(columns ? 360 : 240, Math.max(100, height * (columns ? 0.46 : 0.25)));

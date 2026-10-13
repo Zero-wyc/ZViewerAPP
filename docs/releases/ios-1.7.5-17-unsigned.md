@@ -1,5 +1,7 @@
 # iOS 1.7.5 / build 17
 
+> 2026-10-13 运行反馈补充：此 IPA 存在 RN `throwIfAborted` 缺失引发的媒体添加/漫游错误，以及普通 B站 UGC 响应字符串解析错误。已在 [后续源码修复与预览](ios-follow-up-fixes-2026-10-13.md) 修正，旧 IPA 不包含修复。本页为历史构建记录，不能视为这些功能的真机验收。
+
 本版按 [iOS 更新计划](../ios-follow-up-update-plan-2026-10-12.md) 和双端 1.7.5 / 175 对齐。用户已确认 Expo Go 界面验证通过，本轮继续复核 B站解析、搜索、播放和服务端 v4.5.1 的 LiveKit 新接口，再生成真机 ARM64 IPA。
 
 ## 🚀 新特性 / Features

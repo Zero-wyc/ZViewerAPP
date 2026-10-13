@@ -1,3 +1,5 @@
+import { checkAbort } from '@/lib/cancellation';
+import { addAnimeEpisode, type AnimeEpisode } from '@/lib/animeSources';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { useSession } from '@/state/session';
@@ -10,7 +12,7 @@ import { EpisodePicker } from './EpisodePicker';
 import { SourcePoster } from './SourcePoster';
 type Source = { id: string; name: string };
 type Result = { id: string; title: string; cover?: string; poster?: string; description?: string };
-type Episode = { id: string; title: string; episodeNumber: number; playbackParams: Record<string, unknown> };
+type Episode = AnimeEpisode;
 export function AnimePicker({ add, initialKind = 'anisubs', keyword, onKeywordChange, onBusyChange }: { add: (value: SourceSelection) => Promise<void>; initialKind?: string; keyword: string; onKeywordChange: (value: string) => void; onBusyChange?: (busy: boolean) => void }) {
   const theme = useAppearance(); const ui = theme.styles(baseUi);
   const { request } = useSession(); const kind = initialKind; const root = `/api/stream/${kind}`;
@@ -47,15 +49,9 @@ export function AnimePicker({ add, initialKind = 'anisubs', keyword, onKeywordCh
   const submit = async (ids: string[]) => {
     const controller = new AbortController(); operation.current = controller; setBusy(true); onBusyChange?.(true); const added: string[] = [];
     try { for (const episode of episodes.filter(item => ids.includes(item.id))) {
-      controller.signal.throwIfAborted();
+      checkAbort(controller.signal);
       try {
-        const title = `${name} · ${episode.title}`;
-        if (kind === 'anisubs') await add({ title, source: 'anime', url: `anisubs://${source}/${episode.id}`, sourceMeta: { sourceId: source, episode, originalTitle: title } });
-        else {
-          const media = await request<{ url: string; audioUrl?: string; headers?: Record<string, string>; format?: string }>(`${root}/resolve`, { method: 'POST', signal: controller.signal, body: JSON.stringify({ source, episode }) }); controller.signal.throwIfAborted();
-          const proxy = (url: string) => { const params = new URLSearchParams({ url }); for (const [key, value] of Object.entries(media.headers || {})) { const header = ({ referer: 'referer', 'user-agent': 'userAgent', origin: 'origin', cookie: 'cookie' } as Record<string, string>)[key.toLowerCase()]; if (header) params.set(header, value); } return `${root}/proxy?${params}`; };
-          await add({ title, source: kind === 'anime' ? 'mp4' : kind, url: proxy(media.url), ...(media.audioUrl ? { audioUrl: proxy(media.audioUrl) } : {}), format: media.format });
-        }
+        await addAnimeEpisode(request, kind, source, name, episode, add, controller.signal);
         added.push(episode.id);
       } catch (failure) { if (!controller.signal.aborted) setError(messageFor(failure)); }
     } } finally { if (!controller.signal.aborted) setBusy(false); onBusyChange?.(false); }

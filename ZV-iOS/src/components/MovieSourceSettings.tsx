@@ -1,3 +1,4 @@
+import { checkAbort } from '@/lib/cancellation';
 import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useSession } from '@/state/session';
@@ -21,7 +22,7 @@ export function MovieSourceSettings({ movie, roomId, canEdit, reload }: { movie:
     try { await work(controller.signal); } catch (failure) { if (!controller.signal.aborted) setError(messageFor(failure)); }
     finally { lock.current = false; if (!controller.signal.aborted) setBusy(false); }
   };
-  const update = async (patch: Partial<Movie>, signal: AbortSignal) => { signal.throwIfAborted(); await request(`/api/rooms/${encodeURIComponent(roomId)}/movies/${movie.id}`, { method: 'PUT', signal, body: JSON.stringify(patch) }); signal.throwIfAborted(); await reload(); };
+  const update = async (patch: Partial<Movie>, signal: AbortSignal) => { checkAbort(signal); await request(`/api/rooms/${encodeURIComponent(roomId)}/movies/${movie.id}`, { method: 'PUT', signal, body: JSON.stringify(patch) }); checkAbort(signal); await reload(); };
   const changePage = (value: string) => task(async signal => {
     if (!canEdit) return;
     const page = movie.pages?.find(item => String(item.page) === value); if (!page || page.page === movie.currentPage) return;
@@ -33,12 +34,12 @@ export function MovieSourceSettings({ movie, roomId, canEdit, reload }: { movie:
     }
     if (kind === 'bilibili') {
       const parsed = new URL(biliSelection(page.epId ? `ep${page.epId}` : movie.url).url); parsed.searchParams.set('p', String(page.page)); if (page.cid) parsed.searchParams.set('cid', String(page.cid));
-      const media = await resolveLocalBili(parsed.toString()); signal.throwIfAborted();
+      const media = await resolveLocalBili(parsed.toString()); checkAbort(signal);
       await update({ url: parsed.toString(), cid: page.cid, currentPage: page.page, duration: media.duration, cliOnly: movie.cliOnly || !!page.epId }, signal);
     }
   });
   const loadVersions = () => task(async signal => {
-    const data = await request<LibraryMedia>(`/api/${kind}/movie-source?movieId=${movie.id}`, { signal }); signal.throwIfAborted(); setVersions(data.versions); setVersionId(new URL(movie.url, 'https://source.invalid').searchParams.get('ms') || data.mediaSourceId);
+    const data = await request<LibraryMedia>(`/api/${kind}/movie-source?movieId=${movie.id}`, { signal }); checkAbort(signal); setVersions(data.versions); setVersionId(new URL(movie.url, 'https://source.invalid').searchParams.get('ms') || data.mediaSourceId);
   });
   const changeVersion = (id: string) => task(async signal => {
     if (!canEdit || !versions.some(item => item.id === id)) return;

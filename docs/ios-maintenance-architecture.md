@@ -1,6 +1,16 @@
 # iOS 客户端维护架构
 
-更新日期：2026-10-12。指定修改和 Git 仓库为 `E:/Codex-bulid/ZViewer/ZViewer-client`，iOS 工程位于 `ZV-iOS/`。当前本地真机 IPA 为 **1.7.5 / build 17**，版本名与 Android/HarmonyOS 1.7.5 / 175 对齐，适配服务端 v4.5.1。用户确认 Expo Go 界面通过后授权原生构建；EAS、包检验、96 项 JS 测试、11 项 Go 测试、lint 和类型检查均通过。该 IPA 未签名，尚未推送 GitHub 或发布 Release；GitHub 旧安装包的版本保留原有含义。详情见 [1.7.5 / 17 构建与验证记录](releases/ios-1.7.5-17-unsigned.md)。
+更新日期：2026-10-13。指定修改和 Git 仓库为 `E:/Codex-bulid/ZViewer/ZViewer-client`，iOS 工程位于 `ZV-iOS/`。现有本地 IPA 为 **1.7.5 / build 17**，版本名与 Android/HarmonyOS 1.7.5 / 175 对齐。10 月 13 日用户反馈的运行错误已在源码修复，并恢复 Expo Go 界面预览；**本轮未启动 EAS 或新 IPA 构建，旧 build 17 不包含下列修复**。该 IPA 未签名、未推送或发布；历史构建检查与实际设备验收分别记录。详情见 [源码修复与界面验证](releases/ios-follow-up-fixes-2026-10-13.md) 和 [历史 build 17 记录](releases/ios-1.7.5-17-unsigned.md)。
+
+## 2026-10-13：媒体添加错误与简洁搜索弹窗（源码预览）
+
+- `cancellation.ts/checkAbort` 替代所有生产调用中的 `signal.throwIfAborted()`。RN 0.86.3 实际安装的 AbortController 缺少后者，造成 Jellyfin/Emby、番剧源和私人漫游共有的 `undefined is not a function`。105 项 JS 测试使用该实际信号实现验证业务与取消；类型检查、lint 通过。
+- `mediaLibrary.ts/addLibraryEntry` 验证双媒体库单集与整季，`animeSources.ts/addAnimeEpisode` 保留 HLS 请求头并避免服务端 API 重复代理，`personalFm.ts/queueFmSong` 从恢复后的队列选取真实歌曲身份。可丢弃本机测试房间验证 Jellyfin/Emby 添加成功、片单更新和反馈；未连接 NAS 改动容器。
+- 共享 Go `resolver.go` 仅展开对象形状的 `data.result`，避免将 UGC 的 `result:"suee"` 状态字符串误当作 PGC envelope。用户视频 `BV1UHpw6LESy` 经真实匿名元数据/playurl 和生产解析器检查成功，CID 42512224146、第 1 P、qn 32、AAC；nav 模拟匿名状态，未使用个人 Cookie或执行 iPhone 解码。11 项 Go 回归通过。
+- 添加弹窗保留来源、链接/搜索、解析与紧凑账号卡，画质折叠。独立搜索弹窗支持展开/还原；普通视频/番剧/影视改为选择器，个人栏目折叠。目录桥增加 WBI view 元数据，单 P 卡片点击直接解析、添加并请求播放，多 P 点击选集即完成操作；展示进度、保留失败链接与重试，并复用已创建条目避免重复添加。
+- `biliCatalog.ts` 规范搜索封面和 DTO；`SourcePoster` 用 `Image.getSize` 读取原始比例，横、竖、方封面均按宽度自适应高度。实际浏览器手机竖/横屏 390×844 / 844×390 为 1/3 列，平板竖/横屏 768×1024 / 1366×1024 为 2/3 列；12 卡片无越界、比例误差小于 0.000004。预览使用几何测试封面，iOS 原生 Modal 与真实图片仍待设备检查。
+
+原生桥与 Go 修改不能通过 Expo 热更新进入旧 IPA。新安装包构建仍需用户明确授权；设备媒体解码、网易云账号歌曲权限与 LiveKit 跨端互听继续单独验收。共享 Go 审核引用及摘要随本地源码提交更新，`stage-native-core.cjs --verify-only` 只检查来源，不消耗 EAS 额度。
 
 ## 2026-10-12：1.7.5 / build 17 原生验证与 IPA
 
@@ -11,7 +21,7 @@
 - LiveKit 对照当前服务端 token/mute/kick 合同，SDK 自动订阅、默认静音、麦克风授权及后台/禁言/离房竞态保护成立；进出房音频生命周期串行，VLC 不覆盖语音会话。这里只确认代码、协议和构建可行性，跨端互听与真机会员正片尚未验收。
 - 原生 Go 来源固定为 `a8abd646e0071a0708a4614e18d9d6cc31389f70` 的 12 文件清单，包内 provenance 和 source-manifest 与审核基线一致；阶段脚本拒绝生产源码增删或哈希漂移。检查工具 `scripts/inspect-unsigned-ipa.py` 使用当前审核基线，避免沿用旧版 9 文件断言。
 
-完整证据见 [IPA 检验 JSON](releases/ios-1.7.5-17-ipa-inspection.json) 和 [构建验证 JSON](releases/ios-1.7.5-17-validation.json)。下方预览及 build 12/15/16 记录为历史状态，不表示 build 17 的功能缺失或设备验收。
+完整历史证据见 [IPA 检验 JSON](releases/ios-1.7.5-17-ipa-inspection.json) 和 [构建验证 JSON](releases/ios-1.7.5-17-validation.json)。这些构建与协议检查没有覆盖 10 月 13 日报告的 RN 信号缺失和真实 UGC 状态字符串；下方预览及 build 12/15/16 记录亦为历史状态，不能替代设备验收。
 
 ## 2026-10-12：下一版源码与 Expo 预览
 
