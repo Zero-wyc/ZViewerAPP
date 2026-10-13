@@ -1,0 +1,55 @@
+{
+  "version": "1.8.5",
+  "build": "21",
+  "sourceCommit": "e10bceda5cd9e130370420941683f6efb0cc5f7d",
+  "eas": {
+    "id": "90024eef-1ceb-4ed1-be41-f68579b11857",
+    "status": "FINISHED",
+    "completedAt": "2026-10-13T11:28:20.168Z",
+    "profile": "unsigned-device",
+    "configuration": "Release"
+  },
+  "checks": {
+    "jsTestsPassed": 175,
+    "lint": "passed",
+    "typecheck": "passed",
+    "uploadFileAuditCount": 192,
+    "uploadFileAudit": "passed",
+    "nativeSourceFileCount": 12,
+    "cloudNativePatchChecks": 2,
+    "packageInspection": "passed",
+    "zipCrcEntries": 139,
+    "workerAndLocalSha256Match": true,
+    "physicalDeviceAcceptance": false
+  },
+  "artifact": {
+    "file": "ZV-iOS/release-assets/ZViewer-1.8.5-b21-unsigned.ipa",
+    "version": "1.8.5",
+    "build": "21",
+    "bundleId": "com.zviewer.mobile",
+    "bytes": 47331066,
+    "sha256": "3b3172cda15908e8b446f71c605d92c0f847cde4e15c9cddae41cb0c21e24149",
+    "vlcNativePatchMarkers": {
+      "ZViewerVoiceActive": true,
+      "ZViewerPlaybackUri": true,
+      "backgroundAudio": true,
+      "ZViewer background audio session failed": true,
+      "zviewerAddedSlaves": true
+    },
+    "userRepairContracts": {
+      "bili-video-picker": true,
+      "zviewer-room-comment-position-v1": true,
+      "room-comment-floating": true,
+      "repeat-one": true
+    }
+  },
+  "publication": {
+    "pushed": false,
+    "releasePublished": false
+  },
+  "boundaries": [
+    "Unsigned device IPA requires personal signing",
+    "Background and Bilibili audio fixes need physical device acceptance",
+    "No independent native room socket or track-advance pipeline while JS is suspended"
+  ]
+}
