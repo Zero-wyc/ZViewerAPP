@@ -1,0 +1,62 @@
+{
+  "version": "1.8.5",
+  "build": "23",
+  "sourceCommit": "b27b170982da753af323e57c42dddfe05c26d699",
+  "eas": {
+    "id": "4b32aadb-a320-404a-9904-3863a92e6f86",
+    "status": "FINISHED",
+    "completedAt": "2026-10-13T12:35:54.660Z",
+    "profile": "unsigned-device",
+    "configuration": "Release"
+  },
+  "checks": {
+    "jsTestsPassed": 179,
+    "lint": "passed",
+    "typecheck": "passed",
+    "uploadFileAuditCount": 193,
+    "uploadFileAudit": "passed",
+    "nativeSourceFileCount": 12,
+    "cloudNativePatchChecks": 2,
+    "fullBinaryReferenceGuard": "passed",
+    "packageInspection": "passed",
+    "zipCrcEntries": 139,
+    "workerAndLocalSha256Match": true,
+    "physicalDeviceAcceptance": false
+  },
+  "artifact": {
+    "version": "1.8.5",
+    "build": "23",
+    "bundleId": "com.zviewer.mobile",
+    "bytes": 47330464,
+    "sha256": "fbbe04318a395e15da2b15c1723cb8457cc3e660652c2443c7473ebcd6a69b9c",
+    "vlcNativePatchMarkers": {
+      "VLCEventsLegacyConfiguration": true,
+      "setSharedEventsConfiguration:": true,
+      "ZViewerVoiceActive": true,
+      "ZViewerPlaybackUri": true,
+      "backgroundAudio": true,
+      "ZViewer background audio session failed": true,
+      "zviewerAddedSlaves": true
+    },
+    "vlcEventFrameworkMarkers": {
+      "_OBJC_CLASS_$_VLCEventsLegacyConfiguration": true,
+      "setSharedEventsConfiguration:": true
+    },
+    "userRepairContracts": {
+      "bili-video-picker": true,
+      "zviewer-room-comment-position-v1": true,
+      "room-comment-floating": true,
+      "repeat-one": true
+    },
+    "file": "ZV-iOS/release-assets/ZViewer-1.8.5-b23-unsigned.ipa"
+  },
+  "publication": {
+    "pushed": false,
+    "releasePublished": false
+  },
+  "boundaries": [
+    "Unsigned device IPA requires personal signing",
+    "VLC sound, startup responsiveness and background audio require physical device acceptance",
+    "No independent native room socket or track-advance pipeline while JS is suspended"
+  ]
+}

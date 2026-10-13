@@ -1,8 +1,8 @@
 # ZViewer iOS
 
-独立 Expo SDK 57 / React Native 工程，当前源码 **1.8.5 / build 23**。build 21 经用户真机测试存在播放卡死回归，停止推荐。build 22 的 Xcode 编译成功，随后产物符号检查误报导致无 IPA；build 23 修正检查方式，保留异步 VLC 回调、B站音轨及一起听后台音频修复。保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，LiveKit 用于房间语音，WebRTC 用于投屏接收。本次未发布 GitHub Release。
+独立 Expo SDK 57 / React Native 工程，当前源码 **1.8.5 / build 23**。build 21 经用户真机测试存在播放卡死回归，停止推荐。build 22 的 Xcode 编译成功，随后产物符号检查误报导致无 IPA；build 23 已修正检查方式并完成设备 Release 构建与离线产物检查，保留异步 VLC 回调、B站音轨及一起听后台音频修复。保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，LiveKit 用于房间语音，WebRTC 用于投屏接收。本次未发布 GitHub Release。
 
-按用户授权修复并构建后交用户自行签名和验收。**build 23 的起播响应、B站声音、后台/锁屏播放仍待新包真机测试**。179 项测试、lint、类型检查通过。历史 [b15 预览记录](../docs/releases/ios-1.5.0-15-preview.md)和 [原计划](../docs/ios-continuation-plan.md)保留，不作为新包设备验收结果。
+按用户授权修复并构建后交用户自行签名和验收。**build 23 的起播响应、B站声音、后台/锁屏播放仍待新包真机测试**。179 项测试、lint、类型检查、云端两次源码补丁检查和完整二进制引用检查通过。历史 [b15 预览记录](../docs/releases/ios-1.5.0-15-preview.md)和 [原计划](../docs/ios-continuation-plan.md)保留，不作为新包设备验收结果。
 
 b14 修复开屏原生纵向布局增长、会话恢复等待和退出后旧请求回写，并校验损坏外观偏好；原 b13 功能继续保留。具体根因、回归与当前包见 [开屏复核](../docs/ios-openscreen-fix-summary.md)。
 
@@ -27,7 +27,7 @@ b14 修复开屏原生纵向布局增长、会话恢复等待和退出后旧请�
 
 ## 预览和构建
 
-1.8.5 / build 21 已按用户授权完成构建和包检验，build 20 已取消。Expo Go 可预览 RN 界面；VLC/本机 B站/语音仍需安装包测试。以后先完成界面与本地检查，再按维护者授权提交云构建。
+1.8.5 / build 23 已按用户授权完成构建和包检验，build 20 已取消，build 21 停止推荐，build 22 产物检查失败无 IPA。Expo Go 可预览 RN 界面；VLC/本机 B站/语音仍需安装包测试。以后先完成界面与本地检查，再按维护者授权提交云构建。
 
 ```powershell
 cd ZV-iOS
@@ -37,7 +37,7 @@ cd ZV-iOS
 
 上传脚本先规范 Bash 为 LF，再验证 12 个共享 Go/依赖/许可证文件与参考 `02f62f1fc52f0c47f2a2f8e6fec8ed22d98539fc` 一致、生成来源摘要。EAS archive 限定本工程；workflow 下载校验固定 Go/Opus、重建 ARM64 vendors、host Opus smoke、CNG/Pods、iphoneos Release 和 unsigned IPA。
 
-当前测试包：`release-assets/ZViewer-1.8.5-b21-unsigned.ipa`，校验文件 `release-assets/SHA256SUMS-ios-1.8.5-b21.txt`；二者不提交 Git。内置 Release JS，无需 Metro，**用户自行签名后安装**。Expo Go 不含 VLC/Go/语音桥接。当前仅 unsigned-device 准备 vendors，development/simulator 尚需相应流程。
+当前测试包：`release-assets/ZViewer-1.8.5-b23-unsigned.ipa`，校验文件 `release-assets/SHA256SUMS-ios-1.8.5-b23.txt`；二者不提交 Git。内置 Release JS，无需 Metro，**用户自行签名后安装**。Expo Go 不含 VLC/Go/语音桥接。当前仅 unsigned-device 准备 vendors，development/simulator 尚需相应流程。
 
 ```sh
 npm ci
@@ -46,8 +46,8 @@ npm run lint
 npm run typecheck
 npx expo-doctor
 npx expo export --platform ios
-# 后续 IPA 构建完成后再检查：
-python scripts/inspect-unsigned-ipa.py release-assets/ZViewer-1.8.5-b21-unsigned.ipa
+# 下载 IPA 后检查：
+python scripts/inspect-unsigned-ipa.py release-assets/ZViewer-1.8.5-b23-unsigned.ipa
 ```
 
 b14 的 59 项单测、lint/typecheck、iOS/Web 导出、37 项 Yoga 布局记录（含旧版复现）、13 项真实 Provider 的模拟原生端口回归、20 项开屏 Web 和 43 项既有 Web 房间布局复验通过。Yoga 使用独立 3.2.1 WASM，并启用与 RN Fabric 默认一致的 ErrataAll；这些检查不能替代 UIKit 真机。Doctor 20/21：WebRTC New Architecture 未测试、私有本地模块无 Directory 元数据，未屏蔽。Go 两包可编译但源目录无测试，不等于 CDN 回归。

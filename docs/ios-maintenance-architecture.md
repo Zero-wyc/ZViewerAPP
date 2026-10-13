@@ -4,7 +4,9 @@
 
 EAS `1885fd07-2ea6-40da-b6e7-549f5533023c` 于 20:17:13（北京时间）失败。两次原生源码补丁检查通过，Xcode 设备 Release 编译成功；其后主程序 `strings` 检查误报 `VLCEventsLegacyConfiguration` 缺失，导致 IPA 未打包或上传。macOS strings 默认按 Mach-O 段扫描，不能覆盖段外链接导入信息，已核对 Apple cctools 源码及已有 IPA 的真实导入类位置。
 
-build 23 使用 `scripts/verify-ios-native-symbols.cjs` 读取完整二进制，同时要求主程序的事件配置类/setter 引用和 VLCKit framework 的类定义；继续检查播放器构造之前设置异步配置、分离音轨及后台音频补丁。保留所有播放修复，未再次修改媒体行为。179 项测试、lint、类型检查通过；按用户既有修复并交付 IPA 指示准备重建，产物及真机验收尚待完成。
+build 23 使用 `scripts/verify-ios-native-symbols.cjs` 读取完整二进制，同时要求主程序的事件配置类/setter 引用和 VLCKit framework 的类定义；继续检查播放器构造之前设置异步配置、分离音轨及后台音频补丁。保留所有播放修复，未再次修改媒体行为。179 项测试、lint、类型检查通过；193 项上传文件审计及 12 个共享来源文件核验通过。按用户既有修复并交付 IPA 指示重建。
+
+EAS `4b32aadb-a320-404a-9904-3863a92e6f86` 已于 2026-10-13 20:35:54（北京时间）完成；云端两次源码检查、编译后完整二进制引用/框架定义检查通过。IPA `ZV-iOS/release-assets/ZViewer-1.8.5-b23-unsigned.ipa`（47,330,464 字节），SHA-256 `fbbe04318a395e15da2b15c1723cb8457cc3e660652c2443c7473ebcd6a69b9c` 与构建机一致。离线设备架构、版本、139 项 ZIP CRC、系统媒体/后台声明、VLC/LiveKit/桥接、来源许可和事件配置/音轨/后台补丁标记均通过。未签名，需用户自行签名安装。维护与检查已记录，未推送 GitHub；实际起播、B站声音与桌面/锁屏持续播放仍须真机复验，JS 挂起时没有独立原生 Socket/自动切歌管线。详见 [build 23 验证记录](releases/ios-1.8.5-23-validation.md)。
 
 ## 2026-10-13：build 21 起播卡死回归与异步 VLC 回调修复（build 22）
 
