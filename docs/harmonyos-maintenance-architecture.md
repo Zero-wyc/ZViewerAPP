@@ -2,6 +2,12 @@
 
 更新日期：2026-10-13
 
+## 2026-10-13：1.8.0 / 180 发布
+
+按用户要求，将已实现的 1.7.6 / 176 服务端 v4.5.3 对齐内容统一升为 **1.8.0 / 180** 重新打包，源码发布至 `Zero-wyc/ZViewerAPP` main，Release 标签为 `client-v1.8.0`。鸿蒙 AppScope 的 `versionName` / `versionCode`、根包版本与 Android 同步更新；网页仍只通过 `npm run harmony:web` 生成，继续使用既有发布签名，公开构建配置保留无私钥和密码的模板。发布附件为 APK、HAP、SHA256SUMS.txt，源码使用 GitHub 自动生成归档。
+
+本版包括默认音乐音量、私人漫游连续播放、B 站搜索自适应多列及实际 ArkTS WBI 修复，详见 [1.8.0 发行说明](releases/client-1.8.0.md)。本轮 `harmony:web`、Debug/Release 构建通过，HAP 的 `module.json` 为 1.8.0 / 180，验签通过且证书链与既有版本一致，包内 29 个共享网页文件与构建结果摘要匹配，详见 [1.8.0 构建与发布验证](client-v1.8.0-release-validation-20261013.md)。下方 1.7.6 记录保留此前功能验证范围；物理设备、真实音源、后台锁屏、蓝牙与跨端同步仍需专项验证。本轮未构建或发布 iOS。
+
 ## 2026-10-13：1.7.6 / 176 对齐服务端 v4.5.3（本地构建）
 
 已通过 GitHub 接口确认上游 main 为 `9e2a0d4f3d9796067ac17274feabeccbb065d411`，与本次更新方案一致。共享业务增加 `roomDefaultMusicVolume`（缺省 50%）和 `initialMusicVolume`；有效本地 0～1 音量优先，包括 0/1，无效记录安全回退。公开设置晚到不会覆盖本次手动调整，即使存储写入失败；主音频、预载和升格统一音量，切服仍由原有 settingsRevision 隔离旧响应。
@@ -102,9 +108,9 @@ HAP 已构建并安装到该模拟器；与 Android、桌面 SDK 的三方 LiveK
 
 | 客户端 | 当前状态 | 维护结论 |
 | --- | --- | --- |
-| Android | 当前发布 1.7.0 / 170；既有签名 APK | 用户确认真机验收通过；与 HarmonyOS 同步发布 |
-| HarmonyOS | 当前发布 1.7.0 / 170，适配上游 ba03309 | 用户确认真机验收通过；ArkTS 独立维护与 HEVC Main 10 限制保留 |
-| iOS | 1.5.0 / b15，用户已确认真机 UI 检测通过，授权未签名 IPA 构建及单独 iOS Release | RN + VLC；I13 与完整音视频/语音验收边界见 [iOS 交付记录](releases/ios-1.5.0-15-unsigned.md) |
+| Android | 发布版本 1.8.0 / 180；既有签名 APK | 对齐 v4.5.3；与 HarmonyOS 同步发布 |
+| HarmonyOS | 发布版本 1.8.0 / 180；ArkWeb 正式签名 HAP | 功能验证与设备边界见上方记录；ArkTS 独立维护与 HEVC Main 10 限制保留 |
+| iOS | 独立已发布 1.5.1；本地候选 1.7.5 / build 17 | 本轮未构建或发布；候选与后续源码修复边界见 [iOS 维护文档](ios-maintenance-architecture.md) |
 
 HarmonyOS 应用不是另写一套业务前端。它将根项目构建出的 `dist/` 放入 `entry/src/main/resources/rawfile/web/`，由 ArkWeb 以固定本地来源加载；平台能力通过 `zviewerHost` 注入，再由 `bridge-bootstrap.js` 暴露为共享前端识别的 `window.zviewerNative`。
 
@@ -221,7 +227,7 @@ Android 模拟器本机 B 站账号有效；隔离房间真实 CDN 播放连续 
 ## 7. 文档入口
 
 - 双端版本、清理与发布步骤：[`mobile-release-maintenance.md`](mobile-release-maintenance.md)
-- 当前 1.5.0 发布记录：[`releases/client-1.5.0.md`](releases/client-1.5.0.md)
+- 当前 1.8.0 发行说明：[`releases/client-1.8.0.md`](releases/client-1.8.0.md)
 
 - 共享移植边界：[`PORTING.md`](../PORTING.md)
 - HarmonyOS 发布说明：[`ZV-HarmonyOS/README.md`](../ZV-HarmonyOS/README.md)

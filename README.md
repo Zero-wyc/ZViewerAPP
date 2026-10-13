@@ -1,6 +1,6 @@
 # ZViewer Mobile Client
 
-2026-10-13：Android/HarmonyOS 本地候选 **1.7.6 / 176** 已对齐服务端 v4.5.3，增加默认音量/FM 连续漫游、鸿蒙 WBI 修复和 B站搜索自适应多列。签名包位于 `release/client-v1.7.6/`，尚未发布 Release；验证与设备边界见 [记录](docs/client-v1.7.6-alignment-453-validation-20261013.md)。下方发布链接保留已发布版本。
+2026-10-13：Android/HarmonyOS 发布版本 **1.8.0 / 180** 对齐服务端 v4.5.3，包含默认音乐音量、私人漫游连续播放、B 站解析修复与搜索自适应多列。详见 [1.8.0 发行说明](docs/releases/client-1.8.0.md) 和 [构建与发布验证](docs/client-v1.8.0-release-validation-20261013.md)。
 
 <img src="public/favicon.jpg" alt="ZViewer" width="88" height="88" />
 
@@ -12,17 +12,17 @@
 
 | 平台 | 版本 | 说明 |
 | --- | --- | --- |
-| Android | **1.7.5 / 175** | 正式签名 APK，内置 Go B 站代理 |
-| HarmonyOS | **1.7.5 / 175** | 正式签名 HAP，ArkWeb / ArkTS 宿主 |
-| iOS | 独立 1.5.1 源码 / Release | IPA 内部版本为 1.5.0（build 16）；本次未更新 |
+| Android | **1.8.0 / 180** | 正式签名 APK，内置 Go B 站代理 |
+| HarmonyOS | **1.8.0 / 180** | 正式签名 HAP，ArkWeb / ArkTS 宿主 |
+| iOS | 独立 1.5.1 Release | 已发布 IPA 内部版本为 1.5.0（build 16）；本轮未构建或发布 iOS |
 
-双端 1.7.5 对齐服务端 **v4.5.1**，本地核验的上游提交为 `c8fa5bad0c6efcffbc0dc3bfe4c199f8a9b8d8f6`。[ZViewer-Client V1.7.5](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.7.5) 提供 APK、HAP 和 SHA256SUMS.txt；源码同步 main，使用 GitHub 自动生成的 Source code（zip / tar.gz），不另附源码 ZIP。
+双端 1.8.0 对齐服务端 **v4.5.3**，本次对齐核验的上游提交为 `9e2a0d4f3d9796067ac17274feabeccbb065d411`。[ZViewer-Client V1.8.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.0) 提供 APK、HAP 和 SHA256SUMS.txt；源码同步 main，使用 GitHub 自动生成的 Source code（zip / tar.gz），不另附源码 ZIP。
 
-本版新增共享 Kazumi/ani-subs 浏览器、认证海报、媒体库搜索/整剧整季/切集与多版本、一键清空及 B 站搜索分 P；修复媒体库转码 HLS 相对分片。长片名在普通和展开片单中完整换行，展开的番剧源菜单按名称增宽并保持单行。公告不加入客户端。保留此前海报墙、全选、触屏排序、自动连播及移动端播放边界。详见 [发行说明](docs/releases/client-1.7.5.md)、[1.7.5 界面与构建验证](docs/client-v1.7.5-ui-validation-20261012.md) 和 [此前 1.7.4 本地对齐记录](docs/client-v1.7.4-alignment-451-validation-20261012.md)。Kazumi 仍需在设置中手动启用；模拟器与协议验证不替代用户真机、实际媒体库及长期播放验收。
+本版读取服务端默认音乐音量并优先保留有效本地音量，私人漫游在歌曲结束或下一首时继续获取候选，切换页面保留房间会话。B 站搜索使用紧凑 16:9 封面网格，手机两列，随可用宽度增加列数；修复鸿蒙 WBI 签名及 Android Go 核心的 WBI/普通视频响应处理。保留此前番剧浏览器、媒体库多版本与整季、片单完整长标题和清空功能，公告继续排除。详见 [发行说明](docs/releases/client-1.8.0.md) 和 [1.7.6 对齐验证](docs/client-v1.7.6-alignment-453-validation-20261013.md)。Kazumi 仍需在设置中手动启用；既有浏览器、协议夹具和构建结果不替代本版真机、真实音源、后台锁屏、蓝牙及跨端同步验收。
 
 ## 安装与连接
 
-1. 从最新 Release 下载对应的 `ZViewer-Android-1.7.5-release.apk` 或 `ZViewer-HarmonyOS-1.7.5-release.hap`。Android 按系统提示允许安装；鸿蒙安装说明见 [维护文档](docs/harmonyos-maintenance-architecture.md)。
+1. 从最新 Release 下载对应的 `ZViewer-Android-1.8.0-release.apk` 或 `ZViewer-HarmonyOS-1.8.0-release.hap`。Android 按系统提示允许安装；鸿蒙安装说明见 [维护文档](docs/harmonyos-maintenance-architecture.md)。
 2. 准备可访问的 ZViewer 服务端，填写服务器地址。支持完整 HTTP/HTTPS 地址、HTTPS 优先探测及按服务器授权的证书例外。
 3. 使用服务器账号登录；服务器允许游客时可使用游客身份。
 4. 选择房间，或在服务器授权允许时创建同步观影、一起听房间。
@@ -37,19 +37,19 @@ Android 最低版本为 **Android 7.0 / API 24**；当前 APK 包含 ARM64 和 x
 
 - **房间与同步观影**：账号/游客登录、会话恢复、片单、聊天、评论、字幕与播放控制。可观看桌面端发起的屏幕共享，手机端不提供屏幕采集。
 - **片单管理**：展开完整片单进行搜索、上移/下移排序；排序仅限 root 或创建房间的管理员，搜索过滤时不能排序。房主可开启自动连播，默认关闭，按完整片单播放，末尾停止。
-- **B 站**：关键词搜索后直接解析，支持分 P、ep/ss 番剧影视与本机账号授权。双端内置登录与代理，无需另装 CLI；Cookie 保存在原生侧，房主与观众独立选择本机画质。
+- **B 站**：关键词搜索后直接解析，结果按可用宽度以多列网格显示；支持分 P、ep/ss 番剧影视与本机账号授权。双端内置登录与代理，无需另装 CLI；Cookie 保存在原生侧，房主与观众独立选择本机画质。
 - **媒体库**：Emby/Jellyfin 列表与海报墙切换、年份、剧集/季/单集导航、缺图占位。进入单集目录后可多选或全选，按目录顺序批量添加；放大扩展目录显示区域，原生返回先退出面板全屏，再关闭面板。
 - **弹幕与字幕**：连续添加多集并标记已添加，支持本地 XML/JSON 弹幕及文本/PGS 字幕。手机弹幕默认随画面缩放，字号和字幕大小可调整。
-- **一起听与语音**：音乐、歌单、歌词及 LiveKit 房间语音，保留麦克风权限、静音和成员管理；折叠面板或切换标签不主动结束通话。
+- **一起听与语音**：音乐、歌单、歌词、私人漫游连续播放及 LiveKit 房间语音。首次音乐音量读取服务端默认值，有效本地设置优先；保留麦克风权限、静音和成员管理，折叠面板或切换标签不主动结束通话。
 - **移动体验**：深浅主题、全局背景、窄屏设置、平板布局、旋转控制、系统播放信息与控件、二级面板内部滚动和返回层级。
 
 B 站默认选择本机账号有权限、视频实际提供且设备支持的最高普通画质，排除 HDR 和杜比视界；手动选择按影片保留。媒体来源、账号授权和房间权限由对应平台及服务端决定，格式播放还依赖设备解码能力。
 
 ## iOS 状态
 
-`ZV-iOS/` 为独立 Expo/React Native + VLC 工程，不直接使用双端共享界面。当前 iOS 源码及独立 Release 为 1.5.1，复用未签名的 1.5.0（build 16）IPA，需自行签名安装。本次未构建 IPA，也未完成 v4.4.7 与 LiveKit 的 iOS 对齐。
+`ZV-iOS/` 为独立 Expo/React Native + VLC 工程，不直接使用双端共享界面。独立已发布的 1.5.1 Release 使用未签名的 1.5.0（build 16）IPA，需自行签名安装。当前本地 iOS 候选为 1.7.5 / build 17，已纳入 LiveKit；后续源码修复仍通过 Expo Go 预览，旧 build 17 不包含这些修复。本次 1.8.0 仅发布 Android/HarmonyOS，未构建或发布新的 IPA。
 
-iOS 更新受 Expo Build 额度及本地 Mac 构建条件影响，可能晚于双端。UI 验收与后台同步、音视频及语音覆盖边界见 [iOS 维护文档](docs/ios-maintenance-architecture.md) 和 [1.5.1 发行说明](docs/releases/ios-1.5.1-release-notes.md)。
+iOS 更新受 Expo Build 额度及本地 Mac 构建条件影响，可能晚于双端。源码、IPA 与实际设备覆盖边界见 [iOS 维护文档](docs/ios-maintenance-architecture.md)、[本地 build 17 记录](docs/releases/ios-1.7.5-17-unsigned.md) 和 [已发布 1.5.1 说明](docs/releases/ios-1.5.1-release-notes.md)。
 
 ## 本地开发与检查
 
@@ -63,7 +63,7 @@ npm run test:media
 npm run build
 ```
 
-浏览器调试需要自己的 ZViewer 服务端。仓库保留适配与媒体回归测试；本轮 43 项适配、4 项媒体回归通过，另外完成 64 组媒体库布局、17 组选择行为与双端原生批量添加验证。用户已确认双端检测通过，自动化证据和具体覆盖边界保留在本轮验证记录中。
+浏览器调试需要自己的 ZViewer 服务端。功能回归与搜索布局、音量、私人漫游验证见 [对齐记录](docs/client-v1.7.6-alignment-453-validation-20261013.md)。本轮 1.8.0 双端 Debug/Release 构建、包内版本、签名及各 29 个共享网页资源摘要检查通过，详见 [构建与发布验证](docs/client-v1.8.0-release-validation-20261013.md)；真机与真实音源等专项仍待验收。
 
 ### Android 构建
 

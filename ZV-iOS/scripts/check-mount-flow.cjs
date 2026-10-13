@@ -1,5 +1,11 @@
 const http = require('node:http'); const assert = require('node:assert/strict'); const { io } = require('socket.io-client'); const fs = require('node:fs'); const path = require('node:path');
 const base = 'http://127.0.0.1:7333'; const mountBase = 'http://127.0.0.1:7340'; const media = Buffer.alloc(20480, 3); media.write('ftypisom', 4); const checks = [];
+// Login requires ZVIEWER_LOCAL_USERNAME and ZVIEWER_LOCAL_PASSWORD.
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) throw new Error('Missing required environment variable: ' + name);
+  return value;
+}
 // A synthetic DAV server exercises metadata and Range, without touching NAS.
 const fixture = http.createServer((req, res) => {
   if (req.method === 'PROPFIND') {
@@ -12,11 +18,15 @@ const fixture = http.createServer((req, res) => {
 });
 const ack = (socket, event, data) => new Promise((resolve, reject) => socket.timeout(10000).emit(event, data, (failure, result) => failure || !result?.success ? reject(new Error(`${event} failed`)) : resolve(result)));
 (async () => {
+  const username = requireEnv('ZVIEWER_LOCAL_USERNAME');
+  const password = requireEnv('ZVIEWER_LOCAL_PASSWORD');
   let socket, headers, mountId, roomId;
   await new Promise(resolve => fixture.listen(7340, '127.0.0.1', resolve));
   try {
     const auth = async (route, body) => (await fetch(base + route, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
-    const user = await auth('/api/auth/login', { username: 'root', password: 'root' }); headers = { Authorization: `Bearer ${user.accessToken}`, 'Content-Type': 'application/json' };
+    const user = await auth('/api/auth/login', { username, password });
+    if (!user.accessToken) throw new Error('Local login failed; check ZVIEWER_LOCAL_USERNAME and ZVIEWER_LOCAL_PASSWORD.');
+    headers = { Authorization: `Bearer ${user.accessToken}`, 'Content-Type': 'application/json' };
     socket = io(base, { transports: ['websocket'], auth: { token: user.accessToken }, forceNew: true, reconnection: false }); await new Promise((resolve, reject) => socket.once('connect', resolve).once('connect_error', reject));
     const payload = { name: 'Isolated iOS DAV fixture', serverUrl: mountBase, path: '/', username: 'fixture', password: 'local-only', directLink: false };
     let result = await fetch(base + '/api/webdav/mounts/test', { method: 'POST', headers, body: JSON.stringify(payload) }); assert.equal(result.status, 200); checks.push('DAV connection test');

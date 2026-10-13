@@ -1,4 +1,6 @@
 // Actual unchanged web client, isolated local DB/server, disposable headless Chrome.
+// Required: ZVIEWER_LOCAL_USERNAME, ZVIEWER_LOCAL_PASSWORD, ZVIEWER_LOCAL_MEDIA_ROOT,
+// and ZVIEWER_LOCAL_MEDIA_FILE (relative to the selected root).
 const { createRequire } = require('node:module');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -8,11 +10,27 @@ const { io } = dependency('socket.io-client');
 const base = 'http://127.0.0.1:7336';
 const backend = 'http://127.0.0.1:7333';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) throw new Error('Missing required environment variable: ' + name);
+  return value;
+}
 (async () => {
+  const username = requireEnv('ZVIEWER_LOCAL_USERNAME');
+  const password = requireEnv('ZVIEWER_LOCAL_PASSWORD');
+  const normalizeRoot = value => value.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase();
+  const mediaRoot = normalizeRoot(requireEnv('ZVIEWER_LOCAL_MEDIA_ROOT'));
+  const mediaFile = requireEnv('ZVIEWER_LOCAL_MEDIA_FILE').replaceAll('\\', '/');
+  if (path.posix.isAbsolute(mediaFile) || /^[a-z]:/i.test(mediaFile) || mediaFile.split('/').includes('..')) {
+    throw new Error('ZVIEWER_LOCAL_MEDIA_FILE must be a path relative to ZVIEWER_LOCAL_MEDIA_ROOT.');
+  }
+  const mediaTitle = path.posix.basename(mediaFile);
+  const mediaFormat = path.posix.extname(mediaFile).slice(1).toLowerCase();
+  if (!mediaTitle || !mediaFormat) throw new Error('ZVIEWER_LOCAL_MEDIA_FILE must name a video file with an extension.');
   const browser = await chromium.launch({ headless: true, channel: 'chrome', args: ['--autoplay-policy=no-user-gesture-required'] });
   const context = await browser.newContext();
-  const login = await (await context.request.post(base + '/api/auth/login', { data: { username: 'root', password: 'root' } })).json();
-  if (!login.accessToken) throw new Error('Local login failed');
+  const login = await (await context.request.post(base + '/api/auth/login', { data: { username, password } })).json();
+  if (!login.accessToken) throw new Error('Local login failed; check ZVIEWER_LOCAL_USERNAME and ZVIEWER_LOCAL_PASSWORD.');
   const localAuth = { Authorization: 'Bearer ' + login.accessToken };
   await context.addCookies([{ name: 'access_token', value: login.accessToken, url: base, httpOnly: true, sameSite: 'Lax' }]);
   const socket = io(backend, { transports: ['websocket'], auth: { token: login.accessToken }, reconnection: false });
@@ -22,9 +40,10 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const rootData = await (await context.request.get(base + '/api/server-files/roots', { headers: localAuth })).json();
   if (!rootData.roots) throw new Error('Local roots status: ' + rootData.message);
   const roots = rootData.roots;
-  const root = roots.find(item => item.absPath.replaceAll('\\', '/').toLowerCase() === 'c:/users/fredq/videos');
-  const mediaPath = root.key + ':/S01E04.mp4';
-  const added = await (await context.request.post(base + `/api/rooms/${room}/movies`, { headers: localAuth, data: { title: 'S01E04.mp4', source: 'server-files', url: '/api/server-files/proxy?path=' + encodeURIComponent(mediaPath), path: mediaPath, format: 'mp4' } })).json();
+  const root = roots.find(item => normalizeRoot(item.absPath) === mediaRoot);
+  if (!root) throw new Error('ZVIEWER_LOCAL_MEDIA_ROOT does not match an available server media root.');
+  const mediaPath = root.key + ':/' + mediaFile;
+  const added = await (await context.request.post(base + `/api/rooms/${room}/movies`, { headers: localAuth, data: { title: mediaTitle, source: 'server-files', url: '/api/server-files/proxy?path=' + encodeURIComponent(mediaPath), path: mediaPath, format: mediaFormat } })).json();
   if (!added.success) throw new Error('Local movie setup failed');
   socket.disconnect();
   const page = await context.newPage();

@@ -1,5 +1,9 @@
 # Android / HarmonyOS 维护与发布
 
+2026-10-13：当前双端发布版本为 [1.8.0 / 180](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.0)，对齐服务端 v4.5.3。将下方 1.7.6 本地候选统一升级版本并重新打包，包含默认音量、私人漫游连续播放、B 站解析修复和搜索自适应多列。发布说明见 [1.8.0](releases/client-1.8.0.md)，本轮网页同步、双端 Debug/Release 构建、版本/签名及各 29 个网页资源摘要核验见 [构建与发布验证](client-v1.8.0-release-validation-20261013.md)。既有 [1.7.6 验证](client-v1.7.6-alignment-453-validation-20261013.md) 保留其浏览器夹具和设备边界；真机、真实音源、后台锁屏、蓝牙与跨端同步仍待专项验收。本轮未构建或发布 iOS，仅清理两个 iOS 本地测试脚本中的硬编码路径和固定登录值，不影响 iOS 产品构建。
+
+以下按日期保留各版本当时的交付与验收状态。
+
 2026-10-13：双端本地候选 **1.7.6 / 176** 对齐 v4.5.3，默认音量、FM 会话续播、鸿蒙 WBI 和 B站搜索多列已实现。已生成并校验签名 APK/HAP，当前未发布、未安装到设备。详见 [1.7.6 验证](client-v1.7.6-alignment-453-validation-20261013.md)；下方已发布/设备记录为历史。
 
 2026-10-12：当前双端版本为 [1.7.5 / 175](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.7.5)，对齐服务端 v4.5.1，包含此前 1.7.4 本地更新、片单完整多行标题及源菜单按内容增宽。公告排除，iOS 未更新。源码与 Git 操作仍全部在指定 ZViewer-client 仓库，推送 main；附件只上传签名 APK、HAP、SHA256SUMS.txt，源码使用 GitHub 自动生成归档。双端维护入口和本轮验证见 [1.7.5 记录](client-v1.7.5-ui-validation-20261012.md)，下方旧版本状态属于历史。
@@ -24,7 +28,7 @@
 
 同时更新根 `package.json`、`package-lock.json`、Android `app/build.gradle` 和鸿蒙 `AppScope/app.json5`，两端 versionCode 必须高于旧版。iOS 版本与依赖不属于本次发布范围。
 
-1.3.5 曾使用独立发布工作树，该流程属于历史。当前按根维护准则，全部客户端修改和 Git 操作在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。交付前确认 `ZV-iOS/` 相对本轮基线没有变化；每次完成一个版本构建后本地提交，源码 ZIP 从该提交生成。
+1.3.5 曾使用独立发布工作树，该流程属于历史。当前按根维护准则，全部客户端修改和 Git 操作在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。交付前逐项核对提交清单，避免夹带并行任务的无关未提交工作；iOS 产品改动须按独立授权范围处理。每次完成一个版本构建后本地提交，将该提交推送 main 并用于发布标签，源码由 GitHub 自动归档。
 
 Android 使用仓库外持久发布密钥，通过 `ZVIEWER_KEYSTORE`、`ZVIEWER_STORE_PASSWORD`、`ZVIEWER_KEY_ALIAS`、`ZVIEWER_KEY_PASSWORD` 注入 Gradle，运行 `assembleRelease`。发布前以 apksigner 验证签名，并与上一版证书 SHA-256 比较。
 
@@ -94,7 +98,9 @@ Android/HarmonyOS 的一起听工具栏隐藏浏览器全屏按钮，由原生�
 
 ## GitHub 发布
 
-本仓库沿用一个双端 Release：当前为 `client-v1.5.0`，包含签名 APK、签名 HAP、对应提交源码 ZIP 和 `SHA256SUMS.txt`。不上传 APP 上架包、AAR、私钥、服务器数据；iOS 未签名 IPA 追加在同一 `client-v1.5.0` Release，不另建 iOS 标签。发布说明列出实际验收范围；不能把解析成功当作媒体解码通过。
+双端 Release 当前为 `client-v1.8.0`，标题为 **ZViewer-Client V1.8.0**，目标仓库为 `Zero-wyc/ZViewerAPP`。源码推送 main；附件仅包含正式签名 APK、正式签名 HAP 和 `SHA256SUMS.txt`，源码使用 GitHub 自动生成的 zip/tar.gz，不单独上传源码 ZIP、APP 上架包或 AAR。本轮不附加 iOS IPA；历史 iOS 发布方式不自动套用到后续版本。
+
+提交前检查发布源码及自动归档内容，排除账户密码、登录令牌、签名材料、测试私有配置和 `AGENTS.md`。发布时核对 main、标签、包内版本、签名与本地摘要；上传后核对远端附件的名称、字节数、SHA-256 及可下载状态。Release 说明使用新特性、错误修复、破坏性改动、性能优化、文档与依赖更新五个中英文章节，并附完整变更比较链接。发布说明列出实际验收范围，不能把解析成功当作媒体解码通过。
 
 CI 只执行现有的依赖安装、共享前端同步和 Android debug 构建；已删除的测试命令不能继续留在 workflow。源码发布应核对目标提交、附件版本与 SHA-256 一致。
 
