@@ -13,4 +13,6 @@ function run(args) {
 // Pin generator and runtime to the same revision; no generated AAR is committed.
 run(['install',`golang.org/x/mobile/cmd/gobind@${revision}`])
 run(['run','golang.org/x/mobile/cmd/gomobile','init'])
-run(['run','golang.org/x/mobile/cmd/gomobile','bind','-target=android/arm64,android/amd64','-androidapi','24','-o',output+'bilicore.aar','./mobile'])
+// trimpath removes Go source paths; -w also removes C/NDK DWARF paths that
+// gomobile's Go path trimming alone cannot sanitize. Runtime code is unchanged.
+run(['run','golang.org/x/mobile/cmd/gomobile','bind','-trimpath','-ldflags=-s -w','-target=android/arm64,android/amd64','-androidapi','24','-o',output+'bilicore.aar','./mobile'])

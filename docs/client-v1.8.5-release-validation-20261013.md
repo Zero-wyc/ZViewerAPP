@@ -18,7 +18,7 @@
 | --- | --- |
 | Android/HarmonyOS 回归 | 76 项适配 + 4 项媒体测试通过。 |
 | 网页构建/生成 | android:sync、harmony:web、TypeScript/Vite 通过；不手改生成目录。 |
-| Android 原生 | Debug/Release 成功；APK 1.8.5 / 185；v2 验签、原发布证书一致；ARM64/x86_64 Go 库与本轮输入匹配。 |
+| Android 原生 | Debug/Release 成功；APK 1.8.5 / 185；v2 验签、原发布证书一致；ARM64/x86_64 Go 库与本轮输入匹配；trimpath / -s -w 重构建去除 Go 和 C/NDK 的本机用户名/绝对调试路径。 |
 | HarmonyOS 原生 | Debug/Release 成功；HAP 1.8.5 / 185、debug=false/release；验签及既有证书链一致；私有签名配置构建后恢复为公开模板。 |
 | 双端资源 | 各 29 个共享网页文件 SHA-256 与本轮 dist 匹配；鸿蒙生成桥接入口一致；包内无 AGENTS.md/公告实现。 |
 | iOS 自动核验 | 既有 179 项测试、lint/typecheck；云端两次补丁核验、完整二进制配置引用、设备 ARM64、139 项 ZIP CRC、来源/许可及构建机与下载哈希一致。 |
@@ -30,7 +30,7 @@
 
 | 文件 | 字节数 | SHA-256 |
 | --- | ---: | --- |
-| ZViewer-Android-1.8.5-release.apk | 43169943 | `ba81d0ab59a24ad4095fef4c03a5f3f1718f81c181f96bf892f4e3b5f8696c97` |
+| ZViewer-Android-1.8.5-release.apk | 28868247 | `e099b492f938c2bfa80755e931d665693ebd416892c38a740da43d32ffe58653` |
 | ZViewer-HarmonyOS-1.8.5-release.hap | 14185775 | `ffa4012a7a72e7e85d4a81320ab659b3364b2b79e037093804d4f28879304eb2` |
 | ZViewer-1.8.5-b23-unsigned.ipa | 47330464 | `fbbe04318a395e15da2b15c1723cb8457cc3e660652c2443c7473ebcd6a69b9c` |
 
