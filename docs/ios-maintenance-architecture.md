@@ -1,5 +1,14 @@
 # iOS 客户端维护架构
 
+## 2026-10-13：B站一起看无声，build 20 原生补丁构建修复
+
+用户确认 Jellyfin 有声、一起听 B站有声，而一起看 B站仅有画面。build 19 云端日志显示 `eas/prebuild` 完成后再次执行 `npm ci --include=dev`，覆盖了 dangerous mod 对 `node_modules/expo-libvlc-player` 的修改。独立音轨补丁因此未可靠进入产物，旧版“所有原生修复已入包”的结论已更正。
+
+- `patch-vlc-native.cjs` 共用 config plugin 中的轨道、语音音频会话、系统媒体补丁；在 EAS prebuild/重装之后、pod install 之前重新应用。`build-unsigned-ios.sh` 在 xcodebuild 前强制核验，任何必要补丁缺失立即停止。
+- 分离音轨在 VLC 输入播放就绪后挂载，成功后去重；失败可在进度事件重试。一起听仍直接播放音频地址，Jellyfin 内置音轨保持原路径。
+- 播放诊断排除 id=-1 的“关闭”选项，避免把实际零音轨显示为一轨。
+- 从 npm 下载未修改的 57.0.54 依赖验证：原始源码被检查器拒绝，应用补丁后通过且重复执行不改变内容。174 项 JS 测试、lint、类型检查通过。用户曾授权构建 1.8.5 / 20；构建 `94ed4757-38ef-4b5b-8578-5716ed5eeec4` 已通过云端重装后、编译前两次补丁核验。随后用户反馈后台仍不保活并要求暂停编译，已通过 EAS CLI 取消（Build canceled），没有交付 build 20 IPA。未经再次指示不重启构建，后台播放仍待继续排查及真机验收。
+
 ## 2026-10-13：iOS 1.8.5 / build 19 真机测试包
 
 按用户授权构建 **1.8.5 / 19**，源码提交 `6c2beba786a6768d95e3248145aad7f79f9e79d0`。EAS `unsigned-device` / Release 构建 `1f04643c-ac62-4f5e-abe0-efa1dca2dee5` 于 2026-10-13 18:30:06（北京时间）完成；JS 界面修复已进入新包；后续发现 prebuild 后重装依赖覆盖了 VLC 原生补丁，详见下述 build 20 修复记录。旧 build 18 不包含这些反馈修复。
