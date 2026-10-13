@@ -39,7 +39,15 @@ func TestUGCPageQualityAndSplitAudioContract(t *testing.T) {
 			if q.Get("cid") != "1002" || q.Get("qn") != "64" || q.Get("fnval") != "2128" || q.Get("w_rid") == "" {
 				t.Fatalf("incorrect device DASH request: %s", r.URL.RawQuery)
 			}
-			body = `{"code":0,"data":` + string(fixtures["dash"]) + `}`
+			var playback map[string]any
+			if err := json.Unmarshal(fixtures["dash"], &playback); err != nil {
+				t.Fatal(err)
+			}
+			// Actual UGC API includes this string; it is not a nested response envelope.
+			playback["result"] = "suee"
+			playback["from"] = "local"
+			encoded, _ := json.Marshal(playback)
+			body = `{"code":0,"data":` + string(encoded) + `}`
 		default:
 			t.Fatalf("unexpected API %s", r.URL.Path)
 		}

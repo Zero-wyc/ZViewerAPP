@@ -389,7 +389,8 @@ func bilibiliFetchContext(ctx context.Context, api string, cookie string, out an
 				var nested struct {
 					Result json.RawMessage `json:"result"`
 				}
-				if json.Unmarshal(raw, &nested) == nil && len(nested.Result) > 0 {
+				// UGC playurl has result:"suee" inside data; only PGC's object is an envelope.
+				if json.Unmarshal(raw, &nested) == nil && strings.HasPrefix(strings.TrimSpace(string(nested.Result)), "{") {
 					raw = nested.Result
 				}
 			}

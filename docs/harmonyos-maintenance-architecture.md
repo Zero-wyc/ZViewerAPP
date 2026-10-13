@@ -1,6 +1,10 @@
 # HarmonyOS 应用维护架构整理
 
-更新日期：2026-10-12
+更新日期：2026-10-13
+
+## 2026-10-13：共享 B站普通视频响应修复（源码）
+
+`native/bilicore/core/resolver.go` 仅在 `data.result` 是对象时展开 PGC 响应。普通视频 playurl 的 `result:"suee"` 是状态字符串，过去被误当作嵌套对象，导致本机解析失败；`ugc_test.go` 已覆盖真实响应形状。共享 Go 11 项测试通过，用户提供的公开视频 `BV1UHpw6LESy` 经匿名真实请求返回第 1 P、480P 视频及 AAC 音轨。此次只更新共享源码，当前 HarmonyOS 1.7.5 / 175 安装包未重建；生成资源和 ArkTS 桥未修改。iOS 修复与界面记录见 [2026-10-13 源码预览](releases/ios-follow-up-fixes-2026-10-13.md)。
 
 ## 2026-10-12：共享 B站 WBI 核心修复
 
