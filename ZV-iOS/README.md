@@ -37,7 +37,7 @@ cd ZV-iOS
 
 上传脚本先规范 Bash 为 LF，再验证 12 个共享 Go/依赖/许可证文件与参考 `02f62f1fc52f0c47f2a2f8e6fec8ed22d98539fc` 一致、生成来源摘要。EAS archive 限定本工程；workflow 下载校验固定 Go/Opus、重建 ARM64 vendors、host Opus smoke、CNG/Pods、iphoneos Release 和 unsigned IPA。
 
-当前测试包：`release-assets/ZViewer-1.8.5-b23-unsigned.ipa`，校验文件 `release-assets/SHA256SUMS-ios-1.8.5-b23.txt`；二者不提交 Git。内置 Release JS，无需 Metro，**用户自行签名后安装**。Expo Go 不含 VLC/Go/语音桥接。当前仅 unsigned-device 准备 vendors，development/simulator 尚需相应流程。
+远端发行附件：`ZViewer-iOS-1.8.5-release.ipa`（已验收 1.8.5 / build 23，未签名，需个人签名安装）。本地构建原文件：`release-assets/ZViewer-1.8.5-b23-unsigned.ipa`，校验文件 `release-assets/SHA256SUMS-ios-1.8.5-b23.txt`；二者不提交 Git。内置 Release JS，无需 Metro，**用户自行签名后安装**。Expo Go 不含 VLC/Go/语音桥接。当前仅 unsigned-device 准备 vendors，development/simulator 尚需相应流程。
 
 ```sh
 npm ci
