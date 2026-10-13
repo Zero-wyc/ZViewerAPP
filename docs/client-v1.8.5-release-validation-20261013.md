@@ -45,3 +45,12 @@ README 完整展示三端状态与操作；CHANGELOG、三端维护文档和 iOS
 Android 原生库在去路径/去调试信息构建后重新核验，ARM64/x86_64 各 128 个导出动态符号集合与先前候选完全相同；发布签名证书不变。README 本地链接 23 项检查通过。主工程最终源码包含此隐私构建修正；iOS 仍为经过真机验收的既有包。
 
 远端发布过程依次核对 main、固定标签、Release 标题/正文、4 个附件上传状态/字节数/哈希；公开下载、README 和 GitHub 自动源码归档回读后记录实际结果。
+
+
+## GitHub 发布与公开回读（已完成）
+
+Release [ZViewer-Client V1.8.5](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.5) 已正式发布（draft=false / prerelease=false），并设为 Latest；Release ID `411685859`。发布时 main、client-v1.8.5 标签与 Release 源码均对应 `363497316545c6d29d1a083b630c34b4031d3dbe`，包含三端源码。本记录的后续提交仅补充发布回执，标签保留固定发布源码，不移动标签。
+
+4 个远端附件上传状态、字节数与 SHA-256 均与本地一致；匿名公开完整下载 APK/HAP/IPA/SHA256SUMS.txt，返回 HTTP 200 并再次核对哈希一致。远端 main README 内容与已审阅源码完全一致，包含三端操作及“iOS 已处于可用状态”。GitHub 自动生成的标签源码 ZIP 共 942 个文件，经声明的 bat 换行规范化后与固定 Git 对象逐项一致；私钥/真实令牌/签名材料/已知签名密码及编码形式/AGENTS.md 审计通过。
+
+三端软件版本和安装包详情见上表。完整网络回执及本地审计记录保存在忽略目录 release/client-v1.8.5/ 与 .ui-validation/release185/，公开检查摘要见 [发布验证 JSON](releases/client-1.8.5-publication.json)。
