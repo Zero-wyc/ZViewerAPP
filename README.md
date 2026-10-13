@@ -1,6 +1,8 @@
 # ZViewer Mobile Client
 
-🎉 **三端统一发布 1.8.5，iOS 已处于可用状态！** 2026-10-13，用户确认 iOS **1.8.5 / build 23** 本轮真机测试全部通过，包括此前反馈的起播卡死、B站声音、一起听退桌面及锁屏播放问题。Android / HarmonyOS 同步到 **1.8.5 / 185**，纳入此前已在本地完成的房间界面、旋转图标与全屏横屏更新。
+**本地候选 1.8.6**：针对最新服务端同步机制修复 iOS 进度反复纠偏、后台音乐换源及末尾拖动；Android/HarmonyOS 增加主页“关于应用”、启动检查更新和对应平台下载提示。iOS 为 **build 25**，双端为 **186**；安装包和验证见 [本地验证记录](docs/releases/client-1.8.6-local-validation.md)，尚未发布，新增行为待真机复验。
+
+最新公开发行仍为 **1.8.5**。此前用户确认 build 23 的起播卡死、B站声音及同曲后台播放修复通过；后续反馈的同步纠偏和后台跨曲播放问题由本次候选处理，不将此前验收扩大到这些新场景。
 
 <img src="public/favicon.jpg" alt="ZViewer" width="88" height="88" />
 
@@ -8,7 +10,7 @@
 
 [下载 1.8.5 安装包](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.5) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md)
 
-## 当前发行与三端状态
+## 最新公开发行与三端状态
 
 | 平台 | 版本 | 交付和目前状态 |
 | --- | --- | --- |

@@ -1,0 +1,181 @@
+{
+  "time": "2026-10-13T23:54:42.6650295+08:00",
+  "version": "1.8.6",
+  "iosBuild": "25",
+  "iosBuildId": "e2402c07-9b01-4fe8-8e51-21dc8109f840",
+  "iosBuildStatus": "FINISHED",
+  "upstream": {
+    "commit": "89eafa51253e7b548c416c2a7282e8f688111ce5",
+    "files": 744,
+    "mismatches": []
+  },
+  "iosTests": 185,
+  "iosLint": "passed",
+  "iosTypecheck": "passed",
+  "adaptationTests": 76,
+  "mediaTests": 4,
+  "updateTests": 3,
+  "ui": {
+    "checks": [
+      {
+        "width": 320,
+        "height": 568,
+        "automatic": true,
+        "manual": true,
+        "download": true,
+        "themes": [
+          "light",
+          "dark"
+        ],
+        "overflow": false,
+        "offline": true
+      },
+      {
+        "width": 390,
+        "height": 844,
+        "automatic": true,
+        "manual": true,
+        "download": true,
+        "themes": [
+          "light",
+          "dark"
+        ],
+        "overflow": false,
+        "offline": true
+      },
+      {
+        "width": 844,
+        "height": 390,
+        "automatic": true,
+        "manual": true,
+        "download": true,
+        "themes": [
+          "light",
+          "dark"
+        ],
+        "overflow": false,
+        "offline": true
+      },
+      {
+        "width": 768,
+        "height": 1024,
+        "automatic": true,
+        "manual": true,
+        "download": true,
+        "themes": [
+          "light",
+          "dark"
+        ],
+        "overflow": false,
+        "offline": true
+      },
+      {
+        "width": 1366,
+        "height": 1024,
+        "automatic": true,
+        "manual": true,
+        "download": true,
+        "themes": [
+          "light",
+          "dark"
+        ],
+        "overflow": false,
+        "offline": true
+      }
+    ],
+    "errors": [],
+    "nativeAcceptance": false
+  },
+  "liveSync": {
+    "pass": true,
+    "events": [
+      "host",
+      "server",
+      "host",
+      "server",
+      "host",
+      "server"
+    ],
+    "seekCount": 0,
+    "checkStatusHealthy": true,
+    "checkStatusDrift": true,
+    "stateAckTimestamp": true,
+    "control": true,
+    "upstreamHandlers": true,
+    "persistenceAndPermission": "isolated substitutes",
+    "nativeAcceptance": false
+  },
+  "androidHarmony": {
+    "records": [
+      {
+        "kind": "android",
+        "version": "1.8.6",
+        "versionCode": 186,
+        "webFiles": 29,
+        "size": 28871799,
+        "sha256": "756ae3a6cbf103a5b9312ebf926f63bb5588ae9f6d89a15a4f8682af331959c7",
+        "announcementExcluded": true
+      },
+      {
+        "kind": "harmony",
+        "version": "1.8.6",
+        "versionCode": 186,
+        "webFiles": 29,
+        "size": 14193024,
+        "sha256": "b47b31735b0c95f05584a1f051becbffcd8a5a3722d06122b5fdccc84d317d73",
+        "announcementExcluded": true
+      }
+    ],
+    "harmonyCertificateMatches173": true
+  },
+  "iosFeatures": {
+    "version": "1.8.6",
+    "build": "25",
+    "zipCrc": "passed",
+    "native": {
+      "replaceSource": true,
+      "ZViewerMusicTransition": true,
+      "zviewerRevision": true,
+      "VLCEventsLegacyConfiguration": true
+    },
+    "runtime": {
+      "watch-together-check-status": true,
+      "clientTs": true,
+      "replaceSource": true,
+      "nativeEvent": true
+    },
+    "bytes": 47339166,
+    "sha256": "2d025c71ed87ca2b540c85df94abc04de0024c1d04d66400d51c97f606ea1f49",
+    "deviceAcceptance": false
+  },
+  "packagePrivacy": {
+    "filesScanned": 606,
+    "findings": [],
+    "zipCrc": "passed",
+    "records": [
+      {
+        "file": "ZViewer-1.8.6-b25-unsigned.ipa",
+        "bytes": 47339166,
+        "sha256": "2d025c71ed87ca2b540c85df94abc04de0024c1d04d66400d51c97f606ea1f49"
+      },
+      {
+        "file": "ZViewer-Android-1.8.6-release.apk",
+        "bytes": 28871799,
+        "sha256": "756ae3a6cbf103a5b9312ebf926f63bb5588ae9f6d89a15a4f8682af331959c7"
+      },
+      {
+        "file": "ZViewer-HarmonyOS-1.8.6-release.hap",
+        "bytes": 14193024,
+        "sha256": "b47b31735b0c95f05584a1f051becbffcd8a5a3722d06122b5fdccc84d317d73"
+      }
+    ],
+    "note": "Reviewed crypto library key format header is not a private key payload"
+  },
+  "sourcePrivacy": {
+    "pass": true,
+    "files": 955,
+    "findings": []
+  },
+  "published": false,
+  "newDeviceAcceptance": false
+}

@@ -14,6 +14,15 @@ final class ZVSystemMedia {
   private var cover = ""
   private var pending: [[String: Any]] = []
   private var info: [String: Any] = [:]
+  private var transitionTask: UIBackgroundTaskIdentifier = .invalid
+  private func beginTransition() {
+    guard transitionTask == .invalid else { return }
+    transitionTask = UIApplication.shared.beginBackgroundTask(withName: "ZViewerMusicTransition") { [weak self] in self?.endTransition() }
+  }
+  private func endTransition() {
+    guard transitionTask != .invalid else { return }
+    UIApplication.shared.endBackgroundTask(transitionTask); transitionTask = .invalid
+  }
   init() {
     // NotificationCenter's queue delivery waits for its observer. Never wait
     // for main from a VLC callback that may hold libvlc's player lock.
@@ -21,6 +30,8 @@ final class ZVSystemMedia {
       guard let data = note.userInfo else { return }
       DispatchQueue.main.async { [weak self] in
         guard let self, let uri = data["uri"] as? String, !uri.isEmpty, uri == self.state["uri"] as? String else { return }
+        if data["backgroundAudio"] as? Bool == true && data["stopped"] as? Bool == true && UIApplication.shared.applicationState != .active { self.beginTransition() }
+        if data["playing"] as? Bool == true { self.endTransition() }
         if let position = data["position"] as? Double { self.state["position"] = position; self.info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = position }
         if let playing = data["playing"] as? Bool { self.state["playing"] = playing; self.info[MPNowPlayingInfoPropertyPlaybackRate] = playing ? (self.state["playbackRate"] as? Double ?? 1) : 0 }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = self.info
@@ -64,8 +75,10 @@ final class ZVSystemMedia {
     if state["host"] as? Bool == true && ["play", "pause", "seek"].contains(action) {
       NotificationCenter.default.post(name: NSNotification.Name("ZViewerVlcCommand"), object: nil, userInfo: ["uri": state["uri"] ?? "", "action": action, "value": event["value"] ?? 0])
     }
-    if UIApplication.shared.applicationState == .active { command?(event) }
-    else { pending.append(event); if pending.count > 20 { pending.removeFirst() } }
+    // Audio keeps the business JS socket running. Do not defer next/previous
+    // until foreground; protect the silent gap while its new input resolves.
+    if UIApplication.shared.applicationState != .active && state["kind"] as? String == "audio" { beginTransition() }
+    command?(event)
     return .success
   }
   func update(_ json: String) {
@@ -115,7 +128,7 @@ final class ZVSystemMedia {
     guard state["sessionId"] as? String == id else { return [] }
     let values = pending.map { event -> [String: Any] in var value = event; if event["action"] as? String == "seek" { value["value"] = state["position"] ?? event["value"] }; return value }; pending.removeAll(); return values
   }
-  func clear(_ id: String) { guard state["sessionId"] as? String == id else { return }; artworkTask?.cancel(); cover = ""; pending.removeAll(); state.removeAll(); info.removeAll(); UserDefaults.standard.removeObject(forKey: "ZViewerPlaybackUri"); MPNowPlayingInfoCenter.default().nowPlayingInfo = nil; for (target, _) in targets { target.isEnabled = false } }
-  func shutdown() { if let id = state["sessionId"] as? String { clear(id) }; command = nil }
+  func clear(_ id: String) { guard state["sessionId"] as? String == id else { return }; endTransition(); artworkTask?.cancel(); cover = ""; pending.removeAll(); state.removeAll(); info.removeAll(); UserDefaults.standard.removeObject(forKey: "ZViewerPlaybackUri"); MPNowPlayingInfoCenter.default().nowPlayingInfo = nil; for (target, _) in targets { target.isEnabled = false } }
+  func shutdown() { endTransition(); if let id = state["sessionId"] as? String { clear(id) }; command = nil }
   deinit { audioObservers.forEach { NotificationCenter.default.removeObserver($0) }; artworkTask?.cancel(); if let observer { NotificationCenter.default.removeObserver(observer) }; for (target, token) in targets { target.removeTarget(token) } }
 }

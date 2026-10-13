@@ -1,5 +1,19 @@
 # iOS 客户端维护架构
 
+## 2026-10-13：1.8.6 / build 25 同步与后台换曲修复（本地候选）
+
+本地服务端已从 GitHub 固定提交 `89eafa51253e7b548c416c2a7282e8f688111ce5` 下载覆盖，包含服务器恒定推算心跳、clientTs 传输补偿及 CHECK_STATUS 自检；未连接 NAS 或修改容器。此前 build 23 真机“全部通过”只保留原有范围，不覆盖本次新反馈。
+
+`WatchSync` 优先采用 source=server 心跳；6 秒未收到服务器样本才允许旧房主采样。纯 currentTime/updatedAt 心跳不重复发起解析/换源；校正只作用于已准备的同一媒体，排除加载、主动 seek、旧影片/旧 CID。播放中漂移超过 10 秒才硬 seek，硬 seek 后保留 10 秒稳定窗口，暂停态使用 1 秒容差。房主报告带 clientTs，准备/seek 期间不更新服务器进度基线；观众每 10 秒执行 `watch-together-check-status`，迟到回复按影片操作/恢复版本隔离。服务器已推算的 currentTime 不再按旧 updatedAt 二次外推。
+
+音乐使用 `useVlcVideo(false, true)` 保留音频视图；`music-native.cjs` 加入原生 `replaceSource`、managed 所有权和加载编号，直接在主线程初始化新输入，不等待后台 React 提交新视图。NativeMediaAdapter 仍串行解析；原生回调编号覆盖 Expo 的原始 nativeEvent/转换后两种形式，旧曲回调和旧输入重试不能控制新曲。保留 no-video、关闭隐藏 PiP、延迟 DASH slave 和既有异步 VLC 事件配置。
+
+`ZVSystemMedia` 在音频结束/换源/后台系统控制时用有限 `beginBackgroundTask` 保护静音切歌间隙；新输入播放或会话释放时结束任务，到期由系统回收。锁屏 next/prev 等立即交给业务 JS，不再等回前台执行。本次保持同一个业务 Socket；没有引入独立原生业务 Socket，系统强制挂起、终止进程、长时间暂停或弱网后的后台同步不承诺持续运行，必须真机测试。
+
+播放中拖到音乐末尾按队列策略下一首、单曲循环归零、顺序模式末曲停止；seek 的瞬态 paused/stopped 不误推进队列。外部媒体诊断失败显示探测未完成/可能限制 HEAD，不宣称 VLC 当前播放失败。
+
+版本 **1.8.6 / build 25**；build 24 是中间包，最终候选包含 nativeEvent 编号兼容修正。lint/typecheck、185 项逻辑/回调回归及云端编译、离线包检查结果见 [候选验证](releases/client-1.8.6-local-validation.md)。新的后台跨曲、B站/聚合番剧跨端同步仍待真实 iPhone/iPad 安装复验；IPA 未签名，需个人签名安装。本轮双端关于/更新页面不移植到独立 iOS 工程。
+
 ## 2026-10-13：1.8.5 三端统一发布与 iOS 可用确认
 
 用户明确反馈 1.8.5 / build 23“测试全部通过”，并授权发布三端。iOS 本轮报告的起播卡死、B站声音和一起听桌面/锁屏音频问题已获真机通过确认，当前处于可用状态。直接发布已验收 build 23（SHA-256 `fbbe04318a395e15da2b15c1723cb8457cc3e660652c2443c7473ebcd6a69b9c`），没有再次启动 EAS；不扩写未知设备型号、专项时长或全格式兼容结论。独立原生后台房间 Socket/自动跨曲管线仍未实现。

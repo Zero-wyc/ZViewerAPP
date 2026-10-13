@@ -1,5 +1,13 @@
 # Android 应用维护架构整理
 
+## 2026-10-13：1.8.6 关于应用与更新检查（本地候选）
+
+主页品牌栏新增 `src/mobile/AboutApp.tsx`，以原生 `App.getInfo()` 显示实际版本和构建号。`src/mobile/appUpdates.ts` 从公开 GitHub Releases 列表筛选正式 `client-vX.Y.Z`，按数字比较版本，匹配 APK，排除 iOS 独立标签、预发行、debug/unsigned 和无安装包的 Release。每次进程启动自动检查，只有发现更新才弹出；手动检查展示最新/失败/限流/超时结果。不携带服务端登录凭据，不静默下载安装。
+
+`ExternalLinksPlugin` 通过系统浏览器打开受限的本项目 HTTPS 发布/下载地址，`src/platform/appUpdates.ts` 提供统一调用。界面复用全局颜色、圆角、玻璃透明度和模糊变量，原生 Back/Escape 走统一弹层返回栈。横屏小高度可滚动，标题/关闭按钮保留可访问性。共享鸿蒙协议见对应维护文档。
+
+版本 **1.8.6 / 186**，正式签名 APK 构建和证书校验通过；76 项适配、4 项媒体、3 项更新服务回归及 5 种尺寸深浅主题 UI 验证通过。浏览器验证使用原生桥接替身及 Release 夹具，不冒充 Android 设备/系统浏览器安装验收。未发布，见 [三端候选验证](releases/client-1.8.6-local-validation.md)。
+
 更新日期：2026-10-13
 
 ## 2026-10-13：1.8.5 / 185 三端统一发布

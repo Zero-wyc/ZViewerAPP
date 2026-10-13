@@ -30,6 +30,7 @@ import { normalizeServerUrl } from './mobile/serverUrl'
 import { useNativeBack } from './mobile/useNativeBack'
 import { BilibiliAccount } from './mobile/BilibiliAccount'
 import { MobileAppearance } from './mobile/MobileAppearance'
+import { AboutApp } from './mobile/AboutApp'
 import { startEmbeddedProxy } from './platform/bilibiliProxy'
 import { isGlobalAppearanceRuntime } from './platform/runtime'
 
@@ -447,6 +448,7 @@ export default function App() {
           {connected ? <Wifi size={14} /> : <WifiOff size={14} />}
           {restoring ? '连接中' : connected ? '已连接' : '未连接'}{session && readServerPolicy(session.serverUrl) ? ' · 证书例外' : ''}
         </div>
+        <AboutApp />
       </header>
 
       {screen === 'connect' ? (

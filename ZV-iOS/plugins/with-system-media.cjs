@@ -1,6 +1,7 @@
 const { withDangerousMod, withInfoPlist } = require('expo/config-plugins');
 const fs = require('node:fs');
 const path = require('node:path');
+const { patchMusicNative } = require('./music-native.cjs');
 function patchSystemMedia(root) {
     const patch = (relative, marker, edit) => { const file = path.join(root, 'ios', relative); const source = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n'); if (source.includes(marker)) return; const next = edit(source); if (next === source || !next.includes(marker)) throw new Error(`Review VLC system-media integration: ${relative}`); fs.writeFileSync(file, next); };
     // VLCKit 4 defaults to inline callbacks under libvlc's recursive player
@@ -68,6 +69,7 @@ function patchSystemMedia(root) {
     let audioMixingMode = findAudioMixingMode()`)
       .replace('audioSession.mode != .moviePlayback', 'audioSession.mode != audioMode')
       .replace('mode: .moviePlayback,', 'mode: audioMode,'));
+    patchMusicNative(root);
 }
 module.exports = config => {
   config = withInfoPlist(config, value => { value.modResults.UIBackgroundModes = [...new Set([...(value.modResults.UIBackgroundModes || []), 'audio'])]; return value; });

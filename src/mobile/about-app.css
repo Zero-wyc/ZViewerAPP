@@ -1,0 +1,20 @@
+.about-entry { flex-shrink: 0; }
+.about-dialog { color: var(--appearance-text, #edf1ef); background: var(--appearance-glass, #182027); border: 1px solid var(--appearance-line, #39434b); border-radius: var(--appearance-radius, 20px); padding: 24px; width: min(480px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); overflow-y: auto; box-sizing: border-box; backdrop-filter: blur(var(--appearance-blur, 16px)); }
+.about-dialog::backdrop { background: rgba(0, 0, 0, .55); backdrop-filter: blur(4px); }
+.about-heading, .about-identity, .about-release-title { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.about-heading h2 { margin: 4px 0 0; font-size: 24px; }
+.about-heading { position: sticky; top: 0; z-index: 1; background: var(--appearance-surface, #182027); border-radius: 8px; padding: 6px; }
+.about-dialog .icon-button, .about-entry { color: var(--appearance-text, #edf1ef); }
+.about-identity { justify-content: flex-start; margin: 26px 0; }
+.about-identity strong { font-size: 23px; }
+.about-identity p, .about-update p, .about-status { color: var(--appearance-muted, #a5afb4); font-size: 13px; line-height: 1.6; }
+.about-version { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 16px; border: 1px solid var(--appearance-line, #39434b); border-radius: var(--appearance-radius, 14px); margin-bottom: 20px; }
+.about-version small { grid-column: 1 / -1; color: var(--appearance-muted, #a5afb4); }
+.about-dialog .primary-button { width: 100%; min-height: 46px; background: var(--appearance-accent, #a1ddfb); color: var(--appearance-accent-text, #122733); border-radius: var(--appearance-radius, 14px); }
+.about-status { min-height: 22px; }
+.about-update { border-top: 1px solid var(--appearance-line, #39434b); padding-top: 18px; margin-top: 20px; }
+.about-release-title { align-items: flex-start; }
+.about-release-title span { white-space: nowrap; color: var(--appearance-muted, #a5afb4); font-size: 13px; }
+.about-update pre { font: inherit; font-size: 13px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 220px; overflow-y: auto; color: var(--appearance-muted, #a5afb4); }
+.about-release-link { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; color: var(--appearance-accent, #a1ddfb); padding: 10px 0; font: inherit; font-size: 13px; cursor: pointer; }
+@media (max-width: 420px) { .about-dialog { padding: 18px; } .brand-bar .connection-pill { max-width: 94px; } }

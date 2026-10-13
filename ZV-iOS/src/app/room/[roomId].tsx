@@ -21,6 +21,7 @@ import { ScreenShare, type ShareState } from '@/components/ScreenShare';
 import { playbackSource, onBiliChange, biliFallback, stopBiliPlayback, resolveSharedBili } from '@/lib/biliNative';
 import { RoomIconButton } from '@/components/RoomUi';
 import { RoomPlayback, requestRoomPlayback } from '@/lib/roomPlayback';
+import { WatchSync, watchStateChanged } from '@/lib/watchSync';
 import { useWatchControl } from '@/hooks/useWatchControl';
 import { useSystemMedia } from '@/hooks/useSystemMedia';
 import { VideoGestures } from '@/components/VideoGestures';
@@ -130,15 +131,16 @@ export default function RoomScreen() {
   const danmaku = useDanmaku(roomId, player, phase === 'ready' && mode === 'watch-together');
   const subtitles = useSubtitles(roomId, player, host, phase === 'ready' && mode === 'watch-together', source?.sourceUrl);
   const readyRef = useRef(false);
+  const watchSync = useRef(new WatchSync());
   useEffect(() => { readyRef.current = phase === 'ready' && mode === 'watch-together'; playbackRef.current = source; }, [phase, mode, source]);
   const publishNativeState = useCallback((action?: 'play' | 'pause' | 'seek' | 'rate', value?: number) => {
     if (!hostRef.current || !readyRef.current || !socket?.connected || !playbackRef.current || !action && (adapterRef.current?.busy || player.preparing)) return;
     const state: Playback = { ...playbackRef.current, currentTime: player.currentTime, isPlaying: action === 'play' ? true : action === 'pause' ? false : player.playing, playbackRate: player.playbackRate, duration: player.duration };
     playbackRef.current = state;
     setSource(state);
-    if (action) socket.emit('watch-together-control', { roomId, action, value });
+    if (action) socket.emit('watch-together-control', { roomId, action, value, clientTs: Date.now() });
     const broadcast = sharedPlayback(state, sharedSource.current);
-    if (broadcast) socket.emit('watch-together-state', { roomId, state: broadcast });
+    if (broadcast) socket.emit('watch-together-state', { roomId, state: broadcast, clientTs: Date.now() });
   }, [player, socket, roomId]);
   useEffect(() => {
     const adapter = new NativeMediaAdapter(player, playbackSource); adapterRef.current = adapter;
@@ -291,16 +293,21 @@ export default function RoomScreen() {
       if (payload.action === 'seek' && Number.isFinite(payload.value)) player.currentTime = Math.max(0, payload.value!);
       if (payload.action === 'rate' && Number.isFinite(payload.value)) player.playbackRate = payload.value!;
     };
-    const onHeartbeat = (payload: { source?: string; currentTime?: number; isPlaying?: boolean; suppressed?: boolean; state?: Playback }) => {
-      if (hostRef.current) return;
-      if (payload.state) applyPlayback(roomPlayback.current.state(payload.state));
-      if (!readyRef.current || !roomPlayback.current.value()) return;
-      if (payload.suppressed) return;
-      const target = payload.state?.currentTime ?? payload.currentTime;
-      if (Number.isFinite(target) && Math.abs(player.currentTime - target!) > 2) player.currentTime = target!;
-      const playing = payload.state?.isPlaying ?? payload.isPlaying;
+    const onHeartbeat = (payload: { source?: string; currentTime?: number; isPlaying?: boolean; playbackRate?: number; suppressed?: boolean; state?: Playback }) => {
+      if (hostRef.current || payload.suppressed || !watchSync.current.accepts(payload.source)) return;
+      const previous = roomPlayback.current.value();
+      const state = payload.state ? roomPlayback.current.state(payload.state) : previous && { ...previous, currentTime: payload.currentTime ?? previous.currentTime, isPlaying: payload.isPlaying ?? previous.isPlaying, playbackRate: payload.playbackRate ?? previous.playbackRate };
+      if (payload.state && watchStateChanged(previous, state)) applyPlayback(state);
+      if (!readyRef.current || !state || !session) return;
+      const identity = nativeVideoSource({ ...state, audioUrl: undefined, sourceType: state.sourceType === 'bilibili' ? 'url' : state.sourceType }, session!.serverUrl, session!.accessToken).identity;
+      const ready = !adapterRef.current?.busy && !player.preparing && player.duration > 0 && player.sourceIdentity === identity;
+      const target = watchSync.current.target(state, player.currentTime, ready, player.seeking);
+      if (target !== null) player.currentTime = target;
+      if (!ready || player.seeking) return;
+      const playing = state.isPlaying;
       if (playing === true && !player.playing) player.play();
       if (playing === false && player.playing) player.pause();
+      if (state.playbackRate && player.playbackRate !== state.playbackRate) player.playbackRate = state.playbackRate;
     };
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
@@ -333,22 +340,47 @@ export default function RoomScreen() {
       socket.off('watch-together-state', onPlayback); socket.off('watch-together-control', onControl);
       socket.off('sync-heartbeat', onHeartbeat);
     };
-  }, [socket, roomId, join, applyRoom, player, applyPlayback, requestPlayback]);
+  }, [socket, roomId, join, applyRoom, player, applyPlayback, requestPlayback, session]);
 
   useEffect(() => {
     if (!host || phase !== 'ready' || !socket || mode !== 'watch-together') return;
     const interval = setInterval(() => {
-      if (!socket.connected || !playbackRef.current) return;
+      if (!socket.connected || !playbackRef.current || adapterRef.current?.busy || player.preparing || player.seeking) return;
       socket.emit('host-heartbeat', {
         roomId,
         currentTime: player.currentTime,
         isPlaying: player.preparing ? playbackRef.current.isPlaying : player.playing,
         playbackRate: player.playbackRate,
         suppressed: Boolean(adapterRef.current?.busy || player.preparing),
+        clientTs: Date.now(),
       });
     }, 5000);
     return () => clearInterval(interval);
   }, [host, phase, socket, mode, roomId, player]);
+
+  useEffect(() => {
+    watchSync.current.reset();
+    if (host || phase !== 'ready' || mode !== 'watch-together' || !socket) return;
+    let active = true, pending = false;
+    const interval = setInterval(() => {
+      if (pending || !socket.connected || adapterRef.current?.busy || player.preparing || player.seeking || !playbackRef.current) return;
+      pending = true;
+      const revision = roomPlayback.current.revision, movie = movieOperation.current;
+      socket.timeout(8000).emit('watch-together-check-status', { roomId, currentTime: player.currentTime, isPlaying: player.playing, playbackRate: player.playbackRate, clientTs: Date.now() }, (error: Error | null, result?: { success: boolean; data?: { needsSync: boolean; state?: Playback; serverTs?: number } }) => {
+        pending = false;
+        if (!active || error || !result?.success || !result.data?.needsSync || !result.data.state || revision !== roomPlayback.current.revision || movie !== movieOperation.current) return;
+        const previous = roomPlayback.current.value();
+        const state = roomPlayback.current.state(result.data.state);
+        applyPlayback(state);
+        const sameMedia = previous?.sourceUrl === state?.sourceUrl && previous?.movieId === state?.movieId && previous?.cid === state?.cid;
+        if (state && sameMedia && !player.preparing && !player.seeking && !adapterRef.current?.busy) {
+          const target = watchSync.current.target(state, player.currentTime, true, false);
+          if (target !== null) player.currentTime = target;
+        }
+      });
+    }, 10000);
+    return () => { active = false; clearInterval(interval); };
+  }, [host, phase, mode, socket, roomId, player, applyPlayback]);
 
   useEffect(() => {
     const playing = player.addListener('playingChange', ({ isPlaying }) => publishNativeState(isPlaying ? 'play' : 'pause'));

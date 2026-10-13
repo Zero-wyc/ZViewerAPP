@@ -1,5 +1,13 @@
 # HarmonyOS 应用维护架构整理
 
+## 2026-10-13：1.8.6 关于应用与更新检查（本地候选）
+
+共用 `AboutApp.tsx` 和 `appUpdates.ts`；HarmonyOS 通过 ArkTS `bundleManager.getBundleInfoForSelf(GET_BUNDLE_INFO_DEFAULT)` 返回实际 versionName/versionCode，桥接名为 `getAppInfo`。更新源为公开 GitHub 正式 `client-vX.Y.Z` Release，匹配正式 HAP；不把 APK、IPA 或源码包作为鸿蒙更新。每次进程启动自动检查，仅有新版本时提示；可手动检查并显示离线/限流/超时结果。
+
+`bridge-bootstrap.js` 的 `openExternalUrl` 调用 ArkTS `startAbility`，用 viewData 和 browsable entity 打开系统浏览器，保持 ArkWeb 仅浏览本地资源的边界。只接受本项目 HTTPS 发布/下载地址。下载不改变 HAP 原有 Profile、设备授权及侧载安装要求。弹层配色、透明度、圆角跟随应用外观，支持横屏滚动、原生 Back 和 Escape。
+
+版本 **1.8.6 / 186**，Release ArkTS/资源编译及正式签名 HAP 通过，证书与既有版本一致；共享 76 项适配、4 项媒体、3 项更新回归及 5 种尺寸深浅主题 UI 验证通过。桥接真实设备和浏览器下载仍待设备复验，不将夹具验证写成设备验收。未发布，见 [三端候选验证](releases/client-1.8.6-local-validation.md)。
+
 更新日期：2026-10-13
 
 ## 2026-10-13：1.8.5 / 185 三端统一发布

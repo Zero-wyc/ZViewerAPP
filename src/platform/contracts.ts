@@ -41,6 +41,8 @@ export interface PermissionsPort {
 }
 
 export interface HarmonyNativeBridge {
+  getAppInfo?(): Promise<{ version: string; build: string }>
+  openExternalUrl?(url: string): Promise<void>
   configureServerConnection?(policy: { url: string; allowUntrustedCertificate: boolean }): Promise<{ url: string }>
   probeServerConnection?(options: { url: string }): Promise<{ ok: boolean; code: string; status?: number }>
   platform?: 'harmony'

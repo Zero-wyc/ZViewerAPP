@@ -222,3 +222,17 @@ test('tail seek and transient native pause cannot broadcast a room pause or adva
     assert.equal(panel.sent.filter(item => item.event === 'music:host-heartbeat').at(-1).payload.isPlaying, false);
   } finally { panel.dispose(); }
 });
+
+test('a playing tail seek follows queue policy instead of seeking into an EOF loop', async () => {
+  for (const mode of ['sequence', 'repeat-one', 'order']) {
+    const panel = await mountPanel({ host: true, playMode: mode });
+    try {
+      if (mode === 'sequence') panel.receive('music:queue-changed', { roomId: 'room', items: [song(420), song(421)] });
+      await panel.control('play'); await panel.control('seek', 100);
+      const next = panel.sent.filter(item => item.event === 'music:sync-state').at(-1).payload;
+      if (mode === 'sequence') { assert.equal(next.trackKey, 'ncm:421'); assert.equal(next.positionSec, 0); assert.equal(next.isPlaying, true); }
+      if (mode === 'repeat-one') { assert.equal(next.trackKey, 'ncm:420'); assert.equal(next.positionSec, 0); assert.equal(next.isPlaying, true); }
+      if (mode === 'order') { assert.equal(next.trackKey, 'ncm:420'); assert.equal(next.positionSec, 100); assert.equal(next.isPlaying, false); }
+    } finally { panel.dispose(); }
+  }
+});

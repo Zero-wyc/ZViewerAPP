@@ -130,7 +130,7 @@ export async function probeNativeMedia(video: NativeVideoSource, signal?: AbortS
     };
   } catch (error) {
     if (signal?.aborted) throw error;
-    return { ...base, category: 'network', detail: error instanceof Error && error.name === 'AbortError' ? '媒体请求超时' : '媒体请求未到达服务器；检查网络或证书' };
+    return { ...base, category: 'network', detail: error instanceof Error && error.name === 'AbortError' ? '媒体探测超时；不代表播放器无法播放' : base.source === 'external' ? '外部片源探测未完成；可能限制 HEAD 请求，请以播放器状态为准' : '媒体探测未完成；请检查网络、证书或媒体服务' };
   } finally {
     cancel(); clearTimeout(timeout); signal?.removeEventListener('abort', cancel);
   }

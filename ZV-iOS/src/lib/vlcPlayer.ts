@@ -2,10 +2,14 @@ import type { NativePlayerPort } from './mediaAdapter.ts';
 import type { nativeVideoSource } from './media.ts';
 
 export type VideoSource = ReturnType<typeof nativeVideoSource>;
-export type VlcViewPort = { play(): Promise<void>; pause(): Promise<void>; stop(): Promise<void>; seek(milliseconds: number, type?: 'time'): Promise<void>; startPictureInPicture?(): Promise<void> };
+export type VlcViewPort = { play(): Promise<void>; pause(): Promise<void>; stop(): Promise<void>; seek(milliseconds: number, type?: 'time'): Promise<void>; replaceSource?(uri: string, options: string[], revision: number): Promise<void>; startPictureInPicture?(): Promise<void> };
 export type VlcTrack = { id: number; name: string; selected?: boolean };
 export type VlcSettings = { tracks: { audio?: number; subtitle?: number }; volume: number; subtitleDelay: number; subtitleUri?: string };
 export type VlcSnapshot = { id: number; source: VideoSource; initialTime: number; rate: number; settings: VlcSettings; autoplay: boolean };
+export function vlcEventRevision(event: unknown, fallback: number) {
+  const value = event as { revision?: number; nativeEvent?: { revision?: number } } | undefined;
+  return value?.revision ?? value?.nativeEvent?.revision ?? fallback;
+}
 type Events = {
   playingChange: { isPlaying: boolean };
   playbackRateChange: { playbackRate: number };
@@ -20,6 +24,7 @@ type Events = {
 export class VlcPlayer implements NativePlayerPort {
   private render: (snapshot: VlcSnapshot | null) => void;
   private available: boolean;
+  private persistent: boolean;
   private vlc: VlcViewPort | null = null;
   private snapshot: VlcSnapshot | null = null;
   private revision = 0;
@@ -37,8 +42,8 @@ export class VlcPlayer implements NativePlayerPort {
   private settings: VlcSettings = { tracks: {}, volume: 100, subtitleDelay: 0 };
   private availableTracks = { audio: [] as VlcTrack[], video: [] as VlcTrack[], subtitle: [] as VlcTrack[] };
 
-  constructor(render: (snapshot: VlcSnapshot | null) => void, available: boolean) {
-    this.render = render; this.available = available;
+  constructor(render: (snapshot: VlcSnapshot | null) => void, available: boolean, persistent = false) {
+    this.render = render; this.available = available; this.persistent = persistent;
   }
   connect() {
     this.disposed = false;
@@ -112,13 +117,15 @@ export class VlcPlayer implements NativePlayerPort {
   async replaceAsync(source: VideoSource | null) {
     if (this.disposed) return;
     ++this.revision;
-    const old = this.vlc; this.vlc = null; this.snapshot = null;
+    const old = this.vlc; const reuse = this.persistent && !!source && !!old?.replaceSource;
+    if (!reuse) this.vlc = null;
+    this.snapshot = null;
     this.prepared = false; this.pendingSeek = null; this.activeSeek = null; this.completed = false; this.actualPlaying = false; this.desiredPlaying = false;
     this.availableTracks = { audio: [], video: [], subtitle: [] };
     this.settings = { ...this.settings, tracks: {}, subtitleUri: undefined, subtitleDelay: 0 };
     this.emit('settingsChange', this.settings);
-    this.render(null);
-    if (old) await old.stop();
+    if (!reuse) this.render(null);
+    if (old && !reuse) await old.stop();
     if (this.disposed) return;
     if (!source) { this.position = 0; this.length = 0; this.emit('statusChange', { status: 'idle' }); return; }
     if (!this.available) throw new Error('VLC 原生模块不可用，请安装包含 VLCKit 的 development/preview 构建（Expo Go 不支持）');
@@ -126,6 +133,7 @@ export class VlcPlayer implements NativePlayerPort {
     this.snapshot = { id: this.revision, source, initialTime: 0, rate: 1, settings: this.settings, autoplay: false };
     this.render(this.snapshot);
     this.emit('statusChange', { status: 'loading' });
+    if (reuse) await old!.replaceSource!(source.uri, source.options, this.revision);
   }
   attach(id: number, view: VlcViewPort | null) {
     if (this.disposed || id !== this.revision) return;

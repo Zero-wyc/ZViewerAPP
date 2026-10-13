@@ -45,7 +45,7 @@ export function MusicPanel({ roomId, host, onExpandedLandscape }: { roomId: stri
   const musicStyles = theme.styles(baseMusicStyles);
   const ui = theme.styles(baseUi);
 
-  const { session, socket, requestText, request } = useSession(); const video = useVlcVideo(); const { player } = video;
+  const { session, socket, requestText, request } = useSession(); const video = useVlcVideo(false, true); const { player } = video;
   const [queue, setQueue] = useState<QueueItem[]>([]); const [state, setState] = useState(empty); const [search, setSearch] = useState(''); const [songs, setSongs] = useState<Song[]>([]);
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [time, setTime] = useState(0); const [duration, setDuration] = useState(0); const [lyrics, setLyrics] = useState<TimedText[]>([]); const [lyricsSong, setLyricsSong] = useState<string | null>(null);
   const [requests, setRequests] = useState<ControlRequest[]>([]); const [qr, setQr] = useState(''); const [qrKey, setQrKey] = useState(''); const [loginMessage, setLoginMessage] = useState(''); const [playlistId, setPlaylistId] = useState(''); const [retry, setRetry] = useState(0);
@@ -95,6 +95,11 @@ export function MusicPanel({ roomId, host, onExpandedLandscape }: { roomId: stri
     if (!socket) return;
     if (!hostRef.current && !approved) { await emitAck(socket, 'music:control-request', { roomId, ...command }); setError('已向房主发送控制申请'); return; }
     const current = stateRef.current; const items = queueRef.current;
+    if (command.action === 'seek' && current.isPlaying && player.duration > 0 && Number.isFinite(command.positionSec) && command.positionSec! >= player.duration - 0.25) {
+      if (current.playMode === 'repeat-one') command = { action: 'seek', positionSec: 0 };
+      else if (current.playMode !== 'order' || cursor.current.locate(items, current.trackKey) < items.length - 1 || fmPort.current?.isActive(current.trackKey) || recommendation.current.enabled && current.trackKey?.startsWith('bili:')) command = { action: 'next' };
+      else { player.pause(); player.currentTime = Math.max(0, player.duration - 0.25); update({ ...current, isPlaying: false, positionSec: player.duration, updatedAt: Date.now() }, true); return; }
+    }
     if (command.action === 'addQueue' || command.action === 'playItem') {
       if (command.action === 'playItem') { fmPort.current?.stop(); recommendationAbort.current?.abort(); }
       if (!command.item) return; const existing = 'id' in command.item && items.some(value => value.id === (command.item as QueueItem).id); if (!existing || command.action === 'addQueue') await emitAck(socket, 'music:queue-upsert', { roomId, item: command.item }); if (command.action === 'playItem') choose(command.item); return;
@@ -148,7 +153,7 @@ export function MusicPanel({ roomId, host, onExpandedLandscape }: { roomId: stri
       const target = roomTime(payload.positionSec, payload.isPlaying, payload.updatedAt);
       // A different song (including another part of the same BV) must load first.
       // Substring URL matching can seek song 420 while a sync requests song 42.
-      if (payload.trackKey && stream.current?.trackKey === payload.trackKey && session && !adapter.current?.busy && !player.preparing && musicSourceMatches(player.sourceIdentity, stream.current.source, session.serverUrl) && Math.abs(player.currentTime - target) > 2) player.currentTime = target;
+      if (payload.trackKey && stream.current?.trackKey === payload.trackKey && session && !adapter.current?.busy && !player.preparing && !player.seeking && musicSourceMatches(player.sourceIdentity, stream.current.source, session.serverUrl) && Math.abs(player.currentTime - target) > 3) player.currentTime = target;
     };
     const requested = (payload: ControlRequest) => { if (payload.roomId === roomId && hostRef.current) setRequests(old => [...old.slice(-19), payload]); };
     const response = (payload: { approved: boolean; from: string }) => { if (payload.from === socket.id) setError(payload.approved ? '房主已同意申请' : '房主拒绝了申请'); };

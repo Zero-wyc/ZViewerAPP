@@ -1,4 +1,4 @@
-import { abilityAccessCtrl, common } from '@kit.AbilityKit';
+import { abilityAccessCtrl, bundleManager, common } from '@kit.AbilityKit';
 import { webview } from '@kit.ArkWeb';
 import { window } from '@kit.ArkUI';
 import { picker } from '@kit.CoreFileKit';
@@ -14,6 +14,7 @@ interface PollQrArgument { key: string; }
 const bilibiliProxy = new BilibiliLocalProxy();
 const serverConnection = new ServerConnection();
 interface ProbeArgument { url: string; }
+interface AppVersionInfo { version: string; build: string; }
 
 function mimeType(path: string): string {
   if (path.endsWith('.html')) return 'text/html';
@@ -61,6 +62,17 @@ class HarmonyHost {
   }
 
   private async perform(action: string, argument: string): Promise<string | null> {
+    if (action === 'getAppInfo') {
+      const bundle = await bundleManager.getBundleInfoForSelf(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
+      const version: AppVersionInfo = { version: bundle.versionName, build: String(bundle.versionCode) };
+      return JSON.stringify(version);
+    }
+    if (action === 'openExternalUrl') {
+      const value = JSON.parse(argument) as string;
+      if (typeof value !== 'string' || !/^https:\/\/github\.com\/Zero-wyc\/ZViewerAPP\/releases(?:\/tag\/[^/?#]+|\/download\/[^/?#]+\/[^/?#]+)?$/.test(value)) throw new Error('下载地址无效');
+      await this.context.startAbility({ action: 'ohos.want.action.viewData', uri: value, entities: ['entity.system.browsable'] });
+      return null;
+    }
     if (action === 'configureServerConnection') return JSON.stringify(await serverConnection.configure(JSON.parse(argument) as ConnectionPolicy));
     if (action === 'probeServerConnection') return JSON.stringify(await serverConnection.probe((JSON.parse(argument) as ProbeArgument).url));
     if (action === 'updateMediaSession') {

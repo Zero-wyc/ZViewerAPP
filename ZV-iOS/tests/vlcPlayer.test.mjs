@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { VlcPlayer } from '../src/lib/vlcPlayer.ts';
+import { VlcPlayer, vlcEventRevision } from '../src/lib/vlcPlayer.ts';
 import { NativeMediaAdapter } from '../src/lib/mediaAdapter.ts';
 import { nativeVideoSource } from '../src/lib/media.ts';
 const server = 'https://service.example';
@@ -11,6 +11,12 @@ function fixture(available = true) {
   return { snapshots, calls, view, player };
 }
 const state = { sourceUrl: '/api/server-files/proxy?path=custom%3Avideos%2FS01E01.mkv', sourceType: 'server-files', format: 'mkv', currentTime: 120, isPlaying: true };
+
+test('raw Expo events and wrapper-converted events retain the new input revision', () => {
+  assert.equal(vlcEventRevision({ nativeEvent: { revision: 24 } }, 23), 24);
+  assert.equal(vlcEventRevision({ revision: 24 }, 23), 24);
+  assert.equal(vlcEventRevision(undefined, 23), 23);
+});
 
 test('early play survives native initialization and start-paused callbacks', async () => {
   const f = fixture(); const adapter = new NativeMediaAdapter(f.player); const events = [];
@@ -90,4 +96,23 @@ test('missing native module reports a rebuild requirement and disposal stops all
   const id = f.snapshots.at(-1).id; f.player.attach(id, f.view); const count = f.snapshots.length;
   f.player.dispose(); f.player.progress(id, 99000); f.player.play(); f.player.currentTime = 70;
   await f.player.replaceAsync(null); assert.equal(f.snapshots.length, count); assert.ok(f.calls.includes('stop'));
+});
+
+test('background music replaces the existing native input without unmounting its view', async () => {
+  const snapshots = [], calls = [];
+  const player = new VlcPlayer(value => snapshots.push(value), true, true);
+  const adapter = new NativeMediaAdapter(player);
+  const view = { async play() {}, async pause() {}, async stop() { calls.push('stop'); }, async seek() {}, async replaceSource(uri, options, revision) { calls.push({ uri, options, revision }); } };
+  await adapter.apply(state, server, 'token');
+  const first = snapshots.at(-1).id; player.attach(first, view); player.loaded(first, 200000); player.progress(first, 120000);
+  snapshots.length = 0;
+  await adapter.apply({ ...state, sourceUrl: '/api/music/stream?songId=42', currentTime: 0 }, server, 'token');
+  assert(!snapshots.includes(null), 'background UIKit must not wait for a new React view');
+  assert(!calls.includes('stop'));
+  assert.equal(calls.length, 1); assert.match(calls[0].uri, /songId=42/);
+  const second = snapshots.at(-1).id; assert(second > first);
+  player.loaded(first, 200000); player.progress(first, 150000); player.stopped(first);
+  assert.equal(player.currentTime, 0); assert(player.preparing); assert(!player.ended);
+  player.loaded(second, 200000); player.progress(second, 0);
+  assert(!player.preparing); player.dispose(); assert(calls.includes('stop'));
 });

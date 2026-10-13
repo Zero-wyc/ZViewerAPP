@@ -34,6 +34,8 @@
   });
   window.zviewerNative = {
     platform: 'harmony',
+    getAppInfo: () => request('getAppInfo', null),
+    openExternalUrl: (url) => request('openExternalUrl', url),
     configureServerConnection: (policy) => request('configureServerConnection', policy),
     probeServerConnection: (options) => request('probeServerConnection', options),
     updateMediaSession: (state) => request('updateMediaSession', state),
