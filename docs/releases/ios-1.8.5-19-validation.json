@@ -1,0 +1,51 @@
+{
+  "version": "1.8.5",
+  "build": "19",
+  "sourceCommit": "6c2beba786a6768d95e3248145aad7f79f9e79d0",
+  "eas": {
+    "id": "1f04643c-ac62-4f5e-abe0-efa1dca2dee5",
+    "status": "FINISHED",
+    "completedAt": "2026-10-13T10:30:06.63Z",
+    "profile": "unsigned-device",
+    "configuration": "Release"
+  },
+  "checks": {
+    "jsTestsPassed": 172,
+    "lint": "passed",
+    "typecheck": "passed",
+    "uploadFileAuditCount": 190,
+    "uploadFileAudit": "passed",
+    "nativeSourceFileCount": 12,
+    "packageInspection": "passed",
+    "zipCrcEntries": 139,
+    "workerAndLocalSha256Match": true,
+    "physicalDeviceAcceptance": false
+  },
+  "artifact": {
+    "file": "ZV-iOS/release-assets/ZViewer-1.8.5-b19-unsigned.ipa",
+    "version": "1.8.5",
+    "build": "19",
+    "bundleId": "com.zviewer.mobile",
+    "bytes": 47325737,
+    "sha256": "034e03ffdde43fd1e4f7857f0c18d844a443fc64da16c172198e6b020c49e93e",
+    "minimumOS": "16.4",
+    "deviceFamilies": [
+      1,
+      2
+    ],
+    "userRepairContracts": {
+      "bili-video-picker": true,
+      "zviewer-room-comment-position-v1": true,
+      "room-comment-floating": true,
+      "repeat-one": true
+    }
+  },
+  "publication": {
+    "pushed": false,
+    "releasePublished": false
+  },
+  "boundaries": [
+    "Unsigned device IPA; requires personal signing",
+    "Actual media playback, background/lock-screen retention, cross-client sync and native UI require user device acceptance"
+  ]
+}
