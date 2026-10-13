@@ -4,6 +4,8 @@
 
 ## 2026-10-13：1.8.5 / 185 三端统一发布
 
+发布前补充隐私构建修正：Android Go AAR 使用 `gomobile bind -trimpath -ldflags="-s -w"`，移除 Go 与 C/NDK 调试信息里的本机用户名/绝对路径。重新构建、验签、资源摘要和双 ABI 各 128 个导出动态符号与旧包一致核验通过；不改变媒体解析行为，HAP 与已验收 IPA 保持原包。
+
 将此前房间入口/音乐评论侧栏优化及 `48e0e5c` 的旋转解锁图标、全屏默认横屏更新统一以 **1.8.5 / 185** 重新打包。根 package/lockfile、Android Gradle、HarmonyOS AppScope 已同步；本轮没有再修改这些行为，保留 src/platform 和各自原生桥。网页分别由 android:sync / harmony:web 生成，沿用原发布签名。
 
 76 项适配 + 4 项媒体回归、TypeScript/Vite、双端 Debug/Release 构建通过；实际 APK/HAP 版本 1.8.5 / 185、签名及既有证书一致，两端各 29 项共享网页资源摘要匹配。此前房间 30 组布局和旋转 8 组桥接界面记录继续有效，尚未将物理设备旋转专项记为通过。用户本轮真机“全部通过”的确认指向 iOS build 23，不挪用为安卓/鸿蒙新增实机证明。
