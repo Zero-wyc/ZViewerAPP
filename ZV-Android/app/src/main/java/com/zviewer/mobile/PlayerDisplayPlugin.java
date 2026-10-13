@@ -14,9 +14,10 @@ public class PlayerDisplayPlugin extends Plugin {
         getActivity().runOnUiThread(() -> {
             boolean landscape = getActivity().getResources().getConfiguration().orientation
                 == Configuration.ORIENTATION_LANDSCAPE;
-            getActivity().setRequestedOrientation(landscape
-                ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                : ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+            boolean targetLandscape = call.getBoolean("isLandscape", !landscape);
+            getActivity().setRequestedOrientation(targetLandscape
+                ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                : ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT);
             call.resolve();
         });
     }

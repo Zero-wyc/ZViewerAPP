@@ -1,7 +1,7 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
-import { Maximize, Minimize, Smartphone, RectangleHorizontal, RotateCw } from 'lucide-react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { Maximize, Minimize, Smartphone, RectangleHorizontal, LockKeyholeOpen } from 'lucide-react'
 import { message } from '@/components/ui/message'
-import { getOrientationLocked, playerDisplay, restorePlayerDisplay, subscribeOrientationLock } from '../platform/playerDisplay'
+import { getOrientationLocked, playerDisplay, restorePlayerDisplay, setPlayerFullscreen, subscribeOrientationLock } from '../platform/playerDisplay'
 
 export async function restoreDisplay() {
   await restorePlayerDisplay()
@@ -27,11 +27,11 @@ export function ScreenOrientationButton({ className = 'player-tool' }: { classNa
       setBusy(false)
     }
   }
-  const label = locked ? '恢复自动旋转' : landscape ? '切换并锁定竖屏' : '切换并锁定横屏'
+  const label = locked ? '解除旋转锁定（自动旋转）' : landscape ? '切换并锁定竖屏' : '切换并锁定横屏'
   return <button type="button" className={className} title={label}
       aria-label={label} aria-pressed={locked} disabled={busy}
       onClick={event => { event.stopPropagation(); void rotate() }}>
-      {locked ? <RotateCw size={20} /> : landscape ? <Smartphone size={20} /> : <RectangleHorizontal size={20} />}
+      {locked ? <LockKeyholeOpen size={20} /> : landscape ? <Smartphone size={20} /> : <RectangleHorizontal size={20} />}
     </button>
 }
 
@@ -41,16 +41,20 @@ export function PlayerDisplayControls({ fullscreen = false, onFullscreen }: {
 }) {
   const [nativeFull, setNativeFull] = useState(Boolean(document.fullscreenElement))
   const active = fullscreen || nativeFull
+  const wasActive = useRef(false)
   useEffect(() => {
     const changed = () => setNativeFull(Boolean(document.fullscreenElement))
     document.addEventListener('fullscreenchange', changed)
     return () => document.removeEventListener('fullscreenchange', changed)
   }, [])
   useEffect(() => {
-    void playerDisplay.setImmersive(active).catch(() => message.error('无法切换系统栏'))
+    if (active || wasActive.current) {
+      void setPlayerFullscreen(active).catch(() => message.info('无法调整全屏显示或屏幕方向'))
+    }
+    wasActive.current = active
   }, [active])
   useEffect(() => () => {
-    void playerDisplay.setImmersive(false).catch(() => {})
+    if (wasActive.current) void restorePlayerDisplay().catch(() => {})
   }, [])
   return <div className="player-display-controls" data-fullscreen={active}>
     {active && <ScreenOrientationButton />}

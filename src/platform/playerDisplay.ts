@@ -3,7 +3,7 @@ import type { PlayerDisplayPort } from './contracts'
 import { getHarmonyBridge, getRuntimePlatform } from './runtime'
 
 interface CapacitorPlayerDisplay {
-  toggleOrientation(): Promise<void>
+  toggleOrientation(options: { isLandscape: boolean }): Promise<void>
   setImmersive(options: { enabled: boolean }): Promise<void>
   unlockOrientation(): Promise<void>
   setSystemBarStyle(options: { dark: boolean }): Promise<void>
@@ -46,7 +46,7 @@ export const playerDisplay: PlayerDisplayPort = {
       return
     }
     if (platform === 'android' || platform === 'ios') {
-      await capacitorDisplay.toggleOrientation()
+      await capacitorDisplay.toggleOrientation({ isLandscape })
       setOrientationLocked(true)
       return
     }
@@ -80,7 +80,28 @@ export const playerDisplay: PlayerDisplayPort = {
   },
 }
 
+// Native display calls can resolve after a rapid exit or room teardown. Serialize
+// transitions and skip superseded requests so the last requested state wins.
+let fullscreenRevision = 0
+let fullscreenQueue: Promise<void> = Promise.resolve()
+export function setPlayerFullscreen(enabled: boolean): Promise<void> {
+  const revision = ++fullscreenRevision
+  const transition = fullscreenQueue.then(async () => {
+    if (revision !== fullscreenRevision) return
+    const operations = [playerDisplay.setImmersive(enabled)]
+    const platform = getRuntimePlatform()
+    if (!enabled) operations.push(playerDisplay.unlockOrientation())
+    else if (platform === 'android' || platform === 'harmony') {
+      operations.push(playerDisplay.toggleOrientation(true))
+    }
+    const results = await Promise.allSettled(operations)
+    const failed = results.find(result => result.status === 'rejected')
+    if (failed?.status === 'rejected') throw failed.reason
+  })
+  fullscreenQueue = transition.catch(() => {})
+  return transition
+}
+
 export async function restorePlayerDisplay(): Promise<void> {
-  await playerDisplay.setImmersive(false)
-  await playerDisplay.unlockOrientation()
+  await setPlayerFullscreen(false)
 }

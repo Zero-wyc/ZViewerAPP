@@ -9,6 +9,12 @@ the capabilities it needs.
 Android and iOS register plugins with these stable names:
 
 - `PlayerDisplay`: `toggleOrientation`, `setImmersive`, `unlockOrientation`
+
+`toggleOrientation({ isLandscape: boolean })` requests the specified direction on
+Android; it must not invert the current direction when a target is supplied.
+The HarmonyOS bridge receives the same target as a boolean argument. Shared
+`setPlayerFullscreen` locks landscape on Android/HarmonyOS entry and restores
+automatic rotation on exit or teardown, serializing late native calls.
 - `AudioRouting`: `setMediaOnly` (currently Android only)
 
 The Android implementations live under `ZV-Android/`. The future iOS target should use
