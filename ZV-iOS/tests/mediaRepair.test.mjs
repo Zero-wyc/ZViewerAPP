@@ -2,13 +2,37 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { checkAbort } from '../src/lib/cancellation.ts';
-import { addLibraryEntry } from '../src/lib/mediaLibrary.ts';
+import { addLibraryEntry, librarySelection } from '../src/lib/mediaLibrary.ts';
 import { addAnimeEpisode } from '../src/lib/animeSources.ts';
 import { queueFmSong } from '../src/lib/personalFm.ts';
 import { addSelectedBili } from '../src/lib/biliSelectionFlow.ts';
 import { MovieAddTransaction } from '../src/lib/movieAddition.ts';
 import { biliGrid, posterHeight, normalizeBiliCatalog, chooseBiliPage } from '../src/lib/biliCatalog.ts';
 const { AbortController: RNAbortController } = createRequire(import.meta.url)('abort-controller');
+
+test('library playback mode keeps mount/item identity and falls back to forwarding when no direct URL exists', () => {
+  for (const kind of ['emby', 'jellyfin']) {
+    const entry = { name: '电影', path: 'opaque-item', type: 'file' }; const media = { videoUrl: '/api/' + kind + '/proxy', directUrl: 'https://library.invalid/movie.mp4', format: 'mp4', duration: 30 };
+    const forwarded = librarySelection(kind, { id: 4, serverUrl: 'https://library.invalid' }, entry, media);
+    assert.equal(forwarded.url, media.videoUrl); assert.equal(forwarded.directLink, false);
+    const direct = librarySelection(kind, { id: 4, serverUrl: 'https://library.invalid', directLink: true }, entry, media);
+    assert.equal(direct.url, media.directUrl); assert.equal(direct.directLink, true); assert.equal(direct.path, entry.path); assert.equal(direct.source, kind);
+    const fallback = librarySelection(kind, { id: 4, directLink: true }, entry, { ...media, directUrl: undefined });
+    assert.equal(fallback.url, media.videoUrl); assert.equal(fallback.directLink, false);
+  }
+});
+
+test('whole-library submit rechecks immediate children and rejects directories, empty libraries and non-video items before resolve/add', async () => {
+  for (const kind of ['jellyfin', 'emby']) {
+    for (const entries of [[], [{ name: '子季', path: 'season', type: 'directory', embyType: 'Season' }], [{ name: '集', path: 'ep', type: 'file', embyType: 'Episode' }, { name: '目录', path: 'folder', type: 'directory' }], [{ name: '图片', path: 'photo', type: 'file', embyType: 'Photo' }]]) {
+      const calls = []; let added = false;
+      await assert.rejects(addLibraryEntry(async path => { calls.push(path); return { entries }; }, kind, { id: 8 }, { name: '目录', path: 'root', type: 'directory' }, true, async () => { added = true; }), /下一层/);
+      assert.equal(calls.length, 1); assert(calls[0].includes('/browse')); assert.equal(added, false);
+    }
+    const added = []; await addLibraryEntry(async path => path.includes('/browse') ? { entries: [{ name: '电影1', path: 'movie-1', type: 'file', embyType: 'Movie' }, { name: '电影2', path: 'movie-2', type: 'file', embyType: 'Movie' }] } : { videoUrl: '/api/' + kind + '/proxy', format: 'mp4' }, kind, { id: 8 }, { name: '目录', path: 'root', type: 'directory' }, true, async value => added.push(value));
+    assert.deepEqual(added[0].pages.map(page => page.path), ['movie-1', 'movie-2']);
+  }
+});
 
 test('RN cancellation without throwIfAborted permits active work and rejects aborted work', () => {
   const controller = new RNAbortController(); assert.equal(typeof controller.signal.throwIfAborted, 'undefined');

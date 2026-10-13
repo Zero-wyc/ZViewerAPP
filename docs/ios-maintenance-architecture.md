@@ -4,6 +4,12 @@
 
 ## 2026-10-13：媒体添加错误与简洁搜索弹窗（源码预览）
 
+### Jellyfin / Emby 弹窗进一步对齐
+
+`MediaLibraryPicker` 对照共享双端 `EmbyBrowser` / `MoviePushPanel` 和用户截图，改为简洁挂载/播放方式面板与独立「浏览媒体库」弹窗。弹窗提供搜索、目录层级、展开/还原、列表/海报墙切换、多选/全选、底部固定取消和添加操作，选择高亮并显示数量。电影/目录海报保持 2:3 裁切，Episode 缩略图保持 16:9；宽度变化时海报墙按 1–4 列计算，标题完整换行。逐集批量添加与整部/整季卡确认继续沿用真实条目路径，成功清除选择，失败项保留供重试。整部/整季仅在直属下一层非空且全部为可播放影片时启用；含子目录、非影片或尚未核验时禁用，提交重新检查且不递归穿过目录添加。
+
+播放方式默认服务器转发，可选择直链直连；仅在服务端返回 `directUrl` 时使用直连，否则转发并持久化 `directLink:false`。不会显示浏览器转码开关，iOS 仍使用 VLC 原生链路。107 项 JS 测试、lint、类型检查通过；浏览器检查四种视口的海报、按钮及目录/单片/多选/整季操作，使用本机可丢弃媒体库 fixture，不代表真实 NAS 或 iOS 解码验收。无新 IPA、无版本变更；旧 build 17 不包含本次界面。详情见 [媒体库弹窗预览记录](releases/ios-library-dialog-preview-2026-10-13.md)。
+
 - `cancellation.ts/checkAbort` 替代所有生产调用中的 `signal.throwIfAborted()`。RN 0.86.3 实际安装的 AbortController 缺少后者，造成 Jellyfin/Emby、番剧源和私人漫游共有的 `undefined is not a function`。105 项 JS 测试使用该实际信号实现验证业务与取消；类型检查、lint 通过。
 - `mediaLibrary.ts/addLibraryEntry` 验证双媒体库单集与整季，`animeSources.ts/addAnimeEpisode` 保留 HLS 请求头并避免服务端 API 重复代理，`personalFm.ts/queueFmSong` 从恢复后的队列选取真实歌曲身份。可丢弃本机测试房间验证 Jellyfin/Emby 添加成功、片单更新和反馈；未连接 NAS 改动容器。
 - 共享 Go `resolver.go` 仅展开对象形状的 `data.result`，避免将 UGC 的 `result:"suee"` 状态字符串误当作 PGC envelope。用户视频 `BV1UHpw6LESy` 经真实匿名元数据/playurl 和生产解析器检查成功，CID 42512224146、第 1 P、qn 32、AAC；nav 模拟匿名状态，未使用个人 Cookie或执行 iPhone 解码。11 项 Go 回归通过。
