@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { ArrowLeft, Check, ChevronDown, Film, Headphones, MessageCircle, MonitorPlay, Music2, Palette, Plus, RefreshCw, Settings2, UsersRound, WifiOff, X } from 'lucide-react'
+import { ArrowLeft, Check, Film, Headphones, MessageCircle, MonitorPlay, Music2, Palette, Plus, RefreshCw, UsersRound, WifiOff, X } from 'lucide-react'
 import { useSocket } from '@/hooks/useSocket'
 import { useRoomStore } from '@/store/roomStore'
 import { useAuthStore } from '@/store/authStore'
@@ -30,7 +30,7 @@ import { useMusicAudioRouting } from './useMusicAudioRouting'
 import { BilibiliAccount } from './BilibiliAccount'
 import { isGlobalAppearanceRuntime } from '../platform/runtime'
 
-type Tab = 'chat' | 'movies' | 'room'
+type Tab = 'chat' | 'movies'
 
 export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeave: () => void }) {
   const { socket, connected } = useSocket()
@@ -166,7 +166,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
           </div>)}
           <MusicPlayerProvider socket={socket} roomId={roomId} isHost={room.isHost} username={user?.username}>
             <MusicAppShell voiceManagedExternally socket={socket} roomId={roomId} isHost={room.isHost} username={user?.username}
-              canManage={canQueue} roomModeMenu={{ isHost: room.isHost, onSwitch: handleSwitchMode, isSwitching: isModeSwitching }} />
+              canManage={canQueue} isModeSwitching={isModeSwitching} commentsOnlyDock />
           </MusicPlayerProvider>
         </div>
       ) : (
@@ -183,21 +183,12 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
             <nav className="mobile-room-tabs" aria-label="房间面板">
               <button aria-selected={tab === 'chat'} onClick={() => setTab('chat')}><MessageCircle size={18} />聊天</button>
               {mode === 'watch-together' && <button aria-selected={tab === 'movies'} onClick={() => setTab('movies')}><Film size={18} />片单</button>}
-              <button aria-selected={tab === 'room'} onClick={() => setTab('room')}><Settings2 size={18} />房间</button>
             </nav>
             <div className="mobile-tab-panel" hidden={tab !== 'chat'}><CommentPanel socket={socket} roomId={roomId} commentsOnly={mode === 'screen-share'} /></div>
             {mode === 'watch-together' && <div className="mobile-tab-panel" hidden={tab !== 'movies'}>
               {canAdd && <div className="mobile-panel-actions"><button className="mobile-text-button" onClick={() => setAddOpen(true)}><Plus size={18} />添加影片</button></div>}
               <MovieListPanel isHost={room.isHost} canManage={canManage} />
             </div>}
-            <div className="mobile-tab-panel" hidden={tab !== 'room'}>
-              {room.isHost && <div className="mobile-mode-switch">
-                <button aria-pressed={mode === 'watch-together'} disabled={isModeSwitching || !connected} onClick={() => handleSwitchMode('watch-together')}><MonitorPlay size={18} />一起看</button>
-                <button aria-pressed={false} disabled={isModeSwitching || !connected} onClick={() => handleSwitchMode('listen-together')}><Music2 size={18} />一起听</button>
-              </div>}
-              <RoomInfoPanel roomId={roomId} isHost={room.isHost} />
-              <div className="mobile-room-footer"><span>房间号 {roomId} · {viewers.length} 位观众</span><button className="mobile-text-button" onClick={() => setLeaveOpen(true)}>离开房间</button></div>
-            </div>
           </section>
         </div>
       )}
@@ -208,12 +199,18 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
           onAudioSessionChange={setVoiceAudioActive} />
       </section>}
       <Modal open={addOpen} title="添加影片" onClose={() => setAddOpen(false)} footer={null}><MoviePushPanel isHost={canAdd} /></Modal>
-      <Modal open={settingsOpen} title="房间" onClose={() => setSettingsOpen(false)} footer={null}>
+      <Modal keepMounted open={settingsOpen} title="房间" onClose={() => setSettingsOpen(false)} footer={null}>
+        {ready && room.isHost && <div className="mobile-mode-switch" role="group" aria-label="房间模式">
+          <button aria-pressed={mode === 'watch-together'} disabled={isModeSwitching || !connected} onClick={() => handleSwitchMode('watch-together')}><MonitorPlay size={18} />一起看</button>
+          <button aria-pressed={mode === 'listen-together'} disabled={isModeSwitching || !connected} onClick={() => handleSwitchMode('listen-together')}><Music2 size={18} />一起听</button>
+        </div>}
         {isGlobalAppearanceRuntime() && <button className="mobile-text-button mobile-appearance-entry" onClick={() => {
           setSettingsOpen(false)
           window.dispatchEvent(new Event('mobile-appearance-open'))
         }}><Palette size={18} />外观设置</button>}
-        <BilibiliAccount /><RoomInfoPanel roomId={roomId} isHost={room.isHost} />
+        {ready && <><BilibiliAccount /><RoomInfoPanel roomId={roomId} isHost={room.isHost} />
+          <div className="mobile-room-footer"><span>房间号 {roomId} · {viewers.length} 位观众</span><button className="mobile-text-button" onClick={() => { setSettingsOpen(false); setLeaveOpen(true) }}>离开房间</button></div>
+        </>}
       </Modal>
       <Modal open={leaveOpen} title="离开房间？" onClose={() => setLeaveOpen(false)} footer={<div className="mobile-dialog-actions"><button className="mobile-text-button" onClick={() => setLeaveOpen(false)}>取消</button><button className="mobile-text-button" onClick={leave}>离开</button></div>}>
         <p>{room.isHost ? '离开后将停止本机播放，房间按服务器的离线规则保留。' : '离开后将停止本机播放。'}</p>

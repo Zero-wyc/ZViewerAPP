@@ -28,6 +28,8 @@ interface MusicSideDockProps {
   /** 队列/房间管理权限（房主或房管），透传为语音禁言/踢出权限 */
   canManage: boolean
   showVoice?: boolean
+  /** 移动房间已有独立房间/语音入口，侧栏仅保留评论。 */
+  commentsOnly?: boolean
 }
 
 /** 鼠标移出后的收起延迟：覆盖「把手 → 面板」之间的空隙移动与误滑出 */
@@ -40,6 +42,7 @@ export function MusicSideDock({
   isHost,
   canManage,
   showVoice = true,
+  commentsOnly = false,
 }: MusicSideDockProps) {
   const [open, setOpen] = useState(false)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -73,10 +76,11 @@ export function MusicSideDock({
       <div
         role="button"
         tabIndex={0}
+        aria-expanded={open}
         aria-label={open ? '收起侧边工具栏' : '展开侧边工具栏'}
         title={open ? '收起侧边工具栏' : '展开侧边工具栏'}
-        onMouseEnter={handleEnter}
-        onMouseLeave={handleLeave}
+        onPointerEnter={(event) => { if (event.pointerType === 'mouse') handleEnter() }}
+        onPointerLeave={(event) => { if (event.pointerType === 'mouse') handleLeave() }}
         onClick={() => {
           clearCloseTimer()
           setOpen((v) => !v)
@@ -88,7 +92,7 @@ export function MusicSideDock({
             setOpen((v) => !v)
           }
         }}
-        className="fixed right-0 top-1/2 z-[45] h-28 w-[5px] -translate-y-1/2 cursor-pointer rounded-l-md transition-colors duration-200 max-md:h-44 max-md:w-[14px]"
+        className="fixed right-0 top-1/2 z-[46] h-28 w-[5px] -translate-y-1/2 cursor-pointer rounded-l-md transition-colors duration-200 max-md:h-44 max-md:w-[14px]"
         style={{
           backgroundColor: open
             ? 'var(--md-sys-color-primary)'
@@ -100,8 +104,8 @@ export function MusicSideDock({
           毛玻璃：半透明底 + backdrop 高斯模糊（移动端经 lt-blur-surface 降档 8px） */}
       <aside
         aria-hidden={!open}
-        onMouseEnter={handleEnter}
-        onMouseLeave={handleLeave}
+        onPointerEnter={(event) => { if (event.pointerType === 'mouse') handleEnter() }}
+        onPointerLeave={(event) => { if (event.pointerType === 'mouse') handleLeave() }}
         className={cn(
           'lt-blur-surface fixed right-1.5 top-1/2 z-[45] flex w-[344px] max-w-[calc(100vw-1.5rem)] -translate-y-1/2 flex-col overflow-hidden',
           'rounded-[var(--md-sys-shape-corner)] transition-all duration-300',
@@ -124,7 +128,7 @@ export function MusicSideDock({
             side-dock-body：内嵌 glass-card 面板去白底只留分隔描边（见 index.css） */}
         <div className="side-dock-body zen-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2">
           {/* 语音聊天（成员较多时面板内部滚动，高度上限保护后面面板可见性） */}
-          {showVoice && <div className="flex min-h-0 shrink-0 flex-col">
+          {!commentsOnly && showVoice && <div className="flex min-h-0 shrink-0 flex-col">
             <VoiceChatPanel
               embedded
               socket={socket}
@@ -144,13 +148,13 @@ export function MusicSideDock({
             />
           </div>
           {/* 房间状态（成员/设置较多，内部滚动） */}
-          <div className="max-h-[min(56vh,460px)] shrink-0 overflow-y-auto">
+          {!commentsOnly && <div className="max-h-[min(56vh,460px)] shrink-0 overflow-y-auto">
             <RoomInfoPanel roomId={roomId} isHost={isHost} />
-          </div>
+          </div>}
           {/* 流量统计（内容较少，自适应高度） */}
-          <div className="shrink-0">
+          {!commentsOnly && <div className="shrink-0">
             <TrafficPanel embedded />
-          </div>
+          </div>}
         </div>
       </aside>
     </>

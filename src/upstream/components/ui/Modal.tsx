@@ -16,6 +16,8 @@ export interface ModalProps {
   footer?: React.ReactNode
   className?: string
   expandable?: boolean
+  /** 保留关闭时的内容挂载，供需要持续监听房间事件的面板使用。 */
+  keepMounted?: boolean
 }
 
 export function Modal({
@@ -26,6 +28,7 @@ export function Modal({
   footer,
   className,
   expandable = false,
+  keepMounted = false,
 }: ModalProps) {
   const [expanded, setExpanded] = useState(false)
   const [viewport, setViewport] = useState(() => ({ height: window.visualViewport?.height ?? window.innerHeight, top: window.visualViewport?.offsetTop ?? 0 }))
@@ -84,12 +87,12 @@ export function Modal({
     return () => document.removeEventListener('keydown', onKeyDown, true)
   }, [visible, onClose])
 
-  if (!visible) return null
+  if (!visible && !keepMounted) return null
 
   return createPortal(
     <div
       className="secondary-panel fixed inset-x-0 flex items-center justify-center"
-      style={{ zIndex: 999, top: viewport.top, height: viewport.height, padding: 'max(8px, var(--app-safe-top, 0px)) max(8px, var(--app-safe-right, 0px)) max(8px, var(--app-safe-bottom, 0px)) max(8px, var(--app-safe-left, 0px))', transform: 'translateZ(0)' }}
+      style={{ display: visible ? undefined : 'none', zIndex: 999, top: viewport.top, height: viewport.height, padding: 'max(8px, var(--app-safe-top, 0px)) max(8px, var(--app-safe-right, 0px)) max(8px, var(--app-safe-bottom, 0px)) max(8px, var(--app-safe-left, 0px))', transform: 'translateZ(0)' }}
       // 阻止滚轮事件冒泡到 document，防止触发底层页面滚动
       onWheel={(e) => e.stopPropagation()}
     >

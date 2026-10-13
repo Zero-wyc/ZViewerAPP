@@ -49,6 +49,7 @@ export interface MusicAppShellProps {
   /** 模式切换进行中：底板上渲染全屏加载占位 */
   isModeSwitching?: boolean
   voiceManagedExternally?: boolean
+  commentsOnlyDock?: boolean
 }
 
 /** syncNotice 自动消失时长（毫秒，与 ListenTogetherPanel 一致） */
@@ -66,6 +67,7 @@ export function MusicAppShell({
   roomModeMenu,
   isModeSwitching = false,
   voiceManagedExternally = false,
+  commentsOnlyDock = false,
 }: MusicAppShellProps) {
   // 页面级集成：RoomPage/WatchPage 用 MusicPlayerProvider 包裹整个 RoomLayout，
   // shell 直接复用外层实例；独立使用时自建 Provider（避免双引擎）。
@@ -81,6 +83,7 @@ export function MusicAppShell({
         roomModeMenu={roomModeMenu}
         isModeSwitching={isModeSwitching}
         voiceManagedExternally={voiceManagedExternally}
+        commentsOnlyDock={commentsOnlyDock}
       />
     )
   }
@@ -100,6 +103,7 @@ export function MusicAppShell({
         roomModeMenu={roomModeMenu}
         isModeSwitching={isModeSwitching}
         voiceManagedExternally={voiceManagedExternally}
+        commentsOnlyDock={commentsOnlyDock}
       />
     </MusicPlayerProvider>
   )
@@ -114,6 +118,7 @@ function ShellInner({
   roomModeMenu,
   isModeSwitching,
   voiceManagedExternally,
+  commentsOnlyDock,
 }: {
   socket: Socket | null
   roomId: string
@@ -123,6 +128,7 @@ function ShellInner({
   roomModeMenu?: RoomModeMenuState
   isModeSwitching: boolean
   voiceManagedExternally: boolean
+  commentsOnlyDock: boolean
 }) {
   const page = useMusicStore((s) => s.page)
   const playerOverlayOpen = useMusicStore((s) => s.playerOverlayOpen)
@@ -429,6 +435,7 @@ function ShellInner({
           完整播放器覆盖层打开期间整坞卸载，保持沉浸 ===== */}
       <div hidden={playerOverlayOpen || playerOverlayClosing}>
         <MusicSideDock
+          commentsOnly={commentsOnlyDock}
           showVoice={!voiceManagedExternally}
           socket={socket}
           roomId={roomId}
