@@ -17,7 +17,7 @@ import { useSession } from '@/state/session';
 import { VlcVideo, useVlcVideo } from './VlcVideo';
 import { RoomButton, RoomIconButton, RoomInput, ui as baseUi } from './RoomUi';
 import { playbackSource, onBiliChange, biliFallback } from '@/lib/biliNative';
-import { MusicSyncReceipt } from '@/lib/musicSyncReceipt';
+import { MusicSyncReceipt, musicSourceMatches } from '@/lib/musicSyncReceipt';
 import { MusicLibrary, musicPages, type MusicPage } from './MusicLibrary';
 import { ExpandedMusicPlayer } from './ExpandedMusicPlayer';
 import { SongComments } from './SongComments';
@@ -75,7 +75,7 @@ export function MusicPanel({ roomId, host, onExpandedLandscape, switchMode }: { 
   useEffect(() => () => { batch.current?.abort(); }, [session?.serverUrl, session?.user.id, roomId, accountRevision]);
   const showSongs = (items: Song[], context?: MusicCollection) => { completeSongs.current = null; setSongs(items); setCollection(context || null); setCollectionMessage(''); setPage('search'); };
   useEffect(() => { let active = true; void readPreference('zviewer-music-quality', { level: 'lossless' }).then(value => { if (active && ['lossless', 'exhigh', 'higher', 'standard'].includes(value.level)) setQuality(value.level); }); return () => { active = false; }; }, []);
-  const adapter = useRef<NativeMediaAdapter | null>(null); const stateRef = useRef(state); const queueRef = useRef(queue); const hostRef = useRef(host); const stream = useRef<{ key: string; source: Playback } | null>(null);
+  const adapter = useRef<NativeMediaAdapter | null>(null); const stateRef = useRef(state); const queueRef = useRef(queue); const hostRef = useRef(host); const stream = useRef<{ key: string; trackKey: string; source: Playback } | null>(null);
   useEffect(() => { stateRef.current = state; queueRef.current = queue; hostRef.current = host; }, [state, queue, host]);
   useEffect(() => { const media = new NativeMediaAdapter(player, playbackSource); adapter.current = media; return () => { media.dispose(); adapter.current = null; }; }, [player]);
   useEffect(() => onBiliChange(() => { lyricCache.clear(); setLyricRetry(value => value + 1); stream.current = null; adapter.current?.invalidate(); setRetry(value => value + 1); }), []);
@@ -85,6 +85,7 @@ export function MusicPanel({ roomId, host, onExpandedLandscape, switchMode }: { 
   const update = useCallback((next: MusicState, broadcast = false) => { stateRef.current = next; setState(next); if (broadcast) socket?.emit('music:sync-state', { roomId, ...next }); }, [socket, roomId]);
   const choose = useCallback((item: Song) => {
     const match = 'id' in item ? queueRef.current.find(value => value.id === item.id) : queueRef.current.find(value => keyFor(value) === keyFor(item));
+    recommendationAbort.current?.abort();
     if (match) { cursor.current.select(queueRef.current, match.id); setCurrentItemId(match.id); }
     if (stateRef.current.trackKey === keyFor(item)) player.currentTime = 0;
     endedAt.current = '';
@@ -95,6 +96,7 @@ export function MusicPanel({ roomId, host, onExpandedLandscape, switchMode }: { 
     if (!hostRef.current && !approved) { await emitAck(socket, 'music:control-request', { roomId, ...command }); setError('已向房主发送控制申请'); return; }
     const current = stateRef.current; const items = queueRef.current;
     if (command.action === 'addQueue' || command.action === 'playItem') {
+      if (command.action === 'playItem') { fmPort.current?.stop(); recommendationAbort.current?.abort(); }
       if (!command.item) return; const existing = 'id' in command.item && items.some(value => value.id === (command.item as QueueItem).id); if (!existing || command.action === 'addQueue') await emitAck(socket, 'music:queue-upsert', { roomId, item: command.item }); if (command.action === 'playItem') choose(command.item); return;
     }
     if (command.action === 'next' || command.action === 'prev') {
@@ -103,7 +105,8 @@ export function MusicPanel({ roomId, host, onExpandedLandscape, switchMode }: { 
       if (!next && command.action === 'next' && current.playMode === 'order' && current.trackKey?.startsWith('bili:') && recommendation.current.enabled && hostRef.current) {
         if (recommendation.current.pending) return;
         recommendation.current.pending = true; const controller = new AbortController(); recommendationAbort.current = controller;
-        const check = () => { checkAbort(controller.signal); if (!hostRef.current || !socket.connected || stateRef.current.trackKey !== current.trackKey || !recommendation.current.enabled) throw new Error('推荐续播已取消'); };
+        const isCurrent = () => !controller.signal.aborted && hostRef.current && socket.connected && stateRef.current.trackKey === current.trackKey && stateRef.current.playMode === 'order' && recommendation.current.enabled;
+        const check = () => { checkAbort(controller.signal); if (!isCurrent()) throw new Error('推荐续播已取消'); };
         try {
           const data = await request<{ items: { bvid: string; cid: number; title: string; upName?: string; pic?: string; duration?: number }[] }>(`/api/stream/bilibili/related?bvid=${encodeURIComponent(current.trackKey.split(':')[1])}`, { signal: controller.signal }); check();
           const existing = new Set(queueRef.current.map(keyFor)); const fresh = data.items.filter(item => /^BV[0-9A-Za-z]+$/.test(item.bvid) && Number.isSafeInteger(item.cid) && item.cid > 0 && !existing.has(`bili:${item.bvid}:${item.cid}`)).slice(0, 3);
@@ -111,14 +114,16 @@ export function MusicPanel({ roomId, host, onExpandedLandscape, switchMode }: { 
           check(); const result = await emitAck<{ queue: QueueItem[] }>(socket, 'music:get-state', { roomId }); check(); queueRef.current = result.queue; setQueue(result.queue);
           const first = fresh[0]; const added = first && result.queue.find(item => item.biliBvid === first.bvid && item.biliCid === first.cid);
           if (added) choose(added); else update({ ...current, isPlaying: false, updatedAt: Date.now() }, true);
-        } catch (failure) { if (!controller.signal.aborted) { setError(messageFor(failure)); update({ ...current, isPlaying: false, updatedAt: Date.now() }, true); } }
-        finally { recommendation.current.pending = false; }
+        } catch (failure) { if (isCurrent()) { setError(messageFor(failure)); update({ ...stateRef.current, isPlaying: false, updatedAt: Date.now() }, true); } }
+        finally { if (recommendationAbort.current === controller) { recommendation.current.pending = false; recommendationAbort.current = null; } }
         return;
       }
       if (!next) return;
       choose(next as QueueItem); return;
     }
     if (command.action === 'seek' && (player.duration <= 0 || !Number.isFinite(command.positionSec))) return;
+    recommendationAbort.current?.abort();
+    fmPort.current?.invalidate();
     const positionSec = command.action === 'seek' ? Math.min(player.duration, Math.max(0, command.positionSec || 0)) : player.currentTime;
     if (command.action === 'play') { player.play(); endedAt.current = ''; }
     if (command.action === 'pause') player.pause();
@@ -127,6 +132,8 @@ export function MusicPanel({ roomId, host, onExpandedLandscape, switchMode }: { 
   }, [socket, roomId, player, choose, update, request]);
   const playFm = useCallback(async (item: Song, signal: AbortSignal) => {
     const { queue: restored, added } = await queueFmSong(item, signal, { isHost: () => hostRef.current && !!socket?.connected, upsert: song => emitAck(socket!, 'music:queue-upsert', { roomId, item: song }), restore: async () => (await emitAck<{ queue: QueueItem[] }>(socket!, 'music:get-state', { roomId })).queue });
+    checkAbort(signal);
+    if (!hostRef.current || !socket?.connected) return;
     queueRef.current = restored; setQueue(restored); choose(added);
   }, [socket, roomId, choose]);
   const roaming = usePersonalFm({ ncm, requestText, play: playFm, visible: page === 'fm', host, scope: JSON.stringify([session?.serverUrl, session?.user.id, roomId]), accountRevision });
@@ -135,24 +142,32 @@ export function MusicPanel({ roomId, host, onExpandedLandscape, switchMode }: { 
   useEffect(() => {
     if (!socket) return; let active = true;
     const queueChanged = (payload: { roomId: string; items: QueueItem[] }) => { if (payload.roomId === roomId) { queueRef.current = payload.items; setQueue(payload.items); if (!payload.items.length) { cursor.current.id = null; setCurrentItemId(null); update({ ...stateRef.current, trackKey: null, trackSongId: null, isPlaying: false, positionSec: 0 }); } } };
-    const synced = (payload: MusicState) => { if (payload.roomId !== roomId || hostRef.current) return; update(payload); const target = roomTime(payload.positionSec, payload.isPlaying, payload.updatedAt); if (stream.current?.source.sourceUrl.includes(payload.trackKey?.startsWith('ncm:') ? `songId=${payload.trackSongId}` : payload.trackKey?.split(':')[1] || 'invalid') && Math.abs(player.currentTime - target) > 2) player.currentTime = target; };
+    const synced = (payload: MusicState) => {
+      if (payload.roomId !== roomId || hostRef.current) return;
+      update(payload);
+      const target = roomTime(payload.positionSec, payload.isPlaying, payload.updatedAt);
+      // A different song (including another part of the same BV) must load first.
+      // Substring URL matching can seek song 420 while a sync requests song 42.
+      if (payload.trackKey && stream.current?.trackKey === payload.trackKey && session && !adapter.current?.busy && !player.preparing && musicSourceMatches(player.sourceIdentity, stream.current.source, session.serverUrl) && Math.abs(player.currentTime - target) > 2) player.currentTime = target;
+    };
     const requested = (payload: ControlRequest) => { if (payload.roomId === roomId && hostRef.current) setRequests(old => [...old.slice(-19), payload]); };
     const response = (payload: { approved: boolean; from: string }) => { if (payload.from === socket.id) setError(payload.approved ? '房主已同意申请' : '房主拒绝了申请'); };
     socket.on('music:queue-changed', queueChanged); socket.on('music:sync-state', synced); socket.on('music:host-heartbeat', synced); socket.on('music:control-request', requested); socket.on('music:control-response', response);
     const restore = () => { void emitAck<{ queue: QueueItem[]; syncState: MusicState | null }>(socket, 'music:get-state', { roomId }).then(data => { if (!active) return; queueRef.current = data.queue; setQueue(data.queue); if (data.syncState) update(data.syncState); }).catch(failure => { if (active) setError(messageFor(failure)); }); };
-    socket.on('connect', restore); if (socket.connected) restore();
-    return () => { active = false; socket.off('connect', restore); socket.off('music:queue-changed', queueChanged); socket.off('music:sync-state', synced); socket.off('music:host-heartbeat', synced); socket.off('music:control-request', requested); socket.off('music:control-response', response); };
-  }, [socket, roomId, player, update]);
+    const disconnect = () => { fmPort.current?.stop(); recommendationAbort.current?.abort(); };
+    socket.on('connect', restore); socket.on('disconnect', disconnect); if (socket.connected) restore();
+    return () => { active = false; socket.off('connect', restore); socket.off('disconnect', disconnect); socket.off('music:queue-changed', queueChanged); socket.off('music:sync-state', synced); socket.off('music:host-heartbeat', synced); socket.off('music:control-request', requested); socket.off('music:control-response', response); };
+  }, [socket, roomId, player, update, session]);
   useEffect(() => {
     if (!session || !adapter.current) return; const cancel = new AbortController(); const media = adapter.current; const current = stateRef.current;
-    const scope = JSON.stringify([session.serverUrl, session.user.id, accountRevision, quality, current.trackKey]);
+    const scope = JSON.stringify([session.serverUrl, session.user.id, roomId, accountRevision, quality, current.trackKey]);
     void (async () => {
       if (!current.trackKey) { stream.current = null; await adapter.current?.apply(null, session.serverUrl, session.accessToken); return; }
       if (stream.current?.key !== scope) {
         let source: Playback;
         if (current.trackKey.startsWith('bili:')) { const [, bvid, cid] = current.trackKey.split(':'); source = { sourceUrl: `https://www.bilibili.com/video/${bvid}?cid=${cid}`, sourceType: 'bilibili', format: 'audio', isPlaying: false, currentTime: 0 }; }
         else { const id = Number(current.trackKey.slice(4)); if (!Number.isSafeInteger(id) || id < 1) throw new Error('无效的歌曲编号'); source = { sourceUrl: `/api/music/stream?songId=${id}&level=${quality}&roomId=${encodeURIComponent(roomId)}`, sourceType: 'url', isPlaying: false, currentTime: 0 }; }
-        if (cancel.signal.aborted) return; stream.current = { key: scope, source };
+        if (cancel.signal.aborted) return; stream.current = { key: scope, trackKey: current.trackKey, source };
       }
       const desired = { ...stream.current!.source, currentTime: roomTime(current.positionSec, current.isPlaying, current.updatedAt), isPlaying: current.isPlaying };
       await adapter.current?.apply(desired, session.serverUrl, session.accessToken, retry);
@@ -164,8 +179,8 @@ export function MusicPanel({ roomId, host, onExpandedLandscape, switchMode }: { 
       ? JSON.stringify([session.serverUrl, session.user.id, roomId, socket.id, stateRef.current.trackKey]) : '';
     const acknowledge = () => {
       const key = identity(); syncReceipt.current.observe(key);
-      const expectedScope = session ? JSON.stringify([session.serverUrl, session.user.id, accountRevision, quality, stateRef.current.trackKey]) : '';
-      const ready = stream.current?.key === expectedScope && player.sourceIdentity === stream.current.source.sourceUrl && !adapter.current?.busy && !player.preparing && player.duration > 0;
+      const expectedScope = session ? JSON.stringify([session.serverUrl, session.user.id, roomId, accountRevision, quality, stateRef.current.trackKey]) : '';
+      const ready = !!session && stream.current?.key === expectedScope && musicSourceMatches(player.sourceIdentity, stream.current.source, session.serverUrl) && !adapter.current?.busy && !player.preparing && player.duration > 0;
       if (syncReceipt.current.take(key, ready)) socket?.emit('music:sync-ack', { roomId });
     };
     const disconnect = () => syncReceipt.current.observe('');
@@ -183,10 +198,10 @@ export function MusicPanel({ roomId, host, onExpandedLandscape, switchMode }: { 
   useEffect(() => {
     if (!host || !socket) return;
     let last = 0;
-    const heartbeat = () => { if (Date.now() - last < 1800 || !socket.connected || adapter.current?.busy || player.preparing || !stateRef.current.trackKey) return; last = Date.now(); const current = { ...stateRef.current, positionSec: player.currentTime, isPlaying: player.playing, updatedAt: Date.now() }; stateRef.current = current; socket.emit('music:host-heartbeat', { roomId, ...current });
-      if (!batch.current && player.duration > 0 && player.currentTime >= player.duration - 0.6 && !player.playing && Date.now() >= endedRetryAt.current && endedAt.current !== `${cursor.current.id}:${current.trackKey}`) { endedAt.current = `${cursor.current.id}:${current.trackKey}`; const items = queueRef.current; const index = cursor.current.locate(items, current.trackKey); if (current.playMode === 'repeat-one' && !fmPort.current?.isActive(current.trackKey)) void control({ action: 'seek', positionSec: 0 }).then(() => control({ action: 'play' })).catch(failure => setError(messageFor(failure))); else if (fmPort.current?.isActive(current.trackKey) || current.playMode !== 'order' || index < items.length - 1 || recommendation.current.enabled && current.trackKey?.startsWith('bili:')) void control({ action: 'next' }).catch(failure => { setError(messageFor(failure)); if (fmPort.current?.isActive(current.trackKey)) { endedAt.current = ''; endedRetryAt.current = Date.now() + 10000; } }); }
+    const heartbeat = () => { if (Date.now() - last < 1800 || !socket.connected || adapter.current?.busy || player.preparing || !stateRef.current.trackKey || stream.current?.trackKey !== stateRef.current.trackKey || !session || !musicSourceMatches(player.sourceIdentity, stream.current.source, session.serverUrl)) return; last = Date.now(); const current = { ...stateRef.current, positionSec: player.currentTime, isPlaying: player.playing, updatedAt: Date.now() }; stateRef.current = current; socket.emit('music:host-heartbeat', { roomId, ...current });
+      if (!batch.current && player.duration > 0 && player.currentTime >= player.duration - 0.6 && !player.playing && Date.now() >= endedRetryAt.current && endedAt.current !== `${cursor.current.id}:${current.trackKey}`) { endedAt.current = `${cursor.current.id}:${current.trackKey}`; const items = queueRef.current; const index = cursor.current.locate(items, current.trackKey); if (current.playMode === 'repeat-one') void control({ action: 'seek', positionSec: 0 }).then(() => control({ action: 'play' })).catch(failure => setError(messageFor(failure))); else if (fmPort.current?.isActive(current.trackKey) || current.playMode !== 'order' || index < items.length - 1 || recommendation.current.enabled && current.trackKey?.startsWith('bili:')) void control({ action: 'next' }).catch(failure => { setError(messageFor(failure)); if (fmPort.current?.isActive(current.trackKey)) { endedAt.current = ''; endedRetryAt.current = Date.now() + 10000; } }); }
     }; const interval = setInterval(heartbeat, 2000); const progress = player.addListener('timeUpdate', heartbeat); return () => { clearInterval(interval); progress.remove(); };
-  }, [host, socket, roomId, player, control]);
+  }, [host, socket, roomId, player, control, session]);
   useEffect(() => {
     if (!session) return; let active = true; const key = state.trackKey;
     void Promise.resolve().then(() => { if (active) { setLyrics([]); setLyricsSong(null); setLyricError(''); } }); if (!key) return () => { active = false; };

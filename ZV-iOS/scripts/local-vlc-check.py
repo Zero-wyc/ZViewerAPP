@@ -14,6 +14,11 @@ from urllib.parse import urlencode
 
 BASE = 'http://127.0.0.1:7333'
 OUT = Path(__file__).resolve().parents[3] / 'local-ios-validation' / 'vlc-desktop-results.json'
+MEDIA = Path(os.environ.get('IOS_TEST_MEDIA') or Path.home() / 'Videos').expanduser().resolve()
+if not MEDIA.is_dir():
+    raise SystemExit('Set IOS_TEST_MEDIA to an existing local video directory.')
+if any(not (MEDIA / name).is_file() for name in ('S01E01.mkv', 'S01E04.mp4')):
+    raise SystemExit('IOS_TEST_MEDIA must contain S01E01.mkv and S01E04.mp4.')
 def api(route, body=None, token=None):
     headers = {'Content-Type': 'application/json'}
     if token: headers['Authorization'] = 'Bearer ' + token
@@ -23,9 +28,9 @@ def api(route, body=None, token=None):
 login = api('/api/auth/login', {'username': 'root', 'password': 'root'})
 TOKEN = login['accessToken']
 roots = api('/api/server-files/roots', token=TOKEN)['roots']
-root = next((item for item in roots if item['absPath'].replace('\\', '/').lower() == 'c:/users/fredq/videos'), None)
+root = next((item for item in roots if item['absPath'].replace('\\', '/').casefold() == MEDIA.as_posix().casefold()), None)
 if not root:
-    root = api('/api/server-files/roots', {'name': 'Local iOS validation', 'absPath': 'C:/Users/FredQ/Videos', 'readonly': True}, TOKEN)['root']
+    root = api('/api/server-files/roots', {'name': 'Local iOS validation', 'absPath': str(MEDIA), 'readonly': True}, TOKEN)['root']
 assert root['readonly']
 FILMS = {name: BASE + '/api/server-files/proxy?' + urlencode({'path': root['key'] + ':/' + name, 'token': TOKEN}) for name in ('S01E01.mkv', 'S01E04.mp4')}
 # A just-created root may not appear until the existing registry cache expires.
@@ -36,7 +41,7 @@ for name, url in FILMS.items():
         try:
             with u.urlopen(u.Request(url, method='HEAD'), timeout=10) as response:
                 assert response.status == 200
-                assert int(response.headers['Content-Length']) == (Path('C:/Users/FredQ/Videos') / name).stat().st_size
+                assert int(response.headers['Content-Length']) == (MEDIA / name).stat().st_size
             break
         except u.HTTPError as error:
             if error.code != 400 or attempt == 69: raise RuntimeError(f'{name}: preflight HTTP {error.code}') from None

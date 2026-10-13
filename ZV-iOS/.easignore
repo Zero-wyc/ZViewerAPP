@@ -2,6 +2,7 @@ node_modules/
 /ios/
 /android/
 .expo/
+/.expo-export-test/
 .native-tools/
 modules/zviewer-native/ios/Vendor/
 release-assets/

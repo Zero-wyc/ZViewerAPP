@@ -41,9 +41,9 @@ DevEco Studio 26.0、Pura 90 Pro 手机模拟器、HarmonyOS 7.0/API 26、虚拟
 
 | 文件 | 编码 | 模拟器结果 |
 | --- | --- | --- |
-| `C:\Users\FredQ\Videos\S01E04.mp4` | H.264/AAC、1920×1080，时长 1421.461708 秒 | 播放从 1.027279 推进到 3.531121 秒；89 帧、readyState 4、无 MediaError。暂停保持稳定，跳至 60 秒并以 1.5 倍速恢复，推进至 61.006897 秒、144 帧。 |
-| `C:\Users\FredQ\Videos\S01E01.mkv` | HEVC Main 10、10 位、Opus、1920×1080 | demux 158 ms、两条 ASS 字幕各提取 437 cues；时间 0、视频 0 帧、MediaError 3：`PipelineStatus::PIPELINE_ERROR_DECODE`。 |
-| `C:\Users\FredQ\Videos\白圣女与黑牧师 - S01E02 - 第2集.mkv` | HEVC Main 10、10 位、FLAC、1920×1080 | demux 66.9 ms、两条 ASS 字幕各提取 437 cues；同样 0 帧和 `PIPELINE_ERROR_DECODE`。 |
+| `<USERPROFILE>\Videos\S01E04.mp4` | H.264/AAC、1920×1080，时长 1421.461708 秒 | 播放从 1.027279 推进到 3.531121 秒；89 帧、readyState 4、无 MediaError。暂停保持稳定，跳至 60 秒并以 1.5 倍速恢复，推进至 61.006897 秒、144 帧。 |
+| `<USERPROFILE>\Videos\S01E01.mkv` | HEVC Main 10、10 位、Opus、1920×1080 | demux 158 ms、两条 ASS 字幕各提取 437 cues；时间 0、视频 0 帧、MediaError 3：`PipelineStatus::PIPELINE_ERROR_DECODE`。 |
+| `<USERPROFILE>\Videos\白圣女与黑牧师 - S01E02 - 第2集.mkv` | HEVC Main 10、10 位、FLAC、1920×1080 | demux 66.9 ms、两条 ASS 字幕各提取 437 cues；同样 0 帧和 `PIPELINE_ERROR_DECODE`。 |
 | 原 HEVC 视频轨的 12 秒 MP4 对照（移除音轨、不转视频） | 原始 HEVC Main 10 | 仍报相同解码错误、0 帧，排除仅由 MKV 容器、Opus/FLAC 音轨或外观造成。 |
 | 本地合成 H.264 MKV 对照 | H.264/AAC、640×360 | 通过同一播放器链路实际推进至 1.030407 秒、30 帧、无 MediaError。 |
 

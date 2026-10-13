@@ -6,7 +6,7 @@ import { useAppearance } from '@/state/appearance';
 import { posterHeight } from '@/lib/biliCatalog';
 
 // Server credentials stay in one origin-bound fetch. Image only receives data.
-export function SourcePoster({ uri, serverProxy = false, proxyPath, width = 66, height = 92, naturalRatio = false }: { uri?: string; serverProxy?: boolean; proxyPath?: string; width?: number; height?: number; naturalRatio?: boolean }) {
+export function SourcePoster({ uri, serverProxy = false, proxyPath, width = 66, height = 92, naturalRatio = false, contain = false }: { uri?: string; serverProxy?: boolean; proxyPath?: string; width?: number; height?: number; naturalRatio?: boolean; contain?: boolean }) {
   const { session } = useSession(); const theme = useAppearance();
   const [data, setData] = useState<{ key: string; uri: string } | null>(null);
   const [failed, setFailed] = useState('');
@@ -33,5 +33,5 @@ export function SourcePoster({ uri, serverProxy = false, proxyPath, width = 66, 
     return () => { active = false; };
   }, [imageUri, key, naturalRatio]);
   const style = { width, height: naturalRatio ? posterHeight(width, size?.key === key ? size.width : 16, size?.key === key ? size.height : 9) : height, borderRadius: 8 };
-  return imageUri ? <Image accessibilityLabel="影片封面" source={{ uri: imageUri }} style={style} resizeMode={naturalRatio ? 'contain' : 'cover'} onError={() => { setFailed(key); setData(null); }} /> : <View style={[style, { backgroundColor: theme.color('#343d41', 'backgroundColor'), alignItems: 'center', justifyContent: 'center' }]}><Text style={{ color: theme.color('#a8b3b6') }}>暂无封面</Text></View>;
+  return imageUri ? <Image accessibilityLabel="影片封面" source={{ uri: imageUri }} style={style} resizeMode={naturalRatio || contain ? 'contain' : 'cover'} onError={() => { setFailed(key); setData(null); }} /> : <View style={[style, { backgroundColor: theme.color('#343d41', 'backgroundColor'), alignItems: 'center', justifyContent: 'center' }]}><Text style={{ color: theme.color('#a8b3b6') }}>暂无封面</Text></View>;
 }

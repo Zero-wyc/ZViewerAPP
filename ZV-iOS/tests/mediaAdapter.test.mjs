@@ -49,3 +49,29 @@ test('dispose stops playback and prevents all queued native writes', async () =>
   assert.equal(native.sources.length, 0); assert.equal(native.playing, false);
   await adapter.apply(state, server, 'token'); assert.equal(native.sources.length, 0);
 });
+
+test('a reused stream URL reloads a different episode or movie at its own position', async () => {
+  const native = player(); const adapter = new NativeMediaAdapter(native);
+  const first = { ...state, movieId: 1, currentPage: 1, currentTime: 900 };
+  await adapter.apply(first, server, 'token');
+  await adapter.apply({ ...first, currentPage: 2, currentTime: 0 }, server, 'token');
+  assert.equal(native.currentTime, 0); assert.equal(native.sources.length, 2);
+  native.currentTime = 200;
+  await adapter.apply({ ...first, movieId: 2, currentTime: 12 }, server, 'token');
+  assert.equal(native.currentTime, 12); assert.equal(native.sources.length, 3);
+});
+
+test('token rotation during native replacement preserves the initial seek until it is applied', async () => {
+  const native = player(); let finish; let started;
+  const loading = new Promise(resolve => { started = resolve; });
+  native.replaceAsync = async function(source) {
+    this.sources.push(source); this.currentTime = 0;
+    if (this.sources.length === 1) await new Promise(resolve => { finish = resolve; started(); });
+  };
+  const adapter = new NativeMediaAdapter(native);
+  const first = adapter.apply({ ...state, currentTime: 95 }, server, 'old'); await loading;
+  const rotated = adapter.apply({ ...state, currentTime: 96 }, server, 'new');
+  finish(); await Promise.all([first, rotated]);
+  assert.equal(native.currentTime, 95); assert.equal(native.sources.length, 2);
+  assert.equal(native.sources.at(-1).headers.Authorization, 'Bearer new');
+});

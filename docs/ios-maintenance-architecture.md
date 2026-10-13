@@ -1,6 +1,16 @@
 # iOS 客户端维护架构
 
-更新日期：2026-10-13。指定修改和 Git 仓库为 `E:/Codex-bulid/ZViewer/ZViewer-client`，iOS 工程位于 `ZV-iOS/`。现有本地 IPA 为 **1.7.5 / build 17**，版本名与 Android/HarmonyOS 1.7.5 / 175 对齐。10 月 13 日用户反馈的运行错误已在源码修复，并恢复 Expo Go 界面预览；**本轮未启动 EAS 或新 IPA 构建，旧 build 17 不包含下列修复**。该 IPA 未签名、未推送或发布；历史构建检查与实际设备验收分别记录。详情见 [源码修复与界面验证](releases/ios-follow-up-fixes-2026-10-13.md) 和 [历史 build 17 记录](releases/ios-1.7.5-17-unsigned.md)。
+更新日期：2026-10-13。指定修改和 Git 仓库为 `E:/Codex-bulid/ZViewer/ZViewer-client`，iOS 工程位于 `ZV-iOS/`。本轮源码与界面修复已验证，用户已授权构建 **1.8.0 / build 18**，并补充到现有 1.8.0 Release；当前处于构建准备阶段。历史 **1.7.5 / build 17** 不包含本轮修复。构建检查与实际设备验收分别记录，详见 [1.8.0 验证记录](releases/ios-1.8.0-18-validation.md)。
+
+## 2026-10-13：iOS 1.8.0 / build 18 发布准备
+
+用户已授权本轮源码与界面验证后构建 IPA，并补充到既有 `client-v1.8.0` Release。源码 app.json/package/lockfile 同步为 1.8.0，buildNumber 为 18；旧 1.7.5 / build 17 仍是历史安装包，不能用于验收下述新修复。
+
+番剧三种来源已采用独立搜索/选集弹窗，具备海报墙/列表、源切换、展开、多选/全选、整部确认及固定底栏；手机和平板横竖屏 2/3/3/4 列均无横向溢出。批量失败缓存提升到 SourcePicker，以稳定集数身份保留解析结果，并与 MovieAddTransaction 的已创建事务配合，签名 URL 变化及刷新失败不会让同一次重试重复添加。
+
+播放修复涵盖聚合 HLS 上游基址和请求头、Emby/Jellyfin 切集乱序与同 URL 新集重载、房主恢复进度/暂停、过期状态回执、一起听精确曲目身份、旧播放器事件及 FM/推荐异步取消。159 项 JS 测试、lint、类型检查通过；当前 Go 审核来源为 `02f62f1fc52f0c47f2a2f8e6fec8ed22d98539fc` 的 12 个文件。
+
+完整范围、布局矩阵及原生验收边界见 [1.8.0 / build 18 验证记录](releases/ios-1.8.0-18-validation.md)。构建完成后在该记录追加实际 IPA 结果。本轮仍不把 Expo/浏览器和桌面 VLC 辅助验证描述为 iOS 真机验收。
 
 ## 2026-10-13：媒体添加错误与简洁搜索弹窗（源码预览）
 

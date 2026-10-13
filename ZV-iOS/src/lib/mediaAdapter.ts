@@ -25,6 +25,7 @@ export class NativeMediaAdapter {
   private disposed = false;
   private key = '';
   private uri = '';
+  private mediaIdentity = '';
   private needsInitialSeek = false;
   private initialTime = 0;
   private pending = 0;
@@ -46,7 +47,7 @@ export class NativeMediaAdapter {
       if (this.disposed || version !== this.version) return;
       try {
         if (!state?.sourceUrl) {
-          this.player.pause(); this.key = ''; this.uri = ''; this.needsInitialSeek = false;
+          this.player.pause(); this.key = ''; this.uri = ''; this.mediaIdentity = ''; this.needsInitialSeek = false;
           await this.player.replaceAsync(null);
           return;
         }
@@ -54,14 +55,17 @@ export class NativeMediaAdapter {
         const cancelled = new Promise<never>((_, reject) => { aborted = () => reject(new Error('播放任务已取消')); cancellation.signal.addEventListener('abort', aborted, { once: true }); });
         const source = await Promise.race([this.resolve(state, server, token, cancellation.signal), cancelled]).finally(() => { if (aborted) cancellation.signal.removeEventListener('abort', aborted); });
         if (this.disposed || version !== this.version) return;
-        const key = JSON.stringify([source.uri, source.contentType, source.headers, source.slaves.map(slave => slave.uri), revision, this.invalidation]);
+        // A stable stream URL can serve a different movie/episode after a list
+        // update. URL equality alone must not reuse the previous native clock.
+        const mediaIdentity = JSON.stringify([server, state.movieId ?? state.currentMovieId, state.sourceType, state.cid, state.epId, state.currentPage]);
+        const key = JSON.stringify([source.uri, source.contentType, source.headers, source.slaves.map(slave => slave.uri), mediaIdentity, revision, this.invalidation]);
         if (key !== this.key) {
-          const preserveTime = source.identity === this.uri;
-          const position = preserveTime ? this.player.currentTime : state.currentTime;
+          const preserveTime = source.identity === this.uri && mediaIdentity === this.mediaIdentity;
+          const position = preserveTime ? this.needsInitialSeek ? this.initialTime : this.player.currentTime : state.currentTime;
           this.player.pause();
           await this.player.replaceAsync(source);
           if (this.disposed) return;
-          this.key = key; this.uri = source.identity;
+          this.key = key; this.uri = source.identity; this.mediaIdentity = mediaIdentity;
           this.initialTime = Math.max(0, Number.isFinite(position) ? position : 0);
           this.needsInitialSeek = true;
         }

@@ -1,73 +1,97 @@
-import { checkAbort } from '@/lib/cancellation';
-import { addAnimeEpisode, type AnimeEpisode } from '@/lib/animeSources';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Keyboard, Pressable, Text, useWindowDimensions, View } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import { checkAbort } from '@/lib/cancellation';
+import { addAnimeEpisodes, type AnimeEpisode } from '@/lib/animeSources';
 import { useSession } from '@/state/session';
 import { useAppearance } from '@/state/appearance';
 import { messageFor } from '@/lib/server';
 import type { SourceSelection } from '@/lib/sources';
-import { RoomButton, RoomInput, ui as baseUi } from './RoomUi';
+import { RoomButton, RoomIconButton, RoomInput, ui as baseUi } from './RoomUi';
 import { SourceDropdown } from './SourceDropdown';
-import { EpisodePicker } from './EpisodePicker';
 import { SourcePoster } from './SourcePoster';
+import { AppDialog } from './AppDialog';
+
 type Source = { id: string; name: string };
 type Result = { id: string; title: string; cover?: string; poster?: string; description?: string };
-type Episode = AnimeEpisode;
-export function AnimePicker({ add, initialKind = 'anisubs', keyword, onKeywordChange, onBusyChange }: { add: (value: SourceSelection) => Promise<void>; initialKind?: string; keyword: string; onKeywordChange: (value: string) => void; onBusyChange?: (busy: boolean) => void }) {
-  const theme = useAppearance(); const ui = theme.styles(baseUi);
-  const { request } = useSession(); const kind = initialKind; const root = `/api/stream/${kind}`;
-  const [sources, setSources] = useState<Source[]>([]); const [source, setSource] = useState('');
-  const [results, setResults] = useState<Result[]>([]); const [episodes, setEpisodes] = useState<Episode[]>([]); const [expanded, setExpanded] = useState(''); const [name, setName] = useState('');
-  const [busy, setBusy] = useState(false); const [loadingSources, setLoadingSources] = useState(true); const [searched, setSearched] = useState(false); const [error, setError] = useState('');
-  const operation = useRef<AbortController | null>(null); const keywordRef = useRef(keyword); useEffect(() => { keywordRef.current = keyword; }, [keyword]);
-  const [sourceRetry, setSourceRetry] = useState(0);
+export function AnimePicker({ add, initialKind = 'anisubs', keyword, onKeywordChange, onBusyChange, pendingSelections }: { add: (value: SourceSelection) => Promise<void>; initialKind?: string; keyword: string; onKeywordChange: (value: string) => void; onBusyChange?: (busy: boolean) => void; pendingSelections: { current: Map<string, SourceSelection> } }) {
+  const theme = useAppearance(); const ui = theme.styles(baseUi); const { request } = useSession(); const { width } = useWindowDimensions();
+  const kind = initialKind; const root = `/api/stream/${kind}`; const title = kind === 'anisubs' ? 'ani-subs 番剧源' : kind === 'kazumi' ? 'Kazumi 番剧源' : '传统番剧源';
+  const [open, setOpen] = useState(false); const [wide, setWide] = useState(false); const [wall, setWall] = useState(true); const [multi, setMulti] = useState(false); const [contentWidth, setContentWidth] = useState(300);
+  const [sources, setSources] = useState<Source[]>([]); const [source, setSource] = useState(''); const [sourceRetry, setSourceRetry] = useState(0);
+  const [results, setResults] = useState<Result[]>([]); const [current, setCurrent] = useState<Result | null>(null); const [episodes, setEpisodes] = useState<AnimeEpisode[]>([]); const [selected, setSelected] = useState<string[]>([]); const [confirmWhole, setConfirmWhole] = useState(false);
+  const [busy, setBusy] = useState(false); const [adding, setAdding] = useState(false); const [loadingSources, setLoadingSources] = useState(false); const [searched, setSearched] = useState(false); const [error, setError] = useState(''); const [sourceError, setSourceError] = useState(''); const [notice, setNotice] = useState('');
+  const operation = useRef<AbortController | null>(null); const submitLock = useRef(false); const keywordRef = useRef(keyword);
+  const failedWhole = useRef(new Map<string, string[]>());
+  useEffect(() => { keywordRef.current = keyword; }, [keyword]);
+  const locked = busy || adding || loadingSources; const columns = contentWidth < 280 ? 1 : contentWidth < 520 ? 2 : contentWidth < 860 ? 3 : 4; const cardWidth = Math.max(1, (contentWidth - 12 * (columns - 1)) / columns);
+  const allSelected = !!episodes.length && episodes.every(item => selected.includes(item.id));
   useEffect(() => {
+    if (!open) return;
     const cancel = new AbortController();
     void request<{ sources: Source[] }>(`${root}/sources`, { signal: cancel.signal }).then(value => {
-      if (!cancel.signal.aborted) { setSources(value.sources); setSource(value.sources[0]?.id || ''); }
-    }).catch(failure => { if (!cancel.signal.aborted) setError(messageFor(failure)); }).finally(() => { if (!cancel.signal.aborted) setLoadingSources(false); });
-    return () => { cancel.abort(); operation.current?.abort(); };
-  }, [root, request, sourceRetry]);
-  const search = useCallback(async (selectedSource: string, term: string) => {
-    operation.current?.abort(); const controller = new AbortController(); operation.current = controller;
-    setExpanded(''); setEpisodes([]); setResults([]); setSearched(false); setError('');
-    if (!term.trim() || !selectedSource) { setBusy(false); return; }
-    setBusy(true);
-    try { const data = await request<{ results: Result[] }>(`${root}/search?${new URLSearchParams({ source: selectedSource, keyword: term.trim() })}`, { signal: controller.signal }); if (!controller.signal.aborted) { setResults(data.results); setSearched(true); } }
-    catch (failure) { if (!controller.signal.aborted) setError(messageFor(failure)); }
+      if (cancel.signal.aborted) return; setSources(value.sources); setSource(old => value.sources.some(item => item.id === old) ? old : value.sources[0]?.id || '');
+      if (!value.sources.length) setSourceError('未找到可用数据源，请检查订阅配置');
+    }).catch(failure => { if (!cancel.signal.aborted) setSourceError(messageFor(failure)); }).finally(() => { if (!cancel.signal.aborted) setLoadingSources(false); });
+    return () => { cancel.abort(); };
+  }, [open, root, request, sourceRetry]);
+  useEffect(() => () => { operation.current?.abort(); }, []);
+  const task = useCallback(async (work: (signal: AbortSignal) => Promise<void>) => {
+    operation.current?.abort(); const controller = new AbortController(); operation.current = controller; setBusy(true); setError(''); setNotice('');
+    try { await work(controller.signal); } catch (failure) { if (!controller.signal.aborted) setError(messageFor(failure)); }
     finally { if (!controller.signal.aborted) setBusy(false); }
-  }, [request, root]);
-  // Source changes search once; typing retains explicit search semantics.
-  useEffect(() => { if (source) void search(source, keywordRef.current); }, [source, search]);
-  const expand = async (item: Result) => {
-    if (expanded === item.id) { setExpanded(''); return; }
-    operation.current?.abort(); const controller = new AbortController(); operation.current = controller; setBusy(true); setError(''); setEpisodes([]);
-    try { const data = await request<{ episodes: Episode[] }>(`${root}/episodes?${new URLSearchParams({ source, identifier: item.id })}`, { signal: controller.signal }); if (!controller.signal.aborted) { setName(item.title); setEpisodes(data.episodes); setExpanded(item.id); } }
-    catch (failure) { if (!controller.signal.aborted) setError(messageFor(failure)); }
-    finally { if (!controller.signal.aborted) setBusy(false); }
+  }, []);
+  const search = useCallback((selectedSource: string, term: string) => task(async signal => {
+    Keyboard.dismiss(); setCurrent(null); setEpisodes([]); setSelected([]); setConfirmWhole(false); setResults([]); setSearched(false); failedWhole.current.clear();
+    if (!term.trim() || !selectedSource) return;
+    const data = await request<{ results: Result[] }>(`${root}/search?${new URLSearchParams({ source: selectedSource, keyword: term.trim() })}`, { signal }); checkAbort(signal); setResults(data.results); setSearched(true);
+  }), [request, root, task]);
+  // Opening and source changes search once; typing still requires Search.
+  useEffect(() => { if (open && source && !loadingSources && !sourceError) void search(source, keywordRef.current); }, [open, source, loadingSources, sourceError, search]);
+  const close = () => { if (submitLock.current) return; operation.current?.abort(); setBusy(false); setOpen(false); setSelected([]); setConfirmWhole(false); };
+  const browse = (item: Result, whole = false) => {
+    if (locked) return;
+    void task(async signal => {
+      setSelected([]); setConfirmWhole(false);
+      const data = await request<{ episodes: AnimeEpisode[] }>(`${root}/episodes?${new URLSearchParams({ source, identifier: item.id })}`, { signal }); checkAbort(signal);
+      setCurrent(item); setEpisodes(data.episodes); if (whole && data.episodes.length && data.episodes.every(episode => !!episode.id)) { setSelected(failedWhole.current.get(item.id) || data.episodes.map(episode => episode.id)); setConfirmWhole(true); }
+    });
   };
-  const submit = async (ids: string[]) => {
-    const controller = new AbortController(); operation.current = controller; setBusy(true); onBusyChange?.(true); const added: string[] = [];
-    try { for (const episode of episodes.filter(item => ids.includes(item.id))) {
-      checkAbort(controller.signal);
-      try {
-        await addAnimeEpisode(request, kind, source, name, episode, add, controller.signal);
-        added.push(episode.id);
-      } catch (failure) { if (!controller.signal.aborted) setError(messageFor(failure)); }
-    } } finally { if (!controller.signal.aborted) setBusy(false); onBusyChange?.(false); }
-    return added;
+  const submit = async () => {
+    if (!current || locked || submitLock.current || !selected.length) return;
+    submitLock.current = true; operation.current?.abort(); const controller = new AbortController(); operation.current = controller;
+    setAdding(true); onBusyChange?.(true); setError(''); setNotice('');
+    try {
+      const result = await addAnimeEpisodes(request, kind, source, current.title, episodes.filter(item => selected.includes(item.id)), add, controller.signal, pendingSelections.current); checkAbort(controller.signal);
+      setSelected(values => values.filter(id => !result.added.includes(id))); setConfirmWhole(false);
+      if (confirmWhole || failedWhole.current.has(current.id)) { const remaining = (failedWhole.current.get(current.id) || selected).filter(id => !result.added.includes(id)); if (remaining.length) failedWhole.current.set(current.id, remaining); else failedWhole.current.delete(current.id); }
+      if (result.added.length) setNotice(`已添加 ${result.added.length} 集，可继续选择`);
+      if (result.failures.length) setError(`${result.failures.length} 集添加失败，保留选择可重试：${result.failures[0].message}`);
+    } catch (failure) { if (!controller.signal.aborted) setError(messageFor(failure)); }
+    finally { submitLock.current = false; if (!controller.signal.aborted) setAdding(false); onBusyChange?.(false); }
   };
+  const poster = (item: Result, posterWidth: number) => <SourcePoster uri={item.cover || item.poster} proxyPath={`${root}/proxy?${new URLSearchParams({ url: item.cover || item.poster || '', referer: item.id })}`} width={posterWidth} height={posterWidth * 1.5} contain />;
   return <View style={{ gap: 12 }}>
-    <Text style={ui.title}>{kind === 'anisubs' ? 'ani-subs 番剧源' : kind === 'kazumi' ? 'Kazumi 番剧源' : '传统番剧源'}</Text>
-    <SourceDropdown label="番剧数据源" testID="anime-source" value={source} options={sources} disabled={busy || loadingSources || !sources.length} onChange={setSource} />
-    <View style={ui.row}><RoomInput value={keyword} onChangeText={onKeywordChange} placeholder="搜索番剧名称" style={{ flex: 1, minWidth: 130 }} onSubmitEditing={() => { if (!busy) void search(source, keyword); }} /><RoomButton label="搜索" disabled={busy || !source || !keyword.trim()} onPress={() => void search(source, keyword)} /></View>
-    <Text style={ui.muted}>{loadingSources ? '加载数据源…' : searched ? `共 ${results.length} 条结果` : '输入关键词开始搜索；切源保留关键词'}</Text>
-    <ScrollView testID="anime-results" nestedScrollEnabled keyboardShouldPersistTaps="handled" style={{ maxHeight: 380, flexGrow: 0 }} contentContainerStyle={{ gap: 8 }}>
-      {results.map(item => <View key={item.id} style={ui.card}>
-        <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}><SourcePoster uri={item.cover || item.poster} proxyPath={`${root}/proxy?${new URLSearchParams({ url: item.cover || item.poster || '', referer: item.id })}`} /><View style={{ flex: 1, minWidth: 0, gap: 8 }}><Text style={ui.text}>{item.title}</Text>{item.description ? <Text style={ui.muted} numberOfLines={2}>{item.description}</Text> : null}<RoomButton label={expanded === item.id ? '收起选集' : '展开选集'} secondary disabled={busy} onPress={() => void expand(item)} /></View></View>
-        {expanded === item.id ? episodes.length ? <EpisodePicker key={`${source}:${item.id}`} episodes={episodes} disabled={busy} onAdd={submit} /> : <Text style={ui.muted}>暂无集数</Text> : null}
-      </View>)}
-    </ScrollView>
-    {busy || loadingSources ? <ActivityIndicator color={theme.color('#65d59b')} /> : null}{error ? <><Text style={ui.error}>{error}</Text>{!source ? <RoomButton label="重新加载数据源" secondary disabled={busy || loadingSources} onPress={() => { setError(''); setLoadingSources(true); setSourceRetry(value => value + 1); }} /> : <RoomButton label="重试搜索" secondary disabled={busy || !keyword.trim()} onPress={() => void search(source, keyword)} />}</> : null}
+    <Text style={ui.muted}>{kind === 'kazumi' ? '从 Kazumi XPath 规则源搜索番剧并选择集数播放。' : kind === 'anisubs' ? '从聚合番剧源搜索番剧并选择集数播放。' : '从传统番剧源搜索番剧并选择集数播放。'}</Text>
+    <RoomButton label="搜索番剧" onPress={() => { setLoadingSources(true); setSourceError(''); setOpen(true); }} />
+    <AppDialog visible={open} title={title} maxWidth={wide ? Math.max(300, width - 32) : 960} close={close} titleActions={<RoomIconButton label={wide ? '还原番剧弹窗' : '展开番剧弹窗'} icon={wide ? 'minimize' : 'maximize'} onPress={() => setWide(value => !value)} />} footer={<View style={{ gap: 8, flexShrink: 0 }}>
+      {notice ? <Text accessibilityLiveRegion="polite" style={ui.muted}>{notice}</Text> : null}{error ? <Text accessibilityLiveRegion="assertive" style={ui.error}>{error}</Text> : null}
+      <Text style={ui.muted}>{confirmWhole ? `已选《${current?.title}》${selected.length} 集，点击添加` : selected.length ? `已选择 ${selected.length} 集` : '多选模式可批量添加'}</Text>
+      <View style={[ui.row, { justifyContent: 'flex-end' }]}>{current && multi && episodes.length && !confirmWhole ? <RoomButton label={allSelected ? '取消全选' : '全选集数'} secondary disabled={locked} onPress={() => setSelected(allSelected ? [] : episodes.map(item => item.id))} /> : null}<RoomButton label={confirmWhole ? '取消整部添加' : '取消'} secondary disabled={adding} onPress={() => { if (confirmWhole) { setConfirmWhole(false); setSelected([]); } else close(); }} /><RoomButton label={adding ? '正在添加…' : confirmWhole ? `确认添加 ${selected.length} 集` : multi ? `添加集数 (${selected.length})` : '添加当前条目'} disabled={locked || !selected.length} onPress={() => void submit()} /></View>
+    </View>}>
+      <View testID="anime-search-controls" style={ui.row}><View style={{ width: contentWidth >= 600 ? 180 : '100%', minWidth: 0 }}><SourceDropdown label="番剧数据源" testID="anime-source" value={source} options={sources} disabled={adding || loadingSources || !sources.length} onChange={value => { if (value !== source) { operation.current?.abort(); setSource(value); } }} /></View><RoomInput value={keyword} onChangeText={onKeywordChange} placeholder="搜索番剧名称" style={{ flex: 1, minWidth: 110 }} onSubmitEditing={() => { if (!locked) void search(source, keyword); }} /><RoomIconButton label="清空番剧搜索" icon="x" onPress={() => { if (!adding) { onKeywordChange(''); void search(source, ''); } }} /><RoomButton label="搜索" disabled={locked || !source || !keyword.trim()} onPress={() => void search(source, keyword)} /></View>
+      {sourceError ? <><Text style={ui.error}>{sourceError}</Text><RoomButton label="重新加载数据源" secondary disabled={loadingSources || adding} onPress={() => { setLoadingSources(true); setSourceError(''); setSourceRetry(value => value + 1); }} /></> : null}
+      <View style={ui.row}><Text style={[ui.muted, { flex: 1, minWidth: 80 }]}>{loadingSources ? '加载数据源…' : busy ? current ? '加载集数…' : '正在搜索…' : current ? `${current.title} · ${episodes.length} 集` : searched ? `搜索结果 · ${results.length}` : '输入关键词开始搜索'}</Text><View style={{ flexDirection: 'row', borderRadius: 20, borderWidth: 1, borderColor: theme.color('#343d41'), overflow: 'hidden' }}>{[{ value: false, label: '番剧列表', icon: 'list' as const }, { value: true, label: '番剧海报墙', icon: 'grid' as const }].map(mode => <Pressable key={mode.label} accessibilityRole="button" accessibilityLabel={mode.label} accessibilityState={{ selected: wall === mode.value }} onPress={() => setWall(mode.value)} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: wall === mode.value ? theme.color('#343d41') : 'transparent' }}><Feather name={mode.icon} size={19} color={theme.color('#edf1ef')} /></Pressable>)}</View><RoomButton label={multi ? '退出多选' : '多选'} secondary selected={multi} disabled={locked} onPress={() => { setMulti(value => !value); setSelected([]); setConfirmWhole(false); }} /></View>
+      {current ? <View style={ui.row}><RoomButton label="返回搜索结果" secondary disabled={locked} onPress={() => { setCurrent(null); setEpisodes([]); setSelected([]); setConfirmWhole(false); setError(''); setNotice(''); }} /><RoomButton label="添加整部" secondary disabled={locked || !episodes.length || episodes.some(item => !item.id)} onPress={() => { setSelected(failedWhole.current.get(current.id) || episodes.map(item => item.id)); setConfirmWhole(true); }} /></View> : null}
+      {busy || adding || loadingSources ? <ActivityIndicator color={theme.color('#65d59b')} /> : null}
+      <View testID="anime-results" onLayout={event => setContentWidth(event.nativeEvent.layout.width)} style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start', minHeight: 100 }}>
+        {current ? episodes.map(item => { const chosen = selected.includes(item.id); return <Pressable key={item.id} testID={`anime-episode-${item.id}`} accessibilityRole="button" accessibilityLabel={`选择集数 ${item.title}`} accessibilityState={{ selected: chosen, disabled: locked }} disabled={locked} onPress={() => { setSelected(values => values.includes(item.id) ? values.filter(id => id !== item.id) : multi ? [...values, item.id] : [item.id]); setConfirmWhole(false); setNotice(''); setError(''); }} style={[ui.card, { width: wall ? cardWidth : '100%', minHeight: 64, borderWidth: 1, borderColor: theme.color(chosen ? '#65d59b' : '#343d41'), flexDirection: 'row', alignItems: 'center' }]}><Feather name={chosen ? 'check-square' : 'play-circle'} size={20} color={theme.color(chosen ? '#65d59b' : '#a8b3b6')} /><Text style={[ui.text, { flex: 1, minWidth: 0 }]}>{item.title}</Text></Pressable>; }) : results.map(item => <View key={item.id} testID={`anime-result-${item.id}`} style={{ width: wall ? cardWidth : '100%', gap: 8, flexDirection: wall ? 'column' : 'row', alignItems: wall ? 'stretch' : 'center' }}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`打开番剧 ${item.title}`} disabled={locked} onPress={() => browse(item)} style={{ width: wall ? cardWidth : 72 }}>{poster(item, wall ? cardWidth : 72)}</Pressable>
+          <View style={{ flex: wall ? undefined : 1, minWidth: 0, gap: 8 }}><Pressable accessibilityRole="button" accessibilityLabel={`查看集数 ${item.title}`} disabled={locked} onPress={() => browse(item)}><Text style={ui.text}>{item.title}</Text></Pressable>{!wall && item.description ? <Text style={ui.muted} numberOfLines={2}>{item.description}</Text> : null}<View style={ui.row}><Text style={[ui.muted, { flex: 1 }]}>剧集</Text><RoomButton label="整部" secondary disabled={locked} onPress={() => browse(item, true)} /></View></View>
+        </View>)}
+        {!busy && !loadingSources && !(current ? episodes.length : results.length) ? <Text style={ui.muted}>{current ? '暂无集数' : searched ? '没有找到匹配的番剧' : '输入关键词开始搜索番剧'}</Text> : null}
+      </View>
+      {error && !adding ? <RoomButton label={current ? '重新加载集数' : '重试搜索'} secondary disabled={locked || !source} onPress={() => current ? browse(current) : void search(source, keyword)} /> : null}
+    </AppDialog>
   </View>;
 }

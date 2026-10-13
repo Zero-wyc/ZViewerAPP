@@ -25,9 +25,9 @@ HLS 检查记录了实际视频 codec `hvc1.2.4.H123.B0` / `hvc1.2.4.L120.B0`，
 
 | 用户文件 | 实际编码 | 当前 APK 实测 |
 | --- | --- | --- |
-| `C:\Users\FredQ\Videos\S01E04.mp4` | H.264 High、8 位、AAC、1080P | 正常画面 1920×1080；推进至 15.83 秒，解码 383 帧，readyState 4。 |
-| `C:\Users\FredQ\Videos\S01E01.mkv` | HEVC Main 10、10 位、Opus、1080P | demux 成功；`hls-video-unsupported`，视频宽高与帧数为 0。 |
-| `C:\Users\FredQ\Videos\白圣女与黑牧师 - S01E02 - 第2集.mkv` | HEVC Main 10、10 位、FLAC、1080P | demux 约 133 毫秒完成，时长 1421.1 秒；同样报 `hls-video-unsupported` / `no-supported-option`，15 秒采样没有视频帧。 |
+| `<USERPROFILE>\Videos\S01E04.mp4` | H.264 High、8 位、AAC、1080P | 正常画面 1920×1080；推进至 15.83 秒，解码 383 帧，readyState 4。 |
+| `<USERPROFILE>\Videos\S01E01.mkv` | HEVC Main 10、10 位、Opus、1080P | demux 成功；`hls-video-unsupported`，视频宽高与帧数为 0。 |
+| `<USERPROFILE>\Videos\白圣女与黑牧师 - S01E02 - 第2集.mkv` | HEVC Main 10、10 位、FLAC、1080P | demux 约 133 毫秒完成，时长 1421.1 秒；同样报 `hls-video-unsupported` / `no-supported-option`，15 秒采样没有视频帧。 |
 
 记录和脱敏诊断脚本位于工作区 `.codex-android-421/`：`test1-local-results.json`、`test1-same-hevc-results.json`、`test1-diagnosis.json`、`test1-h264-*-results.json`。局部 MKV 头部和 TS 分片仅用于 ffprobe 诊断。
 

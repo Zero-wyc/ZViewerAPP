@@ -35,6 +35,7 @@ export function SourcePicker({ visible, onClose, onAdd }: { visible: boolean; on
   const { session } = useSession();
   const [sourceType, setSourceType] = useState('mp4');
   const [animeKeyword, setAnimeKeyword] = useState('');
+  const pendingAnimeSelections = useRef(new Map<string, SourceSelection>());
   const [childBusy, setChildBusy] = useState(false);
   const [biliUrl, setBiliUrl] = useState(''); const [bili, setBili] = useState<BiliMedia | null>(null);
   const [biliSearchOpen, setBiliSearchOpen] = useState(false); const [biliSearchWide, setBiliSearchWide] = useState(false); const [notice, setNotice] = useState('');
@@ -80,7 +81,7 @@ export function SourcePicker({ visible, onClose, onAdd }: { visible: boolean; on
     }} /></> : null}
     {error && biliUrl ? <RoomButton label="重试添加并播放" secondary disabled={busy} onPress={() => void selectBili({ bvid: '', title: title || 'B站视频', url: biliUrl }).catch(() => {})} /> : null}
     </> : null}
-    {['anisubs', 'anime', 'kazumi'].includes(sourceType) && visible ? <AnimePicker key={`${sourceType}:${session?.serverUrl}`} initialKind={sourceType} keyword={animeKeyword} onKeywordChange={setAnimeKeyword} onBusyChange={setChildBusy} add={value => add(value, false)} /> : null}
+    {['anisubs', 'anime', 'kazumi'].includes(sourceType) && visible ? <AnimePicker key={`${sourceType}:${session?.serverUrl}`} initialKind={sourceType} keyword={animeKeyword} onKeywordChange={setAnimeKeyword} onBusyChange={setChildBusy} pendingSelections={pendingAnimeSelections} add={value => add(value, false)} /> : null}
     {['emby', 'jellyfin'].includes(sourceType) && visible ? <><MediaLibraryPicker key={`${sourceType}:${session?.serverUrl}`} kind={sourceType as 'emby' | 'jellyfin'} add={value => add(value, false)} onBusyChange={setChildBusy} /><MountManager /></> : null}
     {['webdav', 'ftp', 'openlist', 'server-files'].includes(sourceType) && visible ? <><DirectoryPicker key={`${sourceType}:${session?.serverUrl}`} kind={sourceType as DirectoryKind} add={value => add(value, false)} onBusyChange={setChildBusy} />{sourceType !== 'server-files' ? <MountManager /> : null}</> : null}
     {busy ? <ActivityIndicator color="#65d59b" /> : null}{notice ? <Text accessibilityLiveRegion="polite" style={ui.muted}>{notice}</Text> : null}{error ? <Text accessibilityLiveRegion="assertive" style={ui.error}>{error}</Text> : null}

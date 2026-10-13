@@ -1,14 +1,18 @@
 // UI + actual v4.2.0 protocol validation. Only the isolated local server is used.
 const { createRequire } = require('node:module');
 const { resolve } = require('node:path');
-const { writeFileSync, mkdirSync } = require('node:fs');
+const { writeFileSync, mkdirSync, existsSync, statSync } = require('node:fs');
+const { homedir } = require('node:os');
 const { strict: assert } = require('node:assert');
 const dependency = createRequire(resolve(__dirname, '../../../ZViewer-source-code/package.json'));
 const { chromium } = dependency('playwright');
 const { io } = dependency('socket.io-client');
 const output = resolve(__dirname, '../../../local-ios-validation');
 const backend = 'http://127.0.0.1:7333';
+const media = resolve(process.env.IOS_TEST_MEDIA || resolve(homedir(), 'Videos'));
 (async () => {
+  if (!existsSync(media) || !statSync(media).isDirectory()) throw new Error('Set IOS_TEST_MEDIA to an existing local video directory.');
+  if (!existsSync(resolve(media, 'S01E04.mp4'))) throw new Error('IOS_TEST_MEDIA must contain S01E04.mp4.');
   const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--host-resolver-rules=MAP zviewer.localtest 127.0.0.1', '--no-proxy-server'] });
   const context = await browser.newContext({ viewport: { width: 1180, height: 820 } }); const page = await context.newPage(); const errors = []; let viewer;
   page.on('pageerror', error => errors.push(error.message)); const report = { scope: 'Expo web UI + unmodified local v4.2.0; not device media acceptance', checks: [], errors };
@@ -40,7 +44,8 @@ const backend = 'http://127.0.0.1:7333';
     await page.setViewportSize({width:1180,height:820});
     await page.getByRole('button', { name: '添加影片', exact: true }).click(); await page.getByRole('button', { name: '服务器文件与我的挂载', exact: true }).click();
     // Mount display names are configured locally; identify the root without logging paths.
-    const roots = await (await fetch(backend + '/api/server-files/roots', { headers })).json(); const root = roots.roots.find(item => item.absPath.replaceAll('\\', '/').toLowerCase() === 'c:/users/fredq/videos');
+    const roots = await (await fetch(backend + '/api/server-files/roots', { headers })).json(); const root = roots.roots.find(item => item.absPath.replaceAll('\\', '/').toLowerCase() === media.replaceAll('\\', '/').toLowerCase());
+    assert.ok(root, 'Local media root is not mounted. Set IOS_TEST_MEDIA to the directory mounted in the local server.');
     await page.getByRole('button', { name: root.name, exact: true }).click(); await page.getByRole('button', { name: '▶ S01E04.mp4', exact: true }).click(); await page.getByText('S01E04.mp4', { exact: true }).waitFor(); check('browse local server mount + resolve file + add movie');
     const guest = await (await fetch(backend + '/api/auth/guest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).json();
     viewer = io(backend, { transports: ['websocket'], auth: { token: guest.accessToken }, reconnection: false });

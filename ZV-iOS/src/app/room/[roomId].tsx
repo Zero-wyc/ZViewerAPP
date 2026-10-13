@@ -18,7 +18,7 @@ import { MusicPanel } from '@/components/MusicPanel';
 import { ScreenShare, type ShareState } from '@/components/ScreenShare';
 import { playbackSource, onBiliChange, biliFallback, stopBiliPlayback } from '@/lib/biliNative';
 import { RoomIconButton } from '@/components/RoomUi';
-import { RoomPlayback } from '@/lib/roomPlayback';
+import { RoomPlayback, requestRoomPlayback } from '@/lib/roomPlayback';
 import { useWatchControl } from '@/hooks/useWatchControl';
 import { useSystemMedia } from '@/hooks/useSystemMedia';
 import { VideoGestures } from '@/components/VideoGestures';
@@ -202,21 +202,26 @@ export default function RoomScreen() {
     });
   }, [socket, roomId]);
 
+  const requestPlayback = useCallback(() => {
+    if (!socket) return;
+    const version = generation.current;
+    const operation = movieOperation.current;
+    const revision = roomPlayback.current.revision;
+    requestRoomPlayback(socket, roomId, () => version === generation.current && operation === movieOperation.current && revision === roomPlayback.current.revision && !hostRef.current,
+      state => applyPlayback(roomPlayback.current.state(state)));
+  }, [socket, roomId, applyPlayback]);
+
   const applyRoom = useCallback((data: JoinData = {}) => {
     if (data.shareMethod) setShare({ shareMethod: data.shareMethod, streamKey: data.streamKey });
     if (data.name) setRoomName(data.name);
     if (data.mode) setMode(data.mode);
-    if (data.playback?.sourceUrl) { applyPlayback(roomPlayback.current.state(data.playback)); setMediaProbe(null); }
+    if (data.playback?.sourceUrl) { applyPlayback(roomPlayback.current.state(hostRef.current ? { ...data.playback, isPlaying: false } : data.playback)); setMediaProbe(null); }
     setError(''); setPhase('ready');
     void loadMovies();
     loadComments();
     socket?.emit('request-current-movie', { roomId });
-    if (!hostRef.current) {
-      socket?.timeout(10000).emit('watch-together-request-state', { roomId }, (timeout: Error | null, result?: { success: boolean; data?: { state?: Playback } }) => {
-        if (!timeout && result?.success && result.data?.state) applyPlayback(roomPlayback.current.state(result.data.state));
-      });
-    }
-  }, [loadMovies, loadComments, socket, roomId, applyPlayback]);
+    if (!hostRef.current) requestPlayback();
+  }, [loadMovies, loadComments, socket, roomId, applyPlayback, requestPlayback]);
 
   const join = useCallback(async (asRoomHost: boolean) => {
     if (!socket?.connected) { setPhase('connecting'); return; }
@@ -257,13 +262,14 @@ export default function RoomScreen() {
     const onName = (data: JoinData) => { if (data.roomId === roomId && data.name) setRoomName(data.name); };
     const onShare = (data: JoinData) => { if (data.roomId === roomId) setShare({ shareMethod: data.shareMethod, streamKey: data.streamKey }); };
     const onComment = (item: Comment) => setComments(previous => previous.some(value => value.id === item.id) ? previous : [...previous, item]);
-    const onMovies = (payload: { movies?: Movie[] }) => { if (Array.isArray(payload.movies)) { const values = payload.movies.filter(movie => !movie.roomId || movie.roomId === roomId); setMovies(values); applyPlayback(roomPlayback.current.list(values)); if (hostRef.current && roomPlayback.current.currentId != null && !roomPlayback.current.value()) { const movie = roomPlayback.current.movie(roomPlayback.current.currentId); if (movie) void activateMovieRef.current(movie); } } };
+    const onMovies = (payload: { movies?: Movie[] }) => { if (Array.isArray(payload.movies)) { const values = payload.movies.filter(movie => !movie.roomId || movie.roomId === roomId); setMovies(values); applyPlayback(roomPlayback.current.list(values)); const movie = roomPlayback.current.hostMovieToActivate; if (hostRef.current && movie) void activateMovieRef.current(movie); } };
     const onCurrent = (payload: { movieId: number | null }) => {
       if (payload.movieId !== null && !Number.isSafeInteger(payload.movieId)) return;
       movieOperation.current++; if (payload.movieId === null) player.pause();
       applyPlayback(roomPlayback.current.current(payload.movieId));
-      if (hostRef.current && payload.movieId !== null) { const movie = roomPlayback.current.movie(payload.movieId); if (movie) void activateMovieRef.current(movie); return; }
-      const version = generation.current; socket.timeout(10000).emit('watch-together-request-state', { roomId }, (timeout: Error | null, result?: { success: boolean; data?: { state?: Playback } }) => { if (!timeout && result?.data?.state && version === generation.current) applyPlayback(roomPlayback.current.state(result.data.state)); });
+      if (payload.movieId === null) return;
+      if (hostRef.current) { const movie = roomPlayback.current.hostMovieToActivate; if (movie) void activateMovieRef.current(movie); return; }
+      requestPlayback();
     };
     const onJoinRequest = (payload: { roomId: string; viewerSocketId: string; username: string }) => {
       if (hostRef.current && payload.roomId === roomId) setJoinRequests(current => [...current.filter(item => item.viewerSocketId !== payload.viewerSocketId), payload]);
@@ -321,7 +327,7 @@ export default function RoomScreen() {
       socket.off('watch-together-state', onPlayback); socket.off('watch-together-control', onControl);
       socket.off('sync-heartbeat', onHeartbeat);
     };
-  }, [socket, roomId, join, applyRoom, player, applyPlayback]);
+  }, [socket, roomId, join, applyRoom, player, applyPlayback, requestPlayback]);
 
   useEffect(() => {
     if (!host || phase !== 'ready' || !socket || mode !== 'watch-together') return;

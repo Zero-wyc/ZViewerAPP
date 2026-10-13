@@ -25,6 +25,9 @@ export class PersonalFm {
   constructor(port: PersonalFm['port']) { this.port = port; }
   private patch(value: Partial<FmState>) { this.state = { ...this.state, ...value }; this.port.change(this.state); }
   isActive(key: string | null) { return this.state.active && key === `ncm:${this.state.current?.songId}`; }
+  // Pause/seek cancel a pending next-track request while keeping the current
+  // roaming session, candidates and history available when playback resumes.
+  invalidate() { this.generation++; this.abort.abort(); this.abort = new AbortController(); this.pending = null; this.changing = false; this.patch({ switching: false, loading: false }); }
   stop() { this.generation++; this.abort.abort(); this.abort = new AbortController(); this.pending = null; this.changing = false; this.patch({ active: false, switching: false, loading: false }); }
   reset() { this.generation++; this.abort.abort(); this.abort = new AbortController(); this.pending = null; this.changing = false; this.state = emptyFm(); this.port.change(this.state); }
   dispose() { this.generation++; this.abort.abort(); this.pending = null; }
