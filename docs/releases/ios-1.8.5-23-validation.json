@@ -21,7 +21,7 @@
     "packageInspection": "passed",
     "zipCrcEntries": 139,
     "workerAndLocalSha256Match": true,
-    "physicalDeviceAcceptance": false
+    "physicalDeviceAcceptance": true
   },
   "artifact": {
     "version": "1.8.5",
@@ -56,7 +56,19 @@
   },
   "boundaries": [
     "Unsigned device IPA requires personal signing",
-    "VLC sound, startup responsiveness and background audio require physical device acceptance",
+    "Physical device acceptance confirmed by user for this feedback cycle; not an all-device/format guarantee",
     "No independent native room socket or track-advance pipeline while JS is suspended"
-  ]
+  ],
+  "userAcceptance": {
+    "date": "2026-10-13",
+    "statement": "测试全部通过",
+    "reportedScope": [
+      "loading/startup responsiveness",
+      "Bilibili video sound",
+      "together-listening desktop and lock-screen current-track playback"
+    ],
+    "deviceModel": null,
+    "duration": null,
+    "scopeNote": "User confirmation for this feedback cycle; no per-case device log supplied"
+  }
 }

@@ -1,8 +1,8 @@
 # ZViewer iOS
 
-独立 Expo SDK 57 / React Native 工程，当前源码 **1.8.5 / build 23**。build 21 经用户真机测试存在播放卡死回归，停止推荐。build 22 的 Xcode 编译成功，随后产物符号检查误报导致无 IPA；build 23 已修正检查方式并完成设备 Release 构建与离线产物检查，保留异步 VLC 回调、B站音轨及一起听后台音频修复。保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，LiveKit 用于房间语音，WebRTC 用于投屏接收。本次未发布 GitHub Release。
+独立 Expo SDK 57 / React Native 工程，当前源码 **1.8.5 / build 23**。build 21 经用户真机测试存在播放卡死回归，停止推荐。build 22 的 Xcode 编译成功，随后产物符号检查误报导致无 IPA；build 23 已修正检查方式并完成设备 Release 构建与离线产物检查，保留异步 VLC 回调、B站音轨及一起听后台音频修复。保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，LiveKit 用于房间语音，WebRTC 用于投屏接收。本包随统一的 client-v1.8.5 三端 Release 发布。
 
-按用户授权修复并构建后交用户自行签名和验收。**build 23 的起播响应、B站声音、后台/锁屏播放仍待新包真机测试**。179 项测试、lint、类型检查、云端两次源码补丁检查和完整二进制引用检查通过。历史 [b15 预览记录](../docs/releases/ios-1.5.0-15-preview.md)和 [原计划](../docs/ios-continuation-plan.md)保留，不作为新包设备验收结果。
+**用户已于 2026-10-13 确认 build 23 本轮真机测试全部通过，iOS 当前可用。** 起播响应、B站声音、一起听桌面/锁屏播放问题已获本轮通过确认；发布原始已验收未签名 IPA，需个人签名安装，不重新云构建。179 项测试、lint、类型检查、云端两次源码补丁检查和完整二进制引用检查通过。历史 [b15 预览记录](../docs/releases/ios-1.5.0-15-preview.md)和 [原计划](../docs/ios-continuation-plan.md)保留，不作为新包设备验收结果。
 
 b14 修复开屏原生纵向布局增长、会话恢复等待和退出后旧请求回写，并校验损坏外观偏好；原 b13 功能继续保留。具体根因、回归与当前包见 [开屏复核](../docs/ios-openscreen-fix-summary.md)。
 
@@ -10,7 +10,7 @@ b14 修复开屏原生纵向布局增长、会话恢复等待和退出后旧请�
 
 **更新说明：** 由于 Expo Build 的额度限制，iOS 端更新与错误修复会出现延迟，不会与 Android/鸿蒙两端同步完成（除非有人有 Mac 帮忙编译）。
 
-当前测试包与构建记录见[维护文档](../docs/ios-maintenance-architecture.md)。历史 [iOS 1.5.1 发行说明](../docs/releases/ios-1.5.1-release-notes.md)、[1.5.0 / b15 交付记录](../docs/releases/ios-1.5.0-15-unsigned.md)及原 Release 附件保留。
+当前已验收发行包与构建记录见[维护文档](../docs/ios-maintenance-architecture.md)。历史 [iOS 1.5.1 发行说明](../docs/releases/ios-1.5.1-release-notes.md)、[1.5.0 / b15 交付记录](../docs/releases/ios-1.5.0-15-unsigned.md)及原 Release 附件保留。
 
 ## b13 功能基线
 

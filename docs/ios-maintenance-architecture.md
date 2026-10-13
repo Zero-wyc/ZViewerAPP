@@ -1,5 +1,11 @@
 # iOS 客户端维护架构
 
+## 2026-10-13：1.8.5 三端统一发布与 iOS 可用确认
+
+用户明确反馈 1.8.5 / build 23“测试全部通过”，并授权发布三端。iOS 本轮报告的起播卡死、B站声音和一起听桌面/锁屏音频问题已获真机通过确认，当前处于可用状态。直接发布已验收 build 23（SHA-256 `fbbe04318a395e15da2b15c1723cb8457cc3e660652c2443c7473ebcd6a69b9c`），没有再次启动 EAS；不扩写未知设备型号、专项时长或全格式兼容结论。独立原生后台房间 Socket/自动跨曲管线仍未实现。
+
+源码同步 Zero-wyc/ZViewerAPP main，统一标签 `client-v1.8.5` 包含三端源码。README 补充安装、连接、房间设置、全屏、评论、播放模式和后台操作；附件为签名 APK/HAP、未签名 IPA 与 SHA256SUMS.txt，源码使用 GitHub 自动归档。发布核验见 [三端验证](client-v1.8.5-release-validation-20261013.md)；下方是各阶段历史状态。
+
 ## 2026-10-13：build 22 产物检查误报与 build 23 重建
 
 EAS `1885fd07-2ea6-40da-b6e7-549f5533023c` 于 20:17:13（北京时间）失败。两次原生源码补丁检查通过，Xcode 设备 Release 编译成功；其后主程序 `strings` 检查误报 `VLCEventsLegacyConfiguration` 缺失，导致 IPA 未打包或上传。macOS strings 默认按 Mach-O 段扫描，不能覆盖段外链接导入信息，已核对 Apple cctools 源码及已有 IPA 的真实导入类位置。
