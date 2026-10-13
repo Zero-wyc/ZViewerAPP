@@ -6,7 +6,7 @@ import { ScopedCache } from './scopedCache';
 import { parseResolvedMedia } from './resolvers';
 import { serverBiliSource } from './biliRoomProtocol';
 export type BiliStatus = { ready: boolean; loggedIn: boolean; sessionVersion: number; user?: { name: string; vipStatus: number } };
-export type BiliMedia = { videoUrl: string; audioUrl?: string; title: string; duration?: number; currentQn: number; currentPage?: number; pages?: { page: number; cid: number; part: string; epId?: number; seasonId?: number; duration?: number }[]; fallbackReason?: string; sessionVersion: number };
+export type BiliMedia = { videoUrl: string; audioUrl?: string; resolvedUrl?: string; cid?: number; epId?: number; seasonId?: number; title: string; duration?: number; currentQn: number; currentPage?: number; pages?: { page: number; cid: number; part: string; epId?: number; seasonId?: number; duration?: number }[]; fallbackReason?: string; sessionVersion: number };
 export type BiliPolicy = NonNullable<PlaybackSource['biliPolicy']>;
 export const defaultBiliPolicy: BiliPolicy = { qn: 0, cliEnabled: true, preferMp4: true, dashAllowed: true, revision: 0 };
 export const qualities = [0, 127, 120, 116, 112, 80, 74, 64, 32, 16];

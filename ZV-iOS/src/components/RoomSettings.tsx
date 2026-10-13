@@ -1,3 +1,4 @@
+import { roomModes } from '@/lib/roomModes';
 import { useAppearance } from '@/state/appearance';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, Switch, Text, View } from 'react-native';
@@ -30,7 +31,7 @@ export function RoomSettings({ roomId, roomName, host, close, viewers }: { roomI
     {tab === 'info' ? <>
       <Text selectable style={ui.muted}>房间编号：{roomId}</Text><Text style={ui.title}>{roomName}</Text><Text style={ui.muted}>{host ? '房主' : '观众'} · {viewers.length} 位观众</Text>
       {host ? <><RoomInput value={name} onChangeText={setName} placeholder="房间名称" /><RoomButton label="保存名称" disabled={busy || !name.trim()} onPress={() => void action('update-room-name', { name: name.trim() })} />
-        <Text style={ui.title}>房间模式</Text><View style={ui.row}><RoomButton label="同步观影" secondary disabled={busy} onPress={() => void action('update-room-mode', { mode: 'watch-together' })} /><RoomButton label="一起听" secondary disabled={busy} onPress={() => void action('update-room-mode', { mode: 'listen-together' })} /><RoomButton label="投屏" secondary disabled={busy} onPress={() => void action('update-room-mode', { mode: 'screen-share' })} /></View></> : null}
+        <Text style={ui.title}>房间模式</Text><View style={ui.row}>{roomModes.map(value => <RoomButton key={value.id} label={value.name} secondary disabled={busy} onPress={() => void action('update-room-mode', { mode: value.id })} />)}</View></> : null}
     </> : null}
     {tab === 'conditions' && host ? <>
       {initialMax !== null ? <Text style={ui.muted}>当前人数上限 {initialMax}</Text> : null}

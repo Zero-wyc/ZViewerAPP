@@ -4,10 +4,9 @@ import Feather from '@expo/vector-icons/Feather';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSession } from '@/state/session';
-import { resolveLocalBili } from '@/lib/biliNative';
+import { biliMusicItem } from '@/lib/biliSelectionFlow';
 import { messageFor } from '@/lib/server';
-import { BiliCatalog } from './BiliCatalog';
-import { BiliAccount } from './BiliAccount';
+import { BiliVideoPicker } from './BiliVideoPicker';
 import { RoomButton, RoomInput, ui as baseUi } from './RoomUi';
 import { ncmSong as song, openDaily, openNcmPlaylist, type Song, type NcmSong, type MusicCollection } from '@/lib/musicCollection';
 import { MusicHomeHero } from './MusicHomeHero';
@@ -45,7 +44,7 @@ export function MusicLibrary({ page, showSongs, add, play, login, accountRevisio
   }, [page, ncm, requestText, accountRevision]);
   const openPlaylist = (id: number) => task(async () => { const result = await openNcmPlaylist(ncm, id, playlists.find(item => item.id === id)?.name); showSongs(result.songs, result.collection); });
   const daily = () => task(async () => { const result = await openDaily(ncm); showSongs(result.songs, result.collection); });
-  if (page === 'bilibili') return <View style={ui.content}><BiliAccount /><BiliCatalog popup choose={item => void task(async () => { const media = await resolveLocalBili(`https://www.bilibili.com/video/${item.bvid}${item.cid ? `?cid=${item.cid}` : ''}`); const part = media.pages?.find(value => value.page === media.currentPage) || media.pages?.[0]; if (!part?.cid) throw new Error('没有可用的 B站音频分 P'); await play({ songId: 0, name: item.title, artist: item.author || 'B站', album: '', cover: '', durationMs: (media.duration || 0) * 1000, vip: false, biliBvid: item.bvid, biliCid: part.cid }); })} />{message ? <Text style={ui.error}>{message}</Text> : null}</View>;
+  if (page === 'bilibili') return <View style={ui.content}><BiliVideoPicker allowPgc={false} onAdd={async (value, playNow) => { const item = biliMusicItem(value); await (playNow ? play(item) : add(item)); }} /></View>;
   if (page === 'mymusic' && !loggedIn) return <View style={{ minHeight: 340, gap: 20 }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><Text style={{ color: theme.color('#111417', 'color'), backgroundColor: theme.color('#edf1ef', 'backgroundColor'), fontSize: 11, fontWeight: '700', paddingHorizontal: 8, minWidth: 140 }}>MY MUSIC</Text><View style={{ flex: 1, height: 1, backgroundColor: theme.color('#4a5355', 'backgroundColor') }} /></View><Text style={{ ...ui.title, fontSize: 28 }}>我的音乐</Text><View style={{ flex: 1, minHeight: 220, alignItems: 'center', justifyContent: 'center', gap: 16 }}><View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: theme.color('#202628', 'backgroundColor'), justifyContent: 'center', alignItems: 'center' }}><Feather name="user" size={30} color="#7d898c" /></View><Text style={{ ...ui.text, fontSize: 18 }}>请先登录网易云音乐</Text><Text style={ui.muted}>登录后查看我的歌单</Text><Pressable accessibilityRole="button" accessibilityLabel="扫码登录" onPress={login} style={{ paddingHorizontal: 20, minHeight: 44, backgroundColor: theme.color('#edf1ef', 'backgroundColor'), justifyContent: 'center' }}><Text style={{ color: theme.color('#111417', 'color'), fontSize: 16 }}>扫码登录</Text></Pressable>{message ? <Text style={ui.muted}>{message}</Text> : null}</View></View>;
   return <View style={ui.content}>
     {page === 'home' ? <><MusicHomeHero banners={banners} disabled={busy} daily={() => void daily()} /><Text style={ui.title}>最新音乐</Text></> : <Text style={{ ...ui.title, fontSize: 26 }}>{page === 'mymusic' ? '我的音乐' : page === 'fm' ? '私人漫游' : '音乐云盘'}</Text>}

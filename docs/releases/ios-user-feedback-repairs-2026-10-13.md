@@ -34,3 +34,12 @@
 未来用户明确授权新 IPA 后，需在 iPhone/iPad 验证：服务端房主→iOS 观众与 iOS 房主→网页观众的同视频同 P、DASH 画面和声音、拖动尾部/回退/单曲循环/按顺序末项停止；前后台及锁屏持续播放、控制中心暂停/恢复、断网重连、耳机拔出和音频中断；原生多层 Modal、四种图标和横竖屏区域。后台保留播放器不等同于建立独立原生业务 Socket，长期后台跨端控制和自动换曲仍需实测。
 
 VLC 时序依据：[VLCKit addPlaybackSlave 包装](https://github.com/videolan/vlckit/blob/master/Sources/Playback/VLCMediaPlayer.m)、[libvlc 添加 slave](https://github.com/videolan/vlc/blob/master/lib/media_player.c)、[VLC 输入就绪检查](https://github.com/videolan/vlc/blob/master/src/player/player.c)。图标渲染接口核对 [Expo SDK 57 Image 文档](https://docs.expo.dev/versions/v57.0.0/sdk/image/)。
+
+## 追加反馈：统一 B站添加、房间模式与浮动评论
+
+- 一起看、一起听、关联视频共用 `BiliVideoPicker`，保留输入解析、账号/画质、搜索、栏目和分 P；去掉重复“我的栏目”。手选 P 的 CID/时长、短链接解析后的真实 BV 和番剧集身份均从统一函数得到，临时播放地址不写入共享内容。
+- 房间模式统一为“一起看 / 投屏 / 一起听”，创建房间新增投屏选项，其余入口引用同一映射；服务器协议 ID 不变。
+- 三种模式的房间评论都由右侧浮动按钮打开弹窗。一起看保留评论/弹幕轨道/实时弹幕；一起听全屏打开房间评论后，关闭仍返回原播放器。
+- 六项新增流程测试覆盖手选第二 P、短链接、PGC、无效 CID、取消选择及搜索结果加入音乐队列；全套 172 项通过，lint/typecheck 通过。四种手机/平板横竖屏未见搜索/评论弹窗横向溢出。
+
+边界：当前服务端音乐队列只支持 BV/CID，番剧可以关联到歌曲背景或用于一起看片单，不能直接伪装成 BV 加入音乐队列。Expo Go/Web 不含本机 B站桥和 VLC，本轮未申请 IPA 构建额度，原生实播与后台验收仍待用户授权构建后进行。
