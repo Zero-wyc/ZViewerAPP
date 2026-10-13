@@ -1,8 +1,8 @@
 # ZViewer iOS
 
-独立 Expo SDK 57 / React Native 工程，当前源码 **1.8.5 / build 22**。build 21 经用户真机测试存在播放卡死回归，停止推荐。正在修复 VLC 回调与主线程互等，保留 B站音轨及一起听后台音频配置；新的构建和测试记录完成后更新。保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，LiveKit 用于房间语音，WebRTC 用于投屏接收。本次未发布 GitHub Release。
+独立 Expo SDK 57 / React Native 工程，当前源码 **1.8.5 / build 23**。build 21 经用户真机测试存在播放卡死回归，停止推荐。build 22 的 Xcode 编译成功，随后产物符号检查误报导致无 IPA；build 23 修正检查方式，保留异步 VLC 回调、B站音轨及一起听后台音频修复。保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，LiveKit 用于房间语音，WebRTC 用于投屏接收。本次未发布 GitHub Release。
 
-按用户授权完成云端真机 Release 构建和离线包检验，交用户自行签名和验收。**1.8.5 / 21 的 B站有声播放、后台/锁屏及跨端同步仍待用户真机测试**。175 项测试、lint、类型检查和云端两次补丁核验通过。历史 [b15 预览记录](../docs/releases/ios-1.5.0-15-preview.md)和 [原计划](../docs/ios-continuation-plan.md)保留，不作为新包设备验收结果。
+按用户授权修复并构建后交用户自行签名和验收。**build 23 的起播响应、B站声音、后台/锁屏播放仍待新包真机测试**。179 项测试、lint、类型检查通过。历史 [b15 预览记录](../docs/releases/ios-1.5.0-15-preview.md)和 [原计划](../docs/ios-continuation-plan.md)保留，不作为新包设备验收结果。
 
 b14 修复开屏原生纵向布局增长、会话恢复等待和退出后旧请求回写，并校验损坏外观偏好；原 b13 功能继续保留。具体根因、回归与当前包见 [开屏复核](../docs/ios-openscreen-fix-summary.md)。
 

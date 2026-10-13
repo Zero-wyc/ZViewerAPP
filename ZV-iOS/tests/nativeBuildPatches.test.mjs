@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { Worker } from 'node:worker_threads';
 const { apply, verify, verifySystemMedia } = createRequire(import.meta.url)('../scripts/patch-vlc-native.cjs');
+const { verifyApp, appMarkers, frameworkMarkers } = createRequire(import.meta.url)('../scripts/verify-ios-native-symbols.cjs');
 
 test('native compilation guard detects missing slave retry and background patches', () => {
   const root = mkdtempSync(join(tmpdir(), 'zv-native-guard-'));
@@ -115,5 +116,27 @@ test('unsigned pipeline restores patches after EAS prebuild and checks before xc
   assert(pipeline.indexOf('node scripts/patch-vlc-native.cjs') < pipeline.indexOf('command: pod install'));
   const build = readFileSync(new URL('../scripts/build-unsigned-ios.sh', import.meta.url), 'utf8');
   assert(build.indexOf('node scripts/patch-vlc-native.cjs --check') < build.indexOf('xcodebuild'));
-  assert(build.includes('LiveKitExpoAppDelegate VLCEventsLegacyConfiguration'));
+  assert(build.includes('node scripts/verify-ios-native-symbols.cjs "$app"'));
+});
+
+test('binary guard reads link-edit references and rejects framework-only event configuration', () => {
+  const root = mkdtempSync(join(tmpdir(), 'zv-ipa-link-reference-'));
+  try {
+    mkdirSync(join(root, 'Frameworks/VLCKit.framework'), { recursive: true });
+    // Imported class references can live after the section data, so the guard
+    // must scan all bytes, including a tail beyond the normal text/data scan.
+    const prefix = Buffer.alloc(8192);
+    const app = Buffer.concat([prefix, Buffer.from(appMarkers.join('\0'))]);
+    const framework = Buffer.from(frameworkMarkers.join('\0'));
+    writeFileSync(join(root, 'ZViewer'), app);
+    writeFileSync(join(root, 'Frameworks/VLCKit.framework/VLCKit'), framework);
+    verifyApp(root);
+    for (const marker of ['VLCEventsLegacyConfiguration', 'setSharedEventsConfiguration:']) {
+      writeFileSync(join(root, 'ZViewer'), Buffer.concat([prefix, Buffer.from(appMarkers.filter(value => value !== marker).join('\0'))]));
+      assert.throws(() => verifyApp(root), /Missing native symbol in ZViewer/);
+    }
+    writeFileSync(join(root, 'ZViewer'), app);
+    writeFileSync(join(root, 'Frameworks/VLCKit.framework/VLCKit'), Buffer.from('no-event-configuration'));
+    assert.throws(() => verifyApp(root), /Missing native symbol in Frameworks/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });

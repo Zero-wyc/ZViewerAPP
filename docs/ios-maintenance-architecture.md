@@ -1,5 +1,11 @@
 # iOS 客户端维护架构
 
+## 2026-10-13：build 22 产物检查误报与 build 23 重建
+
+EAS `1885fd07-2ea6-40da-b6e7-549f5533023c` 于 20:17:13（北京时间）失败。两次原生源码补丁检查通过，Xcode 设备 Release 编译成功；其后主程序 `strings` 检查误报 `VLCEventsLegacyConfiguration` 缺失，导致 IPA 未打包或上传。macOS strings 默认按 Mach-O 段扫描，不能覆盖段外链接导入信息，已核对 Apple cctools 源码及已有 IPA 的真实导入类位置。
+
+build 23 使用 `scripts/verify-ios-native-symbols.cjs` 读取完整二进制，同时要求主程序的事件配置类/setter 引用和 VLCKit framework 的类定义；继续检查播放器构造之前设置异步配置、分离音轨及后台音频补丁。保留所有播放修复，未再次修改媒体行为。179 项测试、lint、类型检查通过；按用户既有修复并交付 IPA 指示准备重建，产物及真机验收尚待完成。
+
 ## 2026-10-13：build 21 起播卡死回归与异步 VLC 回调修复（build 22）
 
 **build 21 已经用户真机确认存在严重回归，停止作为可用测试包推荐。** 加载时卡顿，Jellyfin 添加后点播放卡死，B站视频和一起听也无法正常播放。此前构建/离线检查通过只证明产物结构及补丁存在，没有覆盖原生线程运行安全。

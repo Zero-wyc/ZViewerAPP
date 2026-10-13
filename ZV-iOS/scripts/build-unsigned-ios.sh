@@ -16,9 +16,7 @@ test -d "$app"
 test -s "$app/main.jsbundle"
 # Require the actual bridge classes in the app, not merely a successful build
 # of generated vendor libraries that never entered the CocoaPods graph.
-for symbol in ZViewerNativeModule ZVBiliBridge ZVVoiceCodec LivekitReactNativeModule WebRTCModule LiveKitExpoAppDelegate VLCEventsLegacyConfiguration; do
-  strings "$app/ZViewer" | grep "$symbol" > /dev/null || { echo "Missing native bridge: $symbol"; exit 1; }
-done
+node scripts/verify-ios-native-symbols.cjs "$app"
 grep -q 'livekit-react-native (3.0.0)' ios/Podfile.lock
 grep -q 'livekit-react-native-webrtc (144.2.0)' ios/Podfile.lock
 grep -q 'LiveKitWebRTC (144.7559.15)' ios/Podfile.lock
