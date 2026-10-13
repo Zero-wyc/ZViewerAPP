@@ -1,0 +1,81 @@
+{
+  "version": "1.8.0",
+  "build": "18",
+  "sourceCommit": "0146c1f4ed3947a6a3276aa0282645ada331f237",
+  "eas": {
+    "id": "a0c5ca7e-dbd1-4e8f-a3fc-7b458b1402fd",
+    "status": "FINISHED",
+    "completedAt": "2026-10-13T04:10:05.968Z",
+    "profile": "unsigned-device",
+    "configuration": "Release"
+  },
+  "checks": {
+    "jsTestsPassed": 159,
+    "lint": "passed",
+    "typecheck": "passed",
+    "layoutViewports": [
+      "390x844",
+      "844x390",
+      "768x1024",
+      "1366x1024"
+    ],
+    "packageInspection": "passed",
+    "zipCrcEntries": 139,
+    "workerLocalAndPublicSha256Match": true,
+    "physicalDeviceAcceptance": false
+  },
+  "artifact": {
+    "version": "1.8.0",
+    "build": "18",
+    "bundleId": "com.zviewer.mobile",
+    "bytes": 47308388,
+    "sha256": "b4485257ba0ec5b45d963f95c0c48294453cdbc0d86f2a858305ea1d833a68c8",
+    "minimumOS": "16.4",
+    "deviceFamilies": [
+      1,
+      2
+    ]
+  },
+  "publication": {
+    "url": "https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.0",
+    "tag": "client-v1.8.0",
+    "tagCommit": "534e5377050478a56ad24c0ab27fd3d445278b8f",
+    "sourceCommit": "0146c1f4ed3947a6a3276aa0282645ada331f237",
+    "verifiedAt": "2026-10-13T04:14:50.561Z",
+    "assets": [
+      {
+        "name": "SHA256SUMS.txt",
+        "size": 299,
+        "digest": "sha256:952a5ad8c4e3b4795db16f3f78de386649988ffa0cca77445d240722a38ac07a",
+        "state": "uploaded",
+        "url": "https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v1.8.0/SHA256SUMS.txt"
+      },
+      {
+        "name": "ZViewer-1.8.0-b18-unsigned.ipa",
+        "size": 47308388,
+        "digest": "sha256:b4485257ba0ec5b45d963f95c0c48294453cdbc0d86f2a858305ea1d833a68c8",
+        "state": "uploaded",
+        "url": "https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v1.8.0/ZViewer-1.8.0-b18-unsigned.ipa"
+      },
+      {
+        "name": "ZViewer-Android-1.8.0-release.apk",
+        "size": 43169567,
+        "digest": "sha256:7c9143e07b0dfac4bd72805305b3e185252915a534eac26ec3bbeae42913f711",
+        "state": "uploaded",
+        "url": "https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v1.8.0/ZViewer-Android-1.8.0-release.apk"
+      },
+      {
+        "name": "ZViewer-HarmonyOS-1.8.0-release.hap",
+        "size": 14181683,
+        "digest": "sha256:ddd7eb811904a0f6ce160d8b55b1a955f1aeccd95e521c5d59d2089b8b09ad57",
+        "state": "uploaded",
+        "url": "https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v1.8.0/ZViewer-HarmonyOS-1.8.0-release.hap"
+      }
+    ]
+  },
+  "boundaries": [
+    "Unsigned device IPA; requires personal signing",
+    "Physical iPhone/iPad decoding and LiveKit calls not accepted by offline checks",
+    "Existing client-v1.8.0 tag remains the original Android/HarmonyOS snapshot; updated iOS source is on main"
+  ]
+}

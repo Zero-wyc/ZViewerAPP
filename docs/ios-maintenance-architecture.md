@@ -1,16 +1,18 @@
 # iOS 客户端维护架构
 
-更新日期：2026-10-13。指定修改和 Git 仓库为 `E:/Codex-bulid/ZViewer/ZViewer-client`，iOS 工程位于 `ZV-iOS/`。本轮源码与界面修复已验证，用户已授权构建 **1.8.0 / build 18**，并补充到现有 1.8.0 Release；当前处于构建准备阶段。历史 **1.7.5 / build 17** 不包含本轮修复。构建检查与实际设备验收分别记录，详见 [1.8.0 验证记录](releases/ios-1.8.0-18-validation.md)。
+更新日期：2026-10-13。指定修改和 Git 仓库为 `E:/Codex-bulid/ZViewer/ZViewer-client`，iOS 工程位于 `ZV-iOS/`。本轮源码与界面修复已验证，**1.8.0 / build 18** 未签名 IPA 已完成构建、离线检验并补充到现有 1.8.0 Release，源码同步 main。历史 **1.7.5 / build 17** 不包含本轮修复。构建检查与实际设备验收分别记录，详见 [1.8.0 验证记录](releases/ios-1.8.0-18-validation.md)。
 
-## 2026-10-13：iOS 1.8.0 / build 18 发布准备
+## 2026-10-13：iOS 1.8.0 / build 18 构建与发布
 
-用户已授权本轮源码与界面验证后构建 IPA，并补充到既有 `client-v1.8.0` Release。源码 app.json/package/lockfile 同步为 1.8.0，buildNumber 为 18；旧 1.7.5 / build 17 仍是历史安装包，不能用于验收下述新修复。
+本轮已按用户授权构建 IPA，并补充到既有 `client-v1.8.0` Release。源码 app.json/package/lockfile 同步为 1.8.0，buildNumber 为 18；旧 1.7.5 / build 17 仍是历史安装包，不能用于验收下述新修复。
 
 番剧三种来源已采用独立搜索/选集弹窗，具备海报墙/列表、源切换、展开、多选/全选、整部确认及固定底栏；手机和平板横竖屏 2/3/3/4 列均无横向溢出。批量失败缓存提升到 SourcePicker，以稳定集数身份保留解析结果，并与 MovieAddTransaction 的已创建事务配合，签名 URL 变化及刷新失败不会让同一次重试重复添加。
 
 播放修复涵盖聚合 HLS 上游基址和请求头、Emby/Jellyfin 切集乱序与同 URL 新集重载、房主恢复进度/暂停、过期状态回执、一起听精确曲目身份、旧播放器事件及 FM/推荐异步取消。159 项 JS 测试、lint、类型检查通过；当前 Go 审核来源为 `02f62f1fc52f0c47f2a2f8e6fec8ed22d98539fc` 的 12 个文件。
 
-完整范围、布局矩阵及原生验收边界见 [1.8.0 / build 18 验证记录](releases/ios-1.8.0-18-validation.md)。构建完成后在该记录追加实际 IPA 结果。本轮仍不把 Expo/浏览器和桌面 VLC 辅助验证描述为 iOS 真机验收。
+EAS 构建 `a0c5ca7e-dbd1-4e8f-a3fc-7b458b1402fd` 于 2026-10-13 12:10:05（北京时间）完成；`ZViewer-1.8.0-b18-unsigned.ipa` 为 47,308,388 字节。包内 1.8.0 / 18、ARM64 设备、VLC/LiveKit/系统媒体/本机 B站桥及来源清单检查通过，139 个 ZIP 项 CRC 正常。SHA-256 为 `b4485257ba0ec5b45d963f95c0c48294453cdbc0d86f2a858305ea1d833a68c8`，与构建机和 GitHub 公开下载一致；安装需自行签名。
+
+完整范围、布局矩阵、发布回执及原生验收边界见 [1.8.0 / build 18 验证记录](releases/ios-1.8.0-18-validation.md)。原 APK/HAP 和标签 `534e537` 保留，三平台校验文件已更新；本轮源码提交 `0146c1f` 已推送 main，标签自动归档不包含后续 iOS 修复。Expo/浏览器、桌面 VLC 辅助和 IPA 离线检验不替代 iOS 真机验收。
 
 ## 2026-10-13：媒体添加错误与简洁搜索弹窗（源码预览）
 
@@ -136,20 +138,20 @@ build 16 的 `MusicSyncReceipt` 按服务器、用户、房间、Socket 连接 I
 npm run lint
 npm run typecheck
 npm test
-npx expo export --platform ios --output-dir .expo-export-test/b16-ios
-npx expo export --platform web --output-dir .expo-export-test/b16-web
+npx expo export --platform ios --output-dir .expo-export-test/b18-ios
+npx expo export --platform web --output-dir .expo-export-test/b18-web
 node scripts/check-playback-settings-ui.cjs
 python scripts/check-ass-media.py "E:/Codex-bulid/ZViewer/TEST视频/败犬女主太多了！ - S01E02 - 第2集.mkv"
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-ios-unsigned.ps1
 ```
 
-`unsigned-device` 是当前可复现的设备构建 profile。构建脚本在本仓库按 `scripts/native-core-baseline.json` 暂存 12 个共享 Go 来源/模块/许可文件及摘要；基线锁定 `40471c9eecc7c3651908dc027388480895a94ec3`，逐文件哈希、Git 内容及文件清单均必须一致。`--verify-only` 只验证来源，不构建；macOS EAS worker 校验固定 Go/Opus 下载摘要，构建 Bilicore/Opus 并执行编解码 smoke，CNG 应用 config plugins，安装 Pods 后以 iphoneos ARM64 Release 构建并打包内置 JS 的未签名 IPA。旧 simulator/development profile 没有相同 vendor 准备步骤，不能直接当作已可用的设备构建替代品。
+`unsigned-device` 是当前可复现的设备构建 profile。构建脚本在本仓库按 `scripts/native-core-baseline.json` 暂存 12 个共享 Go 来源/模块/许可文件及摘要；基线锁定 `02f62f1fc52f0c47f2a2f8e6fec8ed22d98539fc`，逐文件哈希、Git 内容及文件清单均必须一致。`--verify-only` 只验证来源，不构建；macOS EAS worker 校验固定 Go/Opus 下载摘要，构建 Bilicore/Opus 并执行编解码 smoke，CNG 应用 config plugins，安装 Pods 后以 iphoneos ARM64 Release 构建并打包内置 JS 的未签名 IPA。旧 simulator/development profile 没有相同 vendor 准备步骤，不能直接当作已可用的设备构建替代品。`.easignore` 排除历史 `.expo-export-test` 目录，保留本次校验生成的 `.native-staging`。
 
 ```powershell
 python scripts/inspect-unsigned-ipa.py <IPA绝对路径>
 ```
 
-离线检查要求 iOS 设备 Mach-O、VLC/原生桥接/系统媒体、共享来源摘要、依赖许可证和内置 JS；拒绝误交模拟器包或带意外签名/描述文件的包。IPA 需用户自行签名后安装。本次 iOS 1.5.1 发布见 [发行说明](releases/ios-1.5.1-release-notes.md)；复用既有 build 16 IPA，不重新构建。每次构建交付后只在指定 `ZViewer-client` 仓库本地 commit，保留其他未跟踪资产。
+离线检查要求 iOS 设备 Mach-O、VLC/LiveKit/原生桥接/系统媒体、共享来源摘要、依赖许可证和内置 JS；拒绝误交模拟器包或带意外签名/描述文件的包。另需断言目标版本/build/bundleId、全 ZIP CRC 和 SHA-256。IPA 需用户自行签名后安装。本次记录见 [iOS 1.8.0 / build 18](releases/ios-1.8.0-18-validation.md)；[历史 1.5.1 说明](releases/ios-1.5.1-release-notes.md) 复用 build 16 的行为不适用于本次。每次构建交付后只在指定 `ZViewer-client` 仓库本地 commit，保留其他未跟踪资产。
 
 ## 8. 2026-10-03 截图反馈对应修复
 

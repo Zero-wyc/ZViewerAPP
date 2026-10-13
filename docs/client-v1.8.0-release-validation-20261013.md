@@ -17,13 +17,23 @@
 | ZViewer-Android-1.8.0-release.apk | 43169567 | `7c9143e07b0dfac4bd72805305b3e185252915a534eac26ec3bbeae42913f711` |
 | ZViewer-HarmonyOS-1.8.0-release.hap | 14181683 | `ddd7eb811904a0f6ce160d8b55b1a955f1aeccd95e521c5d59d2089b8b09ad57` |
 
-附件目录为 `release/client-v1.8.0/`，同时生成 `SHA256SUMS.txt`。Release 仅附 APK、HAP、校验文件，源码由 GitHub 自动归档。
+原双端附件目录为 `release/client-v1.8.0/`，同时生成 `SHA256SUMS.txt`。首次发布仅附 APK、HAP、校验文件；本次追加 iOS 的结果见下节，原双端文件及上述摘要保留，`SHA256SUMS.txt` 更新为三平台校验文件。
 
 ## 文档与源码
 
-README、CHANGELOG、双端维护架构与发布流程同步版本、功能、下载入口和验证边界。README 区分 iOS 已发布的独立 1.5.1 Release、本地 1.7.5 / build 17 候选与后续源码修复；本轮没有构建或发布 IPA。两个 iOS 本地验证脚本改从环境变量读取登录信息和个人媒体路径，不改 iOS 产品行为。并行进行的未提交 iOS 产品改动不纳入本次发布提交。
+首次双端发布时，README、CHANGELOG、双端维护架构与发布流程同步版本、功能、下载入口和验证边界；当时尚未构建或发布本轮 iOS IPA。两个 iOS 本地验证脚本改从环境变量读取登录信息和个人媒体路径，不改 iOS 产品行为；当时并行进行的 iOS 产品改动未纳入原双端发布提交。这些描述仅记录首次发布阶段，后续 iOS 追加发布单独记录。
 
-发布前以固定 Git 提交对象为源审计本地源码归档，检查 AGENTS.md、私钥、签名材料、令牌及已知签名凭据。发布时核对远端 main、`client-v1.8.0` 标签和 Release 对应同一提交，逐项核对上传附件的状态、字节数与 SHA-256，并回读 GitHub README 和自动源码归档。审计与远端回执保存于忽略目录 `.ui-validation/release180/` 和 `release/client-v1.8.0/`，不将私有材料加入源码。
+原双端发布前以固定 Git 提交对象为源审计本地源码归档，检查 AGENTS.md、私钥、签名材料、令牌及已知签名凭据。当时核对远端 main、`client-v1.8.0` 标签和 Release 对应同一提交 `534e537`，逐项核对上传附件的状态、字节数与 SHA-256，并回读 GitHub README 和自动源码归档。审计与远端回执保存于忽略目录 `.ui-validation/release180/` 和 `release/client-v1.8.0/`，不将私有材料加入源码。
+
+## iOS 1.8.0 / build 18 追加发布（已完成）
+
+用户已明确授权完成源码与界面检查后构建未签名 IPA，补充到现有 `client-v1.8.0` Release，并更新 main 源码。EAS 构建 `a0c5ca7e-dbd1-4e8f-a3fc-7b458b1402fd` 于 **2026-10-13 12:10:05（Asia/Shanghai）**以 FINISHED 完成；实际 IPA 为 **1.8.0 / build 18**，**47,308,388 字节**，SHA-256 为 `b4485257ba0ec5b45d963f95c0c48294453cdbc0d86f2a858305ea1d833a68c8`，与 worker 输出一致。
+
+全部 139 个 ZIP 条目 CRC、包内版本、设备 ARM64、未签名状态、VLC、LiveKit、原生桥与共享来源检查通过。IPA 已追加到现有 Release；GitHub GET 回读确认保留原 APK/HAP、增加 IPA 并更新 `SHA256SUMS.txt`，合计 4 个附件。校验文件为 **299 字节**，保留原双端摘要并增加 IPA 摘要。包检查与完整发布证据见 [iOS build 18 验证记录](releases/ios-1.8.0-18-validation.md)。原 Android/HarmonyOS 安装包及其验签、资源摘要证据继续有效，不以本次 iOS 构建替代。
+
+既有标签 `client-v1.8.0` 保留在 `534e537`，所以 Release 的自动 Source code（zip / tar.gz）仍是原双端快照，**不包含后续 iOS 修复**。本次 iOS 源码检查点 [`0146c1f`](https://github.com/Zero-wyc/ZViewerAPP/commit/0146c1f) 已推送至 [main](https://github.com/Zero-wyc/ZViewerAPP/tree/main)，其固定提交和包对应关系在 iOS 验证记录单列；[main 源码归档](https://github.com/Zero-wyc/ZViewerAPP/archive/refs/heads/main.zip)随分支更新。不会将 main 后续提交与旧标签声称为同一源码快照，也不另行上传源码 ZIP。
+
+IPA 为用户自行签名后安装的设备包。源码、浏览器、桌面辅助与构建检查各自记录覆盖范围；真实 iOS 解码、会员片源、原生界面及跨端通话仍按 iOS 验证记录单独验收。
 
 ## 验证边界
 

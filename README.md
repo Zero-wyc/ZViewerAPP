@@ -1,10 +1,10 @@
 # ZViewer Mobile Client
 
-2026-10-13：Android/HarmonyOS 发布版本 **1.8.0 / 180** 对齐服务端 v4.5.3，包含默认音乐音量、私人漫游连续播放、B 站解析修复与搜索自适应多列。详见 [1.8.0 发行说明](docs/releases/client-1.8.0.md) 和 [构建与发布验证](docs/client-v1.8.0-release-validation-20261013.md)。
+2026-10-13：Android/HarmonyOS 发布版本 **1.8.0 / 180** 对齐服务端 v4.5.3。iOS **1.8.0 / build 18** 完成界面对齐与播放修复，未签名设备 IPA 已补充到同一 Release。详见 [1.8.0 发行说明](docs/releases/client-1.8.0.md)、[双端验证](docs/client-v1.8.0-release-validation-20261013.md) 和 [iOS 验证](docs/releases/ios-1.8.0-18-validation.md)。
 
 <img src="public/favicon.jpg" alt="ZViewer" width="88" height="88" />
 
-面向手机和平板的 ZViewer 客户端，支持同步观影、一起听、房间语音、弹幕与字幕。Android 和 HarmonyOS 将界面与播放器打包进安装包，通过你填写的服务器地址连接 [ZViewer 服务端](https://github.com/Zero-wyc/ZViewer)。本仓库提供共享前端和原生宿主源码。
+面向手机和平板的 ZViewer 客户端，支持同步观影、一起听、房间语音、弹幕与字幕。Android、HarmonyOS 和 iOS 将界面与播放器打包进安装包，通过你填写的服务器地址连接 [ZViewer 服务端](https://github.com/Zero-wyc/ZViewer)。本仓库提供共享前端、原生宿主及独立 iOS 工程源码。
 
 [下载安装包](https://github.com/Zero-wyc/ZViewerAPP/releases/latest) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md)
 
@@ -14,22 +14,22 @@
 | --- | --- | --- |
 | Android | **1.8.0 / 180** | 正式签名 APK，内置 Go B 站代理 |
 | HarmonyOS | **1.8.0 / 180** | 正式签名 HAP，ArkWeb / ArkTS 宿主 |
-| iOS | 独立 1.5.1 Release | 已发布 IPA 内部版本为 1.5.0（build 16）；本轮未构建或发布 iOS |
+| iOS | **1.8.0 / 18** | 未签名设备 IPA，需自行签名安装；VLC + LiveKit |
 
-双端 1.8.0 对齐服务端 **v4.5.3**，本次对齐核验的上游提交为 `9e2a0d4f3d9796067ac17274feabeccbb065d411`。[ZViewer-Client V1.8.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.0) 提供 APK、HAP 和 SHA256SUMS.txt；源码同步 main，使用 GitHub 自动生成的 Source code（zip / tar.gz），不另附源码 ZIP。
+Android/HarmonyOS 1.8.0 对齐服务端 **v4.5.3**，本次对齐核验的上游提交为 `9e2a0d4f3d9796067ac17274feabeccbb065d411`。[ZViewer-Client V1.8.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.0) 的原 APK/HAP 保持不变，已追加 iOS IPA 并更新三平台 SHA256SUMS.txt。iOS 源码同步 main；Release 自动 Source code 仍对应原标签提交 `534e537`，包含本轮 iOS 修复的源码请使用 [main](https://github.com/Zero-wyc/ZViewerAPP/tree/main) 或 [main 源码归档](https://github.com/Zero-wyc/ZViewerAPP/archive/refs/heads/main.zip)，不另附源码 ZIP。
 
 本版读取服务端默认音乐音量并优先保留有效本地音量，私人漫游在歌曲结束或下一首时继续获取候选，切换页面保留房间会话。B 站搜索使用紧凑 16:9 封面网格，手机两列，随可用宽度增加列数；修复鸿蒙 WBI 签名及 Android Go 核心的 WBI/普通视频响应处理。保留此前番剧浏览器、媒体库多版本与整季、片单完整长标题和清空功能，公告继续排除。详见 [发行说明](docs/releases/client-1.8.0.md) 和 [1.7.6 对齐验证](docs/client-v1.7.6-alignment-453-validation-20261013.md)。Kazumi 仍需在设置中手动启用；既有浏览器、协议夹具和构建结果不替代本版真机、真实音源、后台锁屏、蓝牙及跨端同步验收。
 
 ## 安装与连接
 
-1. 从最新 Release 下载对应的 `ZViewer-Android-1.8.0-release.apk` 或 `ZViewer-HarmonyOS-1.8.0-release.hap`。Android 按系统提示允许安装；鸿蒙安装说明见 [维护文档](docs/harmonyos-maintenance-architecture.md)。
-2. 准备可访问的 ZViewer 服务端，填写服务器地址。支持完整 HTTP/HTTPS 地址、HTTPS 优先探测及按服务器授权的证书例外。
+1. 从最新 Release 下载对应平台安装包。Android 使用 `ZViewer-Android-1.8.0-release.apk`，鸿蒙使用 `ZViewer-HarmonyOS-1.8.0-release.hap`（[安装说明](docs/harmonyos-maintenance-architecture.md)）。iOS 使用 `ZViewer-1.8.0-b18-unsigned.ipa`，需自行签名后侧载安装，支持 iOS 16.4 及以上的 iPhone/iPad。
+2. 准备可访问的 ZViewer 服务端，填写服务器地址。支持完整 HTTP/HTTPS 地址与 HTTPS 优先探测；按服务器授权的证书例外通道目前适用于 Android/HarmonyOS。
 3. 使用服务器账号登录；服务器允许游客时可使用游客身份。
 4. 选择房间，或在服务器授权允许时创建同步观影、一起听房间。
 
 Android 最低版本为 **Android 7.0 / API 24**；当前 APK 包含 ARM64 和 x86_64 原生库，需要 64 位 Android。保持 Android System WebView / Chrome 更新，媒体能力仍取决于设备。HarmonyOS 工程最低 SDK 配置为 `6.1.0(23)`，目标 SDK 为 26，设备支持以发布包和维护文档为准。
 
-推荐 HTTPS。应用允许局域网 HTTP 与混合内容；服务器或反向代理需要允许客户端来源的 API 和 Socket.IO 连接。证书例外仅作用于你选择的服务器，不全局关闭 TLS 校验。
+推荐 HTTPS。应用允许局域网 HTTP，Android/HarmonyOS 允许混合内容；服务器或反向代理需要允许客户端来源的 API 和 Socket.IO 连接。Android/HarmonyOS 的证书例外仅作用于你选择的服务器，不全局关闭 TLS 校验；iOS 完整自签证书例外通道尚未实现。
 
 正式 Android 包名为 `com.zviewer.mobile`，调试包为 `com.zviewer.mobile.debug`。本轮沿用既有发布签名；自行构建或其他签名的同包名应用不保证能覆盖安装。需要卸载旧包时先保存服务器地址和设置，卸载会清除本地数据。
 
@@ -47,9 +47,9 @@ B 站默认选择本机账号有权限、视频实际提供且设备支持的最
 
 ## iOS 状态
 
-`ZV-iOS/` 为独立 Expo/React Native + VLC 工程，不直接使用双端共享界面。独立已发布的 1.5.1 Release 使用未签名的 1.5.0（build 16）IPA，需自行签名安装。当前本地 iOS 候选为 1.7.5 / build 17，已纳入 LiveKit；后续源码修复仍通过 Expo Go 预览，旧 build 17 不包含这些修复。本次 1.8.0 仅发布 Android/HarmonyOS，未构建或发布新的 IPA。
+`ZV-iOS/` 为独立 Expo/React Native + VLC 工程，不直接使用双端共享界面。当前 **1.8.0 / build 18** 已构建发布：包含 LiveKit、B站/媒体库/目录/番剧独立弹窗及自适应布局，修复 RN 取消信号、B站 UGC 解析、聚合 HLS、媒体库切集、入房恢复、音乐同步和批量重试。旧 build 17 不包含本轮修复。
 
-iOS 更新受 Expo Build 额度及本地 Mac 构建条件影响，可能晚于双端。源码、IPA 与实际设备覆盖边界见 [iOS 维护文档](docs/ios-maintenance-architecture.md)、[本地 build 17 记录](docs/releases/ios-1.7.5-17-unsigned.md) 和 [已发布 1.5.1 说明](docs/releases/ios-1.5.1-release-notes.md)。
+iOS 未签名 IPA 需自行签名安装。159 项自动测试、lint、类型检查和四种视口的界面验证已通过；真实 iPhone/iPad 解码、LiveKit 互听、后台及跨端同步仍需设备验收。源码、IPA 与实际覆盖边界见 [iOS 维护文档](docs/ios-maintenance-architecture.md) 和 [build 18 验证记录](docs/releases/ios-1.8.0-18-validation.md)。
 
 ## 本地开发与检查
 

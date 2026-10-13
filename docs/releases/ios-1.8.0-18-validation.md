@@ -33,6 +33,21 @@ Kazumi、ani-subs、传统番剧源统一采用简洁入口和独立搜索弹窗
 
 ## 原生与交付边界
 
-源码版本已设置为 **1.8.0 / 18**。IPA 构建、下载、包内版本/架构/签名状态、摘要及发布结果待构建结束后记录。
+源码版本为 **1.8.0 / 18**，构建对应源码提交 `0146c1f4ed3947a6a3276aa0282645ada331f237`。
+
+| 项目 | 实际结果 |
+| --- | --- |
+| EAS 构建 | `a0c5ca7e-dbd1-4e8f-a3fc-7b458b1402fd`，`unsigned-device` / Release，FINISHED |
+| 完成时间 | 2026-10-13 12:10:05.968（北京时间） |
+| 文件 | `ZV-iOS/release-assets/ZViewer-1.8.0-b18-unsigned.ipa` |
+| 大小 | 47,308,388 字节 |
+| 包内版本 | `com.zviewer.mobile`，1.8.0 / 18 |
+| 设备与内核 | iOS platform 2、ARM64、iPhone/iPad、最低 iOS 16.4；VLCKit + LiveKitWebRTC |
+| 签名与完整性 | 主应用无签名、无 provisioning profile；139 个 ZIP 项全部 CRC 通过，需自行签名后安装 |
+| 原生内容 | Release JS、本机 B站桥、系统媒体、LiveKit RN/WebRTC/Expo 注册及许可证齐全；Go 12 文件来源与审核清单一致 |
+
+SHA-256：`b4485257ba0ec5b45d963f95c0c48294453cdbc0d86f2a858305ea1d833a68c8`，构建机打包、本地下载、GitHub 资产摘要及公开下载文件四者一致。详细结果见 [离线 IPA 检验](ios-1.8.0-18-ipa-inspection.json) 与 [交付验证 JSON](ios-1.8.0-18-validation.json)。
+
+IPA 已追加到 [ZViewer-Client V1.8.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.0)。原 APK/HAP 大小与摘要保持不变；`SHA256SUMS.txt` 已更新为三平台 299 字节文件，四个附件均回读确认 `uploaded`。源码更新 main，原 `client-v1.8.0` 标签保留在 `534e537`；因此标签自动 Source code 仍是原双端快照，新 iOS 源码使用 [main](https://github.com/Zero-wyc/ZViewerAPP/tree/main) 或其 [自动归档](https://github.com/Zero-wyc/ZViewerAPP/archive/refs/heads/main.zip)。发布前源码归档和 EAS 上传审计未发现 AGENTS.md、真实本机账户信息、私钥或服务令牌；历史预览导出目录已从上传中排除。
 
 需要 Origin/Cookie 的聚合 HLS 当前给出明确不支持提示；独立 HLS 音轨的专属请求头通道未完成设备验证。真实 iOS VLC 解码、会员片源、iOS Modal/安全区/键盘、LiveKit 互听、后台/蓝牙与跨端播放仍需设备验收，自动检查不等于所有场景无缺陷。未修改生产 NAS。
