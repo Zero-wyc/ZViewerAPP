@@ -18,7 +18,7 @@
 
 [ZViewer-Client V1.8.5](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.5) 提供 APK、HAP、IPA 和三端 `SHA256SUMS.txt`。源码同步 [main](https://github.com/Zero-wyc/ZViewerAPP/tree/main)，本次 Release 标签包含三端源码，直接使用 GitHub 自动生成的 Source code（zip / tar.gz），不另上传源码 ZIP。iOS 沿用已验收 build 23，没有为发布重新构建 IPA。
 
-服务端功能对齐基线为 **v4.5.3**（`9e2a0d4f3d9796067ac17274feabeccbb065d411`）；本次没有更新服务端。保留默认音乐音量、私人漫游续播、媒体库多版本/整季、番剧浏览、B站搜索和本机解析等既有功能。详见 [1.8.5 发行说明](docs/releases/client-1.8.5.md) 与 [三端发布验证](docs/client-v1.8.5-release-validation-20261013.md)。
+服务端功能对齐基线为 **v4.5.3**（`9e2a0d4f3d9796067ac17274feabeccbb065d411`）。保留默认音乐音量、私人漫游续播、媒体库多版本/整季、番剧浏览、B站搜索和本机解析等既有功能。详见 [1.8.5 发行说明](docs/releases/client-1.8.5.md) 与 [三端发布验证](docs/client-v1.8.5-release-validation-20261013.md)。
 
 ## 安装与连接
 
