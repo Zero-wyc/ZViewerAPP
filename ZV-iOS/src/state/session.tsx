@@ -10,6 +10,7 @@ import { SessionLease } from '@/lib/sessionLease';
 import { authenticationFailure, shouldRefreshAuth } from '@/lib/httpAuth';
 import { selectServerUrl } from '@/lib/serverDiscovery';
 import { nativeBridge } from '@/lib/nativeBridge';
+import { debugLaunchConfiguration } from '@/lib/debugLaunch';
 
 const SESSION_KEY = 'zviewer-ios-session';
 const SERVER_KEY = 'zviewer-ios-server';
@@ -152,7 +153,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     void (async () => {
       let parsed: Session | null = null;
       try {
-        const [server, raw] = await Promise.all([readSaved(SERVER_KEY).catch(() => null), readSaved(SESSION_KEY).catch(() => null)]);
+        const launch = await debugLaunchConfiguration();
+        const [server, raw] = launch
+          ? [launch.session.serverUrl, JSON.stringify(launch.session)]
+          : await Promise.all([readSaved(SERVER_KEY).catch(() => null), readSaved(SESSION_KEY).catch(() => null)]);
         if (!mounted || !current.current.accepts(lease)) return;
         if (mounted && server) setSavedServer(server);
         if (!raw) return;
