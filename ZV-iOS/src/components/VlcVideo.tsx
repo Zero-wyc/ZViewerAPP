@@ -1,6 +1,7 @@
 import { requireOptionalNativeModule } from 'expo';
 import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { Platform, type StyleProp, type ViewStyle } from 'react-native';
+import { isDevice } from 'expo-device';
 import type { LibVlcPlayerViewProps, LibVlcPlayerViewRef } from 'expo-libvlc-player';
 import { VlcPlayer, vlcEventRevision, type VlcSnapshot } from '@/lib/vlcPlayer';
 import { readPreference } from '@/lib/preferences';
@@ -27,6 +28,9 @@ export function VlcVideo({ video, style, background = false, backgroundAudio = f
 
 function VlcSurface({ player, snapshot, style, background, backgroundAudio }: { player: VlcPlayer; snapshot: VlcSnapshot; style: StyleProp<ViewStyle>; background: boolean; backgroundAudio: boolean }) {
   const ref = useRef<LibVlcPlayerViewRef | null>(null);
+  // Native options changes recreate VLC. Keep this array stable across clock,
+  // seek and autoplay renders; Simulator VideoToolbox can produce blank frames.
+  const options = useMemo(() => __DEV__ && !isDevice ? [...snapshot.source.options, 'codec=avcodec', 'avcodec-threads=1'] : snapshot.source.options, [snapshot.source.options]);
   useEffect(() => {
     player.attach(snapshot.id, ref.current as LibVlcPlayerViewRef & { replaceSource?(uri: string, options: string[], revision: number): Promise<void> });
     return () => player.attach(snapshot.id, null);
@@ -37,18 +41,17 @@ function VlcSurface({ player, snapshot, style, background, backgroundAudio }: { 
     style={style}
     {...({ zviewerRevision: snapshot.id } as object)}
     source={snapshot.source.uri}
-    options={snapshot.source.options}
+    options={options}
     slaves={[...snapshot.source.slaves.map(slave => ({ source: slave.uri, type: 'audio' as const, selected: true })), ...(snapshot.settings.subtitleUri ? [{ source: snapshot.settings.subtitleUri, type: 'subtitle' as const, selected: true }] : [])]}
     tracks={snapshot.settings.tracks}
     volume={snapshot.settings.volume}
     delays={{ subtitle: Math.round(snapshot.settings.subtitleDelay * 1000000) }}
     autoplay={snapshot.autoplay}
-    pictureInPicture={!background && !backgroundAudio}
+    pictureInPicture={isDevice && !background && !backgroundAudio}
     backgroundAudio={backgroundAudio}
-    time={Math.round(snapshot.initialTime * 1000)}
     rate={snapshot.rate}
     contentFit={background ? 'cover' : 'contain'}
-    audioMixingMode="mixWithOthers"
+    audioMixingMode={background ? 'mixWithOthers' : 'doNotMix'}
     onFirstPlay={event => player.loaded(vlcEventRevision(event, snapshot.id), event.media.length)}
     onTimeChanged={event => player.progress(vlcEventRevision(event, snapshot.id), event.value)}
     onPlaying={(event?: unknown) => player.playingChanged(vlcEventRevision(event, snapshot.id), true)}

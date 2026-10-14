@@ -46,10 +46,15 @@ export function MoviePanel({ roomId, movies, host, canSwitch, play, reload, curr
   };
   const move = (index: number, delta: number) => task(async () => { const orderedIds = movies.map(movie => movie.id); [orderedIds[index], orderedIds[index + delta]] = [orderedIds[index + delta], orderedIds[index]]; await request(`${path}/reorder`, { method: 'POST', body: JSON.stringify({ orderedIds }) }); await reload(); });
   return <View style={{ flex: 1, minHeight: 0, gap: 8 }}>
-    <View style={ui.row}><Text style={[ui.title, { flex: 1 }]}>影片列表 · {movies.length}</Text>{host ? <RoomButton label="添加影片" disabled={busy} onPress={() => setAdding(true)} secondary /> : null}<RoomIconButton label="刷新片单" icon="refresh-cw" onPress={() => { if (!busy) void task(reload); }} /></View>
+    <View style={ui.row}><Text style={[ui.title, { flex: 1 }]}>影片列表 · {movies.length}</Text>{host ? <RoomButton label="添加影片" disabled={busy} onPress={() => setAdding(true)} secondary /> : null}{canManage ? <RoomButton label="清空片单" secondary disabled={busy || !movies.length} onPress={() => setConfirmation('all')} /> : null}<RoomIconButton label="刷新片单" icon="refresh-cw" onPress={() => { if (!busy) void task(reload); }} /></View>
     {notice ? <Text accessibilityLiveRegion="polite" style={ui.muted}>{notice}</Text> : null}
-    <View style={ui.row}><Text style={ui.muted}>自动续播</Text><Switch value={autoContinue} onValueChange={setAutoContinue} disabled={!host} />{canManage ? <RoomButton label="清空片单" secondary disabled={busy || !movies.length} onPress={() => setConfirmation('all')} /> : null}</View>
-    <RoomInput value={search} onChangeText={setSearch} placeholder="搜索影片…" />
+    <View style={[ui.row, { flexWrap: 'nowrap' }]}>
+      <RoomInput value={search} onChangeText={setSearch} placeholder="搜索影片…" style={{ flex: 1, minWidth: 0 }} />
+      <View style={[ui.row, { flexWrap: 'nowrap', flexShrink: 0 }]}>
+        <Text style={ui.muted}>自动续播</Text>
+        <Switch accessibilityLabel="自动续播" value={autoContinue} onValueChange={setAutoContinue} disabled={!host} />
+      </View>
+    </View>
     <ScrollView contentContainerStyle={ui.content}>{!movies.filter(movie => movie.title.toLowerCase().includes(search.trim().toLowerCase())).length ? <View style={{ alignItems: 'center', padding: 28, gap: 12 }}><Feather name="film" size={28} color={theme.color('#a8b3b6')} /><Text style={ui.muted}>{search ? '未找到匹配的影片' : '暂无影片，请先添加'}</Text></View> : movies.filter(movie => movie.title.toLowerCase().includes(search.trim().toLowerCase())).map(movie => {
       const index = movies.findIndex(item => item.id === movie.id);
       return <View key={movie.id} style={[ui.card, { padding: 10, borderWidth: 1, borderColor: movie.id === currentMovieId ? theme.color('#65d59b') : 'transparent' }]}>
