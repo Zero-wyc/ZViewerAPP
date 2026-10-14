@@ -1,8 +1,8 @@
 # ZViewer iOS
 
-独立 Expo SDK 57 / React Native 工程，当前源码 **1.8.6 / build 25（Mac 本地设备 Release）**；上传前，当前公开 IPA 仍为 **1.8.5 / build 23**。本轮纳入 Kazumi/B站同步、Jellyfin 跳转恢复、网易云曲尾续播及视频区域布局修复，保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，LiveKit 用于房间语音，WebRTC 用于投屏接收。实际构建、包检验和测试边界见 [本轮交付记录](../docs/releases/ios-1.8.6-25-local-20261014.md)。
+独立 Expo SDK 57 / React Native 工程，当前版本 **1.9.0 / build 26（Mac 本地设备 Release）**。本轮对齐播放、弹幕、语音、投屏和房间设置，修复方向按钮与音乐菜单交互，保留此前 Kazumi/B站同步、Jellyfin 跳转恢复及网易云曲尾续播修复。保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，LiveKit 用于房间语音，WebRTC 用于投屏接收。见 [发行说明](../docs/releases/ios-1.9.0-release-notes.md) 和 [设备 IPA 核验](../docs/releases/ios-1.9.0-26-validation.md)。
 
-**本轮模拟器验证通过，真机及后台自然跨曲仍待验证。** Kazumi/B站暂停恢复、Jellyfin 同一动漫剧集跳转/中途加入、iOS 单独房主的网易云末尾续播已验证；锁屏系统控件和后台自然切歌未完成端到端验收。历史 build 23 的 2026-10-13 用户真机确认与 179 项测试记录保留，不扩大为本轮新包的真机结果。
+227 项测试及界面模拟器检查通过；本轮没有扩大真实跨端媒体、语音、硬件解码、蓝牙、锁屏按钮或后台自然跨曲的验收范围。此前模拟器媒体联调和旧版用户真机结果按原记录保留。
 
 b14 修复开屏原生纵向布局增长、会话恢复等待和退出后旧请求回写，并校验损坏外观偏好；原 b13 功能继续保留。具体根因、回归与当前包见 [开屏复核](../docs/ios-openscreen-fix-summary.md)。
 
@@ -11,6 +11,10 @@ b14 修复开屏原生纵向布局增长、会话恢复等待和退出后旧请�
 **更新说明：** 当前已具备 Mac 本地 Xcode 构建流程，无需消费 EAS 云端额度；云构建仍可用于没有 Mac 的环境。设备 IPA 未签名，需要自己的证书和设备授权后侧载。
 
 当前已验收发行包与构建记录见[维护文档](../docs/ios-maintenance-architecture.md)。历史 [iOS 1.5.1 发行说明](../docs/releases/ios-1.5.1-release-notes.md)、[1.5.0 / b15 交付记录](../docs/releases/ios-1.5.0-15-unsigned.md)及原 Release 附件保留。
+
+## 播放与投屏界面对齐（2026-10-14）
+
+播放栏、字幕 / 弹幕设置和房间语音按另外两端截图调整，移除音轨选择，投屏新增全屏、刷新与内嵌聊天；房间设置补充模式导航、状态卡片与固定离开按钮。方向按钮改为点击直接切换，与 Android / HarmonyOS 共用相同图标与操作语义，全屏按钮也控制方向。弹幕补齐固定 / 滚动 / 彩色 / 高级类型过滤，移除手动文件导入与 JSON 编辑；网易云导航和头像菜单互斥，并改为不透明背景。227 项测试、81 项阶段性页面检查及模拟器检查通过；本次发行另外构建 1.9.0 / 26 设备 IPA，真实跨端媒体待实测。见[界面对齐记录](../docs/ios-player-share-ui-20261014.md)。
 
 ## Mac 本地开发（2026-10-14）
 
@@ -24,7 +28,7 @@ b14 修复开屏原生纵向布局增长、会话恢复等待和退出后旧请�
 - 重复曲目按队列项推进，四种播放模式/结束处理；账号/音质/服务器改变重新取流。歌词 20 项/5 分钟请求合并、旧曲隔离、失败重试和当前行。
 - 两模式 Now Playing 状态/标题/封面/动作、sessionId 比较清理、原生 VLC 命令和进度桥接；后台 audio 声明；封面流式读取 ≤2 MB。
 - 浅/深/系统主题、本地背景文件、圆角/透明度/模糊/位置/缩放/旋转/遮罩及减少动态效果；持续根主题和独立 Modal 覆盖，普通表面替代不可用玻璃效果。
-- 手动旋转锁/恢复自动、全屏临时锁/恢复、安全区；一起看三分区双击与 ±15 秒，一起听纯净视频手势控制真实音频。
+- 一键切换并锁定横 / 竖屏、解除方向锁恢复自动；进入全屏锁横屏，退出全屏恢复自动旋转；一起看三分区双击与 ±15 秒，一起听纯净视频手势控制真实音频。
 - 音乐静音关联视频搜索/分 P/追加/删除、画质/解析策略/同源重加；44pt 收起按钮、图片规范化/失败占位、评论/楼层回复。番剧多选、批量/部分失败保留重试。
 
 既有片单、挂载管理、字幕弹幕、网易云账号/歌单、B站 QR/Keychain/目录、共享观看接收及 OBS-FLV 保留。
@@ -45,7 +49,7 @@ bash scripts/build-unsigned-ios.sh
 python3 scripts/inspect-unsigned-ipa.py ios/build/ZViewer-unsigned.ipa
 ```
 
-下载缓存继续按固定 SHA-256 校验；网络无法访问 Go 原始域名时可以设置 `ZVIEWER_GO_DOWNLOAD_BASE` 使用相同版本镜像。IPA 输出为 `ios/build/ZViewer-unsigned.ipa`，本轮交付副本在 `release-assets/ZViewer-iOS-1.8.6-release.ipa`，同目录保留 SHA-256。生成工程、依赖、IPA 和私有联调会话不提交 Git。Release 包含生产 JS，启动不依赖 Metro，也不包含 Debug 注入的服务器登录信息。
+下载缓存继续按固定 SHA-256 校验；网络无法访问 Go 原始域名时可以设置 `ZVIEWER_GO_DOWNLOAD_BASE` 使用相同版本镜像。IPA 输出为 `ios/build/ZViewer-unsigned.ipa`，本轮交付副本在 `release-assets/ZViewer-iOS-1.9.0-release.ipa`，同目录保留 SHA-256。生成工程、依赖、IPA 和私有联调会话不提交 Git。Release 包含生产 JS，启动不依赖 Metro，也不包含 Debug 注入的服务器登录信息。
 
 以下为保留的 Windows/EAS 云构建入口：
 
@@ -57,7 +61,7 @@ cd ZV-iOS
 
 上传脚本先规范 Bash 为 LF，再验证 12 个共享 Go/依赖/许可证文件与参考 `02f62f1fc52f0c47f2a2f8e6fec8ed22d98539fc` 一致、生成来源摘要。EAS archive 限定本工程；workflow 下载校验固定 Go/Opus、重建 ARM64 vendors、host Opus smoke、CNG/Pods、iphoneos Release 和 unsigned IPA。
 
-历史远端发行附件：`ZViewer-iOS-1.8.5-release.ipa`（1.8.5 / build 23，未签名，需个人签名安装）。本轮 1.8.6 先完成本地构建和提交；追加到既有 client-v1.8.6 Release 的说明已经准备，上传状态以发行页实际附件为准。Expo Go 不含 VLC/Go/语音桥接，模拟器流程见 [Mac 开发记录](../docs/ios-mac-development-20261014.md)。
+当前独立 iOS 发行附件为 `ZViewer-iOS-1.9.0-release.ipa`（1.9.0 / build 26，未签名，需个人签名安装），发布于 `ios-v1.9.0`。Expo Go 不含 VLC/Go/语音桥接，模拟器流程见 [Mac 开发记录](../docs/ios-mac-development-20261014.md)。
 
 ```sh
 npm ci
@@ -67,7 +71,7 @@ npm run typecheck
 npx expo-doctor
 npx expo export --platform ios
 # 下载 IPA 后检查：
-python scripts/inspect-unsigned-ipa.py release-assets/ZViewer-1.8.5-b23-unsigned.ipa
+python scripts/inspect-unsigned-ipa.py release-assets/ZViewer-iOS-1.9.0-release.ipa
 ```
 
 b14 的 59 项单测、lint/typecheck、iOS/Web 导出、37 项 Yoga 布局记录（含旧版复现）、13 项真实 Provider 的模拟原生端口回归、20 项开屏 Web 和 43 项既有 Web 房间布局复验通过。Yoga 使用独立 3.2.1 WASM，并启用与 RN Fabric 默认一致的 ErrataAll；这些检查不能替代 UIKit 真机。Doctor 20/21：WebRTC New Architecture 未测试、私有本地模块无 Directory 元数据，未屏蔽。Go 两包可编译但源目录无测试，不等于 CDN 回归。
