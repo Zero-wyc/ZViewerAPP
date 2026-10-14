@@ -1,6 +1,7 @@
 const { withDangerousMod, withInfoPlist } = require('expo/config-plugins');
 const fs = require('node:fs');
 const path = require('node:path');
+const { patchVlcSeek } = require('./vlc-seek.cjs');
 const { patchMusicNative } = require('./music-native.cjs');
 function patchSystemMedia(root) {
     const patch = (relative, marker, edit) => { const file = path.join(root, 'ios', relative); const source = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n'); if (source.includes(marker)) return; const next = edit(source); if (next === source || !next.includes(marker)) throw new Error(`Review VLC system-media integration: ${relative}`); fs.writeFileSync(file, next); };
@@ -57,7 +58,7 @@ function patchSystemMedia(root) {
     // Preserve an already playing owner; never resume a paused item.
     let session = AVAudioSession.sharedInstance()
     do {
-      try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+      try session.setCategory(.playback, mode: .default, options: [])
       try session.setActive(true)
     } catch { log.warn("ZViewer background audio session failed") }
   }
@@ -69,7 +70,14 @@ function patchSystemMedia(root) {
     let audioMixingMode = findAudioMixingMode()`)
       .replace('audioSession.mode != .moviePlayback', 'audioSession.mode != audioMode')
       .replace('mode: .moviePlayback,', 'mode: audioMode,'));
+    // Upgrade already patched checkouts too: the audible owner needs the
+    // primary playback session for system Now Playing and remote commands.
+    patch('Managers/AudioSessionManager.swift', 'ZViewerPrimaryAudio', source => source.replace(
+      '      try session.setCategory(.playback, mode: .default, options:',
+      '      // ZViewerPrimaryAudio: keep the music owner primary in background.\n      try session.setCategory(.playback, mode: .default, options:'
+    ).replace('mode: .default, options: [.mixWithOthers])', 'mode: .default, options: [])'));
     patchMusicNative(root);
+    patchVlcSeek(root);
 }
 module.exports = config => {
   config = withInfoPlist(config, value => { value.modResults.UIBackgroundModes = [...new Set([...(value.modResults.UIBackgroundModes || []), 'audio'])]; return value; });
