@@ -16,7 +16,7 @@ export type PlaybackSource = {
 // Keep the aggregate proxy's default identity when VLC requests its upstream.
 const ANIME_PROXY_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-function internalAnimeHost(hostname: string): boolean {
+export function internalAnimeHost(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/\.$/, '');
   const mapped = /^\[::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})\]$/.exec(host);
   if (mapped) {
@@ -72,12 +72,12 @@ function nativeTrackSource(source: PlaybackSource, serverUrl: string, accessToke
   if (serverApi) { parsed.searchParams.delete('rangeMode'); parsed.searchParams.delete('token'); }
   const identity = parsed.toString();
   const animeProxy = serverApi && /^api\/stream\/(anime|kazumi|anisubs)\/proxy$/.test(parsed.pathname.slice(base.pathname.length));
+  let hlsProxy: { upstream: string } | undefined;
   if (animeProxy) {
     const target = parsed.searchParams.get('url');
     if (!target || parsed.searchParams.getAll('url').length !== 1) throw new Error('番剧解析未返回有效媒体地址');
-    // These server routes stream playlists unchanged. Let VLC resolve every
-    // child playlist, segment and key against the actual upstream URL instead.
-    // VLC's adaptive HTTP stack inherits these two media options for children.
+    // These routes stream playlists unchanged. The resolver rewrites HLS child
+    // URLs through this proxy; direct CDN segments may reject the device's IP.
     const sourceHeaders: Record<string, string> = {};
     const proxyHeader = (name: string) => {
       const values = parsed.searchParams.getAll(name);
@@ -97,12 +97,11 @@ function nativeTrackSource(source: PlaybackSource, serverUrl: string, accessToke
     // server's private-network boundary, including IPv4-mapped IPv6 addresses.
     if (!['http:', 'https:'].includes(targetUrl.protocol) || targetUrl.username || targetUrl.password || targetUrl.origin === base.origin || internalAnimeHost(targetUrl.hostname)) throw new Error('番剧解析返回的媒体地址无效');
     const targetHls = hls || /\.m3u8$/i.test(targetUrl.pathname);
-    if (restrictedHeaders && targetHls) throw new Error('此番剧 HLS 需要 Origin 或 Cookie 请求头，当前 iOS 播放方式暂不支持，请切换番剧源');
-    // Arbitrary Origin/Cookie options are not supported by the current VLCKit
-    // wrapper. Progressive streams can still use the authenticated server proxy.
+    if (targetHls) hlsProxy = { upstream: targetUrl.toString() };
+    // Site Origin/Cookie stays on the server proxy, outside VLC media options.
     // A playback slave accepts only a URL, not its own media options. Keep
     // progressive audio on the proxy so its separate site headers survive.
-    if (!restrictedHeaders && (!slave || targetHls)) return { ...nativeTrackSource({ ...source, sourceUrl: target, sourceType: 'url', headers: sourceHeaders }, serverUrl, accessToken, slave), identity };
+    if (!targetHls && !restrictedHeaders && !slave) return { ...nativeTrackSource({ ...source, sourceUrl: target, sourceType: 'url', headers: sourceHeaders }, serverUrl, accessToken, slave), identity };
   }
   const options = ['network-caching=1500'];
   // The existing server authenticates media URLs via ?token=. VLCKit's
@@ -115,8 +114,8 @@ function nativeTrackSource(source: PlaybackSource, serverUrl: string, accessToke
     if (/^user-agent$/i.test(key)) options.push(`http-user-agent=${value}`);
   }
   const slaves = source.audioUrl ? [nativeTrackSource({ sourceUrl: source.audioUrl, headers: source.headers }, serverUrl, accessToken, true)] : [];
-  return { uri: parsed.toString(), identity, headers, serverApi, options, slaves,
-    contentType: hls ? 'hls' as const : 'progressive' as const };
+  return { uri: parsed.toString(), identity, headers, serverApi, options, slaves, ...(hlsProxy ? { hlsProxy } : {}),
+    contentType: hls || hlsProxy ? 'hls' as const : 'progressive' as const };
 }
 
-export type NativeVideoSource = { uri: string; identity: string; headers: Record<string, string>; serverApi: boolean; options: string[]; slaves: NativeVideoSource[]; contentType: 'hls' | 'progressive' };
+export type NativeVideoSource = { uri: string; identity: string; headers: Record<string, string>; serverApi: boolean; options: string[]; slaves: NativeVideoSource[]; contentType: 'hls' | 'progressive'; hlsProxy?: { upstream: string }; probeUri?: string };

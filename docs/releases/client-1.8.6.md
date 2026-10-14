@@ -1,34 +1,41 @@
 # ZViewer-Client V1.8.6
 
-**本次仅发布 Android / HarmonyOS，版本 1.8.6 / 186。iOS 1.8.6 / build 25 仍存在同步问题，按用户要求暂缓发布，本次不包含任何 IPA 附件。** 完整源码同步 main，iOS 候选源码保留供后续修复，不代表 iOS 已通过验收。
+**Android / HarmonyOS 1.8.6 / 186 已发布；iOS 1.8.6 / build 25 已在 Mac 完成后续修复与设备 Release 构建。** iOS 发行附件与发布页说明按本轮交付进度更新；未签名 IPA 需个人签名后侧载。构建与验收边界见 [本地交付记录](ios-1.8.6-25-local-20261014.md)。
 
 ## 🚀 新特性 / Features
 
 - 安卓、鸿蒙主页新增“关于应用”，显示实际安装版本与构建号，可手动检查更新及查看发布记录。
 - 每次启动自动检查正式客户端版本，发现更新后提示下载对应 APK/HAP；通过系统浏览器下载，不静默安装。
 - 关于与更新界面跟随深浅主题、圆角和玻璃外观设置，适配手机、平板和横竖屏。
+- iOS 视频控制栏移至画面下方，移除独立播放诊断入口；自动续播与搜索影片同一行，保留原页面主题和全屏浮层控制。
+- iOS 音乐进度条支持点击定位，暂停跳转立即更新时间，并在拖动期间保留用户选择的位置。
 
 ## 🐛 错误修复 / Bug Fixes
 
 - 更新检查按数字比较版本，仅匹配当前平台正式安装包，排除预发行、debug/unsigned、iOS 独立标签和源码附件。
 - 手动检查提供离线、超时及限流反馈，检查失败不误报为最新版。
-- iOS 同步问题仍未解决，候选修复仅保留在源码，本次不将其列为已验收修复。
+- iOS Kazumi HLS 保留服务端代理并处理相对清单/分片，解决已复现的 CDN 直连失败；B站/Kazumi 绑定当前影片身份，避免网页控制与服务器心跳反复重载同一影片和同步纠偏。
+- iOS VLC 跳转完成后应用最新播放意图，隔离旧输入回调；模拟器已验证 Jellyfin 动漫剧集起播、暂停跳转恢复和中途重新加入。
+- iOS 网易云歌曲临近结尾时，下一首曾因迟到的 `:start-paused` 回调停在 0 秒；音频输入恢复前检查当前输入、revision、播放意图和 seek 状态，已验证 iOS 单独作为音乐房主的连续末尾续播，主动暂停保持暂停。
+- iOS 接入 Expo 现有 scene 生命周期，修复本机 iOS 27 模拟器启动；依赖补丁随 prebuild/native:patch 恢复和检查。
 
 ## ⚠️ 破坏性改动 / Breaking Changes
 
 - 安卓、鸿蒙无破坏性改动，沿用既有发布签名。鸿蒙 HAP 仍需使用设备支持的开发者安装流程及匹配的 Profile/设备授权。
-- 本次 Release 不提供 iOS 安装包；历史公开 IPA 仍在 1.8.5 Release，不扩大此前测试结论。
+- iOS 设备 Release IPA 未签名，包含生产 JS，无需 Metro 或 Expo Go；须用自己的证书及设备授权重新签名后侧载。后台自然跨曲、锁屏/控制中心按钮和真机硬件解码仍待专项验证。
 
 ## ⚡ 性能优化 / Performance Improvements
 
 - 同一启动周期避免重复自动检查提示；请求设有超时，未发现更新时不弹出提示。
+- iOS 复用同一输入的解析结果，加载/seek 稳定阶段限制重复纠偏；后台音乐复用原生视图并及时更新 Now Playing 信息。
 
 ## 📖 文档与依赖更新 / Documentation & Dependencies
 
-- 更新 README、CHANGELOG 和三端维护文档，明确双端发布与 iOS 暂缓状态；本次沿用已验证签名包，没有重新构建 iOS。
-- 附件仅为 `ZViewer-Android-1.8.6-release.apk`、`ZViewer-HarmonyOS-1.8.6-release.hap` 和双端 `SHA256SUMS.txt`。
-- 完整源码同步 main，使用 GitHub 自动生成的 Source code（zip / tar.gz），不另上传源码压缩包。源码与包不包含私有账号、密码或 AGENTS.md。
+- 更新 README、CHANGELOG、iOS 维护文档与 Mac 构建/联调记录。本轮使用本机 Xcode 27 构建设备 ARM64 IPA，无 EAS 云构建。
+- 既有公开附件为 `ZViewer-Android-1.8.6-release.apk`、`ZViewer-HarmonyOS-1.8.6-release.hap` 和双端 `SHA256SUMS.txt`。本地已准备 `ZViewer-iOS-1.8.6-release.ipa` 及单独 iOS 校验文件；追加发布时应合并至此 Release 并更新三平台校验文件。
+- iOS 后续修复提交后应从包含本轮提交的 main 源码构建；既有标签自动归档保留首次双端发布时的源码快照。安装包、生成工程、私有联调会话与签名资料不提交 Git。
 - 验证：76 项适配、4 项媒体、3 项更新回归、5 种尺寸深浅主题界面，以及版本、签名、证书和共享资源摘要检查通过。构建与浏览器验证不代替物理设备专项验收。
+- iOS：199 项测试、lint、类型检查通过；模拟器已实际验证 B站、Kazumi《败犬女主太多了！》、Jellyfin 同动漫剧集及网易云末尾连续续播。设备 IPA 平台/版本/模块/内置 JS/未签名状态独立检查，不能代替本轮真机验收。
 
 ---
 **完整变更记录**：[client-v1.8.5...client-v1.8.6](https://github.com/Zero-wyc/ZViewerAPP/compare/client-v1.8.5...client-v1.8.6)

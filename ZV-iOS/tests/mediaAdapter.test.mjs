@@ -17,6 +17,18 @@ test('state updates do not seek to a stale broadcast time', async () => {
   assert.equal(native.currentTime, 80); assert.equal(native.playing, false); assert.equal(native.sources.length, 1);
 });
 
+test('clock, duration and play/pause updates do not resolve a fresh signed URL or restart VLC', async () => {
+  const native = player(); let resolutions = 0;
+  const adapter = new NativeMediaAdapter(native, async () => ({ uri: `https://cdn.example/video?signature=${++resolutions}`, identity: 'movie-1', contentType: 'progressive', headers: {}, options: [], slaves: [] }));
+  await adapter.apply(state, server, 'token'); native.currentTime = 80;
+  await adapter.apply({ ...state, currentTime: 42, duration: 400, isPlaying: false }, server, 'token');
+  await adapter.apply({ ...state, currentTime: 44, duration: 400, playbackRate: 1.5 }, server, 'token');
+  assert.equal(resolutions, 1); assert.equal(native.sources.length, 1);
+  assert.equal(native.currentTime, 80); assert.equal(native.playing, true); assert.equal(native.playbackRate, 1.5);
+  adapter.invalidate(); await adapter.apply(state, server, 'token');
+  assert.equal(resolutions, 2); assert.equal(native.sources.length, 2); assert.equal(native.currentTime, 80);
+});
+
 test('token rotation preserves native position and replaces only authentication', async () => {
   const native = player(); const adapter = new NativeMediaAdapter(native);
   await adapter.apply(state, server, 'old'); native.currentTime = 95;

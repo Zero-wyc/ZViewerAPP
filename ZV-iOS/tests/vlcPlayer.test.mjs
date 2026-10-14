@@ -62,6 +62,22 @@ test('paused initial load stays paused when a delayed first-play callback arrive
   assert.equal(f.player.playing, false); assert.ok(f.calls.includes('pause')); assert.equal(f.player.currentTime, 120);
 });
 
+test('paused seek updates controls without fabricating progress and settles without callbacks', async context => {
+  let now = 1000; context.mock.method(Date, 'now', () => now);
+  const f = fixture(); await f.player.replaceAsync(nativeVideoSource(state, server, 'token'));
+  const id = f.snapshots.at(-1).id; f.player.attach(id, f.view); f.player.loaded(id, 1446200);
+  const seek = [], progress = [];
+  f.player.addListener('seekChange', event => seek.push(event.currentTime));
+  f.player.addListener('timeUpdate', event => progress.push(event.currentTime));
+  f.calls.length = 0; f.player.currentTime = 300;
+  assert.deepEqual(f.calls.find(Array.isArray), ['seek', 300000]);
+  assert.deepEqual(seek, [300]); assert.deepEqual(progress, []); assert.equal(f.player.seeking, true);
+  f.player.progress(id, 60000); assert.equal(f.player.currentTime, 300);
+  now += 5001; assert.equal(f.player.seeking, false); assert.equal(f.player.playing, false);
+  f.player.play(); f.player.playingChanged(id, true); f.player.progress(id, 301000);
+  assert.equal(f.player.currentTime, 301); assert.equal(f.player.playing, true);
+});
+
 test('pause while preparing cancels an earlier requested native start', async () => {
   const f = fixture(); const adapter = new NativeMediaAdapter(f.player);
   await adapter.apply(state, server, 'token'); const id = f.snapshots.at(-1).id; f.player.attach(id, f.view);

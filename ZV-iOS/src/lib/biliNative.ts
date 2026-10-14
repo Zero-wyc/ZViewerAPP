@@ -78,7 +78,10 @@ export async function resolveServerBili(url: string, server: string, token: stri
   }, signal);
 }
 export async function playbackSource(source: PlaybackSource, server: string, token: string, signal?: AbortSignal): Promise<NativeVideoSource> {
-  if (source.sourceType !== 'bilibili') return nativeVideoSource(source, server, token);
+  if (source.sourceType !== 'bilibili') {
+    const native = nativeVideoSource(source, server, token);
+    return native.hlsProxy ? (await import('./hlsNative')).prepareNativeHls(native, signal) : native;
+  }
   source = { ...source, sourceUrl: biliSelection(source.sourceUrl).url };
   const policy = source.biliPolicy ?? (source.movieId ? await readMovieBiliPolicy(server, source.movieId) : defaultBiliPolicy);
   let status: BiliStatus | null = null;

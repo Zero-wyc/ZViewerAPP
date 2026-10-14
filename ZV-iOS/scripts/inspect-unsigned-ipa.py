@@ -68,5 +68,9 @@ def inspect(path):
 
 if __name__ == '__main__':
     path = Path(sys.argv[1]); result = inspect(path)
-    result['bytes'] = path.stat().st_size; result['sha256'] = hashlib.file_digest(path.open('rb'), 'sha256').hexdigest()
+    digest = hashlib.sha256()
+    with path.open('rb') as archive:
+        for chunk in iter(lambda: archive.read(1024 * 1024), b''):
+            digest.update(chunk)
+    result['bytes'] = path.stat().st_size; result['sha256'] = digest.hexdigest()
     print(json.dumps(result, indent=2, ensure_ascii=False))

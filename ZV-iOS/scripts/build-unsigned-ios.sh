@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Runs only on the EAS macOS worker. CNG owns ios/, no local generated project.
+# Runs on a local Mac or EAS macOS worker. CNG owns the generated ios/ project.
+cd "$(cd "$(dirname "$0")/.." && pwd)"
+node scripts/stage-native-core.cjs --verify-only
 node scripts/patch-vlc-native.cjs --check
+python3 - <<'PY'
+import plistlib
+from pathlib import Path
+p = Path('modules/zviewer-native/ios/Vendor/Bilicore.xcframework/Info.plist')
+libs = plistlib.loads(p.read_bytes())['AvailableLibraries']
+assert libs and all(x.get('SupportedPlatform') == 'ios' and not x.get('SupportedPlatformVariant') for x in libs), 'Prepare device Bilicore before building an IPA; simulator slices are not valid.'
+PY
 mkdir -p ios/build
 xcodebuild -workspace ios/ZViewer.xcworkspace -scheme ZViewer \
   -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
@@ -32,6 +41,8 @@ if codesign -dv "$app" > /dev/null 2>&1; then
   echo 'Unexpected app signature in unsigned device build.' >&2
   exit 1
 fi
+rm -rf ios/build/unsigned-package
+rm -f ios/build/ZViewer-unsigned.ipa
 mkdir -p ios/build/unsigned-package/Payload
 cp -R "$app" ios/build/unsigned-package/Payload/
 (cd ios/build/unsigned-package && zip -qry ../ZViewer-unsigned.ipa Payload)

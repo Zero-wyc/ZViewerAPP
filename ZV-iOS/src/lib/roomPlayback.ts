@@ -93,8 +93,13 @@ export class RoomPlayback {
     // The movie DTO owns the provider identity. Older broadcasts may omit or
     // mislabel it while carrying the host's loopback/proxy address.
     const sourceType = movie?.source || movie?.sourceType || state.sourceType;
-    if (!['bilibili', 'emby', 'jellyfin'].includes(sourceType || '')) return state;
+    // Web control broadcasts omit movieId while server heartbeats include it.
+    // The current-movie event owns identity for every provider, not only Bili
+    // and media libraries; otherwise play/pause restarts the same HLS input.
+    if (!['bilibili', 'emby', 'jellyfin'].includes(sourceType || '') && !movie) return { ...state, ...(this.movieId != null ? { movieId: this.movieId } : {}) };
     if (!movie) return null;
+    // A web control/heartbeat can retain the previous provider URL during a
+    // movie switch. Identity alone must not attach that input to the new movie.
     const resolved = moviePlayback(movie);
     if (state.cid && resolved.cid && state.cid !== resolved.cid) return null;
     const page = ['emby', 'jellyfin'].includes(sourceType || '') ? libraryPage(state) : undefined;

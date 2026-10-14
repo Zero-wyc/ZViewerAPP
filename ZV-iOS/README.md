@@ -1,16 +1,20 @@
 # ZViewer iOS
 
-独立 Expo SDK 57 / React Native 工程，当前源码 **1.8.5 / build 23**。build 21 经用户真机测试存在播放卡死回归，停止推荐。build 22 的 Xcode 编译成功，随后产物符号检查误报导致无 IPA；build 23 已修正检查方式并完成设备 Release 构建与离线产物检查，保留异步 VLC 回调、B站音轨及一起听后台音频修复。保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，LiveKit 用于房间语音，WebRTC 用于投屏接收。本包随统一的 client-v1.8.5 三端 Release 发布。
+独立 Expo SDK 57 / React Native 工程，当前源码 **1.8.6 / build 25（Mac 本地设备 Release）**；上传前，当前公开 IPA 仍为 **1.8.5 / build 23**。本轮纳入 Kazumi/B站同步、Jellyfin 跳转恢复、网易云曲尾续播及视频区域布局修复，保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，LiveKit 用于房间语音，WebRTC 用于投屏接收。实际构建、包检验和测试边界见 [本轮交付记录](../docs/releases/ios-1.8.6-25-local-20261014.md)。
 
-**用户已于 2026-10-13 确认 build 23 本轮真机测试全部通过，iOS 当前可用。** 起播响应、B站声音、一起听桌面/锁屏播放问题已获本轮通过确认；发布原始已验收未签名 IPA，需个人签名安装，不重新云构建。179 项测试、lint、类型检查、云端两次源码补丁检查和完整二进制引用检查通过。历史 [b15 预览记录](../docs/releases/ios-1.5.0-15-preview.md)和 [原计划](../docs/ios-continuation-plan.md)保留，不作为新包设备验收结果。
+**本轮模拟器验证通过，真机及后台自然跨曲仍待验证。** Kazumi/B站暂停恢复、Jellyfin 同一动漫剧集跳转/中途加入、iOS 单独房主的网易云末尾续播已验证；锁屏系统控件和后台自然切歌未完成端到端验收。历史 build 23 的 2026-10-13 用户真机确认与 179 项测试记录保留，不扩大为本轮新包的真机结果。
 
 b14 修复开屏原生纵向布局增长、会话恢复等待和退出后旧请求回写，并校验损坏外观偏好；原 b13 功能继续保留。具体根因、回归与当前包见 [开屏复核](../docs/ios-openscreen-fix-summary.md)。
 
 历史 [b15 功能/布局补充](../docs/releases/ios-1.5.0-15-followup-preview.md)：整份歌单播放/追加、连续私人漫游、在线弹幕搜索弹窗和双列集名、横竖展开菜单、音乐首页与日推日期。当时用户完成真机 UI 复验并提交 unsigned-device EAS Build；原 I13 限制保留。
 
-**更新说明：** 由于 Expo Build 的额度限制，iOS 端更新与错误修复会出现延迟，不会与 Android/鸿蒙两端同步完成（除非有人有 Mac 帮忙编译）。
+**更新说明：** 当前已具备 Mac 本地 Xcode 构建流程，无需消费 EAS 云端额度；云构建仍可用于没有 Mac 的环境。设备 IPA 未签名，需要自己的证书和设备授权后侧载。
 
 当前已验收发行包与构建记录见[维护文档](../docs/ios-maintenance-architecture.md)。历史 [iOS 1.5.1 发行说明](../docs/releases/ios-1.5.1-release-notes.md)、[1.5.0 / b15 交付记录](../docs/releases/ios-1.5.0-15-unsigned.md)及原 Release 附件保留。
+
+## Mac 本地开发（2026-10-14）
+
+模拟器 Bilicore / Opus 准备、原生补丁检查、CNG Scene 生命周期适配、Debug 构建与联调启动脚本已加入工程。实际启动和媒体测试边界见 [Mac 开发记录](../docs/ios-mac-development-20261014.md)。在本工程运行 `npm run check`，再按记录准备 `ios/ZViewer.xcworkspace`。
 
 ## b13 功能基线
 
@@ -27,7 +31,23 @@ b14 修复开屏原生纵向布局增长、会话恢复等待和退出后旧请�
 
 ## 预览和构建
 
-1.8.5 / build 23 已按用户授权完成构建和包检验，build 20 已取消，build 21 停止推荐，build 22 产物检查失败无 IPA。Expo Go 可预览 RN 界面；VLC/本机 B站/语音仍需安装包测试。以后先完成界面与本地检查，再按维护者授权提交云构建。
+本地设备构建在 `ZV-iOS/` 运行以下命令。设备与模拟器原生依赖共用 Vendor 输出目录，切换目标时必须重新准备对应库；构建脚本会拒绝将模拟器 Bilicore 用于 IPA。CNG 生成 `ios/`，源码修改保存在 Module/config plugin。
+
+```sh
+npm ci
+npm run check
+node scripts/stage-native-core.cjs
+bash scripts/prepare-native-ios.sh
+npx expo prebuild --platform ios --no-install
+npm run native:patch
+(cd ios && pod install)
+bash scripts/build-unsigned-ios.sh
+python3 scripts/inspect-unsigned-ipa.py ios/build/ZViewer-unsigned.ipa
+```
+
+下载缓存继续按固定 SHA-256 校验；网络无法访问 Go 原始域名时可以设置 `ZVIEWER_GO_DOWNLOAD_BASE` 使用相同版本镜像。IPA 输出为 `ios/build/ZViewer-unsigned.ipa`，本轮交付副本在 `release-assets/ZViewer-iOS-1.8.6-release.ipa`，同目录保留 SHA-256。生成工程、依赖、IPA 和私有联调会话不提交 Git。Release 包含生产 JS，启动不依赖 Metro，也不包含 Debug 注入的服务器登录信息。
+
+以下为保留的 Windows/EAS 云构建入口：
 
 ```powershell
 cd ZV-iOS
@@ -37,7 +57,7 @@ cd ZV-iOS
 
 上传脚本先规范 Bash 为 LF，再验证 12 个共享 Go/依赖/许可证文件与参考 `02f62f1fc52f0c47f2a2f8e6fec8ed22d98539fc` 一致、生成来源摘要。EAS archive 限定本工程；workflow 下载校验固定 Go/Opus、重建 ARM64 vendors、host Opus smoke、CNG/Pods、iphoneos Release 和 unsigned IPA。
 
-远端发行附件：`ZViewer-iOS-1.8.5-release.ipa`（已验收 1.8.5 / build 23，未签名，需个人签名安装）。本地构建原文件：`release-assets/ZViewer-1.8.5-b23-unsigned.ipa`，校验文件 `release-assets/SHA256SUMS-ios-1.8.5-b23.txt`；二者不提交 Git。内置 Release JS，无需 Metro，**用户自行签名后安装**。Expo Go 不含 VLC/Go/语音桥接。当前仅 unsigned-device 准备 vendors，development/simulator 尚需相应流程。
+历史远端发行附件：`ZViewer-iOS-1.8.5-release.ipa`（1.8.5 / build 23，未签名，需个人签名安装）。本轮 1.8.6 先完成本地构建和提交；追加到既有 client-v1.8.6 Release 的说明已经准备，上传状态以发行页实际附件为准。Expo Go 不含 VLC/Go/语音桥接，模拟器流程见 [Mac 开发记录](../docs/ios-mac-development-20261014.md)。
 
 ```sh
 npm ci

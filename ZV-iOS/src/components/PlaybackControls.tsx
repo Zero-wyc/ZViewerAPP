@@ -26,12 +26,13 @@ export function PlaybackControls({ player, host, control, fullscreen, toggleFull
   const [volume, setVolume] = useState(player.mediaSettings.volume); const [delay, setDelay] = useState(player.mediaSettings.subtitleDelay);
   useEffect(() => {
     const progress = player.addListener('timeUpdate', event => setTime(event.currentTime));
+    const seek = player.addListener('seekChange', event => setTime(event.currentTime));
     const play = player.addListener('playingChange', event => setPlaying(event.isPlaying));
     const loaded = player.addListener('sourceLoad', event => { setDuration(event.duration); setTrackVersion(value => value + 1); });
     const configured = player.addListener('settingsChange', value => { setVolume(value.volume); setDelay(value.subtitleDelay); setTrackVersion(version => version + 1); });
     const speed = player.addListener('playbackRateChange', value => setRate(value.playbackRate));
     const status = player.addListener('statusChange', event => { if (event.status === 'loading' || event.status === 'idle') { setTime(0); setDuration(0); setRate(player.playbackRate); setError(''); setSubtitle(''); setTrackVersion(value => value + 1); } });
-    return () => { progress.remove(); play.remove(); loaded.remove(); status.remove(); configured.remove(); speed.remove(); };
+    return () => { progress.remove(); seek.remove(); play.remove(); loaded.remove(); status.remove(); configured.remove(); speed.remove(); };
   }, [player]);
   const icons = { 播放: 'play', 暂停: 'pause', 设置: 'settings', 全屏: 'maximize', 退出全屏: 'minimize', '−15秒': 'rotate-ccw', '+15秒': 'rotate-cw' } as const;
   const button = (label: keyof typeof icons, action: () => void, disabled = false) => <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={action} style={{ minHeight: 44, minWidth: 44, paddingHorizontal: 10, justifyContent: 'center', alignItems: 'center', opacity: disabled ? 0.4 : 1 }}><Feather name={icons[label]} color="#fff" size={20} /></Pressable>;

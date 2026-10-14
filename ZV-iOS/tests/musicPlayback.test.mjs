@@ -28,7 +28,7 @@ async function mountPanel({ host = false, trackKey = 'ncm:420', playMode = 'sequ
   const initial = { trackKey, trackSongId: trackKey.startsWith('ncm:') ? Number(trackKey.slice(4)) : null, isPlaying: false, positionSec: 0, playMode, updatedAt: 10_000 };
   let queue = trackKey.startsWith('ncm:') ? [song(initial.trackSongId)] : [{ ...song(0), biliBvid: trackKey.split(':')[1], biliCid: Number(trackKey.split(':')[2]) }];
   const effects = [], cleanups = [], sent = [], timers = [], listeners = new Map();
-  let stateIndex = 0, snapshot, systemControl, fm, clock = 10_000;
+  let stateIndex = 0, snapshot, systemControl, systemMetadata, fm, clock = 10_000;
   const player = new VlcPlayer(value => { snapshot = value; }, true);
   const session = { serverUrl: 'https://room.invalid', user: { id: 7 }, accessToken: 'test-token' };
   const socket = {
@@ -61,7 +61,7 @@ async function mountPanel({ host = false, trackKey = 'ncm:420', playMode = 'sequ
     '@/lib/nativeBridge': { biliOperation: async () => ({ data: { lines: [] } }) },
     '@/lib/biliNative': { onBiliChange: () => noop, biliFallback: () => false, playbackSource: async (source, server, token) => nativeVideoSource(source, server, token) },
     '@/lib/preferences': { readPreference: async (key, fallback) => key === 'music-auto-recommend' ? { entries: { 'https://room.invalid:7': true } } : fallback, writePreference: async () => {} },
-    '@/hooks/useSystemMedia': { useSystemMedia: (_player, _metadata, control) => { systemControl = control; } },
+    '@/hooks/useSystemMedia': { useSystemMedia: (_player, metadata, control) => { systemControl = control; systemMetadata = metadata; return next => { systemMetadata = next; }; } },
     '@/hooks/usePersonalFm': { usePersonalFm: ({ play }) => { fm = new personalFm.PersonalFm({ play, change: noop, fetch: async () => [song(420), song(421), song(422)] }); return { fm, state: fm.state, loggedIn: true }; } },
     '@/lib/socket': { emitAck: async (_socket, event, payload) => {
       sent.push({ event, payload });
@@ -87,7 +87,7 @@ async function mountPanel({ host = false, trackKey = 'ncm:420', playMode = 'sequ
   player.progress(snapshot.id, 0);
   await tick();
   return {
-    player, fm, socket, sent, receive,
+    player, fm, socket, sent, receive, get systemMetadata() { return systemMetadata; },
     native: { progress: ms => player.progress(snapshot.id, ms), paused: () => player.playingChanged(snapshot.id, false), stopped: () => player.stopped(snapshot.id) },
     control: async (action, value) => { systemControl(action, value); await tick(); },
     heartbeat: async () => { clock += 2000; for (const timer of timers) timer(); await tick(); },
@@ -235,4 +235,44 @@ test('a playing tail seek follows queue policy instead of seeking into an EOF lo
       if (mode === 'order') { assert.equal(next.trackKey, 'ncm:420'); assert.equal(next.positionSec, 100); assert.equal(next.isPlaying, false); }
     } finally { panel.dispose(); }
   }
+});
+
+
+test('system next/previous loads audio and metadata without a React commit in background', async () => {
+  const panel = await mountPanel({ host: true });
+  try {
+    panel.receive('music:queue-changed', { roomId: 'room', items: [song(420), song(421)] });
+    await panel.control('next');
+    assert.match(panel.player.sourceIdentity, /songId=421&/);
+    assert.equal(panel.systemMetadata.mediaId, 'room:ncm:421');
+    assert.equal(panel.systemMetadata.title, 'Song 421');
+    await panel.control('prev');
+    assert.match(panel.player.sourceIdentity, /songId=420&/);
+    assert.equal(panel.systemMetadata.mediaId, 'room:ncm:420');
+  } finally { panel.dispose(); }
+});
+
+test('viewer receives the new host song while rendering is suspended', async () => {
+  const panel = await mountPanel();
+  try {
+    panel.receive('music:queue-changed', { roomId: 'room', items: [song(420), song(421)] });
+    panel.receive('music:sync-state', { roomId: 'room', trackKey: 'ncm:421', trackSongId: 421, positionSec: 0, isPlaying: true, updatedAt: 10_000, playMode: 'sequence' });
+    await tick();
+    assert.match(panel.player.sourceIdentity, /songId=421&/);
+    assert.equal(panel.systemMetadata.title, 'Song 421');
+    assert.equal(panel.sent.filter(item => item.event === 'music:control-request').length, 0);
+  } finally { panel.dispose(); }
+});
+
+test('natural completion advances the host queue without waiting for a background JS timer', async () => {
+  const panel = await mountPanel({ host: true });
+  try {
+    panel.receive('music:queue-changed', { roomId: 'room', items: [song(420), song(421)] });
+    await panel.control('play');
+    panel.native.progress(100_000); panel.native.stopped();
+    await tick();
+    assert.match(panel.player.sourceIdentity, /songId=421&/);
+    assert.equal(panel.systemMetadata.mediaId, 'room:ncm:421');
+    assert.equal(panel.sent.filter(item => item.event === 'music:sync-state').at(-1).payload.trackKey, 'ncm:421');
+  } finally { panel.dispose(); }
 });

@@ -8,15 +8,16 @@ const token = 'fixture-session-token';
 const upstream = 'https://cdn.invalid/series/master.m3u8?sign=a%2Fb';
 const proxy = (kind, values = {}) => `/api/stream/${kind}/proxy?${new URLSearchParams({ url: upstream, referer: 'https://source.invalid/detail', userAgent: 'Fixture Player/1', ...values })}`;
 
-for (const kind of ['anime', 'kazumi', 'anisubs']) test(`${kind} playback uses upstream HLS base and inherited VLC options without changing room identity`, () => {
+for (const kind of ['anime', 'kazumi', 'anisubs']) test(`${kind} HLS retains the server proxy and upstream base for playlist rewriting`, () => {
   const url = proxy(kind, { token: 'stale-session' });
   const media = nativeVideoSource({ sourceUrl: url, sourceType: kind === 'anisubs' ? 'anime' : kind }, server, token);
-  assert.equal(media.uri, upstream); assert.equal(media.contentType, 'hls'); assert.equal(media.serverApi, false);
-  assert.deepEqual(media.headers, { Referer: 'https://source.invalid/detail', 'User-Agent': 'Fixture Player/1' });
-  assert.deepEqual(media.options, ['network-caching=1500', 'http-referrer=https://source.invalid/detail', 'http-user-agent=Fixture Player/1']);
+  assert.equal(new URL(media.uri).searchParams.get('url'), upstream); assert.equal(media.contentType, 'hls'); assert.equal(media.serverApi, true);
+  assert.deepEqual(media.hlsProxy, { upstream });
+  assert.deepEqual(media.headers, { Authorization: `Bearer ${token}` });
+  assert.deepEqual(media.options, ['network-caching=1500']);
   assert.equal(new URL(media.identity).pathname, `/zviewer/api/stream/${kind}/proxy`);
   assert.equal(new URL(media.identity).searchParams.get('token'), null);
-  assert(!media.uri.includes(token));
+  assert.equal(new URL(media.uri).searchParams.get('token'), token);
   assert.equal(canonicalSelection({ title: '示例', source: kind === 'anisubs' ? 'anime' : kind, url }, server, token).url, proxy(kind));
 });
 
@@ -29,27 +30,30 @@ test('separate progressive audio keeps its own site headers through its authenti
   assert.equal(audio.searchParams.get('token'), token);
   assert.equal(media.slaves[0].headers.Authorization, `Bearer ${token}`);
   assert.equal(new URL(media.slaves[0].identity).searchParams.get('token'), null);
-  assert.equal(media.uri, upstream);
+  assert.equal(new URL(media.uri).searchParams.get('url'), upstream);
 });
 
-test('aggregate playback preserves the server default User-Agent and ignores empty site headers', () => {
-  const expectedUa = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+test('aggregate HLS keeps optional site headers on the server proxy', () => {
   for (const kind of ['anime', 'kazumi', 'anisubs']) {
     const missingUa = `/api/stream/${kind}/proxy?${new URLSearchParams({ url: upstream })}`;
     const missing = nativeVideoSource({ sourceUrl: missingUa }, server, token);
     const empty = nativeVideoSource({ sourceUrl: proxy(kind, { userAgent: '  ', referer: '', origin: ' ', cookie: '\t' }) }, server, token);
     for (const media of [missing, empty]) {
-      assert.equal(media.uri, upstream);
-      assert.deepEqual(media.headers, { 'User-Agent': expectedUa });
-      assert.deepEqual(media.options, ['network-caching=1500', `http-user-agent=${expectedUa}`]);
+      assert.equal(new URL(media.uri).searchParams.get('url'), upstream);
+      assert.deepEqual(media.headers, { Authorization: `Bearer ${token}` });
+      assert.deepEqual(media.options, ['network-caching=1500']);
     }
   }
 });
 
-test('unsupported HLS Origin/Cookie is an actionable error instead of a known broken proxy URL', () => {
+test('HLS Origin/Cookie remains on the server proxy for child playlists and segments', () => {
   for (const header of ['origin', 'cookie']) {
-    assert.throws(() => nativeVideoSource({ sourceUrl: proxy('anisubs', { [header]: 'fixture-value' }) }, server, token), /Origin.*Cookie/);
-    assert.throws(() => nativeVideoSource({ sourceUrl: proxy('anisubs', { url: 'https://cdn.invalid/opaque', [header]: 'fixture-value' }), format: 'hls' }, server, token), /Origin.*Cookie/);
+    for (const source of [{ sourceUrl: proxy('anisubs', { [header]: 'fixture-value' }) }, { sourceUrl: proxy('anisubs', { url: 'https://cdn.invalid/opaque', [header]: 'fixture-value' }), format: 'hls' }]) {
+      const media = nativeVideoSource(source, server, token);
+      assert.equal(new URL(media.uri).searchParams.get(header), 'fixture-value');
+      assert.equal(media.serverApi, true); assert(media.hlsProxy);
+      assert(!media.options.some(option => /cookie|origin/i.test(option)));
+    }
   }
   const progressive = nativeVideoSource({ sourceUrl: proxy('anisubs', { url: 'https://cdn.invalid/video.mp4', origin: 'https://source.invalid' }) }, server, token);
   assert.equal(new URL(progressive.uri).searchParams.get('token'), token);
@@ -88,7 +92,8 @@ test('outer session refresh leaves upstream signed parameters and room identity 
   const source = { sourceUrl: proxy('kazumi', { url: signed, token: 'old-session', rangeMode: 'avplayer' }) };
   const before = nativeVideoSource(source, server, 'old-session');
   const after = nativeVideoSource(source, server, 'new-session');
-  assert.equal(before.uri, signed); assert.equal(after.uri, signed);
+  assert.equal(new URL(before.uri).searchParams.get('url'), signed); assert.equal(new URL(after.uri).searchParams.get('url'), signed);
+  assert.equal(new URL(after.uri).searchParams.get('token'), 'new-session');
   assert.equal(before.identity, after.identity);
   assert.equal(new URL(after.identity).searchParams.get('token'), null);
   assert.equal(new URL(after.identity).searchParams.get('rangeMode'), null);

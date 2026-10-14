@@ -82,7 +82,7 @@ export async function probeNativeMedia(video: NativeVideoSource, signal?: AbortS
   signal?.addEventListener('abort', cancel, { once: true });
   const timeout = setTimeout(cancel, 10000);
   try {
-    const response = await fetch(video.uri, { method: 'HEAD', headers: video.headers, signal: controller.signal });
+    const response = await fetch(video.probeUri || video.uri, { method: 'HEAD', headers: video.headers, signal: controller.signal });
     const contentType = response.headers.get('content-type')?.split(';')[0]?.trim();
     const rawSize = response.headers.get('content-length');
     const size = rawSize === null ? 0 : Number(rawSize);
