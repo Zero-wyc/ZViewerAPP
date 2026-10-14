@@ -14,6 +14,7 @@ type Events = {
   playingChange: { isPlaying: boolean };
   playbackRateChange: { playbackRate: number };
   timeUpdate: { currentTime: number };
+  seekChange: { currentTime: number };
   sourceLoad: { duration: number; availableAudioTracks: VlcTrack[]; availableVideoTracks: VlcTrack[]; availableSubtitleTracks: VlcTrack[] };
   statusChange: { status: string; error?: { message: string } };
   settingsChange: VlcSettings;
@@ -42,6 +43,10 @@ export class VlcPlayer implements NativePlayerPort {
   private settings: VlcSettings = { tracks: {}, volume: 100, subtitleDelay: 0 };
   private availableTracks = { audio: [] as VlcTrack[], video: [] as VlcTrack[], subtitle: [] as VlcTrack[] };
 
+  private musicDiagnostic(event: string) {
+    if (this.persistent && typeof __DEV__ !== 'undefined' && __DEV__) console.info('[ZViewerMusic]', JSON.stringify({ event, revision: this.revision, position: this.position, duration: this.length, desiredPlaying: this.desiredPlaying, playing: this.actualPlaying, seeking: this.seeking, ended: this.completed }));
+  }
+
   constructor(render: (snapshot: VlcSnapshot | null) => void, available: boolean, persistent = false) {
     this.render = render; this.available = available; this.persistent = persistent;
   }
@@ -55,7 +60,9 @@ export class VlcPlayer implements NativePlayerPort {
     if (this.disposed || !Number.isFinite(time)) return;
     const next = Math.max(0, time);
     this.completed = false;
-    this.position = next; this.pendingSeek = next;
+    this.position = next; this.pendingSeek = next === 0 && !this.prepared ? null : next;
+    this.musicDiagnostic('seek');
+    this.emit('seekChange', { currentTime: next });
     if (this.snapshot) { this.snapshot = { ...this.snapshot, initialTime: next }; this.render(this.snapshot); }
     if (this.prepared) this.seekPending();
   }
@@ -68,7 +75,12 @@ export class VlcPlayer implements NativePlayerPort {
   }
   get playing() { return this.actualPlaying; }
   get preparing() { return !!this.snapshot && !this.prepared; }
-  get seeking() { return this.pendingSeek !== null || this.activeSeek !== null; }
+  get seeking() {
+    // A paused VLC input may not send a time callback after a seek. Use the
+    // same finite settling window even when no subsequent progress arrives.
+    if (this.activeSeek && Date.now() - this.activeSeek.started >= 5000) this.activeSeek = null;
+    return this.pendingSeek !== null || this.activeSeek !== null;
+  }
   get ended() { return this.completed; }
   get duration() { return this.length; }
   get mediaTracks() { return this.availableTracks; }
@@ -158,6 +170,7 @@ export class VlcPlayer implements NativePlayerPort {
       this.activeSeek = null;
     }
     this.position = Math.max(0, milliseconds / 1000);
+    if (this.length > 0 && this.position >= this.length - 8) this.musicDiagnostic('tail-progress');
     this.emit('timeUpdate', { currentTime: this.position });
   }
   playingChanged(id: number, playing: boolean) {
@@ -168,11 +181,13 @@ export class VlcPlayer implements NativePlayerPort {
     if (!playing && this.seeking && this.desiredPlaying) return;
     if (playing && !this.desiredPlaying) { this.command(() => this.vlc?.pause()); return; }
     this.actualPlaying = playing;
+    this.musicDiagnostic(playing ? 'playing' : 'paused');
     this.emit('playingChange', { isPlaying: playing });
   }
   stopped(id: number) {
     if (!this.accepts(id)) return;
     this.completed = this.desiredPlaying && !this.seeking && this.length > 0 && this.position >= this.length - 1.5;
+    this.musicDiagnostic('stopped');
     this.playingChanged(id, false);
   }
   tracks(id: number, tracks: { audio: unknown[]; video: unknown[]; subtitle: unknown[] }) {

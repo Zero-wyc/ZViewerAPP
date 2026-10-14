@@ -26,14 +26,17 @@ export class NativeMediaAdapter {
   private key = '';
   private uri = '';
   private mediaIdentity = '';
+  private resolvedKey = '';
+  private resolvedSource: ReturnType<typeof nativeVideoSource> | null = null;
   private needsInitialSeek = false;
   private initialTime = 0;
   private pending = 0;
   private invalidation = 0;
   private cancellation: AbortController | null = null;
   private player: NativePlayerPort;
+  private observe?: (values: { resolve: boolean; changes: string }) => void;
   private resolve: (state: PlaybackSource, server: string, token: string, signal?: AbortSignal) => Promise<ReturnType<typeof nativeVideoSource>>;
-  constructor(player: NativePlayerPort, resolve = async (state: PlaybackSource, server: string, token: string) => nativeVideoSource(state, server, token)) { this.player = player; this.resolve = resolve; }
+  constructor(player: NativePlayerPort, resolve = async (state: PlaybackSource, server: string, token: string) => nativeVideoSource(state, server, token), observe?: (values: { resolve: boolean; changes: string }) => void) { this.player = player; this.resolve = resolve; this.observe = observe; }
   get busy() { return this.pending > 0; }
   invalidate() { this.invalidation++; }
   cancelPending() { this.version++; this.cancellation?.abort(); }
@@ -48,12 +51,23 @@ export class NativeMediaAdapter {
       try {
         if (!state?.sourceUrl) {
           this.player.pause(); this.key = ''; this.uri = ''; this.mediaIdentity = ''; this.needsInitialSeek = false;
+          this.resolvedKey = ''; this.resolvedSource = null;
           await this.player.replaceAsync(null);
           return;
         }
         let aborted: (() => void) | undefined;
         const cancelled = new Promise<never>((_, reject) => { aborted = () => reject(new Error('播放任务已取消')); cancellation.signal.addEventListener('abort', aborted, { once: true }); });
-        const source = await Promise.race([this.resolve(state, server, token, cancellation.signal), cancelled]).finally(() => { if (aborted) cancellation.signal.removeEventListener('abort', aborted); });
+        // Play/pause, duration and clock broadcasts do not change a media
+        // request. Re-resolving signed URLs here can restart the native input.
+        const resolvedKey = JSON.stringify([server, token, revision, this.invalidation, state.sourceUrl, state.sourceType, state.format, state.audioUrl, state.headers, state.movieId ?? state.currentMovieId, state.cid, state.epId, state.seasonId, state.cliOnly, state.currentPage, state.biliPolicy]);
+        const reuse = resolvedKey === this.resolvedKey && !!this.resolvedSource;
+        if (this.observe) {
+          const previous = this.resolvedKey ? JSON.parse(this.resolvedKey) : [];
+          const next = JSON.parse(resolvedKey);
+          const names = ['server', 'session', 'revision', 'retry', 'sourceUrl', 'sourceType', 'format', 'audioUrl', 'headers', 'movieId', 'cid', 'epId', 'seasonId', 'cliOnly', 'currentPage', 'biliPolicy'];
+          this.observe({ resolve: !reuse, changes: names.filter((_, index) => JSON.stringify(previous[index]) !== JSON.stringify(next[index])).join(',') });
+        }
+        const source = await Promise.race([resolvedKey === this.resolvedKey && this.resolvedSource ? Promise.resolve(this.resolvedSource) : this.resolve(state, server, token, cancellation.signal), cancelled]).finally(() => { if (aborted) cancellation.signal.removeEventListener('abort', aborted); });
         if (this.disposed || version !== this.version) return;
         // A stable stream URL can serve a different movie/episode after a list
         // update. URL equality alone must not reuse the previous native clock.
@@ -69,6 +83,7 @@ export class NativeMediaAdapter {
           this.initialTime = Math.max(0, Number.isFinite(position) ? position : 0);
           this.needsInitialSeek = true;
         }
+        this.resolvedKey = resolvedKey; this.resolvedSource = source;
         if (this.disposed || version !== this.version) return;
         if (this.needsInitialSeek) { this.player.currentTime = this.initialTime; this.needsInitialSeek = false; }
         const rate = Number.isFinite(state.playbackRate) && state.playbackRate! > 0 ? state.playbackRate! : 1;
@@ -78,7 +93,7 @@ export class NativeMediaAdapter {
         // while the view is preparing a source that was requested to play.
         if (!state.isPlaying) this.player.pause();
       } catch (error) {
-        if (!this.disposed && version === this.version) { this.key = ''; this.player.pause(); throw error; }
+        if (!this.disposed && version === this.version) { this.key = ''; this.resolvedKey = ''; this.resolvedSource = null; this.player.pause(); throw error; }
       }
     });
     this.queue = task.catch(() => {});
