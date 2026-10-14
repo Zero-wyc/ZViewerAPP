@@ -52,7 +52,8 @@
         }
       ],
       "./plugins/with-system-media.cjs",
-      "./plugins/with-vlc-tracks.cjs"
+      "./plugins/with-vlc-tracks.cjs",
+      "./plugins/with-ios-scene-support.cjs"
     ],
     "experiments": {
       "typedRoutes": true,
