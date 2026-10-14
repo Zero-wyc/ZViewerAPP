@@ -1,5 +1,21 @@
 # iOS 客户端维护架构
 
+## 2026-10-14：1.8.6 / build 25 本地设备 Release 交付
+
+本轮在 Mac 上继续修复 Kazumi/B站同步、Jellyfin 暂停跳转恢复及网易云曲尾续播，按用户最新要求完成本地设备 Release IPA 后提交 Git。当前本地源码与包为 1.8.6 / build 25，最新公开 IPA 在上传前仍为 1.8.5 / build 23。既有双端 Release/标签及其发布回执保留，本次不把本地构建记为已上传。
+
+`prepare-native-ios.sh` 复用锁定且经摘要检查的 Go 下载缓存，从固定来源重建 device ARM64 Bilicore；设备 Opus 使用独立构建目录，避免复用 simulator 对象。`build-unsigned-ios.sh` 支持本地 Mac，先核验 Go 来源/VLC 补丁及 Bilicore 设备平台；重新打包时清理旧 Payload/IPA，检查真实设备 Mach-O、未签名状态、Release JS、LiveKit 和 VLC/原生桥引用。构建细节见 [本轮交付记录](releases/ios-1.8.6-25-local-20261014.md)。
+
+199 项测试、lint/typecheck 与模拟器实际联调通过；末尾续播修复是在 iOS 独立房主的前台场景验证。系统媒体已接入且后台 Now Playing 更新有原生证据，但真机、控制中心/锁屏按钮、后台自然跨曲与长期后台同步仍待专项验收。
+
+## 2026-10-14：Mac 本地接续与播放联调
+
+用户已授权在此 Mac 继续开发并使用网页房主 / iOS 模拟器联合排查。以下记录为设备 Release 构建前的阶段性验证；后续本地包交付见上节，历史公开发布状态保留。
+
+本地 Xcode 27 / iOS 27 通过 scene 生命周期插件启动锁定 Expo 工程；原有业务页面与样式保留。聚合 HLS 改写应用私有 VOD 清单，让子清单、TS、密钥、初始化段通过原服务器代理；实际 Kazumi 分片直连 403、代理 206 的差异已复现。所有来源统一绑定当前影片 ID，防止网页省略 ID 与服务器携带 ID 的消息交替触发同片重载；状态更新复用解析结果。移除重复初始 seek，暂停 seek 的 UI 更新与实际进度分离，并限制 settling 时间。仅 Debug 模拟器使用软件解码，真实设备不更改解码方式。
+
+194 项测试、lint/typecheck 及 iOS Release JS/Hermes 导出通过；B站 MP4、Kazumi《败犬女主太多了！》HLS 已验证画面、持续进度和暂停/恢复，观众 seek 已验证。模拟器结果不代替真实 iPhone/iPad 对硬件解码、后台、跨集的验收。具体环境、命令、联调边界见 [Mac 本地开发记录](ios-mac-development-20261014.md)。
+
 ## 2026-10-14：用户复测仍有同步问题，1.8.6 暂缓发布
 
 用户明确反馈当前候选仍存在同步问题，并要求本轮只发布 Android/HarmonyOS。**1.8.6 / build 25 不发布，不重新构建，不上传到 client-v1.8.6 Release；候选源码随完整仓库同步 main，仅供后续修复。** 最新公开 IPA 仍为 1.8.5 / build 23，但不能把其此前起播/声音/同曲后台播放确认扩大为最新同步机制和后台跨曲已验收。
