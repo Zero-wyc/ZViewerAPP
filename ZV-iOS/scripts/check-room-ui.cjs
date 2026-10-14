@@ -51,9 +51,9 @@ const media = resolve(process.env.IOS_TEST_MEDIA || resolve(homedir(), 'Videos')
     viewer = io(backend, { transports: ['websocket'], auth: { token: guest.accessToken }, reconnection: false });
     await new Promise((resolve, reject) => { viewer.once('connect', resolve); viewer.once('connect_error', reject); });
     await new Promise((resolve, reject) => viewer.timeout(10000).emit('request-join', { roomId }, (failure, data) => failure || !data?.success ? reject(new Error('Local guest join failed')) : resolve(data)));
-    await page.getByText('房间', { exact: true }).click(); await page.getByText(guest.user.username + ' · viewer', { exact: true }).waitFor(); check('member join follows server viewer-joined event');
-    viewer.disconnect(); await page.getByText(guest.user.username + ' · viewer', { exact: true }).waitFor({ state: 'hidden' }); check('member leave follows server viewer-left event');
-    await page.getByPlaceholder('房间名称').fill('Updated iOS room'); await page.getByRole('button', { name: '保存名称', exact: true }).click(); await page.getByText('Updated iOS room', { exact: true }).filter({ visible: true }).first().waitFor(); check('rename room follows actual server protocol');
+    await page.getByRole('button', { name: '房间设置', exact: true }).click(); await page.getByText(guest.user.username, { exact: true }).waitFor(); check('member join follows server viewer-joined event');
+    viewer.disconnect(); await page.getByText(guest.user.username, { exact: true }).waitFor({ state: 'hidden' }); check('member leave follows server viewer-left event');
+    await page.getByRole('button', { name: '修改房间名称', exact: true }).click(); await page.getByPlaceholder('房间名称').fill('Updated iOS room'); await page.getByRole('button', { name: '保存名称', exact: true }).click(); await page.getByText('Updated iOS room', { exact: true }).filter({ visible: true }).first().waitFor(); check('rename room follows actual server protocol');
     const statusResponse = page.waitForResponse(response => response.url().endsWith('/api/music/login/status'));
     await page.getByRole('button', { name: '一起听', exact: true }).first().click(); await page.getByRole('button', { name: '网易云音乐', exact: true }).waitFor(); check('Android music navigation and floating player are present');
     const statusDto = await (await statusResponse).json(); assert.equal(statusDto.loggedIn, false); assert.equal(statusDto.success, undefined);
