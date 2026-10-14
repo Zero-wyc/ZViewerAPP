@@ -1,15 +1,86 @@
 {
-  "status": "prepared",
-  "date": "2026-10-14",
+  "status": "published",
+  "verifiedAt": "2026-10-14T08:17:20.8994648+08:00",
   "repo": "Zero-wyc/ZViewerAPP",
   "tag": "client-v1.8.6",
   "title": "ZViewer-Client V1.8.6",
-  "platforms": ["Android", "HarmonyOS"],
-  "ios": {"candidate": "1.8.6 / build 25", "released": false, "reason": "User reports sync issues remain; release withheld"},
-  "assets": [
-    {"name": "ZViewer-Android-1.8.6-release.apk", "size": 28871799, "sha256": "756ae3a6cbf103a5b9312ebf926f63bb5588ae9f6d89a15a4f8682af331959c7"},
-    {"name": "ZViewer-HarmonyOS-1.8.6-release.hap", "size": 14193024, "sha256": "b47b31735b0c95f05584a1f051becbffcd8a5a3722d06122b5fdccc84d317d73"},
-    {"name": "SHA256SUMS.txt", "scope": "Android and HarmonyOS only"}
+  "releaseId": 412215310,
+  "url": "https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.6",
+  "draft": false,
+  "prerelease": false,
+  "latest": true,
+  "platforms": [
+    "Android",
+    "HarmonyOS"
   ],
-  "source": {"branch": "main", "archive": "GitHub generated zip/tar.gz", "includesIosCandidateSource": true}
+  "ios": {
+    "released": false,
+    "reason": "User reports sync issues remain; release withheld",
+    "ipaAttached": false,
+    "candidate": "1.8.6 / build 25"
+  },
+  "releaseCommit": "ffa4f29cd4323f868a22e066716fb98861901c1c",
+  "mainAtPublication": "ffa4f29cd4323f868a22e066716fb98861901c1c",
+  "assets": [
+    {
+      "name": "ZViewer-Android-1.8.6-release.apk",
+      "size": 28871799,
+      "digest": "sha256:756ae3a6cbf103a5b9312ebf926f63bb5588ae9f6d89a15a4f8682af331959c7",
+      "verified": true
+    },
+    {
+      "name": "ZViewer-HarmonyOS-1.8.6-release.hap",
+      "size": 14193024,
+      "digest": "sha256:b47b31735b0c95f05584a1f051becbffcd8a5a3722d06122b5fdccc84d317d73",
+      "verified": true
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "size": 202,
+      "digest": "sha256:bd7eecab98cbbf8b1e9ed01377f928876bfdb214a76846fd0ce0cab718a74726",
+      "verified": true
+    }
+  ],
+  "anonymousDownloads": [
+    {
+      "name": "ZViewer-Android-1.8.6-release.apk",
+      "size": 28871799,
+      "sha256": "756ae3a6cbf103a5b9312ebf926f63bb5588ae9f6d89a15a4f8682af331959c7",
+      "anonymousDownloadVerified": true
+    },
+    {
+      "name": "ZViewer-HarmonyOS-1.8.6-release.hap",
+      "size": 14193024,
+      "sha256": "b47b31735b0c95f05584a1f051becbffcd8a5a3722d06122b5fdccc84d317d73",
+      "anonymousDownloadVerified": true
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "size": 202,
+      "sha256": "bd7eecab98cbbf8b1e9ed01377f928876bfdb214a76846fd0ce0cab718a74726",
+      "anonymousDownloadVerified": true
+    }
+  ],
+  "publicReadmeMatches": true,
+  "sourceArchive": {
+    "contentMismatches": 0,
+    "commit": "ffa4f29cd4323f868a22e066716fb98861901c1c",
+    "trackedFiles": 959,
+    "zipUrl": "https://github.com/Zero-wyc/ZViewerAPP/archive/refs/tags/client-v1.8.6.zip",
+    "archiveFiles": 959,
+    "generatedBy": "GitHub",
+    "pass": true
+  },
+  "privacy": {
+    "agentsIncluded": false,
+    "packagePass": true,
+    "knownAccountPasswordMatches": 0,
+    "sourcePass": true
+  },
+  "realReleaseUpdateCheck": {
+    "pass": true,
+    "harmony": "ZViewer-HarmonyOS-1.8.6-release.hap",
+    "android": "ZViewer-Android-1.8.6-release.apk"
+  },
+  "note": "Release tag remains pinned; verification receipt follows as a documentation-only main commit"
 }

@@ -31,7 +31,7 @@
 | ZViewer-Android-1.8.6-release.apk | 28,871,799 | `756ae3a6cbf103a5b9312ebf926f63bb5588ae9f6d89a15a4f8682af331959c7` |
 | ZViewer-HarmonyOS-1.8.6-release.hap | 14,193,024 | `b47b31735b0c95f05584a1f051becbffcd8a5a3722d06122b5fdccc84d317d73` |
 
-原始离线包检查见 [iOS inspection](ios-1.8.6-25-ipa-inspection.json)；三端构建/测试/签名/资源/隐私检查摘要见 [validation JSON](client-1.8.6-validation.json)。正式 IPA [云端下载](https://expo.dev/artifacts/eas/1p5_0YQ0T7X_TQ_dGOHbkzxkDbCEYq4v3uDRj8F0jss.ipa)。
+原始离线包检查见 [iOS inspection](ios-1.8.6-25-ipa-inspection.json)；三端构建/测试/签名/资源/隐私检查摘要见 [validation JSON](client-1.8.6-validation.json)。iOS 候选 IPA 仅在本地保留，不作为本次 Release 附件或公开下载入口。
 
 1. 最新服务端下，网页/安卓/鸿蒙房主播放 B站和聚合番剧，iOS 观众连续观看至少 5 分钟；暂停/恢复/拖动/切 P/晚加入/重连后检查没有持续反复拉进度。
 2. iOS 一起听分别作为房主和观众，网易云与 B站各连续三首；锁屏和桌面状态分别测试自然结束、房主远程切歌和控制中心 next/prev，检查新曲有声且全房间状态一致。
