@@ -36,7 +36,7 @@ import {
   requestFullscreen,
   onFullscreenChange,
 } from '@/lib/fullscreen-utils'
-import { useControlBarAutoHide } from '@/hooks/useControlBarAutoHide'
+import { useScreenShareDisplay } from '../../../../mobile/useScreenShareDisplay'
 import '@/modules/art-player/art-overrides.css'
 
 /** flv.js 统计信息
@@ -107,8 +107,10 @@ export function FlvPlayer({
   const [streamStatus, setStreamStatus] = useState<StreamStatus>('connecting')
 
   // 控制栏自动隐藏（逻辑仿照 WatchTogetherCore）
-  const controlBarVisible = useControlBarAutoHide(stageRef, {
-    disabled: loading || !!errorMsg,
+  const controlBarVisible = useScreenShareDisplay({ stage: stageRef, video: videoRef,
+    fullscreen: isWebFullscreen || isFullscreen,
+    enterFullscreen: () => { if (!isWebFullscreen) onToggleWebFullscreen?.() },
+    autoHideDisabled: loading || !!errorMsg,
   })
 
   // 用 ref 存储回调，避免内联函数引用变化导致 useEffect 重新执行（播放器闪烁）
@@ -486,7 +488,7 @@ export function FlvPlayer({
                 onClick={handleRefresh}
               />
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
+            {!(isWebFullscreen || isFullscreen) && <div className="mt-2 flex flex-wrap items-center gap-2">
               <Tag
                 color={
                   streamStatus === 'playing'
@@ -510,7 +512,7 @@ export function FlvPlayer({
               ) : (
                 <Tag color="cyan">音频开启</Tag>
               )}
-            </div>
+            </div>}
           </div>
         </div>
       )}

@@ -43,7 +43,7 @@ export function RemoteVideoPlayer({
 
   return (
     <div className="relative h-full w-full">
-      <LiveArtPlayer muted={isMuted} onVideoReady={handleVideoReady} />
+      <LiveArtPlayer muted={isMuted} showControls={false} onVideoReady={handleVideoReady} />
       <VideoStatsMenu
         videoElement={videoEl}
         pc={peerConnection}

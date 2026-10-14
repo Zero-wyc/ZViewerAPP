@@ -6,12 +6,10 @@ import { PlayerDisplayControls } from '../../../../mobile/PlayerDisplayControls'
 import {
   Pause,
   Play,
-  Pencil,
   PictureInPicture,
   PictureInPicture2,
   Volume2,
   VolumeX,
-  X,
   RefreshCw,
 } from 'lucide-react'
 
@@ -28,8 +26,9 @@ interface WatchControlsBarProps {
   isPictureInPicture: boolean
   /** 浏览器是否支持画中画 */
   isPiPSupported: boolean
-  /** 是否显示批注工具栏 */
-  showAnnotationToolbar: boolean
+  /** 视频是否已有可显示的帧 */
+  canEnterPiP: boolean
+  pipLabel?: string
   /** socket 是否已连接 */
   connected: boolean
   /** WebRTC 连接状态 */
@@ -45,8 +44,6 @@ interface WatchControlsBarProps {
   onFullscreen: () => void
   /** 切换画中画 */
   onTogglePiP: () => void
-  /** 切换批注工具栏 */
-  onToggleAnnotation: () => void
   /** 刷新连接 */
   onRefresh: () => void
   /** 控制栏是否可见（自动隐藏），默认 true */
@@ -100,7 +97,8 @@ export function WatchControlsBar({
   hasRemoteStream,
   isPictureInPicture,
   isPiPSupported,
-  showAnnotationToolbar,
+  canEnterPiP,
+  pipLabel = '画中画',
   connected,
   connectionState,
   videoResolution,
@@ -108,7 +106,6 @@ export function WatchControlsBar({
   onTogglePlayPause,
   onFullscreen,
   onTogglePiP,
-  onToggleAnnotation,
   onRefresh,
   controlBarVisible = true,
   isWebFullscreen = false,
@@ -151,23 +148,18 @@ export function WatchControlsBar({
                   <PictureInPicture />
                 )
               }
-              label={isPictureInPicture ? '退出画中画' : '画中画'}
+              label={isPictureInPicture ? `退出${pipLabel}` : pipLabel}
+              disabled={!isPictureInPicture && !canEnterPiP}
               onClick={onTogglePiP}
             />
           )}
-          <IconButton
-            icon={showAnnotationToolbar ? <X /> : <Pencil />}
-            label={showAnnotationToolbar ? '关闭批注' : '批注'}
-            active={showAnnotationToolbar}
-            onClick={onToggleAnnotation}
-          />
           <IconButton
             icon={<RefreshCw />}
             label="刷新连接"
             onClick={onRefresh}
           />
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
+        {!isWebFullscreen && <div className="webrtc-connection-info mt-2 flex flex-wrap items-center gap-2">
           <Tag color={connected ? 'success' : 'default'}>
             {connected ? '已连接' : '未连接'}
           </Tag>
@@ -178,9 +170,9 @@ export function WatchControlsBar({
           {hasRemoteStream && hasRemoteAudio && (
             <Tag color="cyan">{isMuted ? '静音中' : '音频开启'}</Tag>
           )}
-        </div>
-        {videoResolution && (
-          <Paragraph className="m-0 mt-2">
+        </div>}
+        {!isWebFullscreen && videoResolution && (
+          <Paragraph className="webrtc-connection-info m-0 mt-2">
             <Text type="secondary">
               分辨率：{videoResolution.width} x {videoResolution.height}
             </Text>

@@ -5,7 +5,7 @@
  * - RTCPeerConnection 管理（挂载时自动创建，卸载时自动清理）
  * - 信令通道订阅（signal-offer / signal-ice-candidate / sharer-ready）
  * - video 元素绑定与分辨率/PiP 监听
- * - 控制栏、批注层、网页全屏等 UI
+ * - 控制栏、全屏和平台小窗 UI
  *
  * WatchPage 分发器根据 roomMode + shareMethod 决定渲染本组件或 StreamPushViewer。
  */
@@ -17,15 +17,15 @@ import {
   isIOSDevice,
   supportsContainerFullscreen,
 } from '@/lib/fullscreen-utils'
-import {
-  AnnotationLayer,
-  AnnotationToolbar,
-  type AnnotationTool,
-} from '@/components/AnnotationLayer'
+import { Maximize2, X } from 'lucide-react'
+import { getRuntimePlatform } from '../../../../platform/runtime'
+import { enterNativePictureInPicture, hasPictureInPictureFrame, supportsNativePictureInPicture } from '../../../../platform/webrtcPictureInPicture'
+import { ROOM_MEDIA_TEARDOWN_EVENT } from '@/lib/mediaTeardown'
+import '../../../../mobile/webrtc-pip.css'
 import { CommentPanel } from '@/components/CommentPanel'
 import { RoomLayout } from '@/modules/room/components/RoomLayout'
 import { RoomInfoPanel } from '@/modules/room/components/RoomInfoPanel'
-import { useControlBarAutoHide } from '@/hooks/useControlBarAutoHide'
+import { useScreenShareDisplay } from '../../../../mobile/useScreenShareDisplay'
 import { useP2PTunnel } from '@/modules/p2p'
 import type { P2PStatus } from '@/modules/p2p/types'
 import { useViewerPeerConnection } from '../hooks/useViewerPeerConnection'
@@ -69,15 +69,24 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
     height: number
   } | null>(null)
   const [isPictureInPicture, setIsPictureInPicture] = useState(false)
-  const [isPiPSupported] = useState(
-    () => typeof document !== 'undefined' && document.pictureInPictureEnabled
-  )
-  const [annotationTool, setAnnotationTool] = useState<AnnotationTool>('pen')
-  const [annotationColor, setAnnotationColor] = useState('#f76f53')
-  const [annotationWidth, setAnnotationWidth] = useState(3)
-  const [showAnnotationToolbar, setShowAnnotationToolbar] = useState(false)
-  const annotationRef = useRef<{ clear: () => void }>(null)
+  const platform = getRuntimePlatform()
+  const mobilePiP = platform === 'android' || platform === 'harmony'
+  const [nativePiPSupported, setNativePiPSupported] = useState(false)
+  const [inlinePiP, setInlinePiP] = useState(false)
+  const [pipPosition, setPipPosition] = useState<{ left: number; top: number } | null>(null)
+  const pipDrag = useRef<{ x: number; y: number; left: number; top: number } | null>(null)
+  const nativePiPCleanup = useRef<(() => void) | null>(null)
+  const pipRequest = useRef<AbortController | null>(null)
+  const pipBusy = useRef(false)
+  const [frameReady, setFrameReady] = useState(false)
+  const isPiPSupported = mobilePiP || !!document.pictureInPictureEnabled
   const [isWebFullscreen, setIsWebFullscreen] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    void supportsNativePictureInPicture().then(supported => { if (!cancelled) setNativePiPSupported(supported) })
+    return () => { cancelled = true }
+  }, [])
 
   // WebRTC 播放器舞台 ref（用于控制栏自动隐藏）
   const webrtcStageRef = useRef<HTMLDivElement | null>(null)
@@ -90,6 +99,32 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
     videoRef.current = node
     if (node && !prev) setVideoVersion((v) => v + 1)
   }, [])
+
+  useEffect(() => {
+    const close = () => {
+      pipRequest.current?.abort()
+      nativePiPCleanup.current?.()
+      nativePiPCleanup.current = null
+      const video = videoRef.current
+      if (video && document.pictureInPictureElement === video) void document.exitPictureInPicture().catch(() => {})
+      setInlinePiP(false)
+      setIsPictureInPicture(false)
+    }
+    window.addEventListener(ROOM_MEDIA_TEARDOWN_EVENT, close)
+    return () => {
+      window.removeEventListener(ROOM_MEDIA_TEARDOWN_EVENT, close)
+      close()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!inlinePiP) return
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setInlinePiP(false) }
+    const clamp = () => setPipPosition(null)
+    document.addEventListener('keydown', close)
+    window.addEventListener('resize', clamp)
+    return () => { document.removeEventListener('keydown', close); window.removeEventListener('resize', clamp) }
+  }, [inlinePiP])
 
   // 观众 PC hook
   const {
@@ -108,6 +143,15 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
     videoRef,
     videoMountedVersion: videoVersion,
   })
+
+  useEffect(() => {
+    if (hasRemoteStream) return
+    pipRequest.current?.abort()
+    nativePiPCleanup.current?.()
+    nativePiPCleanup.current = null
+    setInlinePiP(false)
+    setIsPictureInPicture(false)
+  }, [hasRemoteStream])
 
   // 挂载时自动创建 PC，卸载时自动清理
   // 替代原 WatchPage 中 useJoinRoom.onApprovedScreenShare / onRoomModeChanged 的 PC 创建逻辑
@@ -177,7 +221,8 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
   )
 
   // WebRTC 控制栏自动隐藏（逻辑仿照 WatchTogetherCore）
-  const webrtcControlBarVisible = useControlBarAutoHide(webrtcStageRef)
+  const webrtcControlBarVisible = useScreenShareDisplay({ stage: webrtcStageRef, video: videoRef,
+    fullscreen: isWebFullscreen, enterFullscreen: () => setIsWebFullscreen(true), enabled: !inlinePiP && !isPictureInPicture })
 
   // WebRTC 网页全屏模式下按 ESC 退出
   useEffect(() => {
@@ -209,18 +254,24 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
     const video = videoRef.current
     if (!video) return
 
-    const handleLoadedMetadata = () =>
+    const handleLoadedMetadata = () => {
       setVideoResolution({ width: video.videoWidth, height: video.videoHeight })
+      setFrameReady(hasPictureInPictureFrame(video))
+    }
     const handleEnterPiP = () => setIsPictureInPicture(true)
     const handleLeavePiP = () => setIsPictureInPicture(false)
     const pipEnter = 'enterpictureinpicture' as keyof HTMLVideoElementEventMap
     const pipLeave = 'leavepictureinpicture' as keyof HTMLVideoElementEventMap
 
     video.addEventListener('loadedmetadata', handleLoadedMetadata)
+    video.addEventListener('loadeddata', handleLoadedMetadata)
+    video.addEventListener('resize', handleLoadedMetadata)
+    video.addEventListener('emptied', handleLoadedMetadata)
     video.addEventListener(pipEnter, handleEnterPiP)
     video.addEventListener(pipLeave, handleLeavePiP)
 
     const interval = setInterval(() => {
+      setFrameReady(hasPictureInPictureFrame(video))
       if (video.videoWidth && video.videoHeight)
         setVideoResolution((prev) => {
           if (
@@ -236,6 +287,9 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
 
     return () => {
       video.removeEventListener('loadedmetadata', handleLoadedMetadata)
+      video.removeEventListener('loadeddata', handleLoadedMetadata)
+      video.removeEventListener('resize', handleLoadedMetadata)
+      video.removeEventListener('emptied', handleLoadedMetadata)
       video.removeEventListener(pipEnter, handleEnterPiP)
       video.removeEventListener(pipLeave, handleLeavePiP)
       clearInterval(interval)
@@ -282,15 +336,39 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
 
   const handleTogglePictureInPicture = async () => {
     const video = videoRef.current
-    if (!video) return
+    if (!video || pipBusy.current) return
+    if (inlinePiP) { setInlinePiP(false); return }
+    if (!hasPictureInPictureFrame(video)) { message.info('请等待投屏画面就绪后再开启小窗'); return }
+    pipBusy.current = true
+    const request = new AbortController()
+    pipRequest.current = request
     try {
-      if (document.pictureInPictureElement === video)
+      if (mobilePiP) {
+        if (nativePiPSupported && webrtcStageRef.current) {
+          const cleanup = await enterNativePictureInPicture(webrtcStageRef.current, video, () => {
+            nativePiPCleanup.current = null
+            setIsPictureInPicture(false)
+          }, request.signal)
+          nativePiPCleanup.current = cleanup
+          if (cleanup) setIsPictureInPicture(true)
+        } else {
+          setIsWebFullscreen(false)
+          setPipPosition(null)
+          setInlinePiP(true)
+        }
+      } else if (document.pictureInPictureElement === video)
         await document.exitPictureInPicture()
       else await video.requestPictureInPicture()
     } catch (err) {
+      if (request.signal.aborted) return
       console.error('[WebrtcWatchPage] picture-in-picture error:', err)
-      message.error('画中画模式不可用')
-    }
+      if (mobilePiP) {
+        setIsWebFullscreen(false)
+        setPipPosition(null)
+        setInlinePiP(true)
+        message.info('系统画中画不可用，已切换为应用内小窗')
+      } else message.error('画中画模式不可用')
+    } finally { pipBusy.current = false; if (pipRequest.current === request) pipRequest.current = null }
   }
 
   const handleToggleMute = () => setIsMuted((prev) => !prev)
@@ -315,10 +393,14 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
       ref={webrtcStageRef}
       className={cn(
         'zart-stage relative h-full w-full',
-        isWebFullscreen && 'zart-web-fullscreen fixed inset-0 z-[100]'
+        isWebFullscreen && !inlinePiP && 'zart-web-fullscreen fixed inset-0 z-[100]',
+        inlinePiP && 'webrtc-inline-pip'
       )}
       style={
-        isWebFullscreen ? { width: '100dvw', height: '100dvh' } : undefined
+        inlinePiP ? {
+          aspectRatio: `${videoResolution?.width || 16} / ${videoResolution?.height || 9}`,
+          ...(pipPosition ? { left: pipPosition.left, top: pipPosition.top, right: 'auto' } : {}),
+        } : isWebFullscreen ? { width: '100dvw', height: '100dvh' } : undefined
       }
     >
       <RemoteVideoPlayer
@@ -328,37 +410,35 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
         hasRemoteStream={hasRemoteStream}
         peerConnection={pc}
       />
-      <AnnotationLayer
-        ref={annotationRef}
-        socket={socket}
-        roomId={roomId}
-        active={showAnnotationToolbar}
-        tool={annotationTool}
-        color={annotationColor}
-        width={annotationWidth}
-      />
-      {showAnnotationToolbar && (
-        <div className="absolute bottom-20 right-3 z-30 max-w-[220px]">
-          <AnnotationToolbar
-            tool={annotationTool}
-            color={annotationColor}
-            width={annotationWidth}
-            onToolChange={setAnnotationTool}
-            onColorChange={setAnnotationColor}
-            onWidthChange={setAnnotationWidth}
-            onClear={() => annotationRef.current?.clear()}
-            canClear
-          />
-        </div>
-      )}
+      {inlinePiP && <div className="webrtc-pip-heading"
+        onPointerDown={event => {
+          if ((event.target as HTMLElement).closest('button')) return
+          const rect = webrtcStageRef.current!.getBoundingClientRect()
+          pipDrag.current = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top }
+          event.currentTarget.setPointerCapture(event.pointerId)
+        }}
+        onPointerMove={event => {
+          const drag = pipDrag.current, stage = webrtcStageRef.current
+          if (!drag || !stage) return
+          setPipPosition({
+            left: Math.max(0, Math.min(innerWidth - stage.offsetWidth, drag.left + event.clientX - drag.x)),
+            top: Math.max(0, Math.min(innerHeight - stage.offsetHeight, drag.top + event.clientY - drag.y)),
+          })
+        }}
+        onPointerUp={() => { pipDrag.current = null }} onPointerCancel={() => { pipDrag.current = null }}>
+        <span>应用内小窗</span>
+        <button type="button" aria-label="恢复播放画面" onClick={() => setInlinePiP(false)}><Maximize2 size={18} /></button>
+        <button type="button" aria-label="关闭小窗" onClick={() => setInlinePiP(false)}><X size={18} /></button>
+      </div>}
       <WatchControlsBar
         isMuted={isMuted}
         isPlaying={isPlaying}
         hasRemoteAudio={hasRemoteAudio}
         hasRemoteStream={hasRemoteStream}
-        isPictureInPicture={isPictureInPicture}
+        isPictureInPicture={isPictureInPicture || inlinePiP}
         isPiPSupported={isPiPSupported}
-        showAnnotationToolbar={showAnnotationToolbar}
+        canEnterPiP={hasRemoteStream && frameReady}
+        pipLabel={mobilePiP && !nativePiPSupported ? '应用内小窗' : '画中画'}
         connected={connected}
         connectionState={connectionState}
         videoResolution={videoResolution}
@@ -366,7 +446,6 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
         onTogglePlayPause={handleTogglePlayPause}
         onFullscreen={handleFullscreen}
         onTogglePiP={handleTogglePictureInPicture}
-        onToggleAnnotation={() => setShowAnnotationToolbar((prev) => !prev)}
         onRefresh={handleRefresh}
         controlBarVisible={webrtcControlBarVisible}
         isWebFullscreen={isWebFullscreen}

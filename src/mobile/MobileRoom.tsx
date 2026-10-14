@@ -204,11 +204,14 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
           <button aria-pressed={mode === 'watch-together'} disabled={isModeSwitching || !connected} onClick={() => handleSwitchMode('watch-together')}><MonitorPlay size={18} />一起看</button>
           <button aria-pressed={mode === 'listen-together'} disabled={isModeSwitching || !connected} onClick={() => handleSwitchMode('listen-together')}><Music2 size={18} />一起听</button>
         </div>}
+        <div className="mobile-room-settings-shortcuts">
         {isGlobalAppearanceRuntime() && <button className="mobile-text-button mobile-appearance-entry" onClick={() => {
           setSettingsOpen(false)
           window.dispatchEvent(new Event('mobile-appearance-open'))
         }}><Palette size={18} />外观设置</button>}
-        {ready && <><BilibiliAccount /><RoomInfoPanel roomId={roomId} isHost={room.isHost} />
+        {ready && <BilibiliAccount className="mobile-text-button mobile-bilibili-entry" showLoginState />}
+        </div>
+        {ready && <><RoomInfoPanel roomId={roomId} isHost={room.isHost} />
           <div className="mobile-room-footer"><span>房间号 {roomId} · {viewers.length} 位观众</span><button className="mobile-text-button" onClick={() => { setSettingsOpen(false); setLeaveOpen(true) }}>离开房间</button></div>
         </>}
       </Modal>

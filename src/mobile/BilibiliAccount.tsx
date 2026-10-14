@@ -5,7 +5,7 @@ import { embeddedBilibiliProxy, isEmbeddedBilibiliHost, startEmbeddedProxy, useE
 import type { BilibiliQrSession } from '../platform/contracts'
 import { getRuntimePlatform } from '../platform/runtime'
 
-export function BilibiliAccount() {
+export function BilibiliAccount({ className = 'mobile-text-button', showLoginState = false }: { className?: string; showLoginState?: boolean }) {
   const proxy = useEmbeddedProxyStatus()
   const [open, setOpen] = useState(false)
   const [qr, setQr] = useState<BilibiliQrSession | null>(null)
@@ -50,7 +50,7 @@ export function BilibiliAccount() {
   }
   if (!isEmbeddedBilibiliHost()) return null
   return <>
-    <button className="mobile-text-button" type="button" onClick={() => setOpen(true)}>B 站账号{proxy.loggedIn ? ' · 已登录' : ''}</button>
+    <button className={className} type="button" onClick={() => setOpen(true)}>B 站账号{proxy.loggedIn ? ' · 已登录' : showLoginState ? ' · 未登录' : ''}</button>
     <Modal open={open} title="B 站账号" onClose={close} footer={null}>
       {proxy.loggedIn ? <div className="bili-account-panel">
         <p>{proxy.user?.name || 'B 站用户'} · {proxy.user?.vipStatus ? '大会员' : '普通账号'}</p>

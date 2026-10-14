@@ -1,0 +1,44 @@
+/* Activity PiP keeps the existing WebView and the same WebRTC video alive. */
+html[data-webrtc-native-pip], html[data-webrtc-native-pip] body {
+  width: 100%; height: 100%; overflow: hidden; background: #000 !important;
+}
+html[data-webrtc-native-pip] [data-native-pip-ancestor] {
+  display: block !important; position: static !important; width: 100% !important; height: 100% !important;
+  min-width: 0 !important; min-height: 0 !important; max-width: none !important; max-height: none !important;
+  margin: 0 !important; padding: 0 !important; overflow: visible !important;
+  transform: none !important; filter: none !important; backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important; background: #000 !important;
+}
+html[data-webrtc-native-pip] [data-native-pip-ancestor] > :not([data-native-pip-ancestor]):not([data-native-pip-player]) { display: none !important; }
+html[data-webrtc-native-pip] [data-native-pip-player] {
+  position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important;
+  margin: 0 !important; padding: 0 !important; background: #000 !important;
+}
+html[data-webrtc-native-pip] [data-native-pip-player] .vc-container,
+html[data-webrtc-native-pip] [data-native-pip-player] .art-bottom,
+html[data-webrtc-native-pip] [data-native-pip-player] .art-mask,
+html[data-webrtc-native-pip] [data-native-pip-player] .art-state,
+html[data-webrtc-native-pip] [data-native-pip-player] .art-notice { display: none !important; }
+html[data-webrtc-native-pip] [data-native-pip-player] video { object-fit: contain !important; background: #000 !important; }
+.zart-stage:fullscreen .webrtc-connection-info { display: none; }
+.mobile-room .zart-stage { touch-action: manipulation; }
+
+/* ArkWeb's URL-based PiP does not render this MediaStream. Keep its original
+   video in a draggable in-app window instead of opening an empty system PiP. */
+.mobile-room .webrtc-inline-pip {
+  position: fixed !important; z-index: 150 !important;
+  top: calc(12px + var(--app-safe-top, 0px)); right: calc(12px + var(--app-safe-right, 0px));
+  width: min(72vw, 340px) !important; height: auto !important; max-height: 65dvh;
+  background: #000; border: 1px solid #78878a; border-radius: 12px; overflow: hidden;
+  box-shadow: 0 8px 28px #0009;
+}
+.webrtc-inline-pip > .vc-container { display: none; }
+.webrtc-inline-pip > div:first-child { position: absolute; inset: 34px 0 0; height: auto; }
+.webrtc-inline-pip .zart-stage { height: 100% !important; }
+.webrtc-pip-heading {
+  position: absolute; inset: 0 0 auto; height: 34px; z-index: 30;
+  display: flex; align-items: center; gap: 4px; padding-left: 10px;
+  color: #fff; background: #18212c; touch-action: none; cursor: move;
+}
+.webrtc-pip-heading span { flex: 1; font-size: 12px; }
+.webrtc-pip-heading button { display: grid; place-items: center; width: 34px; height: 34px; color: #fff; }

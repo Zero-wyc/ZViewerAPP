@@ -204,6 +204,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid #65d59b; outline-
 .player-time { font-size: 12px; white-space: nowrap; }
 .player-more-menu { max-height: min(300px, calc(100dvh - 130px)); }
 .player-more-menu button { min-height: 44px; }
+@media (max-height: 540px) {
+  .mobile-room .player-more { display: block; }
+  .mobile-room .player-secondary, .mobile-room .player-desktop-composer { display: none !important; }
+}
 .player-rate-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
 .player-rate-options button[aria-pressed="true"] { background: #233c30; color: #65d59b; }
 .player-mobile-composer { display: none; }

@@ -1,6 +1,6 @@
 # Android 客户端维护文档
 
-更新日期：2026-10-14。本文与同目录的 HarmonyOS、iOS 维护文档采用统一命名 `平台-maintenance-architecture.md`。
+更新日期：2026-10-15。本文与同目录的 HarmonyOS、iOS 维护文档采用统一命名 `平台-maintenance-architecture.md`。
 
 ## 当前状态与范围
 
@@ -65,6 +65,18 @@ Android 的 `native/bilicore/core/wbi.go`、`pgc.go`、`resolver.go`、`quality.
 | 浅色弹窗文字或模糊异常 | 根 CSS 变量、Portal 边界、播放器黑色画布和内部面板叠加的 blur/文字阴影。 |
 
 ## 验证矩阵
+
+### 2026-10-15 投屏、小窗与弹出菜单维护
+
+- WebRTC 观看端 `WebrtcWatchPage.tsx` / `WatchControlsBar.tsx` 不再挂载批注图层、工具栏或接收批注事件。全屏隐藏连接标签及分辨率，保留播放、音量、旋转、刷新与小窗操作；`RemoteVideoPlayer` 隐藏重复的 ArtPlayer 内置控制栏。
+- `src/platform/webrtcPictureInPicture.ts` 为 Android 选择 Activity 系统画中画。`PlayerDisplayPlugin` 探测系统能力并传入合法宽高比，Manifest 声明 PiP；`MainActivity` 保存/恢复方向并广播进入/退出状态。`webrtc-pip.css` 临时只显示原视频舞台，不移动或重建 video，不改变 MediaStream、不额外建立接收连接。进入前必须有实际解码尺寸和可用视频轨，失败恢复布局并提供应用内小窗；离房、卸载和异步进入过程中取消均释放窗口状态。
+- 应用内小窗保留相同 video/流，支持拖动与恢复；此模式不会显示到其他应用上方。HarmonyOS 的 MediaStream 兼容策略见鸿蒙文档，不能用 `document.pictureInPictureEnabled` 独自判定原生宿主可用。
+- `src/mobile/useScreenShareDisplay.ts` 统一 WebRTC 与 OBS/FLV 的横屏自动全屏和全屏手势。横屏变化进入全屏，手动退出后不因同一横屏尺寸重复进入；系统 PiP 和应用内小窗的尺寸变化不触发全屏。全屏单击切换控制栏、双击暂停/恢复本机播放；单击延迟 280ms 判定以排除双击，拖动、长按、多指和按钮/滑条操作不触发画面手势，退出/卸载取消待决点击。暂停保留信令与媒体连接，不自动离房。
+- 顶部 `message` 的成功/信息/警告/错误以及确认操作采用配套的不透明背景和文字颜色；不再把语义背景替换为透明壁纸颜色。`appearance.css` 补齐浅色/深色警告、错误变量；申请通知、通用 Modal 和 Portal 内房间底部说明采用可读背景/主题文字，提示位置避让系统安全区。
+- 房间设置中的外观、B站登录入口在同一行，各自使用外框和背景；已登录/未登录状态来自本机原生账号状态，不暴露账号凭据。
+- 一起看“更多”菜单由 `PlayerMoreMenu.tsx` Portal 渲染，常规观看向按钮下方展开，脱离播放器裁切。全屏底部空间不足时改用按钮上方并限制高度滚动；任何方向均与按钮保持间距，菜单打开期间控制栏保持可见。窗口/滚动/可视区域变化重新定位，支持外部点击、Escape 和原生返回关闭。
+- 新增 `scripts/webrtc-pip.test.mjs` 验证帧就绪、原流保持、拒绝回滚、离房时延迟进入等行为；`scripts/check-screen-share-ui.mjs` 检查双端三种视口、明暗主题、提示对比度至少 4.5:1、持续出帧及菜单不遮挡按钮。浏览器中的 Android 桥为替身；原生模拟器另外使用已安装 APK 的实际 WebView、真实 Activity PiP 与设备截图验收。测试后还原模拟器连接配置；物理手机和生产跨端投屏另行验收。
+- 本次最终验证通过 91 项适配测试、4 项媒体测试和 6 组浏览器 UI 场景。Android Studio `Medium_Phone` 与 Mate 90 Pro 模拟器安装最终 Debug 包后，均通过真实宿主横屏自动全屏、单击显隐、双击暂停/恢复、菜单下弹与按钮点击命中；Android Activity PiP 在系统 `pinned` 状态持续出帧，退出后恢复布局，鸿蒙应用内小窗持续出帧。原视频节点和 MediaStream 均保持；测试使用本机信令替身和设备内真实 RTC 回环，未连接生产投屏房主。模拟器原连接配置已还原。本轮未发布 Release，APK 为独立 `.debug` 包，未签名 HAP 仅用于模拟器安装。
 
 每次媒体/房间改动至少覆盖登录与切服、房主/观众权限、添加/切片/清空、播放暂停和 seek、字幕/弹幕、离房重入、一起听及语音释放。B站变更补本机登录态/游客态、普通 BV、多 P、PGC、DASH 双轨、真实画质和账号不足错误。平台能力变更补横竖屏/全屏恢复、系统媒体控制、来电/耳机/蓝牙及后台。记录来源属于单元测试、浏览器夹具、模拟器还是物理设备，不得把其中一个层级写成另一个层级的验收。
 

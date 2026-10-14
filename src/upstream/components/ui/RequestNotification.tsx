@@ -69,7 +69,7 @@ export function RequestNotification({
 
   return createPortal(
     <div
-      className="fixed top-4 left-1/2 z-[300] flex w-96 max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-col gap-2"
+      className="zen-request-container fixed left-1/2 z-[300] flex w-96 max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-col gap-2"
       style={{ pointerEvents: 'none', perspective: '800px' }}
     >
       {items.map((item) => (
@@ -117,7 +117,7 @@ function NotificationCard({ item, onClose }: NotificationCardProps) {
   return (
     <div
       className={cn(
-        'glass-strong pointer-events-auto overflow-hidden rounded-[var(--md-sys-shape-corner)] border border-[var(--glass-border)] shadow-lg',
+        'pointer-events-auto overflow-hidden rounded-[var(--md-sys-shape-corner)] border border-[var(--glass-border)] bg-[var(--md-sys-color-surface-container)] text-[var(--md-sys-color-on-surface)] shadow-lg',
         leaving ? 'zen-notification-exit' : 'zen-notification-enter'
       )}
       style={{

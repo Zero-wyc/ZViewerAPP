@@ -73,7 +73,7 @@ function createContainer(): HTMLDivElement {
     container = document.createElement('div')
     container.id = 'message-container'
     container.className =
-      'fixed top-4 left-1/2 z-[9999] flex -translate-x-1/2 flex-col items-center gap-2 pointer-events-none'
+      'zen-toast-container fixed z-[9999] flex flex-col items-center gap-2 pointer-events-none'
     document.body.appendChild(container)
   }
   return container
@@ -92,13 +92,12 @@ function show(
 
   const el = document.createElement('div')
   el.className =
-    'zen-toast-enter pointer-events-auto relative flex min-w-[200px] items-center gap-2 overflow-hidden rounded-[var(--md-sys-shape-corner)] border px-4 py-2.5 text-sm font-medium shadow-lg ' +
+    'zen-toast zen-toast-enter pointer-events-auto relative flex items-center gap-2 overflow-hidden rounded-[var(--md-sys-shape-corner)] border px-4 py-2.5 text-sm font-medium shadow-lg ' +
     colors[type]
-  el.style.backgroundColor =
-    'rgba(var(--md-sys-color-surface-container-rgb), var(--glass-strong-strength))'
-  // 使用 --glass-blur 变量，使模糊度跟随主题设置（toast 使用标准玻璃强度）
-  el.style.backdropFilter = 'blur(var(--glass-blur))'
-  el.style.setProperty('-webkit-backdrop-filter', 'blur(var(--glass-blur))')
+  // Preserve each semantic container/on-container pair. Wallpaper transparency
+  // must not replace the background while keeping its light foreground color.
+  el.setAttribute('role', type === 'error' || type === 'warning' ? 'alert' : 'status')
+  el.dataset.messageType = type
   el.style.setProperty('--toast-duration', `${duration}ms`)
   // 错峰延迟：让 enter 动画和 progress 动画同步推迟开始
   if (staggerDelay > 0) {
@@ -107,11 +106,12 @@ function show(
 
   const iconWrapper = document.createElement('span')
   iconWrapper.className = 'flex-shrink-0'
+  iconWrapper.setAttribute('aria-hidden', 'true')
   iconWrapper.innerHTML = svgs[type]
   el.appendChild(iconWrapper)
 
   const text = document.createElement('span')
-  text.className = 'flex-1'
+  text.className = 'min-w-0 flex-1 [overflow-wrap:anywhere]'
   text.textContent = content
   el.appendChild(text)
 
@@ -135,6 +135,8 @@ function show(
     el.appendChild(row)
   } else {
     const closeBtn = document.createElement('button')
+    closeBtn.type = 'button'
+    closeBtn.setAttribute('aria-label', '关闭提示')
     closeBtn.className =
       'ml-2 rounded p-0.5 transition-colors hover:bg-[var(--md-sys-color-surface-container-highest)]'
     closeBtn.innerHTML =

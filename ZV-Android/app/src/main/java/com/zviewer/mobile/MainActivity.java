@@ -3,6 +3,8 @@ package com.zviewer.mobile;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebViewClient;
 import android.graphics.Color;
+import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
@@ -17,6 +19,7 @@ public class MainActivity extends BridgeActivity {
     private Insets safeInsets = Insets.NONE;
     private boolean darkSystemBars = true;
     private boolean playerImmersive = false;
+    private Integer orientationBeforePiP = null;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(PlayerDisplayPlugin.class);
@@ -66,8 +69,32 @@ public class MainActivity extends BridgeActivity {
         controller.setAppearanceLightStatusBars(!darkSystemBars && !enabled);
         controller.setAppearanceLightNavigationBars(!darkSystemBars && !enabled);
         controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-        if (enabled) controller.hide(WindowInsetsCompat.Type.systemBars());
+        if (enabled || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode())) controller.hide(WindowInsetsCompat.Type.systemBars());
         else controller.show(WindowInsetsCompat.Type.systemBars());
+    }
+
+    public void preparePictureInPicture() {
+        orientationBeforePiP = getRequestedOrientation();
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+    }
+
+    public void restorePictureInPictureDisplay() {
+        if (orientationBeforePiP != null) {
+            setRequestedOrientation(orientationBeforePiP);
+            orientationBeforePiP = null;
+        }
+        setPlayerImmersive(playerImmersive);
+        updateWebInsets();
+    }
+
+    @Override
+    public void onPictureInPictureModeChanged(boolean active, Configuration configuration) {
+        super.onPictureInPictureModeChanged(active, configuration);
+        if (!active) restorePictureInPictureDisplay();
+        else setPlayerImmersive(playerImmersive);
+        if (bridge == null || bridge.getWebView() == null) return;
+        String script = "window.dispatchEvent(new CustomEvent('zviewer:native-pip',{detail:{active:" + active + "}}))";
+        bridge.getWebView().evaluateJavascript(script, null);
     }
 
     public void setSystemBarStyle(boolean dark) {

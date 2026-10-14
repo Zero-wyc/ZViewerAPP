@@ -891,6 +891,17 @@ button.bili-liquid-btn:active:not(:disabled) {
   animation-duration: var(--toast-duration, 3000ms);
 }
 
+/* Message surfaces remain opaque even with transparent/blurred wallpaper. */
+.zen-toast-container {
+  top: calc(12px + var(--app-safe-top, env(safe-area-inset-top, 0px)));
+  left: max(12px, var(--app-safe-left, 0px));
+  right: max(12px, var(--app-safe-right, 0px));
+  width: auto; max-width: 440px; margin-inline: auto;
+}
+.zen-toast { width: 100%; max-width: 100%; line-height: 1.6; }
+.zen-toast button { flex-shrink: 0; min-width: 32px; min-height: 32px; }
+.zen-request-container { top: calc(12px + var(--app-safe-top, env(safe-area-inset-top, 0px))); }
+
 /* ---------- 下拉菜单 / Popover 动画 ---------- */
 @keyframes zen-dropdown-enter {
   0% {

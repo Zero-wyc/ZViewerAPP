@@ -24,6 +24,7 @@ import {
   MessageSquare,
 } from 'lucide-react'
 import { PlayerDisplayControls } from '../../../../mobile/PlayerDisplayControls'
+import { PlayerMoreMenu } from './PlayerMoreMenu'
 import { cn, formatDuration } from '@/lib/utils'
 import {
   clearUserPaused,
@@ -335,7 +336,7 @@ export function PlayerControlBar({
   // 移动端“更多”菜单：收纳使用频率较低的房间/视频操作
   const [moreOpen, setMoreOpen] = useState(false)
   const [composerOpen, setComposerOpen] = useState(false)
-  const moreContainerRef = useRef<HTMLDivElement>(null)
+  const moreButtonRef = useRef<HTMLButtonElement>(null)
 
   // 初始化时从 localStorage 恢复音量
   useEffect(() => {
@@ -371,22 +372,6 @@ export function PlayerControlBar({
     document.addEventListener('mousedown', handleMouseDown)
     return () => document.removeEventListener('mousedown', handleMouseDown)
   }, [rateOpen])
-
-  // 点击外部关闭移动端“更多”菜单
-  useEffect(() => {
-    if (!moreOpen) return
-    const handleMouseDown = (e: MouseEvent) => {
-      const target = e.target as Node
-      if (
-        moreContainerRef.current &&
-        !moreContainerRef.current.contains(target)
-      ) {
-        setMoreOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleMouseDown)
-    return () => document.removeEventListener('mousedown', handleMouseDown)
-  }, [moreOpen])
 
   const computeTimeFromClientX = useCallback(
     (clientX: number): number => {
@@ -517,13 +502,13 @@ export function PlayerControlBar({
     <div
       className={cn(
         'player-controlbar absolute bottom-0 left-0 right-0 z-[80] p-2 md:p-3',
-        !controlBarVisible && 'pointer-events-none'
+        !controlBarVisible && !moreOpen && 'pointer-events-none'
       )}
     >
       <div
         className={cn(
           'glass-strong flex flex-col gap-1.5 md:gap-2 rounded-lg border border-[var(--glass-border)] p-1.5 md:p-2 shadow-lg',
-          controlBarVisible ? 'zart-controlbar-enter' : 'zart-controlbar-exit'
+          controlBarVisible || moreOpen ? 'zart-controlbar-enter' : 'zart-controlbar-exit'
         )}
       >
         {/* 进度条：轨道 + 缓冲 + 已播放 + 服务器同步线 */}
@@ -754,16 +739,18 @@ export function PlayerControlBar({
             <Settings size={18} />
           </ControlButton>
 
-          <div ref={moreContainerRef} className="player-more relative md:hidden">
+          <div className="player-more relative md:hidden">
             <ControlButton
+              ref={moreButtonRef}
               label="更多"
               active={moreOpen}
+              expanded={moreOpen}
               onClick={() => setMoreOpen((v) => !v)}
             >
               <MoreHorizontal size={18} />
             </ControlButton>
             {moreOpen && (
-              <div className="player-more-menu glass absolute right-0 bottom-full z-30 mb-2 w-44 overflow-auto rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] p-1 shadow-lg">
+              <PlayerMoreMenu anchor={moreButtonRef} onClose={() => setMoreOpen(false)}>
                 <button type="button" onClick={() => { setComposerOpen(v => !v); setMoreOpen(false) }}
                   className="flex w-full items-center gap-2 p-2 text-xs">
                   <MessageSquare size={16} />{composerOpen ? '收起弹幕输入' : '发送弹幕'}
@@ -808,7 +795,7 @@ export function PlayerControlBar({
                   <Eye size={14} />
                   {controlBarHideMode ? '显示控制栏' : '隐藏控制栏'}
                 </button>
-              </div>
+              </PlayerMoreMenu>
             )}
           </div>
 
@@ -823,13 +810,14 @@ export function PlayerControlBar({
 interface ControlButtonProps {
   label: string
   active?: boolean
+  expanded?: boolean
   disabled?: boolean
   onClick?: () => void
   children: React.ReactNode
 }
 
 const ControlButton = forwardRef<HTMLButtonElement, ControlButtonProps>(
-  function ControlButton({ label, active, disabled, onClick, children }, ref) {
+  function ControlButton({ label, active, expanded, disabled, onClick, children }, ref) {
     return (
       <button
         ref={ref}
@@ -837,6 +825,7 @@ const ControlButton = forwardRef<HTMLButtonElement, ControlButtonProps>(
         title={label}
         aria-label={label}
         aria-pressed={active}
+        aria-expanded={expanded}
         disabled={disabled}
         onClick={(e) => {
           e.stopPropagation()

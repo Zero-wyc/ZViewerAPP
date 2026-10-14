@@ -13,6 +13,11 @@ html[data-mobile-appearance-theme] {
   --appearance-surface: #131b25;
   --appearance-container: #252f3b;
   --appearance-error: #ffb4ab;
+  --appearance-warning: #ffcf7a;
+  --appearance-warning-container: #4f3b12;
+  --appearance-on-warning-container: #ffdf9e;
+  --appearance-error-container: #93000a;
+  --appearance-on-error-container: #ffdad6;
 }
 .app-shell {
   isolation: isolate;
@@ -32,6 +37,11 @@ html[data-mobile-appearance-theme="light"] {
   --appearance-surface: #f7f9ff;
   --appearance-container: #e3eaf3;
   --appearance-error: #a12626;
+  --appearance-warning: #775600;
+  --appearance-warning-container: #fff0c9;
+  --appearance-on-warning-container: #382700;
+  --appearance-error-container: #ffdad6;
+  --appearance-on-error-container: #410002;
 }
 .app-shell[data-appearance="light"] {
   background: #dce7f5;
@@ -206,6 +216,12 @@ html[data-mobile-appearance-theme] {
   --md-sys-color-on-secondary: var(--appearance-surface);
   --md-sys-color-secondary-container: var(--appearance-container);
   --md-sys-color-on-secondary-container: var(--appearance-text);
+  --md-sys-color-tertiary: var(--appearance-warning);
+  --md-sys-color-tertiary-container: var(--appearance-warning-container);
+  --md-sys-color-on-tertiary-container: var(--appearance-on-warning-container);
+  --md-sys-color-error: var(--appearance-error);
+  --md-sys-color-error-container: var(--appearance-error-container);
+  --md-sys-color-on-error-container: var(--appearance-on-error-container);
   --md-sys-color-surface: var(--appearance-surface);
   --md-sys-color-background: var(--appearance-surface);
   --md-sys-color-on-background: var(--appearance-text);
@@ -325,4 +341,17 @@ html[data-mobile-appearance-theme] .player-settings-dialog .player-settings-side
   --md-sys-color-surface-container: #1b2024;
   --glass-bg: rgba(19, 27, 37, .85);
   color: #edf1ef;
+}
+
+html[data-mobile-appearance-theme] .mobile-room-settings-shortcuts { display: flex; align-items: stretch; gap: 10px; margin: 0 0 16px; }
+html[data-mobile-appearance-theme] .mobile-room-settings-shortcuts > button {
+  flex: 1 1 0; min-width: 0; min-height: 48px; padding: 10px 8px;
+  border: 1px solid var(--appearance-muted); border-radius: var(--appearance-radius);
+  background: var(--appearance-container); color: var(--appearance-accent); font-size: 13px; line-height: 1.5;
+}
+html[data-mobile-appearance-theme] .mobile-room-settings-shortcuts > button svg { flex-shrink: 0; }
+/* Room settings are a body Portal, outside .app-shell-room. */
+html[data-mobile-appearance-theme] .mobile-room-footer { color: var(--appearance-muted); border-color: var(--appearance-line); }
+html[data-mobile-appearance-theme] .secondary-panel > .glass-strong {
+  background: var(--appearance-surface); color: var(--appearance-text);
 }
