@@ -1,5 +1,9 @@
 # HarmonyOS 应用维护架构整理
 
+## 2026-10-14：1.8.6 正式发布（Android/HarmonyOS）
+
+用户授权发布安卓/鸿蒙，并明确 iOS 1.8.6 暂缓。沿用下方已验证的 **1.8.6 / 186** 正式签名 HAP，不重复构建，证书保持一致；新 Release 仅 APK、HAP 和双端 SHA256SUMS。完整三端源码同步 main，不单独上传源码 ZIP；HAP 的 Profile/设备授权安装边界保持原要求。远端附件大小、摘要、匿名下载与源码归档检查见 [发布验证](releases/client-1.8.6-publication.md)。
+
 ## 2026-10-13：1.8.6 关于应用与更新检查（本地候选）
 
 共用 `AboutApp.tsx` 和 `appUpdates.ts`；HarmonyOS 通过 ArkTS `bundleManager.getBundleInfoForSelf(GET_BUNDLE_INFO_DEFAULT)` 返回实际 versionName/versionCode，桥接名为 `getAppInfo`。更新源为公开 GitHub 正式 `client-vX.Y.Z` Release，匹配正式 HAP；不把 APK、IPA 或源码包作为鸿蒙更新。每次进程启动自动检查，仅有新版本时提示；可手动检查并显示离线/限流/超时结果。

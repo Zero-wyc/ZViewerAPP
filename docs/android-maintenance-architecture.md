@@ -1,5 +1,9 @@
 # Android 应用维护架构整理
 
+## 2026-10-14：1.8.6 正式发布（Android/HarmonyOS）
+
+用户授权发布安卓/鸿蒙，并明确 iOS 1.8.6 暂缓。沿用下方已验证的 **1.8.6 / 186** 正式签名 APK，不重复构建；新 Release 仅 APK、HAP 和双端 SHA256SUMS。完整三端源码同步 main，不单独上传源码 ZIP；iOS 候选源码保留不表示已发布/通过同步验收。远端附件大小、摘要、匿名下载与源码归档检查见 [发布验证](releases/client-1.8.6-publication.md)。
+
 ## 2026-10-13：1.8.6 关于应用与更新检查（本地候选）
 
 主页品牌栏新增 `src/mobile/AboutApp.tsx`，以原生 `App.getInfo()` 显示实际版本和构建号。`src/mobile/appUpdates.ts` 从公开 GitHub Releases 列表筛选正式 `client-vX.Y.Z`，按数字比较版本，匹配 APK，排除 iOS 独立标签、预发行、debug/unsigned 和无安装包的 Release。每次进程启动自动检查，只有发现更新才弹出；手动检查展示最新/失败/限流/超时结果。不携带服务端登录凭据，不静默下载安装。

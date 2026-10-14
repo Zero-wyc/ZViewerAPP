@@ -1,0 +1,15 @@
+{
+  "status": "prepared",
+  "date": "2026-10-14",
+  "repo": "Zero-wyc/ZViewerAPP",
+  "tag": "client-v1.8.6",
+  "title": "ZViewer-Client V1.8.6",
+  "platforms": ["Android", "HarmonyOS"],
+  "ios": {"candidate": "1.8.6 / build 25", "released": false, "reason": "User reports sync issues remain; release withheld"},
+  "assets": [
+    {"name": "ZViewer-Android-1.8.6-release.apk", "size": 28871799, "sha256": "756ae3a6cbf103a5b9312ebf926f63bb5588ae9f6d89a15a4f8682af331959c7"},
+    {"name": "ZViewer-HarmonyOS-1.8.6-release.hap", "size": 14193024, "sha256": "b47b31735b0c95f05584a1f051becbffcd8a5a3722d06122b5fdccc84d317d73"},
+    {"name": "SHA256SUMS.txt", "scope": "Android and HarmonyOS only"}
+  ],
+  "source": {"branch": "main", "archive": "GitHub generated zip/tar.gz", "includesIosCandidateSource": true}
+}

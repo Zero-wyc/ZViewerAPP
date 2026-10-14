@@ -1,33 +1,33 @@
 # ZViewer Mobile Client
 
-**本地候选 1.8.6**：针对最新服务端同步机制修复 iOS 进度反复纠偏、后台音乐换源及末尾拖动；Android/HarmonyOS 增加主页“关于应用”、启动检查更新和对应平台下载提示。iOS 为 **build 25**，双端为 **186**；安装包和验证见 [本地验证记录](docs/releases/client-1.8.6-local-validation.md)，尚未发布，新增行为待真机复验。
+**Android / HarmonyOS 1.8.6 已发布**：主页新增“关于应用”、当前版本、启动及手动检查更新，以及对应平台下载提示；界面跟随全局外观，双端构建号为 **186**。
 
-最新公开发行仍为 **1.8.5**。此前用户确认 build 23 的起播卡死、B站声音及同曲后台播放修复通过；后续反馈的同步纠偏和后台跨曲播放问题由本次候选处理，不将此前验收扩大到这些新场景。
+**iOS 1.8.6 / build 25 暂缓发布**：用户复测后确认仍存在同步问题，当前候选不能标为问题已解决。本次 Release 不提供 IPA；最新公开 iOS 包仍为 1.8.5 / build 23，使用时也需注意已反馈的同步问题。完整三端源码同步 main，iOS 候选源码保留供后续修复。
 
 <img src="public/favicon.jpg" alt="ZViewer" width="88" height="88" />
 
 面向手机和平板的 ZViewer 客户端，支持一起看、一起听、投屏接收、房间语音、弹幕与字幕。三端均将界面与播放器打包进安装包，填写服务器地址后连接 [ZViewer 服务端](https://github.com/Zero-wyc/ZViewer)。本仓库提供 Android/HarmonyOS 共享前端、原生宿主及独立 iOS 工程源码。
 
-[下载 1.8.5 安装包](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.5) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md)
+[下载安卓/鸿蒙 1.8.6](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.6) · [历史 iOS 1.8.5](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.5) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md)
 
 ## 最新公开发行与三端状态
 
 | 平台 | 版本 | 交付和目前状态 |
 | --- | --- | --- |
-| Android | **1.8.5 / 185** | 既有发布签名 APK；包含房间入口统一、评论侧栏简化、全屏默认横屏和打开的锁图标；本轮构建、签名、资源与 80 项回归通过。 |
-| HarmonyOS | **1.8.5 / 185** | 既有发布签名 HAP；与 Android 共用业务和上述界面更新，使用 ArkWeb/ArkTS；本轮构建、签名、资源与 80 项回归通过。 |
-| iOS | **1.8.5 / build 23** | **已可用，用户确认本轮真机测试全部通过。** 发布经过验收的原始 IPA，需自行签名安装；VLC 播放、B站声音、一起听后台/锁屏播放修复已进入包内。 |
+| Android | **1.8.6 / 186** | 正式签名 APK；新增关于应用和更新检查，保持既有房间、全屏与本机解析行为。 |
+| HarmonyOS | **1.8.6 / 186** | 正式签名 HAP；共用更新页，通过 ArkTS 读取原生版本并打开系统浏览器下载。 |
+| iOS | 公开 **1.8.5 / build 23**；候选 **1.8.6 / build 25** | **同步问题仍未解决，1.8.6 暂缓发布。** 本次不包含 IPA，候选源码保留；历史公开包也不视为已通过本轮同步复验。 |
 
-[ZViewer-Client V1.8.5](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.5) 提供 APK、HAP、IPA 和三端 `SHA256SUMS.txt`。源码同步 [main](https://github.com/Zero-wyc/ZViewerAPP/tree/main)，本次 Release 标签包含三端源码，直接使用 GitHub 自动生成的 Source code（zip / tar.gz），不另上传源码 ZIP。iOS 沿用已验收 build 23，没有为发布重新构建 IPA。
+[ZViewer-Client V1.8.6](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.6) 仅提供 APK、HAP 和双端 `SHA256SUMS.txt`。源码同步 [main](https://github.com/Zero-wyc/ZViewerAPP/tree/main)，标签包含完整三端源码，直接使用 GitHub 自动生成的 Source code（zip / tar.gz），不另上传源码 ZIP。保留源码不表示发布或验收 iOS 1.8.6。
 
-服务端功能对齐基线为 **v4.5.3**（`9e2a0d4f3d9796067ac17274feabeccbb065d411`）。保留默认音乐音量、私人漫游续播、媒体库多版本/整季、番剧浏览、B站搜索和本机解析等既有功能。详见 [1.8.5 发行说明](docs/releases/client-1.8.5.md) 与 [三端发布验证](docs/client-v1.8.5-release-validation-20261013.md)。
+保留服务端 v4.5.3 对齐的默认音乐音量、私人漫游续播、媒体库多版本/整季、番剧浏览、B站搜索和本机解析等既有功能。本地服务端源码已更新到 `89eafa5`，未修改 NAS 容器。详见 [1.8.6 发行说明](docs/releases/client-1.8.6.md) 与 [发布验证](docs/releases/client-1.8.6-publication.md)。
 
 ## 安装与连接
 
 | 平台 | 安装包与方法 | 系统要求 |
 | --- | --- | --- |
-| Android | 下载 `ZViewer-Android-1.8.5-release.apk`，允许安装该来源的应用后安装；相同发布签名可覆盖旧正式版。 | Android 7.0 / API 24 起；APK 含 ARM64 / x86_64，需要 64 位设备；保持 System WebView / Chrome 更新。 |
-| HarmonyOS | 下载 `ZViewer-HarmonyOS-1.8.5-release.hap`，按设备支持的开发者安装/调试流程安装；可通过 DevEco Studio 或已连接设备的 HDC 安装。此 HAP 不是应用商店分发包。 | 工程最低 SDK `6.1.0(23)`，目标 SDK 26；本机发布 Profile 和设备授权限制以安装结果为准。 |
+| Android | 下载 `ZViewer-Android-1.8.6-release.apk`，允许安装该来源的应用后安装；相同发布签名可覆盖旧正式版。 | Android 7.0 / API 24 起；APK 含 ARM64 / x86_64，需要 64 位设备；保持 System WebView / Chrome 更新。 |
+| HarmonyOS | 下载 `ZViewer-HarmonyOS-1.8.6-release.hap`，按设备支持的开发者安装/调试流程安装；可通过 DevEco Studio 或已连接设备的 HDC 安装。此 HAP 不是应用商店分发包。 | 工程最低 SDK `6.1.0(23)`，目标 SDK 26；本机发布 Profile 和设备授权限制以安装结果为准。 |
 | iOS | 下载 `ZViewer-iOS-1.8.5-release.ipa`，用自己的证书及设备授权工具重新签名后侧载；不是直接点击即可安装的商店包。内置 Release JS，无需 Expo Go、Metro 或开发电脑。 | iOS / iPadOS 16.4 起，iPhone / iPad；签名有效期与安装设备资格由自己的签名方式决定。 |
 
 三端首次启动的操作相同：
@@ -70,13 +70,13 @@ Android 正式包名为 `com.zviewer.mobile`，调试包为 `com.zviewer.mobile.
 - **弹幕/字幕**：连续选集、已添加标记、本地 XML/JSON、文本和 PGS 字幕；字号可调。iOS 补充弹幕显示区域 25%–100%，滚动与底部固定弹幕使用所选范围。
 - **外观/布局**：深浅/系统主题、全局背景、手机和平板横竖屏、二级面板滚动与返回层级。Kazumi 仍需在设置中手动启用，公告继续排除。
 
-## iOS 可用状态与验收
+## iOS 同步问题与暂缓发布
 
-**iOS 1.8.5 / build 23 已处于可用状态。** 原 build 19/21/22 的问题与失败记录保留为历史，发行附件只使用已验收的 build 23。
+**2026-10-14：用户复测 1.8.6 / build 25 后反馈仍存在同步问题，明确暂缓发布此版本。** 当前没有可宣称通过本轮同步复验的新 IPA。1.8.5 / build 23 仅保留为历史公开包，不能把此前起播/声音/同曲后台播放验收扩大到最新同步机制和后台跨曲场景。
 
-本轮修复 VLC 回调与主线程互等，恢复正常起播和界面响应；B站分离音轨在输入就绪后挂载并允许失败重试；音乐使用独立后台音频标记、关闭隐藏视频/PiP、激活播放音频会话。原生补丁在云端依赖重装后重新应用并在编译前核验，产物检查覆盖完整二进制引用，避免把未打补丁的包当成新包交付。
+历史 build 23 已处理 VLC 回调互等、B站分离音轨和同曲后台音频。候选 build 25 尝试调整服务器时钟纠偏、复用原生音乐视图及换曲后台执行时间；自动测试和离线包检查通过，但用户反馈证明同步问题仍未解决。
 
-179 项自动测试、lint、类型检查、两次云端补丁核验及设备 IPA 离线检查通过；用户确认解决了本轮报告的播放、声音和后台问题。该确认不扩写为未提供的设备型号、长时间压力测试或所有账号/媒体格式兼容结论。安卓鸿蒙此次版本重打包验证通过，新增原生旋转行为的物理设备专项沿用 [旋转验证记录](docs/client-fullscreen-orientation-validation-20261013.md) 的边界。
+本次只发布用户已允许的 Android/HarmonyOS 1.8.6；不上传候选或历史 IPA 到新的 Release，不启动新的 iOS 构建。候选源码和历史记录保留，后续修复需围绕实际同步反馈复现。
 
 操作与维护见 [iOS README](ZV-iOS/README.md)、[iOS 维护文档](docs/ios-maintenance-architecture.md) 和 [build 23 验证记录](docs/releases/ios-1.8.5-23-validation.md)。由于云端 IPA 构建额度限制，后续 iOS 更新可能晚于 Android/HarmonyOS；界面通常先以 Expo Go 预览，原生修复在维护者明确授权后才构建。
 
