@@ -1,33 +1,33 @@
 # ZViewer Mobile Client
 
-**Android / HarmonyOS 1.8.6 已发布**：主页新增“关于应用”、当前版本、启动及手动检查更新，以及对应平台下载提示；界面跟随全局外观，双端构建号为 **186**。
+**三端统一 1.9.0**：Android / HarmonyOS 构建号 **190**，修复普通 HLS 直链被强制服务器中转、未遵守禁止代理回退设置及证书例外通道路径问题；iOS 复用已发布的 **build 26** IPA。
 
-**iOS 1.9.0 / build 26**：播放器、弹幕设置、房间语音、投屏、房间设置、方向控制和音乐菜单完成独立更新；设备 Release IPA 未签名，需自行签名后侧载。维护入口见 [iOS 维护文档](docs/ios-maintenance-architecture.md)，发布包见 [iOS 1.9.0 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/ios-v1.9.0)。
+**iOS 1.9.0 / build 26**：播放器、弹幕设置、房间语音、投屏、房间设置、方向控制和音乐菜单完成独立更新；设备 Release IPA 未签名，需自行签名后侧载。维护入口见 [iOS 维护文档](docs/ios-maintenance-architecture.md)，发布包见 [iOS 1.9.0 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0)。
 
 <img src="public/favicon.jpg" alt="ZViewer" width="88" height="88" />
 
 面向手机和平板的 ZViewer 客户端，支持一起看、一起听、投屏接收、房间语音、弹幕与字幕。三端均将界面与播放器打包进安装包，填写服务器地址后连接 [ZViewer 服务端](https://github.com/Zero-wyc/ZViewer)。本仓库提供 Android/HarmonyOS 共享前端、原生宿主及独立 iOS 工程源码。
 
-[下载安卓/鸿蒙 1.8.6](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.6) · [下载 iOS 1.9.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/ios-v1.9.0) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md)
+[下载安卓/鸿蒙 1.9.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0) · [下载 iOS 1.9.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md)
 
 ## 最新公开发行与三端状态
 
 | 平台 | 版本 | 交付和目前状态 |
 | --- | --- | --- |
-| Android | **1.8.6 / 186** | 正式签名 APK；新增关于应用和更新检查，保持既有房间、全屏与本机解析行为。 |
-| HarmonyOS | **1.8.6 / 186** | 正式签名 HAP；共用更新页，通过 ArkTS 读取原生版本并打开系统浏览器下载。 |
+| Android | **1.9.0 / 190** | 正式签名 APK；普通 HLS 直连优先、允许时失败回退代理，保留关于应用和更新检查。 |
+| HarmonyOS | **1.9.0 / 190** | 正式签名 HAP；共享 HLS 路由修复和证书通道路径修复，保留更新页。 |
 | iOS | **1.9.0 / build 26** | 未签名设备 Release IPA，需个人签名后侧载；自动检查和模拟器覆盖范围、真实媒体与后台限制见 iOS 维护文档。 |
 
-Android/HarmonyOS 继续使用 [ZViewer-Client V1.8.6](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.6)。独立 [iOS 1.9.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/ios-v1.9.0) 提供 `ZViewer-iOS-1.9.0-release.ipa` 和 `SHA256SUMS.txt`；Source code 使用该标签的 GitHub 自动源码归档，包含本次 iOS 修改。
+统一 [ZViewer-Client V1.9.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0) 提供 APK、HAP、原 iOS 1.9.0 / build 26 IPA 与三端 `SHA256SUMS.txt`；源码使用 GitHub 自动归档。原 `ios-v1.9.0` 保留为 iOS 包的历史构建来源，本轮未重新构建 IPA。
 
-Android/HarmonyOS 1.8.6 保留服务端 v4.5.3 对齐的默认音乐音量、私人漫游续播、媒体库多版本/整季、番剧浏览、B站搜索和本机解析等功能。维护状态与模块入口见对应的平台维护文档；完整历史版本见 [更新记录](CHANGELOG.md) 和 [GitHub Releases](https://github.com/Zero-wyc/ZViewerAPP/releases)。
+Android/HarmonyOS 1.9.0 保留服务端 v4.5.3 对齐的默认音乐音量、私人漫游续播、媒体库多版本/整季、番剧浏览、B站搜索和本机解析等功能。维护状态与模块入口见对应的平台维护文档；完整历史版本见 [更新记录](CHANGELOG.md) 和 [GitHub Releases](https://github.com/Zero-wyc/ZViewerAPP/releases)。
 
 ## 安装与连接
 
 | 平台 | 安装包与方法 | 系统要求 |
 | --- | --- | --- |
-| Android | 下载 `ZViewer-Android-1.8.6-release.apk`，允许安装该来源的应用后安装；相同发布签名可覆盖旧正式版。 | Android 7.0 / API 24 起；APK 含 ARM64 / x86_64，需要 64 位设备；保持 System WebView / Chrome 更新。 |
-| HarmonyOS | 下载 `ZViewer-HarmonyOS-1.8.6-release.hap`，按设备支持的开发者安装/调试流程安装；可通过 DevEco Studio 或已连接设备的 HDC 安装。此 HAP 不是应用商店分发包。 | 工程最低 SDK `6.1.0(23)`，目标 SDK 26；本机发布 Profile 和设备授权限制以安装结果为准。 |
+| Android | 下载 `ZViewer-Android-1.9.0-release.apk`，允许安装该来源的应用后安装；相同发布签名可覆盖旧正式版。 | Android 7.0 / API 24 起；APK 含 ARM64 / x86_64，需要 64 位设备；保持 System WebView / Chrome 更新。 |
+| HarmonyOS | 下载 `ZViewer-HarmonyOS-1.9.0-release.hap`，按设备支持的开发者安装/调试流程安装；可通过 DevEco Studio 或已连接设备的 HDC 安装。此 HAP 不是应用商店分发包。 | 工程最低 SDK `6.1.0(23)`，目标 SDK 26；本机发布 Profile 和设备授权限制以安装结果为准。 |
 | iOS | 下载 `ZViewer-iOS-1.9.0-release.ipa`，用自己的证书及设备授权工具重新签名后侧载；不是直接点击即可安装的商店包。内置 Release JS，无需 Expo Go、Metro 或开发电脑。 | iOS / iPadOS 16.4 起，iPhone / iPad；签名有效期与安装设备资格由自己的签名方式决定。 |
 
 三端首次启动的操作相同：
@@ -74,7 +74,7 @@ Android 正式包名为 `com.zviewer.mobile`，调试包为 `com.zviewer.mobile.
 
 播放设置仅保留字幕 / 弹幕页，移除音轨选择；四类弹幕可独立显示或屏蔽。方向按钮点击切换并锁定横竖屏，再次点击解除锁定；进入全屏锁横屏，退出恢复自动旋转。投屏提供全屏、刷新、暂停接收与内嵌聊天。房间面板集中展示模式、状态、分享、在线成员与审批；房间语音补充音量与成员状态。网易云导航和头像菜单互斥，采用不透明背景，“音乐设置”统一从头像进入。
 
-源码维护边界、构建流程与验证范围见 [iOS 维护文档](docs/ios-maintenance-architecture.md)；发行资产见 [iOS 1.9.0 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/ios-v1.9.0)。
+源码维护边界、构建流程与验证范围见 [iOS 维护文档](docs/ios-maintenance-architecture.md)；发行资产见 [iOS 1.9.0 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0)。
 
 ## 本地开发与检查
 

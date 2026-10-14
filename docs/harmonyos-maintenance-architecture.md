@@ -4,7 +4,7 @@
 
 ## 当前状态与范围
 
-- HarmonyOS 源码及已发布安装包为 **1.8.6 / versionCode 186**，服务端协议以已集成的 v4.5.3 为基线。版本以 `package.json`、`ZV-HarmonyOS/AppScope/app.json5` 为准。
+- HarmonyOS 源码及已发布安装包为 **1.9.0 / versionCode 190**，服务端协议以已集成的 v4.5.3 为基线。版本以 `package.json`、`ZV-HarmonyOS/AppScope/app.json5` 为准。
 - 客户端源码和 Git 操作均在 `E:/Codex-bulid/ZViewer/ZViewer-client`；共享 React/Vite 前端与 Android 相同，原生部分使用 HarmonyOS ArkTS 与 ArkWeb。
 - B站 Cookie、服务端凭据和本机代理状态只保存在原生侧。不能进入 React 状态持久化、网页日志、Socket 房间广播或公开源码。
 
@@ -34,6 +34,8 @@
 共享媒体引擎在 `src/upstream/modules/player/engines/`，媒体库 HLS 鉴权与相对清单在 `player/services/library-hls-proxy.ts`，PGS/MKV 在 `subtitles/` 和 `patches/playsvideo+0.4.7.patch`。实际可播性取决于 ArkWeb 与设备编解码器。已有 Pura 90 Pro 模拟器上 H.264 MP4/MKV 可播放，而特定 HEVC Main 10 MKV 解封装后仍零帧并报 `PIPELINE_ERROR_DECODE`；这类问题先核对视频 codec 与系统能力，不能把解封装/字幕提取成功当成解码通过。
 
 房间模式固定为一起看、投屏、一起听。当前移动 UI 的房间设置集中在右上角，音乐账号菜单只处理账号与音乐设置，评论侧栏按移动规则展示。`MobileAppearance.tsx`、`appearance.css` 的根变量覆盖 body Portal；切主题要保持原视频/音频 DOM 不变，播放器画布保持黑色。全屏默认横屏，手动解锁后尊重系统旋转开关；退出全屏/离房恢复系统栏和安全区。`Index.ets` 将 WindowAvoidArea 转成 `--native-safe-*`，与网页 safe-area 合并，横屏短高度仍需保证确认按钮可达。
+
+2026-10-14 HLS 连接核查：普通 HTTPS 模式使用本机保存的登录/游客 token，为服务端代理清单、分片和密钥请求附加 URL token，不依赖跨域 Cookie。已发现并修复一个条件性缺陷：启用服务器证书例外且服务器没有路径前缀时，共享 API 基址的尾斜杠可能生成 `//api/...`；HLS loader 的 API 识别还需将本机地址还原为逻辑地址。修复只涉及共享前端，ArkTS 的凭据隔离和证书例外范围保持原有规则。新增 `scripts/hls-auth.test.mjs` 覆盖普通连接、证书通道、路径前缀、主清单、相对密钥、异域分片和 token 不泄漏到上游 URL。自动化验证不代表 ArkWeb 真机实播，原先安卓截图的具体原因仍需实际响应状态/设备日志确认。
 
 ### B站 ArkTS 解析与回环代理
 

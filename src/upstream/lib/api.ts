@@ -129,7 +129,8 @@ export let RTMP_PORT = computeRtmpPort()
 
 /** 实时获取当前生效的 REST API 地址（每次从 localStorage 读取，确保最新） */
 export function getApiUrl(): string {
-  return connectionUrl(computeApiUrl())
+  // Mapping a bare origin adds URL.pathname '/'; callers append '/api/...'.
+  return connectionUrl(computeApiUrl()).replace(/\/$/, '')
 }
 
 /** 实时获取当前生效的 socket.io 地址（每次从 localStorage 读取，确保最新） */

@@ -1,12 +1,15 @@
 # 更新记录
 
-## 1.9.0 - 2026-10-14（独立 iOS / build 26）
+## 1.9.0 - 2026-10-14（三端统一；Android/HarmonyOS 190，iOS build 26）
+
+- Android/HarmonyOS：普通 HLS 主清单、子清单、密钥和分片优先直连源站；允许回退的源在网络错误或超时后切换到已鉴权服务器代理，明确禁止代理回退的挂载保持直连。
+- Android/HarmonyOS：修复证书例外通道在无路径前缀服务器下生成 `//api/...` 及逻辑 API 识别错误；HLS 失败提示补充响应状态。保留番剧防盗链与媒体库转码的代理链路。
 
 - 播放栏、字幕 / 弹幕、房间语音与房间设置对齐另外两端；移除音轨设置，补齐四类弹幕显示 / 屏蔽，删除手动文件导入和 JSON 编辑。
 - 投屏补齐全屏、刷新、暂停接收与聊天；屏幕方向采用一键切换并锁定 / 恢复自动，顶部和全屏共用相同图标及状态。
 - 网易云导航与头像菜单互斥，浮层背景不透明，横屏可滚动；音乐设置统一从头像进入，修正弹幕总开关对齐。
 - 227 项测试、lint / TypeScript、iOS 模拟器界面检查；使用 Mac 本地设备 Release 构建未签名 IPA，安装需个人签名。真实媒体、语音和后台专项按原验证边界保留。
-- iOS 1.9.0 独立发行，Android/HarmonyOS 保持 1.8.6；资产与下载信息见 [iOS 1.9.0 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/ios-v1.9.0)。
+- 三端在 [ZViewer-Client V1.9.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0) 统一发行。iOS 复用已发布 build 26 未签名 IPA，本轮未启动 iOS 构建；Android/HarmonyOS 使用既有签名新构建。
 
 ## 1.8.6 - 2026-10-14（Android/HarmonyOS 已发布；iOS 本地更新）
 

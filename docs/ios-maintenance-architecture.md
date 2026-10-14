@@ -4,8 +4,8 @@
 
 ## 当前版本和发布边界
 
-- iOS 是 `ZV-iOS/` 中独立的 Expo SDK 57 / React Native 0.86 工程；当前源码为 **1.9.0 / build 26**，Bundle ID `com.zviewer.mobile`，最低 iOS 16.4，支持 iPhone 与 iPad。独立发布标签为 `ios-v1.9.0`；Android/HarmonyOS 继续使用 1.8.6 / 186。
-- iOS 1.9.0 提供 Mac 本地构建的设备 Release IPA，**未签名、不是 App Store/TestFlight 包**，安装者需使用自己的证书与设备授权侧载；包内含 Release JS，不需要 Metro。公开发行与自动源码归档位于 GitHub `ios-v1.9.0` 标签。
+- iOS 是 `ZV-iOS/` 中独立的 Expo SDK 57 / React Native 0.86 工程；当前源码为 **1.9.0 / build 26**，Bundle ID `com.zviewer.mobile`，最低 iOS 16.4，支持 iPhone 与 iPad。三端统一发行标签为 `client-v1.9.0`，Android/HarmonyOS 为 1.9.0 / 190；原 `ios-v1.9.0` 标签保留为历史构建来源。
+- iOS 1.9.0 提供 Mac 本地构建的设备 Release IPA，**未签名、不是 App Store/TestFlight 包**，安装者需使用自己的证书与设备授权侧载；包内含 Release JS，不需要 Metro。三端统一发行与自动源码归档位于 GitHub `client-v1.9.0` 标签；复用已发布的 1.9.0 / build 26 IPA，未重新构建。
 - 当前源码的 `npm run check`（原生来源/补丁检查、lint、TypeScript 与 JS 测试）通过，共 227 项测试；1.9.0 设备包的 ARM64、版本、未签名状态、内置 JS、原生桥及来源摘要已经离线检查。播放器、投屏、房间设置、语音和弹幕设置的界面已在 iOS 模拟器检查；真实跨端 WebRTC/OBS、听音与蓝牙、硬件解码、锁屏系统按钮和后台自然跨曲仍需要相应设备专项验证。JS 被系统挂起时没有独立原生房间 Socket/自动切歌管线。
 - 用户明确要求前不启动 IPA/EAS 构建。普通 UI 优先用 Expo Go/Expo Web 检查；这些预览不含 VLC、Go、LiveKit 和自定义原生桥，不能代表原生行为。
 - 所有 iOS 客户端文件修改和 Git 操作在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。不要在迁移副本或其他发布工作树提交客户端改动。
@@ -33,7 +33,7 @@ iOS 不是 Android Capacitor 工程的移植，也不是 Web 页面包装。`ZV-
 
 ## 1.9.0 / build 26 的功能入口
 
-本版独立更新 iOS 工程，Android/HarmonyOS 的共享 Web、原生桥和 1.8.6 安装包未随 iOS 版本号改变。新增或重构的主要入口如下：
+iOS 1.9.0 / build 26 的功能来自原独立 iOS 发行；三端统一 1.9.0 Release 复用该 IPA，Android/HarmonyOS 新构建为 1.9.0 / 190。新增或重构的主要入口如下：
 
 | 能力 | 入口 | 维护规则 |
 | --- | --- | --- |

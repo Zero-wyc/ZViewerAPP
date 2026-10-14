@@ -5,8 +5,8 @@
  * - 其他浏览器通过 hls.js（MSE 封装）附加；
  * - MANIFEST_PARSED 后 resolve；cleanup 销毁 hls 实例。
  *
- * 跨域处理：通过自定义 ProxyLoader 拦截 hls.js 的所有网络请求（m3u8 主清单、
- * ts 分片、密钥等），将跨域 URL 包装为服务器代理 URL，绕过浏览器 CORS 限制。
+ * 普通直链优先直连；允许回退的源在网络失败后转服务器代理。
+ * 已有代理及防盗链来源的清单、分片与密钥继续使用对应代理。
  */
 import Hls from 'hls.js'
 import { getApiUrl } from '@/lib/api'
@@ -19,6 +19,7 @@ import type { PlayerEngine, PlayerSource, EngineAttachResult } from '../types'
 import { resetVideoElement, waitForMetadata } from '../utils'
 import {
   resolveProxyUrl,
+  resolveMediaRoute,
   isLocalUrl,
   isRelativeUrl,
   buildProxyUrl,
@@ -32,7 +33,7 @@ function canPlayNativeHls(video: HTMLVideoElement): boolean {
 
 /**
  * 创建自定义 ProxyLoader：拦截 hls.js 的所有网络请求，
- * 将跨域 URL 包装为服务器代理 URL，避免浏览器 CORS 限制。
+ * 对普通跨域 HLS 先保留源站 URL；请求失败且路由允许时再切换到服务器代理。
  *
  * 使用 Hls.DefaultConfig.loader 作为基类（通常为 FetchLoader），
  * 仅在 load 入口处改写 context.url，其余行为保持不变。
@@ -40,14 +41,43 @@ function canPlayNativeHls(video: HTMLVideoElement): boolean {
  * 关键：加载完成后需恢复 context.url 与 response.url 为原始 URL，
  * 否则 hls.js 会基于代理 URL 解析 m3u8 中的相对路径 ts 分片，导致拼接错误。
  */
-function createProxyLoader(sourceUrl: string, headers?: Record<string, string>, libraryProxy?: HlsProxySource | null) {
+function createProxyLoader(sourceUrl: string, headers?: Record<string, string>, libraryProxy?: HlsProxySource | null,
+  options: { noProxyFallback?: boolean; directTimeoutMs?: number } = {}) {
   const BaseLoader = Hls.DefaultConfig.loader
   const logicalUrl = logicalConnectionUrl
   const transportUrl = connectionUrl
-  const apiBase = getApiUrl()
+  const apiBase = logicalUrl(getApiUrl())
   const proxySource = libraryProxy || readHlsProxySource(logicalUrl(sourceUrl), apiBase)
+  let proxyFallback = false
 
   return class ProxyLoader extends BaseLoader {
+    private fallbackLoader: InstanceType<typeof BaseLoader> | null = null
+    private hlsConfig: any
+
+    constructor(hlsConfig: any) {
+      super(hlsConfig)
+      this.hlsConfig = hlsConfig
+    }
+
+    abort(): void {
+      if (this.fallbackLoader) this.fallbackLoader.abort()
+      else super.abort()
+    }
+
+    destroy(): void {
+      super.destroy()
+      this.fallbackLoader?.destroy()
+      this.fallbackLoader = null
+    }
+
+    getCacheAge = (): number | null => this.fallbackLoader
+      ? this.fallbackLoader.getCacheAge?.() ?? null
+      : BaseLoader.prototype.getCacheAge?.call(this) ?? null
+
+    getResponseHeader = (name: string): string | null => this.fallbackLoader
+      ? this.fallbackLoader.getResponseHeader?.(name) ?? null
+      : BaseLoader.prototype.getResponseHeader?.call(this, name) ?? null
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     load(context: any, config: any, callbacks: any): void {
       const originalUrl = context.url
@@ -56,6 +86,7 @@ function createProxyLoader(sourceUrl: string, headers?: Record<string, string>, 
       const manifestBaseUrl = libraryProxy && logical === logicalUrl(sourceUrl)
         ? libraryProxy.url
         : libraryProxy ? inheritLibraryHlsQuery(proxyRequest?.url ?? logical, libraryProxy.url) : proxyRequest?.url ?? logical
+      let allowFallback = false
       if (isServerApiUrl(logical, apiBase) || isLocalUrl(logical) || isRelativeUrl(logical)) {
         // Includes Kazumi/AniSubs proxies: never proxy our own authenticated API.
         context.url = transportUrl(originalUrl)
@@ -63,20 +94,65 @@ function createProxyLoader(sourceUrl: string, headers?: Record<string, string>, 
         // Child playlists, segments, maps and keys inherit the same proxy headers.
         context.url = transportUrl(buildHlsProxyRequest(manifestBaseUrl, proxySource))
       } else {
-        context.url = headers ? resolveProxyUrl(originalUrl, headers, 'hls') : buildProxyUrl(originalUrl)
+        const route = resolveMediaRoute(originalUrl, headers, 'hls', options)
+        allowFallback = route.allowFallback && options.noProxyFallback !== true && !proxyFallback
+        // After the manifest falls back, every child resource must proxy its
+        // own resolved URL (playlist, key, segment, map), not the manifest
+        // URL. hls.js resolves these against the restored original base.
+        context.url = proxyFallback && route.allowFallback ? buildProxyUrl(originalUrl) : route.url
       }
-      context.url = appendAuthToken(context.url)
-      if (proxyRequest || context.url !== originalUrl || manifestBaseUrl !== originalUrl) {
-        const originalOnSuccess = callbacks.onSuccess
-        // hls.js callback order is response, stats, context, networkDetails.
-        // Restore both URL fields before it resolves any relative playlist URI.
-        callbacks.onSuccess = (response: any, stats: any, ctx: any, networkDetails: any) => {
-          if (response) response.url = manifestBaseUrl
-          if (ctx) ctx.url = manifestBaseUrl
-          originalOnSuccess(response, stats, ctx, networkDetails)
+      let changingRoute = false
+      const loadOnce = (requestUrl: string, canFallback: boolean) => {
+        context.url = appendAuthToken(requestUrl)
+        const restoreBase = !!proxyRequest || logicalUrl(context.url) !== manifestBaseUrl
+        const retry = () => {
+          if (!canFallback) return false
+          canFallback = false
+          changingRoute = true
+          super.abort()
+          changingRoute = false
+          proxyFallback = true
+          // hls.js loaders are single-use. A new delegate owns the retry's
+          // stats, cancellation and response headers instead of reusing one.
+          this.fallbackLoader = new BaseLoader(this.hlsConfig)
+          this.stats = this.fallbackLoader.stats
+          loadOnce(buildProxyUrl(manifestBaseUrl), false)
+          return true
         }
+        // Leave time for the proxy within the attach budget; do not retry the
+        // same failed direct request internally before trying the other route.
+        const budget = options.directTimeoutMs ?? 6000
+        const requestConfig = canFallback && config.loadPolicy ? {
+          ...config,
+          loadPolicy: {
+            ...config.loadPolicy,
+            maxTimeToFirstByteMs: Math.min(config.loadPolicy.maxTimeToFirstByteMs || budget, budget),
+            maxLoadTimeMs: Math.min(config.loadPolicy.maxLoadTimeMs, budget),
+            errorRetry: null, timeoutRetry: null,
+          },
+        } : config
+        const requestCallbacks = {
+          ...callbacks,
+          onSuccess: (response: any, stats: any, ctx: any, networkDetails: any) => {
+            // Proxy URLs must not become relative playlist bases. Direct loads
+            // retain response.url so HTTP redirects resolve resources correctly.
+            if (restoreBase) {
+              if (response) response.url = manifestBaseUrl
+              if (ctx) ctx.url = manifestBaseUrl
+            }
+            callbacks.onSuccess(response, stats, ctx, networkDetails)
+          },
+          onError: (...args: any[]) => { if (!retry()) callbacks.onError?.(...args) },
+          onTimeout: (...args: any[]) => { if (!retry()) callbacks.onTimeout?.(...args) },
+          // Internal route changes must not look like a user cancellation.
+          onAbort: (...args: any[]) => { if (!changingRoute) callbacks.onAbort?.(...args) },
+        }
+        if (this.fallbackLoader) this.fallbackLoader.load(context, requestConfig, {
+          ...requestCallbacks, onAbort: callbacks.onAbort,
+        })
+        else super.load(context, requestConfig, requestCallbacks)
       }
-      super.load(context, config, callbacks)
+      loadOnce(context.url, allowFallback)
     }
   }
 }
@@ -96,7 +172,7 @@ function waitForHlsReady(hls: Hls, timeoutMs = 15000, signal?: AbortSignal): Pro
 
     const onError = (
       _event: string,
-      data: { type: string; details: string; fatal: boolean; url?: string }
+      data: { type: string; details: string; fatal: boolean; url?: string; response?: { code?: number } }
     ) => {
       if (settled) return
       // 非致命错误不reject，让hls.js自行恢复
@@ -105,7 +181,7 @@ function waitForHlsReady(hls: Hls, timeoutMs = 15000, signal?: AbortSignal): Pro
       cleanup()
       reject(
         new Error(
-          `HLS加载失败: type=${data.type} details=${data.details} url=${data.url?.slice(0, 80)}`
+          `HLS加载失败: type=${data.type} details=${data.details} status=${data.response?.code ?? 'unknown'} url=${data.url?.slice(0, 80)}`
         )
       )
     }
@@ -148,7 +224,9 @@ export const hlsEngine: PlayerEngine = {
     source.signal?.throwIfAborted()
     resetVideoElement(video)
 
-    const targetUrl = resolveProxyUrl(source.url, source.headers, source.format)
+    const targetUrl = resolveProxyUrl(source.url, source.headers, source.format, {
+      noProxyFallback: source.noProxyFallback === true,
+    })
     console.log('[hls-engine] attach start', {
       originalUrl: source.url?.slice(0, 80),
       resolvedUrl: targetUrl?.slice(0, 80),
@@ -169,7 +247,10 @@ export const hlsEngine: PlayerEngine = {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        loader: createProxyLoader(targetUrl, source.headers, libraryProxy),
+        loader: createProxyLoader(targetUrl, source.headers, libraryProxy, {
+          noProxyFallback: source.noProxyFallback === true,
+          directTimeoutMs: Math.max(1, Math.min(6000, (source.attachTimeoutMs ?? 15000) / 2)),
+        }),
         // 内存控制：hls.js 默认 maxMaxBufferLength=600s、backBufferLength=Infinity——
         // 已播数据永不清理，长视频播放 1-2 小时后 MSE SourceBuffer 累积到 GB 级内存。
         // 前向缓冲 30s 保证平滑，硬上限 120s 兜底极低码率，已播仅保留 90s

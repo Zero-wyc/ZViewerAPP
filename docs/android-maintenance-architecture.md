@@ -4,7 +4,7 @@
 
 ## 当前状态与范围
 
-- Android 源码及已发布安装包为 **1.8.6 / versionCode 186**，目标服务端以已集成的 v4.5.3 协议为基线。版本以 `package.json` 和 `ZV-Android/app/build.gradle` 为准。
+- Android 源码及已发布安装包为 **1.9.0 / versionCode 190**，目标服务端以已集成的 v4.5.3 协议为基线。版本以 `package.json` 和 `ZV-Android/app/build.gradle` 为准。
 - 客户端修改、Git 提交均在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。`ZViewer-source code` 是本地服务端目录，不在其中改客户端。
 - Android 与 HarmonyOS 共用根目录 React/Vite 界面，但原生宿主不同；iOS 是 `ZV-iOS` 中独立的 Expo/React Native 工程。三端实现和验收不能互相替代。
 
@@ -36,6 +36,8 @@ React 页面先调用 `src/platform/contracts.ts` 中定义的能力，再由 `r
 `MovieListPanel.tsx`、`MoviePushPanel.tsx` 和 `playlistOrder.ts` 管理片单展示、添加、排序。完整排列与 root/房主权限由共享层先校验，服务端仍作最终鉴权。清空片单使用单次服务端删除请求并等待权威广播；响应失败不能先清 UI。自动续播位于 `room/watch-together/autoContinue.ts`，只从最新片单选下一部；房间/角色/模式变更需取消等待中的推进。`src/upstream/modules/sync-playback/` 负责房主/观众心跳、seek 抑制和状态合并，播放控制改动必须联测媒体换源与自然结束。
 
 `src/upstream/modules/player/engines/` 根据媒体格式选择 MP4、HLS、DASH、FLV 或浏览器转码路径。`library-hls-proxy.ts` 处理媒体库主/子清单、相对分片与鉴权；`patches/playsvideo+0.4.7.patch` 修复 MKV cue 与 AAC 时间轴，`modules/subtitles/pgs-decoder.ts` 负责 PGS 位图。只有解析返回、Range=206 或容器识别成功，不代表设备解码成功；HEVC/Opus、ASS/PGS 与多音轨需按具体设备实播、拖动和字幕切换记录。
+
+2026-10-14 HLS 连接核查：HTTPS 登录与游客登录都将服务端返回的 token 保存到本机，主清单、分片与密钥的服务端代理请求使用 URL token 鉴权，不能因 hls.js 未启用 Cookie 凭证就推断请求必然 401。修复共享 `getApiUrl()` 在证书例外回环通道下的尾斜杠，避免无路径前缀的服务器被拼成 `//api/...`；HLS loader 的 API 判定统一使用逻辑服务器地址，避免把本机通道对应的 API 再重建为代理请求。`scripts/hls-auth.test.mjs` 使用实际 token 存储和 URL 构造函数覆盖双端来源、HTTP/HTTPS、路径前缀、证书例外通道、相对密钥与分片；这是自动化验证，不等于真机或线上故障复现。截图错误 URL 只展示前 80 字符，不能用它判断末尾是否带 token。
 
 ### B站双实现与质量规则
 

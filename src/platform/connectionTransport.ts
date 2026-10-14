@@ -15,7 +15,8 @@ export function logicalConnectionUrl(raw: string): string {
     const u = new URL(raw)
     const websocket = u.protocol === 'ws:'
     if (websocket) u.protocol = 'http:'
-    if (u.origin !== binding.localOrigin || !u.pathname.startsWith(binding.prefix + '/')) return raw
+    if (u.origin !== binding.localOrigin ||
+      (u.pathname !== binding.prefix && !u.pathname.startsWith(binding.prefix + '/'))) return raw
     return `${websocket ? binding.origin.replace(/^http/, 'ws') : binding.origin}${u.pathname.slice(binding.prefix.length)}${u.search}${u.hash}`
   } catch { return raw }
 }
