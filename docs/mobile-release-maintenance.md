@@ -1,5 +1,7 @@
 # Android / HarmonyOS / iOS 维护与发布
 
+2026-10-14：用户授权独立发布 iOS **1.9.0 / build 26**。仅更新 `ZV-iOS` 版本、源码和相关说明，使用 Mac 本地构建；新标签为 `ios-v1.9.0`，附件为未签名设备 IPA 与 SHA-256，源码由该标签自动归档。Android/HarmonyOS 保持 1.8.6，原发布标签和附件保留。见 [iOS 发行说明](releases/ios-1.9.0-release-notes.md)。
+
 2026-10-13：当前三端统一发行 **1.8.5**。Android/HarmonyOS 为 **185**、沿用发布签名并重新构建；iOS 为 **build 23**，用户本轮真机测试全部通过，直接发布原始已验收未签名 IPA，不重建。main 与 client-v1.8.5 标签包含完整三端源码，附件 APK/HAP/IPA/SHA256SUMS.txt，Source code 使用 GitHub 自动归档。README 新增三端安装和房间/音乐/评论/全屏操作，iOS 标明可用并保留后台 Socket/自动切歌限制。见 [1.8.5 发行说明](releases/client-1.8.5.md) 和 [三端发布验证](client-v1.8.5-release-validation-20261013.md)。下方按时间保留旧版本状态。
 
 2026-10-13：当前双端发布版本为 [1.8.0 / 180](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.0)，对齐服务端 v4.5.3。将下方 1.7.6 本地候选统一升级版本并重新打包，包含默认音量、私人漫游连续播放、B 站解析修复和搜索自适应多列。发布说明见 [1.8.0](releases/client-1.8.0.md)，本轮网页同步、双端 Debug/Release 构建、版本/签名及各 29 个网页资源摘要核验见 [构建与发布验证](client-v1.8.0-release-validation-20261013.md)。既有 [1.7.6 验证](client-v1.7.6-alignment-453-validation-20261013.md) 保留其浏览器夹具和设备边界；真机、真实音源、后台锁屏、蓝牙与跨端同步仍待专项验收。首次双端发布未构建或发布 iOS，仅清理两个 iOS 本地测试脚本中的硬编码路径和固定登录值。

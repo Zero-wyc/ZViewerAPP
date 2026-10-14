@@ -20,7 +20,7 @@ const backend = 'http://127.0.0.1:7343';
     await page.getByRole('button', { name: '创建房间', exact: true }).click(); await page.getByPlaceholder('可留空').first().fill('iOS candidate UI check'); await page.getByRole('button', { name: '确认创建', exact: true }).click();
     await page.getByText('等待房主选择影片', { exact: true }).waitFor(); check('create room + restore host'); const roomId = new URL(page.url()).pathname.split('/').at(-1);
     for (const mode of ['浅色', '深色']) {
-      await page.getByRole('button', {name:'房间设置',exact:true}).click(); await page.getByRole('button', {name:'全局外观',exact:true}).click();
+      await page.getByRole('button', {name:'房间设置',exact:true}).click(); await page.getByRole('button', {name:'外观设置',exact:true}).click();
       await page.getByRole('button', {name:mode,exact:true}).click(); await page.waitForTimeout(400);
       await page.screenshot({path:resolve(output, `appearance-${mode === '浅色' ? 'light' : 'dark'}.png`)});
       await page.getByTestId('dialog-外观设置').getByRole('button', {name:'关闭',exact:true}).click();
@@ -65,9 +65,9 @@ const backend = 'http://127.0.0.1:7343';
     viewer = io(backend, { transports: ['websocket'], auth: { token: guest.accessToken }, reconnection: false });
     await new Promise((resolve, reject) => { viewer.once('connect', resolve); viewer.once('connect_error', reject); });
     await new Promise((resolve, reject) => viewer.timeout(10000).emit('request-join', { roomId }, (failure, data) => failure || !data?.success ? reject(new Error('Local guest join failed')) : resolve(data)));
-    await page.getByText('房间', { exact: true }).click(); await page.getByRole('button', { name: /^在线成员/ }).click(); await page.getByText(guest.user.username + ' · viewer', { exact: true }).waitFor(); check('member join follows server viewer-joined event');
-    viewer.disconnect(); await page.getByText(guest.user.username + ' · viewer', { exact: true }).waitFor({ state: 'hidden' }); check('member leave follows server viewer-left event');
-    await page.getByRole('button', { name: '房间信息', exact: true }).click(); await page.getByPlaceholder('房间名称').fill('Updated iOS room'); await page.getByRole('button', { name: '保存名称', exact: true }).click(); await page.getByText('Updated iOS room', { exact: true }).filter({ visible: true }).first().waitFor(); check('rename room follows actual server protocol');
+    await page.getByRole('button', { name: '房间设置', exact: true }).click(); await page.getByTestId('room-online-members').waitFor(); await page.getByText(guest.user.username, { exact: true }).waitFor(); check('member join follows server viewer-joined event');
+    viewer.disconnect(); await page.getByText(guest.user.username, { exact: true }).waitFor({ state: 'hidden' }); check('member leave follows server viewer-left event');
+    await page.getByRole('button', { name: '修改房间名称', exact: true }).click(); await page.getByPlaceholder('房间名称').fill('Updated iOS room'); await page.getByRole('button', { name: '保存名称', exact: true }).click(); await page.getByText('Updated iOS room', { exact: true }).filter({ visible: true }).first().waitFor(); check('rename room follows actual server protocol');
     const statusResponse = page.waitForResponse(response => response.url().endsWith('/api/music/login/status'));
     await page.getByRole('button', { name: '房间设置', exact: true }).click(); await page.getByTestId('dialog-房间').getByRole('button', { name: '一起听', exact: true }).click(); await page.getByTestId('dialog-房间').getByRole('button', { name: '关闭', exact: true }).click(); await page.getByRole('button', { name: '网易云音乐', exact: true }).waitFor(); check('Android music navigation and floating player are present');
     const statusDto = await (await statusResponse).json(); assert.equal(statusDto.loggedIn, false); assert.equal(statusDto.success, undefined);
@@ -131,7 +131,7 @@ const backend = 'http://127.0.0.1:7343';
       const slider = await page.getByLabel('播放进度').boundingBox(); check(`video controls remain within ${w}x${h}`, slider && slider.y >= 0 && slider.y+slider.height <= h+1);
       await page.getByRole('button', { name:'退出全屏',exact:true }).click(); await page.getByRole('button',{name:'房间设置',exact:true}).waitFor();
     }
-    await page.setViewportSize({width:1180,height:820}); if (await page.getByRole('button',{name:'屏幕方向',exact:true}).isVisible()) { await page.getByRole('button',{name:'屏幕方向',exact:true}).click(); await page.getByTestId('dialog-屏幕方向').getByRole('button',{name:'关闭',exact:true}).click(); }
+    await page.setViewportSize({width:1180,height:820}); check('direction has no selection dialog', await page.getByTestId('dialog-屏幕方向').count() === 0);
     check('rotation does not toggle fullscreen',await page.getByRole('button',{name:'房间设置',exact:true}).isVisible());
     if (await page.getByRole('button',{name:/^展开(侧栏|下方菜单)$/,exact:true}).isVisible()) await page.getByRole('button',{name:/^展开(侧栏|下方菜单)$/,exact:true}).click(); await page.getByText('片单', { exact: true }).click();
     mkdirSync(output, { recursive: true });

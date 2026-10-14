@@ -2,13 +2,13 @@
 
 **Android / HarmonyOS 1.8.6 已发布**：主页新增“关于应用”、当前版本、启动及手动检查更新，以及对应平台下载提示；界面跟随全局外观，双端构建号为 **186**。
 
-**iOS 1.8.6 / build 25 本地更新**：在 Mac 上继续修复 Kazumi/B站起播与进度同步、Jellyfin 跳转恢复、网易云曲尾自动续播，并调整视频区域与紧凑片单布局。使用本地 Xcode 构建设备 Release IPA，源码检查和模拟器验证边界见 [本轮交付记录](docs/releases/ios-1.8.6-25-local-20261014.md)。IPA 上传前，最新公开 iOS 包仍为 1.8.5 / build 23。
+**iOS 1.9.0 / build 26**：播放设置、弹幕类型、房间语音与房间设置对齐另外两端；投屏补齐全屏、刷新和聊天，屏幕方向改为一键切换，音乐菜单互斥并改善文字可读性。使用 Mac 本地 Xcode 构建设备 Release IPA，需自行签名后侧载，见 [iOS 1.9.0 发行说明](docs/releases/ios-1.9.0-release-notes.md)。
 
 <img src="public/favicon.jpg" alt="ZViewer" width="88" height="88" />
 
 面向手机和平板的 ZViewer 客户端，支持一起看、一起听、投屏接收、房间语音、弹幕与字幕。三端均将界面与播放器打包进安装包，填写服务器地址后连接 [ZViewer 服务端](https://github.com/Zero-wyc/ZViewer)。本仓库提供 Android/HarmonyOS 共享前端、原生宿主及独立 iOS 工程源码。
 
-[下载安卓/鸿蒙 1.8.6](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.6) · [历史 iOS 1.8.5](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.5) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md)
+[下载安卓/鸿蒙 1.8.6](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.6) · [下载 iOS 1.9.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/ios-v1.9.0) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md)
 
 ## 最新公开发行与三端状态
 
@@ -16,9 +16,9 @@
 | --- | --- | --- |
 | Android | **1.8.6 / 186** | 正式签名 APK；新增关于应用和更新检查，保持既有房间、全屏与本机解析行为。 |
 | HarmonyOS | **1.8.6 / 186** | 正式签名 HAP；共用更新页，通过 ArkTS 读取原生版本并打开系统浏览器下载。 |
-| iOS | 本地 **1.8.6 / build 25**；公开 **1.8.5 / build 23** | 本地设备 Release IPA 需个人签名后侧载；本轮已完成模拟器播放联调，真机及后台自然跨曲仍待专项验证。 |
+| iOS | **1.9.0 / build 26** | 未签名设备 Release IPA，需个人签名后侧载；界面已在模拟器检查，真实媒体、语音及后台专项边界见发行记录。 |
 
-[ZViewer-Client V1.8.6](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.6) 的既有公开附件为 APK、HAP 和双端 `SHA256SUMS.txt`。本轮 iOS 在本地构建并提交，追加发行说明已准备在 [1.8.6 发行说明](docs/releases/client-1.8.6.md)，上传前不标记为已发布。既有标签源码为首次发布时的快照；后续 iOS 修复应使用包含本轮提交的源码。
+Android/HarmonyOS 继续使用 [ZViewer-Client V1.8.6](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.6)。独立 [iOS 1.9.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/ios-v1.9.0) 提供 `ZViewer-iOS-1.9.0-release.ipa` 和 `SHA256SUMS.txt`；Source code 使用该标签的 GitHub 自动源码归档，包含本次 iOS 修改。
 
 保留服务端 v4.5.3 对齐的默认音乐音量、私人漫游续播、媒体库多版本/整季、番剧浏览、B站搜索和本机解析等既有功能。本地服务端源码已更新到 `89eafa5`，未修改 NAS 容器。详见 [1.8.6 发行说明](docs/releases/client-1.8.6.md) 与 [发布验证](docs/releases/client-1.8.6-publication.md)。
 
@@ -28,7 +28,7 @@
 | --- | --- | --- |
 | Android | 下载 `ZViewer-Android-1.8.6-release.apk`，允许安装该来源的应用后安装；相同发布签名可覆盖旧正式版。 | Android 7.0 / API 24 起；APK 含 ARM64 / x86_64，需要 64 位设备；保持 System WebView / Chrome 更新。 |
 | HarmonyOS | 下载 `ZViewer-HarmonyOS-1.8.6-release.hap`，按设备支持的开发者安装/调试流程安装；可通过 DevEco Studio 或已连接设备的 HDC 安装。此 HAP 不是应用商店分发包。 | 工程最低 SDK `6.1.0(23)`，目标 SDK 26；本机发布 Profile 和设备授权限制以安装结果为准。 |
-| iOS | 下载 `ZViewer-iOS-1.8.5-release.ipa`，用自己的证书及设备授权工具重新签名后侧载；不是直接点击即可安装的商店包。内置 Release JS，无需 Expo Go、Metro 或开发电脑。 | iOS / iPadOS 16.4 起，iPhone / iPad；签名有效期与安装设备资格由自己的签名方式决定。 |
+| iOS | 下载 `ZViewer-iOS-1.9.0-release.ipa`，用自己的证书及设备授权工具重新签名后侧载；不是直接点击即可安装的商店包。内置 Release JS，无需 Expo Go、Metro 或开发电脑。 | iOS / iPadOS 16.4 起，iPhone / iPad；签名有效期与安装设备资格由自己的签名方式决定。 |
 
 三端首次启动的操作相同：
 
@@ -67,10 +67,16 @@ Android 正式包名为 `com.zviewer.mobile`，调试包为 `com.zviewer.mobile.
 - **B站**：支持关键词、分享链接、分 P、番剧/影视及本机账号授权；Android 内置 Go 代理，HarmonyOS 使用 ArkTS 解析桥，iOS 使用原生 Go/Objective-C 桥与 VLC。账号凭据保存在原生侧，画质按账号、影片与设备能力选择，默认排除 HDR/杜比视界。当前服务端一起听队列接收 BV/CID，PGC 可用于一起看及关联视频。
 - **Emby/Jellyfin**：列表/海报墙、搜索、年份、剧集/季/单集导航、多版本、整季与按顺序批量添加；支持缺图占位和扩展目录。iOS 本轮 Jellyfin 点击播放卡死问题已修复并经用户测试。
 - **片单**：完整标题、搜索、排序、删除/清空与权限控制；房主可开启默认关闭的自动连播，按完整片单播放至末尾。
-- **弹幕/字幕**：连续选集、已添加标记、本地 XML/JSON、文本和 PGS 字幕；字号可调。iOS 补充弹幕显示区域 25%–100%，滚动与底部固定弹幕使用所选范围。
+- **弹幕/字幕**：连续选集、已添加标记、本地 XML/JSON、文本和 PGS 字幕；字号可调。iOS 支持在线弹幕搜索、显示区域 25%–100% 和固定 / 滚动 / 彩色 / 高级类型过滤，移除手动文件导入及 JSON 编辑。
 - **外观/布局**：深浅/系统主题、全局背景、手机和平板横竖屏、二级面板滚动与返回层级。Kazumi 仍需在设置中手动启用，公告继续排除。
 
-## iOS 1.8.6 本地修复与验证
+## iOS 1.9.0 界面与操作更新
+
+播放设置仅保留字幕 / 弹幕页，移除音轨选择；四类弹幕可独立显示或屏蔽。方向按钮点击切换并锁定横竖屏，再次点击解除锁定；进入全屏锁横屏，退出恢复自动旋转。投屏提供全屏、刷新、暂停接收与内嵌聊天。房间面板集中展示模式、状态、分享、在线成员与审批；房间语音补充音量与成员状态。网易云导航和头像菜单互斥，采用不透明背景，“音乐设置”统一从头像进入。
+
+源码检查及模拟器证据见 [界面对齐记录](docs/ios-player-share-ui-20261014.md)，设备 IPA 核验见 [1.9.0 构建记录](docs/releases/ios-1.9.0-26-validation.md)。
+
+## iOS 1.8.6 本地修复与验证（历史）
 
 2026-10-14 在 Mac 上根据实际反馈继续开发：聚合 HLS 保留服务器代理并改写相对清单，统一当前影片身份以避免暂停/恢复反复重载；VLC 跳转完成后执行最新播放意图。网易云曲尾续播修复迟到的 `:start-paused` 回调导致下一首停在 0 秒的问题，音乐进度条支持点击定位和暂停跳转。
 

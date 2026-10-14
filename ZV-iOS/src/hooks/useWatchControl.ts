@@ -5,7 +5,7 @@ import { emitAck } from '@/lib/socket';
 import type { VlcPlayer } from '@/lib/vlcPlayer';
 export type WatchCommand = 'play' | 'pause' | 'seek' | 'rate';
 type Application = { action: 'play' | 'pause' | 'seek'; viewerSocketId: string; viewerUsername?: string; time?: number };
-export function useWatchControl(socket: Socket | null, roomId: string, host: boolean, player: VlcPlayer, publish: (action: WatchCommand, value?: number) => void) {
+export function useWatchControl(socket: Socket | null, roomId: string, host: boolean, player: VlcPlayer, publish: (action: WatchCommand, value?: number) => void, autoApprove = false) {
   const [requests, setRequests] = useState<Application[]>([]);
   const [notice, setNotice] = useState('');
   const pending = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -24,22 +24,25 @@ export function useWatchControl(socket: Socket | null, roomId: string, host: boo
     if (action === 'rate' && Number.isFinite(value) && value! > 0) player.playbackRate = value!;
     publish(action, value);
   }, [socket, roomId, host, player, publish]);
+  const decide = useCallback(async (application: Application, accept: boolean) => {
+    if (!host || !socket?.connected) return;
+    if (accept) control(application.action, application.time);
+    try { await emitAck(socket, `${application.action}-response`, { roomId, viewerSocketId: application.viewerSocketId, accept, ...(application.action === 'seek' ? { time: application.time } : {}) }); setRequests(old => old.filter(item => item !== application)); }
+    catch { setNotice('审批回复失败，请重试'); }
+  }, [host, socket, roomId, control]);
   useEffect(() => {
     if (!socket) return;
     const subscriptions = (['play', 'pause', 'seek'] as const).flatMap(action => {
-      const requested = (data: Omit<Application, 'action'>) => { if (host && data.viewerSocketId) setRequests(old => [...old.filter(item => item.action !== action || item.viewerSocketId !== data.viewerSocketId).slice(-19), { ...data, action }]); };
+      const requested = (data: Omit<Application, 'action'>) => { if (!host || !data.viewerSocketId) return; if (autoApprove) { void decide({ ...data, action }, true); return; } setRequests(old => [...old.filter(item => item.action !== action || item.viewerSocketId !== data.viewerSocketId).slice(-19), { ...data, action }]); };
       const response = (data: { accept: boolean }) => { clearTimeout(pending.current.get(action)); pending.current.delete(action); setNotice(data.accept ? '房主已同意申请' : '房主拒绝了申请'); };
       socket.on(`${action}-request`, requested); socket.on(`${action}-response`, response);
       return [() => { socket.off(`${action}-request`, requested); socket.off(`${action}-response`, response); }];
     });
+    return () => { subscriptions.forEach(remove => remove()); };
+  }, [socket, roomId, host, autoApprove, decide]);
+  useEffect(() => {
     const timers = pending.current;
-    return () => { subscriptions.forEach(remove => remove()); timers.forEach(clearTimeout); timers.clear(); setRequests([]); };
+    return () => { timers.forEach(clearTimeout); timers.clear(); setRequests([]); };
   }, [socket, roomId, host]);
-  const decide = async (application: Application, accept: boolean) => {
-    if (!host || !socket) return;
-    if (accept) control(application.action, application.time);
-    try { await emitAck(socket, `${application.action}-response`, { roomId, viewerSocketId: application.viewerSocketId, accept, ...(application.action === 'seek' ? { time: application.time } : {}) }); setRequests(old => old.filter(item => item !== application)); }
-    catch { setNotice('审批回复失败，请重试'); }
-  };
   return { control, requests, decide, notice };
 }

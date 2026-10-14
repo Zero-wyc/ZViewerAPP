@@ -25,7 +25,7 @@ export function importDanmaku(raw: string): DanmakuItem[] {
     const mode = Number(item.mode ?? 1); if ([8, 9].includes(mode)) continue;
     if (typeof content !== 'string' || !Number.isFinite(time) || time < 0 || content.length > 300) throw new Error(`第 ${index + 1} 条弹幕格式无效`);
     const color = Number(item.color ?? 0xffffff);
-    items.push({ id: String(item.id ?? item.dmid ?? item.cid ?? index), content, time, color: Number.isInteger(color) && color >= 0 && color <= 0xffffff ? color : 0xffffff, mode: [1, 4, 5].includes(mode) ? mode : 1 });
+    items.push({ id: String(item.id ?? item.dmid ?? item.cid ?? index), content, time, color: Number.isInteger(color) && color >= 0 && color <= 0xffffff ? color : 0xffffff, mode: [1, 2, 3, 4, 5, 6, 7].includes(mode) ? mode : 1 });
   }
   return items.sort((a, b) => a.time - b.time);
 }

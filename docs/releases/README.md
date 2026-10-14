@@ -1,5 +1,7 @@
 # GitHub Release 附件约定
 
+2026-10-14：独立 iOS **1.9.0 / build 26** 使用 `ios-v1.9.0` 标签，提供设备 Release 未签名 `ZViewer-iOS-1.9.0-release.ipa` 与 `SHA256SUMS.txt`，源码使用标签自动归档；见 [发行说明](ios-1.9.0-release-notes.md) 和 [构建核验](ios-1.9.0-26-validation.md)。Android/HarmonyOS 当前为 `client-v1.8.6`。以下保留各版本当时的记录。
+
 默认双端 Release 的安装附件为签名 Android APK、HarmonyOS HAP 和 `SHA256SUMS.txt`。源码使用 GitHub 自动生成的 Source code（zip / tar.gz），不再单独打包上传源码 ZIP。正式上架所需 APP 文件保存在本地构建产物或发布后台，不作为 GitHub Release 附件。
 
 历史联合客户端正式发布为 [`client-v1.5.0`](client-1.5.0.md)，Android/HarmonyOS 为 1.5.0 / 150，iOS 为 1.5.0 / b15 未签名 IPA。用户已确认 iOS 真机 UI 通过，iOS 附件追加在同一 Release，详见 [iOS 记录](ios-1.5.0-15-unsigned.md)。上一版记录见 [1.3.5](client-1.3.5.md)。
