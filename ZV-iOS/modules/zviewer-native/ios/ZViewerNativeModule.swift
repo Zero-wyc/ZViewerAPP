@@ -27,6 +27,12 @@ public class ZViewerNativeModule: Module {
         promise.resolve(ZVBiliBridge.perform(operation, value: value))
       }
     }
+    #if DEBUG
+    // Local simulator launch configuration, never exported by a Release module.
+    AsyncFunction("debugLaunchConfiguration") { () -> String? in
+      ProcessInfo.processInfo.environment["ZVIEWER_DEBUG_CONFIGURATION"]
+    }
+    #endif
     AsyncFunction("biliCancelResolve") { ZVBiliBridge.cancelResolve() }
     AsyncFunction("serverProbe") { (url: String, promise: Promise) in
       self.biliQueue.async { promise.resolve(ZVBiliBridge.perform("server-probe", value: url)) }
