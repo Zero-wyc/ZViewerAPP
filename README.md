@@ -2,7 +2,7 @@
 
 **Android / HarmonyOS 1.8.6 已发布**：主页新增“关于应用”、当前版本、启动及手动检查更新，以及对应平台下载提示；界面跟随全局外观，双端构建号为 **186**。
 
-**iOS 1.8.6 / build 25 暂缓发布**：用户复测后确认仍存在同步问题，当前候选不能标为问题已解决。本次 Release 不提供 IPA；最新公开 iOS 包仍为 1.8.5 / build 23，使用时也需注意已反馈的同步问题。完整三端源码同步 main，iOS 候选源码保留供后续修复。
+**iOS 1.8.6 / build 25 本地更新**：在 Mac 上继续修复 Kazumi/B站起播与进度同步、Jellyfin 跳转恢复、网易云曲尾自动续播，并调整视频区域与紧凑片单布局。使用本地 Xcode 构建设备 Release IPA，源码检查和模拟器验证边界见 [本轮交付记录](docs/releases/ios-1.8.6-25-local-20261014.md)。IPA 上传前，最新公开 iOS 包仍为 1.8.5 / build 23。
 
 <img src="public/favicon.jpg" alt="ZViewer" width="88" height="88" />
 
@@ -16,9 +16,9 @@
 | --- | --- | --- |
 | Android | **1.8.6 / 186** | 正式签名 APK；新增关于应用和更新检查，保持既有房间、全屏与本机解析行为。 |
 | HarmonyOS | **1.8.6 / 186** | 正式签名 HAP；共用更新页，通过 ArkTS 读取原生版本并打开系统浏览器下载。 |
-| iOS | 公开 **1.8.5 / build 23**；候选 **1.8.6 / build 25** | **同步问题仍未解决，1.8.6 暂缓发布。** 本次不包含 IPA，候选源码保留；历史公开包也不视为已通过本轮同步复验。 |
+| iOS | 本地 **1.8.6 / build 25**；公开 **1.8.5 / build 23** | 本地设备 Release IPA 需个人签名后侧载；本轮已完成模拟器播放联调，真机及后台自然跨曲仍待专项验证。 |
 
-[ZViewer-Client V1.8.6](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.6) 仅提供 APK、HAP 和双端 `SHA256SUMS.txt`。源码同步 [main](https://github.com/Zero-wyc/ZViewerAPP/tree/main)，标签包含完整三端源码，直接使用 GitHub 自动生成的 Source code（zip / tar.gz），不另上传源码 ZIP。保留源码不表示发布或验收 iOS 1.8.6。
+[ZViewer-Client V1.8.6](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.6) 的既有公开附件为 APK、HAP 和双端 `SHA256SUMS.txt`。本轮 iOS 在本地构建并提交，追加发行说明已准备在 [1.8.6 发行说明](docs/releases/client-1.8.6.md)，上传前不标记为已发布。既有标签源码为首次发布时的快照；后续 iOS 修复应使用包含本轮提交的源码。
 
 保留服务端 v4.5.3 对齐的默认音乐音量、私人漫游续播、媒体库多版本/整季、番剧浏览、B站搜索和本机解析等既有功能。本地服务端源码已更新到 `89eafa5`，未修改 NAS 容器。详见 [1.8.6 发行说明](docs/releases/client-1.8.6.md) 与 [发布验证](docs/releases/client-1.8.6-publication.md)。
 
@@ -70,15 +70,15 @@ Android 正式包名为 `com.zviewer.mobile`，调试包为 `com.zviewer.mobile.
 - **弹幕/字幕**：连续选集、已添加标记、本地 XML/JSON、文本和 PGS 字幕；字号可调。iOS 补充弹幕显示区域 25%–100%，滚动与底部固定弹幕使用所选范围。
 - **外观/布局**：深浅/系统主题、全局背景、手机和平板横竖屏、二级面板滚动与返回层级。Kazumi 仍需在设置中手动启用，公告继续排除。
 
-## iOS 同步问题与暂缓发布
+## iOS 1.8.6 本地修复与验证
 
-**2026-10-14：用户复测 1.8.6 / build 25 后反馈仍存在同步问题，明确暂缓发布此版本。** 当前没有可宣称通过本轮同步复验的新 IPA。1.8.5 / build 23 仅保留为历史公开包，不能把此前起播/声音/同曲后台播放验收扩大到最新同步机制和后台跨曲场景。
+2026-10-14 在 Mac 上根据实际反馈继续开发：聚合 HLS 保留服务器代理并改写相对清单，统一当前影片身份以避免暂停/恢复反复重载；VLC 跳转完成后执行最新播放意图。网易云曲尾续播修复迟到的 `:start-paused` 回调导致下一首停在 0 秒的问题，音乐进度条支持点击定位和暂停跳转。
 
-历史 build 23 已处理 VLC 回调互等、B站分离音轨和同曲后台音频。候选 build 25 尝试调整服务器时钟纠偏、复用原生音乐视图及换曲后台执行时间；自动测试和离线包检查通过，但用户反馈证明同步问题仍未解决。
+模拟器已验证 B站与 Kazumi《败犬女主太多了！》播放、网页房主暂停/恢复和观众跳转；Jellyfin 同一动漫剧集播放、暂停跳转及中途重新加入也已验证。iOS 单独作为一起听房主的网易云末尾连续换曲通过。视频诊断按钮已移除，普通视频控制栏移到画面下方；自动续播放在搜索影片同一行，保留原业务页面主题。
 
-本次只发布用户已允许的 Android/HarmonyOS 1.8.6；不上传候选或历史 IPA 到新的 Release，不启动新的 iOS 构建。候选源码和历史记录保留，后续修复需围绕实际同步反馈复现。
+本轮交付为本地设备 Release IPA 和 Git 提交，不将模拟器结果扩大为真机验收。后台当前歌曲音频和 Now Playing 接入保留；锁屏/控制中心按钮、后台自然自动跨曲、长期后台房间同步仍待验证，JS 被系统挂起时无独立原生房间业务连接。
 
-操作与维护见 [iOS README](ZV-iOS/README.md)、[iOS 维护文档](docs/ios-maintenance-architecture.md) 和 [build 23 验证记录](docs/releases/ios-1.8.5-23-validation.md)。由于云端 IPA 构建额度限制，后续 iOS 更新可能晚于 Android/HarmonyOS；界面通常先以 Expo Go 预览，原生修复在维护者明确授权后才构建。
+构建与检查见 [iOS README](ZV-iOS/README.md)、[Mac 开发记录](docs/ios-mac-development-20261014.md) 和 [本轮 IPA 交付记录](docs/releases/ios-1.8.6-25-local-20261014.md)。本机可通过 Xcode 构建，无需消费 EAS 云端额度；未签名 IPA 需自行签名安装，包内包含 Release JS，无需 Metro 或 Expo Go。
 
 ## 本地开发与检查
 
