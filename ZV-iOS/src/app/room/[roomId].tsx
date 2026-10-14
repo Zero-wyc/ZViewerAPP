@@ -4,7 +4,7 @@ import { useAppearance } from '@/state/appearance';
 import { SubtitleOverlay, useSubtitles } from '@/components/Subtitles';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { VlcVideo, useVlcVideo } from '@/components/VlcVideo';
@@ -22,6 +22,7 @@ import { playbackSource, onBiliChange, biliFallback, stopBiliPlayback, resolveSh
 import { RoomIconButton } from '@/components/RoomUi';
 import { RoomPlayback, requestRoomPlayback } from '@/lib/roomPlayback';
 import { WatchSync, watchStateChanged } from '@/lib/watchSync';
+import { watchDiagnostic } from '@/lib/watchDiagnostics';
 import { useWatchControl } from '@/hooks/useWatchControl';
 import { useSystemMedia } from '@/hooks/useSystemMedia';
 import { VideoGestures } from '@/components/VideoGestures';
@@ -35,7 +36,7 @@ import { Surface } from '@/components/Surface';
 import { emitAck } from '@/lib/socket';
 import { nativeVideoSource } from '@/lib/media';
 import { NativeMediaAdapter, type Playback } from '@/lib/mediaAdapter';
-import { classifyPlayerError, probeNativeMedia, safeMediaError, type MediaProbe } from '@/lib/mediaDiagnostics';
+import { classifyPlayerError, safeMediaError } from '@/lib/mediaDiagnostics';
 import { sharedPlayback } from '@/lib/biliRoomProtocol';
 import { retainMusicPlayback } from '@/lib/roomConnection';
 import { messageFor } from '@/lib/server';
@@ -89,17 +90,13 @@ export default function RoomScreen() {
   const [playbackError, setPlaybackError] = useState('');
   const [retryTick, setRetryTick] = useState(0);
   const [commentOpen, setCommentOpen] = useState(false);
-  const [mediaProbe, setMediaProbe] = useState<MediaProbe | null>(null);
-  const [mediaStatus, setMediaStatus] = useState('idle');
-  const [trackSummary, setTrackSummary] = useState('');
-  const [diagnosing, setDiagnosing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [fullScreen, setFullScreen] = useState(false);
   const [musicImmersive, setMusicImmersive] = useState(false);
   const [chatSection, setChatSection] = useState<'comments' | 'tracks' | 'realtime'>('comments');
   const [sideOpen, setSideOpen] = useState<boolean | null>(null);
-  const [playerOptions, setPlayerOptions] = useState<'diagnostics' | null>(null);
   const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
+  const [controlBarHeight, setControlBarHeight] = useState(80);
   const priorOrientationLock = useRef<ScreenOrientation.OrientationLock | null>(null);
   const orientationOperation = useRef(0);
   const [joinRequests, setJoinRequests] = useState<{ viewerSocketId: string; username: string }[]>([]);
@@ -143,7 +140,7 @@ export default function RoomScreen() {
     if (broadcast) socket.emit('watch-together-state', { roomId, state: broadcast, clientTs: Date.now() });
   }, [player, socket, roomId]);
   useEffect(() => {
-    const adapter = new NativeMediaAdapter(player, playbackSource); adapterRef.current = adapter;
+    const adapter = new NativeMediaAdapter(player, playbackSource, __DEV__ ? values => watchDiagnostic('adapter', values) : undefined); adapterRef.current = adapter;
     return () => { readyRef.current = false; adapter.dispose(); if (adapterRef.current === adapter) adapterRef.current = null; };
   }, [player]);
   useEffect(() => onBiliChange(() => { adapterRef.current?.invalidate(); setRetryTick(value => value + 1); }), []);
@@ -160,7 +157,8 @@ export default function RoomScreen() {
   const columns = landscapeColumns(bodySize.width || Math.max(0, width - 24));
   const [mediaSize, setMediaSize] = useState({ width: 0, height: 0 });
   const leftWidth = mediaSize.width || (wide && sideVisible ? Math.max(0, width - 380) : Math.max(0, width - 32));
-  const playerHeight = Math.min(leftWidth * 9 / 16, stacked && mediaSize.height ? Math.max(80, mediaSize.height - (source?.sourceUrl ? 68 : 0)) : wide ? Math.max(180, height - 238) : 460);
+  const mediaHeight = stacked ? stackedMediaHeight(bodySize.height || Math.max(0, height - 150)) : bodySize.height || Math.max(0, height - 150);
+  const playerHeight = Math.min(leftWidth * 9 / 16, Math.max(80, mediaHeight - controlBarHeight));
   useEffect(() => () => { void ScreenOrientation.unlockAsync().catch(() => {}); }, []);
   useEffect(() => {
     if (Constants.expoVersion) return;
@@ -223,7 +221,7 @@ export default function RoomScreen() {
     if (data.shareMethod) setShare({ shareMethod: data.shareMethod, streamKey: data.streamKey });
     if (data.name) setRoomName(data.name);
     if (data.mode) setMode(data.mode);
-    if (data.playback?.sourceUrl) { applyPlayback(roomPlayback.current.state(hostRef.current ? { ...data.playback, isPlaying: false } : data.playback)); setMediaProbe(null); }
+    if (data.playback?.sourceUrl) { applyPlayback(roomPlayback.current.state(hostRef.current ? { ...data.playback, isPlaying: false } : data.playback)); }
     setError(''); setPhase('ready');
     void loadMovies();
     loadComments();
@@ -265,7 +263,7 @@ export default function RoomScreen() {
     const onRejected = (data: JoinData) => { if (data.roomId === roomId) { generation.current++; setPhase('error'); setError('房主拒绝了加入申请'); } };
     const onClosed = (data: JoinData) => { if (data.roomId === roomId) { generation.current++; attempted.current = false; readyRef.current = false; player.pause(); setSource(null); setPhase('closed'); setError('房间已关闭'); } };
     const onKicked = (data: { reason?: string }) => { generation.current++; attempted.current = false; readyRef.current = false; player.pause(); setSource(null); setPhase('closed'); setError(data.reason || '您已被移出房间'); };
-    const onMode = (data: JoinData) => { if ((!data.roomId || data.roomId === roomId) && data.mode) { setMode(data.mode); setCommentOpen(false); setSideOpen(null); setPlayerOptions(null); setFullScreen(false); setManualLock(false); orientationOperation.current++; void ScreenOrientation.unlockAsync().catch(() => {}); } };
+    const onMode = (data: JoinData) => { if ((!data.roomId || data.roomId === roomId) && data.mode) { setMode(data.mode); setCommentOpen(false); setSideOpen(null); setFullScreen(false); setManualLock(false); orientationOperation.current++; void ScreenOrientation.unlockAsync().catch(() => {}); } };
     const onHostTransferred = (data: { newHostSocketId: string }) => { const next = data.newHostSocketId === socket.id; hostRef.current = next; setHost(next); if (next) void join(true); };
     const onName = (data: JoinData) => { if (data.roomId === roomId && data.name) setRoomName(data.name); };
     const onShare = (data: JoinData) => { if (data.roomId === roomId) setShare({ shareMethod: data.shareMethod, streamKey: data.streamKey }); };
@@ -284,7 +282,10 @@ export default function RoomScreen() {
     };
     const onPlayback = (payload: { state?: Playback; diff?: Partial<Playback> }) => {
       if (hostRef.current) return;
-      if (payload.state) applyPlayback(roomPlayback.current.state({ ...payload.state, ...payload.diff }));
+      if (payload.state) {
+        watchDiagnostic('state', { time: payload.state.currentTime, playing: payload.state.isPlaying, busy: adapterRef.current?.busy, preparing: player.preparing });
+        applyPlayback(roomPlayback.current.state({ ...payload.state, ...payload.diff }));
+      }
     };
     const onControl = (payload: { action?: 'play' | 'pause' | 'seek' | 'rate'; value?: number }) => {
       if (hostRef.current || !readyRef.current || !roomPlayback.current.value()) return;
@@ -302,6 +303,7 @@ export default function RoomScreen() {
       const identity = nativeVideoSource({ ...state, audioUrl: undefined, sourceType: state.sourceType === 'bilibili' ? 'url' : state.sourceType }, session!.serverUrl, session!.accessToken).identity;
       const ready = !adapterRef.current?.busy && !player.preparing && player.duration > 0 && player.sourceIdentity === identity;
       const target = watchSync.current.target(state, player.currentTime, ready, player.seeking);
+      watchDiagnostic('heartbeat', { position: player.currentTime, targetTime: state.currentTime, seek: target, ready, seeking: player.seeking, busy: adapterRef.current?.busy, preparing: player.preparing, duration: player.duration, playing: player.playing });
       if (target !== null) player.currentTime = target;
       if (!ready || player.seeking) return;
       const playing = state.isPlaying;
@@ -428,7 +430,7 @@ export default function RoomScreen() {
   }, [host, phase, mode, source?.sourceUrl, source?.movieId, source?.cid, source?.currentPage, session, socket, roomId, retryTick]);
   useEffect(() => {
     const subscription = player.addListener('statusChange', ({ status, error: videoError }) => {
-      setMediaStatus(status);
+      watchDiagnostic('status', { status, position: player.currentTime, preparing: player.preparing, busy: adapterRef.current?.busy });
       if (status === 'error') {
         adapterRef.current?.invalidate();
         const current = playbackRef.current;
@@ -436,37 +438,16 @@ export default function RoomScreen() {
         else setPlaybackError(safeMediaError(videoError?.message || '视频播放失败'));
       }
     });
-    const loaded = player.addListener('sourceLoad', ({ duration, availableAudioTracks, availableVideoTracks, availableSubtitleTracks }) => {
-      setTrackSummary(`时长 ${Math.round(duration)} 秒 · 视频 ${availableVideoTracks.filter(track => track.id !== -1).length} 轨 · 音频 ${availableAudioTracks.filter(track => track.id !== -1).length} 轨 · 字幕 ${availableSubtitleTracks.filter(track => track.id !== -1).length} 轨`);
+    const loaded = player.addListener('sourceLoad', ({ duration }) => {
+      watchDiagnostic('loaded', { duration, position: player.currentTime, preparing: player.preparing });
     });
     return () => { subscription.remove(); loaded.remove(); };
   }, [player]);
-
-  const probeController = useRef<AbortController | null>(null);
-  useEffect(() => {
-    probeController.current?.abort();
-    let current = true;
-    void Promise.resolve().then(() => { if (current) { setMediaProbe(null); setDiagnosing(false); } });
-    return () => { current = false; };
-  }, [source?.sourceUrl]);
-  useEffect(() => () => { probeController.current?.abort(); }, []);
-
-  const runProbe = async () => {
-    if (!source || !session) return;
-    probeController.current?.abort();
-    const controller = new AbortController();
-    probeController.current = controller;
-    setDiagnosing(true);
-    try { const media = await playbackSource(source, session.serverUrl, session.accessToken, controller.signal); const result = await probeNativeMedia(media, controller.signal); if (!controller.signal.aborted) setMediaProbe(result); }
-    catch (failure) { if (!controller.signal.aborted) setMediaProbe({ category: classifyPlayerError(messageFor(failure)), source: 'external', detail: safeMediaError(messageFor(failure)) }); }
-    finally { if (probeController.current === controller && !controller.signal.aborted) setDiagnosing(false); }
-  };
 
   const leave = () => {
     generation.current++;
     attempted.current = false;
     readyRef.current = false;
-    probeController.current?.abort();
     player.pause();
     socket?.disconnect();
     router.replace('/');
@@ -570,13 +551,23 @@ export default function RoomScreen() {
     {!connected && !fullScreen ? <Text style={styles.error}>连接已断开，正在重连</Text> : null}
     {phase !== 'ready' && !retainMusicPlayback(joined, mode, phase) ? <View style={styles.join}><ActivityIndicator color="#65d59b" animating={phase === 'joining' || phase === 'connecting' || phase === 'waiting'} /><Text style={styles.title}>{phase === 'password' ? '请输入房间密码' : phase === 'waiting' ? '等待房主批准' : phase === 'closed' ? '房间已关闭' : phase === 'error' ? '无法加入房间' : '正在加入房间'}</Text>{error ? <Text style={styles.error}>{error}</Text> : null}{phase === 'password' ? <><TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholder="房间密码" placeholderTextColor="#a8b3b6" /><Button label="进入房间" disabled={!connected} onPress={() => { passwordRef.current = password; attempted.current = true; void join(hostRef.current); }} /></> : null}{phase === 'error' ? <Button label="重试" disabled={!connected} onPress={() => void join(hostRef.current)} /> : null}<Button label="返回房间列表" onPress={leave} /></View> : <>
       <View testID="room-body" onLayout={event => setBodySize(event.nativeEvent.layout)} style={[roomLayout.body, wide && roomLayout.wide, fullScreen && { gap: 0 }]}>
-        <View testID="room-media-frame" onLayout={event => setMediaSize(event.nativeEvent.layout)} style={[roomLayout.mediaFrame, wide && sideVisible && columns.media, stacked && roomLayout.stackedMedia, stacked && { height: stackedMediaHeight(bodySize.height || Math.max(0, height - 150)) }]}>
+        <View testID="room-media-frame" onLayout={event => setMediaSize(event.nativeEvent.layout)} style={[roomLayout.mediaFrame, wide && sideVisible && columns.media, stacked && roomLayout.stackedMedia, stacked && { height: playerHeight + controlBarHeight }]}>
         {mode === 'listen-together' ? <MusicPanel roomId={roomId} host={host} onExpandedLandscape={setMusicImmersive} /> : <ScrollView ref={mediaColumn} scrollEnabled={!fullScreen} style={roomLayout.mediaScroll} contentContainerStyle={[styles.mediaContent, fullScreen && { flexGrow: 1, paddingBottom: 0, gap: 0 }]}>
-          {mode === 'watch-together' ? <View testID="video-container" onLayout={event => setVideoSize(event.nativeEvent.layout)} style={[styles.playerBox, fullScreen ? { flex: 1, borderRadius: 0, minHeight: 0 } : { height: playerHeight }]}>{source?.sourceUrl && !playbackError ? <VlcVideo video={video} style={styles.video} /> : <View style={styles.placeholder}><Text style={[styles.muted, { color: "#a8b3b6" }]}>{playbackError ? `播放失败（${classifyPlayerError(playbackError)}）：${playbackError}` : waitingMovie ? '正在等待当前影片资料…' : '等待房主选择影片'}</Text>{playbackError && source?.sourceUrl ? <Button label="重试播放" onPress={() => { adapterRef.current?.invalidate(); setPlaybackError(''); setRetryTick(value => value + 1); }} /> : null}</View>}<VideoGestures player={player} fullscreen={fullScreen} show={showControls} control={control} /><SubtitleOverlay subtitles={subtitles} player={player} /><DanmakuOverlay player={player} state={danmaku} width={videoSize.width || leftWidth} height={videoSize.height || playerHeight} /><View pointerEvents={controlsVisible || !fullScreen ? "auto" : "none"} style={[styles.videoControls, fullScreen && !controlsVisible && { opacity: 0 }]}><PlaybackControls player={player} host={host} roomId={roomId} subtitles={subtitles} danmaku={danmaku} control={control} fullscreen={fullScreen} toggleFullscreen={() => void toggleFullscreen()} /></View></View> : <ScreenShare roomId={roomId} share={share} height={playerHeight} />}
-          {mode === 'watch-together' && source?.sourceUrl && !fullScreen ? <View style={styles.controlPanel}>
-            <View style={styles.controls}><Button label="播放诊断" onPress={() => setPlayerOptions('diagnostics')} /></View>
+          {mode === 'watch-together' ? <View style={[styles.playerBox, fullScreen && { flex: 1, borderRadius: 0, minHeight: 0 }]}>
+            <View testID="video-container" onLayout={event => setVideoSize(event.nativeEvent.layout)} style={[styles.videoViewport, fullScreen ? { flex: 1 } : { height: playerHeight }]}>
+              {source?.sourceUrl && !playbackError ? <VlcVideo video={video} style={styles.video} /> : <View style={styles.placeholder}>
+                <Text style={[styles.muted, { color: '#a8b3b6' }]}>{playbackError ? `播放失败（${classifyPlayerError(playbackError)}）：${playbackError}` : waitingMovie ? '正在等待当前影片资料…' : '等待房主选择影片'}</Text>
+                {playbackError && source?.sourceUrl ? <Button label="重试播放" onPress={() => { adapterRef.current?.invalidate(); setPlaybackError(''); setRetryTick(value => value + 1); }} /> : null}
+              </View>}
+              <VideoGestures player={player} fullscreen={fullScreen} show={showControls} control={control} />
+              <SubtitleOverlay subtitles={subtitles} player={player} />
+              <DanmakuOverlay player={player} state={danmaku} width={videoSize.width || leftWidth} height={videoSize.height || playerHeight} />
+            </View>
+            <View onLayout={event => { if (!fullScreen) setControlBarHeight(event.nativeEvent.layout.height); }} pointerEvents={!fullScreen || controlsVisible ? 'auto' : 'none'} style={[styles.playbackBar, fullScreen && styles.videoControls, fullScreen && !controlsVisible && { opacity: 0 }]}>
+              <PlaybackControls player={player} host={host} roomId={roomId} subtitles={subtitles} danmaku={danmaku} control={control} fullscreen={fullScreen} toggleFullscreen={() => void toggleFullscreen()} />
+            </View>
+          </View> : <ScreenShare roomId={roomId} share={share} height={playerHeight} />}
 
-          </View> : null}
         </ScrollView>}
         </View>
         {mode === 'watch-together' ? <Surface readable testID="room-sidebar" style={[styles.sidePanel, !sideVisible && { display: 'none' }, wide ? columns.sidebar : stacked ? roomLayout.stackedSidebar : { position: 'absolute', top: 0, right: 0, bottom: 0, width: '100%', zIndex: 20, backgroundColor: theme.color('#111417', 'backgroundColor'), padding: 12 }]}>
@@ -601,13 +592,10 @@ export default function RoomScreen() {
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </AppDialog>
     <AppDialog visible={leaveOpen} title="离开房间？" close={() => setLeaveOpen(false)}><Text style={styles.text}>{host ? '离开后将停止本机播放，房间按服务器的离线规则保留。' : '离开后将停止本机播放。'}</Text><View style={styles.controls}><Button label="取消" onPress={() => setLeaveOpen(false)} /><Button label="离开" onPress={leave} /></View></AppDialog>
-    <Modal visible={playerOptions !== null} transparent animationType="fade" supportedOrientations={['portrait', 'landscape']} onRequestClose={() => setPlayerOptions(null)}><View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 }}><ScrollView style={{ maxHeight: '90%', width: '100%', maxWidth: 650, alignSelf: 'center', borderRadius: 16, backgroundColor: theme.color('#1b2024', 'backgroundColor') }} contentContainerStyle={{ padding: 16, gap: 14 }}><View style={styles.controls}><Text style={[styles.title, { flex: 1 }]}>播放诊断</Text><Button label="关闭面板" onPress={() => setPlayerOptions(null)} /></View>{<>
-            <Text style={styles.muted}>播放器：{mediaStatus}{trackSummary ? ` · ${trackSummary}` : ''}</Text>
-            <View style={styles.controls}><Button label={diagnosing ? '检测中…' : '播放诊断'} onPress={() => void runProbe()} disabled={diagnosing} /></View>
-            {mediaProbe ? <Text style={mediaProbe.category === 'ready' ? styles.muted : styles.error}>网络探测：{mediaProbe.detail} · 来源 {mediaProbe.source}{mediaProbe.status ? ` · HEAD ${mediaProbe.status}` : ''}{mediaProbe.contentType ? ` · ${mediaProbe.contentType}` : ''}{mediaProbe.checks?.map(check => ` · ${check.name} ${check.status}${check.valid ? '✓' : '✗'}`).join('')}{mediaProbe.signature ? ` · 文件头 ${mediaProbe.signature}` : ''}{mediaProbe.redirected ? ' · 已跳转' : ''}</Text> : null}</>}</ScrollView></View></Modal>
+
   </SafeAreaView>;
 }
 
 const baseStyles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#111417', padding: 12, gap: 12 }, fullscreenRoot: { padding: 0, gap: 0, backgroundColor: '#000' }, videoControls: { position: 'absolute', bottom: 0, left: 0, right: 0 }, header: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 64, borderBottomWidth: 1, borderColor: '#343d41', backgroundColor: '#1b2024' }, link: { color: '#65d59b', fontSize: 17 }, title: { color: '#edf1ef', fontSize: 19, fontWeight: '700' }, sectionTitle: { color: '#edf1ef', fontSize: 16, fontWeight: '700' }, text: { color: '#edf1ef', fontSize: 15 }, muted: { color: '#a8b3b6', fontSize: 13 }, error: { color: '#ffaaa5', padding: 8 }, join: { flex: 1, justifyContent: 'center', gap: 15 }, input: { backgroundColor: '#1b2024', borderColor: '#343d41', borderWidth: 1, color: '#edf1ef', borderRadius: 10, paddingHorizontal: 12, minHeight: 44 }, button: { backgroundColor: '#65d59b', borderRadius: 10, minHeight: 44, paddingHorizontal: 15, justifyContent: 'center', alignItems: 'center' }, buttonText: { color: '#111417', fontWeight: '700' }, disabled: { opacity: 0.45 }, mediaContent: { gap: 10, paddingBottom: 8 }, playerBox: { width: '100%', backgroundColor: '#05080c', alignItems: 'center', justifyContent: 'center', borderRadius: 12, overflow: 'hidden' }, placeholder: { alignItems: 'center', gap: 12, padding: 16 }, video: { width: '100%', height: '100%' }, controlPanel: { gap: 8 }, controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, sidePanel: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minHeight: 0, gap: 8, backgroundColor: '#1b2024', borderRadius: 16, padding: 8 }, tabs: { flexDirection: 'row', borderBottomWidth: 1, borderColor: '#343d41', flexShrink: 0 }, activeTab: { color: '#65d59b', fontWeight: '700' }, list: { flex: 1 }, listContent: { gap: 8, paddingBottom: 18 }, item: { backgroundColor: '#1b2024', padding: 12, borderRadius: 10, gap: 4 }, composer: { flexDirection: 'row', gap: 8 },
+  root: { flex: 1, backgroundColor: '#111417', padding: 12, gap: 12 }, fullscreenRoot: { padding: 0, gap: 0, backgroundColor: '#000' }, videoControls: { position: 'absolute', bottom: 0, left: 0, right: 0 }, header: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 64, borderBottomWidth: 1, borderColor: '#343d41', backgroundColor: '#1b2024' }, link: { color: '#65d59b', fontSize: 17 }, title: { color: '#edf1ef', fontSize: 19, fontWeight: '700' }, sectionTitle: { color: '#edf1ef', fontSize: 16, fontWeight: '700' }, text: { color: '#edf1ef', fontSize: 15 }, muted: { color: '#a8b3b6', fontSize: 13 }, error: { color: '#ffaaa5', padding: 8 }, join: { flex: 1, justifyContent: 'center', gap: 15 }, input: { backgroundColor: '#1b2024', borderColor: '#343d41', borderWidth: 1, color: '#edf1ef', borderRadius: 10, paddingHorizontal: 12, minHeight: 44 }, button: { backgroundColor: '#65d59b', borderRadius: 10, minHeight: 44, paddingHorizontal: 15, justifyContent: 'center', alignItems: 'center' }, buttonText: { color: '#111417', fontWeight: '700' }, disabled: { opacity: 0.45 }, mediaContent: { gap: 0, paddingBottom: 0 }, playerBox: { width: '100%', backgroundColor: '#05080c', borderRadius: 16, overflow: 'hidden' }, videoViewport: { width: '100%', alignItems: 'center', justifyContent: 'center' }, playbackBar: { width: '100%', borderTopWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: '#05080c' }, placeholder: { alignItems: 'center', gap: 12, padding: 16 }, video: { width: '100%', height: '100%' }, controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, sidePanel: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minHeight: 0, gap: 8, backgroundColor: '#1b2024', borderRadius: 16, padding: 8 }, tabs: { flexDirection: 'row', borderBottomWidth: 1, borderColor: '#343d41', flexShrink: 0 }, activeTab: { color: '#65d59b', fontWeight: '700' }, list: { flex: 1 }, listContent: { gap: 8, paddingBottom: 18 }, item: { backgroundColor: '#1b2024', padding: 12, borderRadius: 10, gap: 4 }, composer: { flexDirection: 'row', gap: 8 },
 });
