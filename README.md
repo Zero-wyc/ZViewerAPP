@@ -2,7 +2,7 @@
 
 **Android / HarmonyOS 1.8.6 已发布**：主页新增“关于应用”、当前版本、启动及手动检查更新，以及对应平台下载提示；界面跟随全局外观，双端构建号为 **186**。
 
-**iOS 1.9.0 / build 26**：播放设置、弹幕类型、房间语音与房间设置对齐另外两端；投屏补齐全屏、刷新和聊天，屏幕方向改为一键切换，音乐菜单互斥并改善文字可读性。使用 Mac 本地 Xcode 构建设备 Release IPA，需自行签名后侧载，见 [iOS 1.9.0 发行说明](docs/releases/ios-1.9.0-release-notes.md)。
+**iOS 1.9.0 / build 26**：播放器、弹幕设置、房间语音、投屏、房间设置、方向控制和音乐菜单完成独立更新；设备 Release IPA 未签名，需自行签名后侧载。维护入口见 [iOS 维护文档](docs/ios-maintenance-architecture.md)，发布包见 [iOS 1.9.0 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/ios-v1.9.0)。
 
 <img src="public/favicon.jpg" alt="ZViewer" width="88" height="88" />
 
@@ -16,11 +16,11 @@
 | --- | --- | --- |
 | Android | **1.8.6 / 186** | 正式签名 APK；新增关于应用和更新检查，保持既有房间、全屏与本机解析行为。 |
 | HarmonyOS | **1.8.6 / 186** | 正式签名 HAP；共用更新页，通过 ArkTS 读取原生版本并打开系统浏览器下载。 |
-| iOS | **1.9.0 / build 26** | 未签名设备 Release IPA，需个人签名后侧载；界面已在模拟器检查，真实媒体、语音及后台专项边界见发行记录。 |
+| iOS | **1.9.0 / build 26** | 未签名设备 Release IPA，需个人签名后侧载；自动检查和模拟器覆盖范围、真实媒体与后台限制见 iOS 维护文档。 |
 
 Android/HarmonyOS 继续使用 [ZViewer-Client V1.8.6](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.8.6)。独立 [iOS 1.9.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/ios-v1.9.0) 提供 `ZViewer-iOS-1.9.0-release.ipa` 和 `SHA256SUMS.txt`；Source code 使用该标签的 GitHub 自动源码归档，包含本次 iOS 修改。
 
-保留服务端 v4.5.3 对齐的默认音乐音量、私人漫游续播、媒体库多版本/整季、番剧浏览、B站搜索和本机解析等既有功能。本地服务端源码已更新到 `89eafa5`，未修改 NAS 容器。详见 [1.8.6 发行说明](docs/releases/client-1.8.6.md) 与 [发布验证](docs/releases/client-1.8.6-publication.md)。
+Android/HarmonyOS 1.8.6 保留服务端 v4.5.3 对齐的默认音乐音量、私人漫游续播、媒体库多版本/整季、番剧浏览、B站搜索和本机解析等功能。维护状态与模块入口见对应的平台维护文档；完整历史版本见 [更新记录](CHANGELOG.md) 和 [GitHub Releases](https://github.com/Zero-wyc/ZViewerAPP/releases)。
 
 ## 安装与连接
 
@@ -74,17 +74,7 @@ Android 正式包名为 `com.zviewer.mobile`，调试包为 `com.zviewer.mobile.
 
 播放设置仅保留字幕 / 弹幕页，移除音轨选择；四类弹幕可独立显示或屏蔽。方向按钮点击切换并锁定横竖屏，再次点击解除锁定；进入全屏锁横屏，退出恢复自动旋转。投屏提供全屏、刷新、暂停接收与内嵌聊天。房间面板集中展示模式、状态、分享、在线成员与审批；房间语音补充音量与成员状态。网易云导航和头像菜单互斥，采用不透明背景，“音乐设置”统一从头像进入。
 
-源码检查及模拟器证据见 [界面对齐记录](docs/ios-player-share-ui-20261014.md)，设备 IPA 核验见 [1.9.0 构建记录](docs/releases/ios-1.9.0-26-validation.md)。
-
-## iOS 1.8.6 本地修复与验证（历史）
-
-2026-10-14 在 Mac 上根据实际反馈继续开发：聚合 HLS 保留服务器代理并改写相对清单，统一当前影片身份以避免暂停/恢复反复重载；VLC 跳转完成后执行最新播放意图。网易云曲尾续播修复迟到的 `:start-paused` 回调导致下一首停在 0 秒的问题，音乐进度条支持点击定位和暂停跳转。
-
-模拟器已验证 B站与 Kazumi《败犬女主太多了！》播放、网页房主暂停/恢复和观众跳转；Jellyfin 同一动漫剧集播放、暂停跳转及中途重新加入也已验证。iOS 单独作为一起听房主的网易云末尾连续换曲通过。视频诊断按钮已移除，普通视频控制栏移到画面下方；自动续播放在搜索影片同一行，保留原业务页面主题。
-
-本轮交付为本地设备 Release IPA 和 Git 提交，不将模拟器结果扩大为真机验收。后台当前歌曲音频和 Now Playing 接入保留；锁屏/控制中心按钮、后台自然自动跨曲、长期后台房间同步仍待验证，JS 被系统挂起时无独立原生房间业务连接。
-
-构建与检查见 [iOS README](ZV-iOS/README.md)、[Mac 开发记录](docs/ios-mac-development-20261014.md) 和 [本轮 IPA 交付记录](docs/releases/ios-1.8.6-25-local-20261014.md)。本机可通过 Xcode 构建，无需消费 EAS 云端额度；未签名 IPA 需自行签名安装，包内包含 Release JS，无需 Metro 或 Expo Go。
+源码维护边界、构建流程与验证范围见 [iOS 维护文档](docs/ios-maintenance-architecture.md)；发行资产见 [iOS 1.9.0 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/ios-v1.9.0)。
 
 ## 本地开发与检查
 
@@ -98,7 +88,7 @@ npm run test:media
 npm run build
 ```
 
-浏览器调试需要自己的 ZViewer 服务端。功能回归与搜索布局、音量、私人漫游验证见 [对齐记录](docs/client-v1.7.6-alignment-453-validation-20261013.md)。本轮 1.8.5 双端 Debug/Release 构建、包内版本、签名及各 29 个共享网页资源摘要检查通过，详见 [构建与发布验证](docs/client-v1.8.5-release-validation-20261013.md)；iOS 已获用户本轮真机通过确认，其他专项覆盖边界见记录。
+浏览器调试需要自己的 ZViewer 服务端。共享适配、媒体回归和原生验收边界见 [Android](docs/android-maintenance-architecture.md)、[HarmonyOS](docs/harmonyos-maintenance-architecture.md) 和 [iOS](docs/ios-maintenance-architecture.md) 维护文档。
 
 ### Android 构建
 
@@ -143,11 +133,11 @@ npm run harmony:web
 | `ZV-iOS/` | 独立 Expo / React Native / VLC 工程 |
 | `scripts/` | 构建、资源同步与回归检查 |
 | `public/`、`vendor/mediabunny/` | 静态资源与媒体库本地补丁 |
-| `docs/` | 平台维护架构、验收记录与发行说明 |
+| `docs/` | Android、HarmonyOS、iOS 三端维护架构文档 |
 
 共享业务通过 `src/platform/` 访问原生能力，不直接依赖 Capacitor 或 ArkTS。HarmonyOS 使用 `zviewerNative` 桥；iOS 独立移植业务和能力。Android/HarmonyOS 保留移动评论侧栏；iOS 已提供可拖动的浮动房间评论入口及播放器内歌曲评论弹窗。桌面式修饰键快捷唤出不移植，公告继续排除。
 
-维护入口：[Android](docs/android-maintenance-architecture.md) · [HarmonyOS](docs/harmonyos-maintenance-architecture.md) · [iOS](docs/ios-maintenance-architecture.md) · [跨平台移植](PORTING.md) · [三端发布流程](docs/mobile-release-maintenance.md)。`scripts/import-core.mjs` 为维护用上游导入工具，普通安装、构建和测试无需运行；更新媒体库时保留 [本地补丁](vendor/mediabunny/LOCAL-PATCHES.md)。历史变更见 [CHANGELOG](CHANGELOG.md) 和 [Releases](https://github.com/Zero-wyc/ZViewerAPP/releases)。
+维护入口：[Android](docs/android-maintenance-architecture.md) · [HarmonyOS](docs/harmonyos-maintenance-architecture.md) · [iOS](docs/ios-maintenance-architecture.md) · [跨平台移植](PORTING.md)。`scripts/import-core.mjs` 为维护用上游导入工具，普通安装、构建和测试无需运行；更新媒体库时保留 [本地补丁](vendor/mediabunny/LOCAL-PATCHES.md)。历史变更见 [CHANGELOG](CHANGELOG.md) 和 [GitHub Releases](https://github.com/Zero-wyc/ZViewerAPP/releases)。
 
 ## 致谢与许可
 

@@ -1,344 +1,156 @@
-# iOS 客户端维护架构
+# iOS 客户端维护文档
 
-## 2026-10-14：1.9.0 / build 26 独立发行
+更新日期：2026-10-14。三端维护文档统一使用 `<platform>-maintenance-architecture.md` 命名。本文件面向日常开发和故障定位；版本历史与验收过程不在此逐次累记。
 
-按用户授权构建并发布新的 iOS 设备 Release，集中纳入播放 / 弹幕、投屏全屏和刷新、房间语音与设置、方向切换及音乐菜单修复。版本仅更新独立 iOS 工程，Android/HarmonyOS 保持 1.8.6。使用现有本地 unsigned 构建与离线包检查流程，设备 Go / Opus 来源和配置不变；`ios-v1.9.0` 标签指向本次源码提交。具体产物、摘要和验证边界见 [1.9.0 / 26 核验](releases/ios-1.9.0-26-validation.md) 与 [界面记录](ios-player-share-ui-20261014.md)。以下按时间保留历史状态。
+## 当前版本和发布边界
 
-## 2026-10-14：1.8.6 / build 25 本地设备 Release 交付
+- iOS 是 `ZV-iOS/` 中独立的 Expo SDK 57 / React Native 0.86 工程；当前源码为 **1.9.0 / build 26**，Bundle ID `com.zviewer.mobile`，最低 iOS 16.4，支持 iPhone 与 iPad。独立发布标签为 `ios-v1.9.0`；Android/HarmonyOS 继续使用 1.8.6 / 186。
+- iOS 1.9.0 提供 Mac 本地构建的设备 Release IPA，**未签名、不是 App Store/TestFlight 包**，安装者需使用自己的证书与设备授权侧载；包内含 Release JS，不需要 Metro。公开发行与自动源码归档位于 GitHub `ios-v1.9.0` 标签。
+- 当前源码的 `npm run check`（原生来源/补丁检查、lint、TypeScript 与 JS 测试）通过，共 227 项测试；1.9.0 设备包的 ARM64、版本、未签名状态、内置 JS、原生桥及来源摘要已经离线检查。播放器、投屏、房间设置、语音和弹幕设置的界面已在 iOS 模拟器检查；真实跨端 WebRTC/OBS、听音与蓝牙、硬件解码、锁屏系统按钮和后台自然跨曲仍需要相应设备专项验证。JS 被系统挂起时没有独立原生房间 Socket/自动切歌管线。
+- 用户明确要求前不启动 IPA/EAS 构建。普通 UI 优先用 Expo Go/Expo Web 检查；这些预览不含 VLC、Go、LiveKit 和自定义原生桥，不能代表原生行为。
+- 所有 iOS 客户端文件修改和 Git 操作在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。不要在迁移副本或其他发布工作树提交客户端改动。
 
-本轮在 Mac 上继续修复 Kazumi/B站同步、Jellyfin 暂停跳转恢复及网易云曲尾续播，按用户最新要求完成本地设备 Release IPA 后提交 Git。当前本地源码与包为 1.8.6 / build 25，最新公开 IPA 在上传前仍为 1.8.5 / build 23。既有双端 Release/标签及其发布回执保留，本次不把本地构建记为已上传。
+## 架构与边界
 
-`prepare-native-ios.sh` 复用锁定且经摘要检查的 Go 下载缓存，从固定来源重建 device ARM64 Bilicore；设备 Opus 使用独立构建目录，避免复用 simulator 对象。`build-unsigned-ios.sh` 支持本地 Mac，先核验 Go 来源/VLC 补丁及 Bilicore 设备平台；重新打包时清理旧 Payload/IPA，检查真实设备 Mach-O、未签名状态、Release JS、LiveKit 和 VLC/原生桥引用。构建细节见 [本轮交付记录](releases/ios-1.8.6-25-local-20261014.md)。
+iOS 不是 Android Capacitor 工程的移植，也不是 Web 页面包装。`ZV-iOS/` 用 React Native 原生控件、Expo Router 和 config plugins 构建独立 App。业务 DTO、房间事件和服务端 API 可与双端对齐，但播放器、权限、连接、音频会话、持久化和界面必须按 iOS 原生能力维护。
 
-199 项测试、lint/typecheck 与模拟器实际联调通过；末尾续播修复是在 iOS 独立房主的前台场景验证。系统媒体已接入且后台 Now Playing 更新有原生证据，但真机、控制中心/锁屏按钮、后台自然跨曲与长期后台同步仍待专项验收。
-
-## 2026-10-14：Mac 本地接续与播放联调
-
-用户已授权在此 Mac 继续开发并使用网页房主 / iOS 模拟器联合排查。以下记录为设备 Release 构建前的阶段性验证；后续本地包交付见上节，历史公开发布状态保留。
-
-本地 Xcode 27 / iOS 27 通过 scene 生命周期插件启动锁定 Expo 工程；原有业务页面与样式保留。聚合 HLS 改写应用私有 VOD 清单，让子清单、TS、密钥、初始化段通过原服务器代理；实际 Kazumi 分片直连 403、代理 206 的差异已复现。所有来源统一绑定当前影片 ID，防止网页省略 ID 与服务器携带 ID 的消息交替触发同片重载；状态更新复用解析结果。移除重复初始 seek，暂停 seek 的 UI 更新与实际进度分离，并限制 settling 时间。仅 Debug 模拟器使用软件解码，真实设备不更改解码方式。
-
-194 项测试、lint/typecheck 及 iOS Release JS/Hermes 导出通过；B站 MP4、Kazumi《败犬女主太多了！》HLS 已验证画面、持续进度和暂停/恢复，观众 seek 已验证。模拟器结果不代替真实 iPhone/iPad 对硬件解码、后台、跨集的验收。具体环境、命令、联调边界见 [Mac 本地开发记录](ios-mac-development-20261014.md)。
-
-## 2026-10-14：用户复测仍有同步问题，1.8.6 暂缓发布
-
-用户明确反馈当前候选仍存在同步问题，并要求本轮只发布 Android/HarmonyOS。**1.8.6 / build 25 不发布，不重新构建，不上传到 client-v1.8.6 Release；候选源码随完整仓库同步 main，仅供后续修复。** 最新公开 IPA 仍为 1.8.5 / build 23，但不能把其此前起播/声音/同曲后台播放确认扩大为最新同步机制和后台跨曲已验收。
-
-下方 build 25 的 185 项自动测试、编译及离线包检查是历史构建证据，用户反馈优先于这些检查；同步问题不得标为已解决。本轮没有继续修改播放逻辑或消耗 iOS 构建额度。双端发布状态见 [1.8.6 发布验证](releases/client-1.8.6-publication.md)。
-
-## 2026-10-13：1.8.6 / build 25 同步与后台换曲修复（本地候选）
-
-本地服务端已从 GitHub 固定提交 `89eafa51253e7b548c416c2a7282e8f688111ce5` 下载覆盖，包含服务器恒定推算心跳、clientTs 传输补偿及 CHECK_STATUS 自检；未连接 NAS 或修改容器。此前 build 23 真机“全部通过”只保留原有范围，不覆盖本次新反馈。
-
-`WatchSync` 优先采用 source=server 心跳；6 秒未收到服务器样本才允许旧房主采样。纯 currentTime/updatedAt 心跳不重复发起解析/换源；校正只作用于已准备的同一媒体，排除加载、主动 seek、旧影片/旧 CID。播放中漂移超过 10 秒才硬 seek，硬 seek 后保留 10 秒稳定窗口，暂停态使用 1 秒容差。房主报告带 clientTs，准备/seek 期间不更新服务器进度基线；观众每 10 秒执行 `watch-together-check-status`，迟到回复按影片操作/恢复版本隔离。服务器已推算的 currentTime 不再按旧 updatedAt 二次外推。
-
-音乐使用 `useVlcVideo(false, true)` 保留音频视图；`music-native.cjs` 加入原生 `replaceSource`、managed 所有权和加载编号，直接在主线程初始化新输入，不等待后台 React 提交新视图。NativeMediaAdapter 仍串行解析；原生回调编号覆盖 Expo 的原始 nativeEvent/转换后两种形式，旧曲回调和旧输入重试不能控制新曲。保留 no-video、关闭隐藏 PiP、延迟 DASH slave 和既有异步 VLC 事件配置。
-
-`ZVSystemMedia` 在音频结束/换源/后台系统控制时用有限 `beginBackgroundTask` 保护静音切歌间隙；新输入播放或会话释放时结束任务，到期由系统回收。锁屏 next/prev 等立即交给业务 JS，不再等回前台执行。本次保持同一个业务 Socket；没有引入独立原生业务 Socket，系统强制挂起、终止进程、长时间暂停或弱网后的后台同步不承诺持续运行，必须真机测试。
-
-播放中拖到音乐末尾按队列策略下一首、单曲循环归零、顺序模式末曲停止；seek 的瞬态 paused/stopped 不误推进队列。外部媒体诊断失败显示探测未完成/可能限制 HEAD，不宣称 VLC 当前播放失败。
-
-版本 **1.8.6 / build 25**；build 24 是中间包，最终候选包含 nativeEvent 编号兼容修正。lint/typecheck、185 项逻辑/回调回归及云端编译、离线包检查结果见 [候选验证](releases/client-1.8.6-local-validation.md)。新的后台跨曲、B站/聚合番剧跨端同步仍待真实 iPhone/iPad 安装复验；IPA 未签名，需个人签名安装。本轮双端关于/更新页面不移植到独立 iOS 工程。
-
-## 2026-10-13：1.8.5 三端统一发布与 iOS 可用确认
-
-用户明确反馈 1.8.5 / build 23“测试全部通过”，并授权发布三端。iOS 本轮报告的起播卡死、B站声音和一起听桌面/锁屏音频问题已获真机通过确认，当前处于可用状态。直接发布已验收 build 23（SHA-256 `fbbe04318a395e15da2b15c1723cb8457cc3e660652c2443c7473ebcd6a69b9c`），没有再次启动 EAS；不扩写未知设备型号、专项时长或全格式兼容结论。独立原生后台房间 Socket/自动跨曲管线仍未实现。
-
-源码同步 Zero-wyc/ZViewerAPP main，统一标签 `client-v1.8.5` 包含三端源码。README 补充安装、连接、房间设置、全屏、评论、播放模式和后台操作；附件为签名 APK/HAP、未签名 IPA 与 SHA256SUMS.txt，源码使用 GitHub 自动归档。发布核验见 [三端验证](client-v1.8.5-release-validation-20261013.md)；下方是各阶段历史状态。
-
-## 2026-10-13：build 22 产物检查误报与 build 23 重建
-
-EAS `1885fd07-2ea6-40da-b6e7-549f5533023c` 于 20:17:13（北京时间）失败。两次原生源码补丁检查通过，Xcode 设备 Release 编译成功；其后主程序 `strings` 检查误报 `VLCEventsLegacyConfiguration` 缺失，导致 IPA 未打包或上传。macOS strings 默认按 Mach-O 段扫描，不能覆盖段外链接导入信息，已核对 Apple cctools 源码及已有 IPA 的真实导入类位置。
-
-build 23 使用 `scripts/verify-ios-native-symbols.cjs` 读取完整二进制，同时要求主程序的事件配置类/setter 引用和 VLCKit framework 的类定义；继续检查播放器构造之前设置异步配置、分离音轨及后台音频补丁。保留所有播放修复，未再次修改媒体行为。179 项测试、lint、类型检查通过；193 项上传文件审计及 12 个共享来源文件核验通过。按用户既有修复并交付 IPA 指示重建。
-
-EAS `4b32aadb-a320-404a-9904-3863a92e6f86` 已于 2026-10-13 20:35:54（北京时间）完成；云端两次源码检查、编译后完整二进制引用/框架定义检查通过。IPA `ZV-iOS/release-assets/ZViewer-1.8.5-b23-unsigned.ipa`（47,330,464 字节），SHA-256 `fbbe04318a395e15da2b15c1723cb8457cc3e660652c2443c7473ebcd6a69b9c` 与构建机一致。离线设备架构、版本、139 项 ZIP CRC、系统媒体/后台声明、VLC/LiveKit/桥接、来源许可和事件配置/音轨/后台补丁标记均通过。未签名，需用户自行签名安装。维护与检查已记录，未推送 GitHub；实际起播、B站声音与桌面/锁屏持续播放仍须真机复验，JS 挂起时没有独立原生 Socket/自动切歌管线。详见 [build 23 验证记录](releases/ios-1.8.5-23-validation.md)。
-
-## 2026-10-13：build 21 起播卡死回归与异步 VLC 回调修复（build 22）
-
-**build 21 已经用户真机确认存在严重回归，停止作为可用测试包推荐。** 加载时卡顿，Jellyfin 添加后点播放卡死，B站视频和一起听也无法正常播放。此前构建/离线检查通过只证明产物结构及补丁存在，没有覆盖原生线程运行安全。
-
-- 与锁定依赖对应的 VLCKit `4.0.0-a24` 源码核对：默认 `VLCEventsDefaultConfiguration` 无 dispatch queue、同步执行；VLC 状态回调经 `VLCEventsHandler` 直接调用 delegate。libvlc 的播放器调用持递归锁，该锁只允许同线程重入。补丁从该回调发布 `ZViewerVlcProgress`，其 `NotificationCenter` 主队列 observer 又同步等待主线程；主线程执行播放器方法等待 VLC 锁时形成互等。此路径覆盖一起看、Jellyfin 和一起听，符合用户描述；未获取真机线程栈。
-- 创建每个 VLC 播放器之前设置 `VLCLibrary.sharedEventsConfiguration = VLCEventsLegacyConfiguration()`。该类在当前依赖版本表示 `dispatch_get_main_queue()` + `isAsync=YES`，播放内核仍为 VLCKit 4。构建前检查配置位置；打包前检查主可执行文件确实引用该类。
-- 系统媒体进度、中断和路由通知以 `queue:nil` 接收，再显式 `DispatchQueue.main.async` 更新状态或暂停，避免通知发布线程同步等待 UI。进度处理拒绝空 URI、保留当前来源比较。销毁播放器先解除 delegate，再停止，避免延迟回调继续访问已释放视图。
-- 保留 B站 deferred audio slaves、成功去重及重试；保留音乐专用 backgroundAudio、关闭隐藏 PiP/视频、后台 playback 会话。普通视频和装饰视频没有扩大后台权限。
-- 新增真正的 worker 线程锁模型：旧同步通知等待链可观察到 UI 阻塞，异步方式连续 10 次释放；它是等待链回归模型，不是设备或 VLCKit 解码测试。缺配置、配置晚于播放器创建、旧主队列 observer、缺后台/音轨补丁均被检查器拒绝。未修改的 npm 57.0.54 依赖完整应用成功且可重复执行。
-
-本轮目标 1.8.5 / 22；178 项测试、lint、类型检查、192 项上传文件审计及 12 个共享来源文件核验通过，按用户指示提交一次 IPA 构建。实际出声、桌面/息屏连续播放和系统命令仍须用户在新包真机复验，不能以 Web/JS 测试替代。
-
-
-## 2026-10-13：一起听后台音频与 VLC 分离音轨修复（build 21）
-
-用户重新授权合并修复并构建 IPA。源码版本 1.8.5 / 21，build 20 已取消，不作为交付包。
-
-- `MusicPanel → VlcVideo → LibVlcPlayerView` 增加独立 `backgroundAudio` 标记，仅一起听的音频播放器启用。禁用隐藏音频视图的 PiP，原生创建媒体时添加 `:no-video`；静音关联视频仍使用原来的背景视频路径。
-- 进入后台时原生直接判断播放中的音频视图，配置 `.playback / .default` 并激活音频会话；后台暂停判断明确放行该视图，不再依赖异步 Now Playing URI 写入。保留用户暂停状态，不调用自动恢复播放。
-- 空闲的旧语音引擎 `stop()` 不再修改 VLC/LiveKit 共用音频会话；实际释放自身语音引擎时恢复并激活播放会话。麦克风后台释放策略保留。
-- 合并前述 deferred slave 修复，并在 EAS 依赖重装之后重新应用、在 Xcode 编译前强制验证后台属性/音频会话/独立音轨补丁。
-- 175 项测试、lint、类型检查通过；从未修改的 npm 57.0.54 包验证缺补丁拒绝、应用成功及可重复应用。检查不替代 iOS 设备执行；锁屏/桌面持续播放、B站 DASH 音频、来电/蓝牙和跨端同步需新 IPA 真机验收。JS 被系统暂停时仍无独立原生房间 Socket/切歌管线。
-
-EAS `90024eef-1ceb-4ed1-be41-f68579b11857` 已于 2026-10-13 19:28:20（北京时间）完成，两次云端补丁检查通过。交付 `ZV-iOS/release-assets/ZViewer-1.8.5-b21-unsigned.ipa`（47,331,066 字节），SHA-256 `3b3172cda15908e8b446f71c605d92c0f847cde4e15c9cddae41cb0c21e24149` 与构建机一致。设备架构、版本、139 项 ZIP CRC、来源/许可、系统媒体及可保留的原生补丁标记检查通过；未签名，需用户自行签名安装。详见 [build 21 验证记录](releases/ios-1.8.5-21-validation.md)。未进行 GitHub 发布，真机持续播放仍待用户复验。
-
-## 2026-10-13：B站一起看无声，build 20 原生补丁构建修复
-
-用户确认 Jellyfin 有声、一起听 B站有声，而一起看 B站仅有画面。build 19 云端日志显示 `eas/prebuild` 完成后再次执行 `npm ci --include=dev`，覆盖了 dangerous mod 对 `node_modules/expo-libvlc-player` 的修改。独立音轨补丁因此未可靠进入产物，旧版“所有原生修复已入包”的结论已更正。
-
-- `patch-vlc-native.cjs` 共用 config plugin 中的轨道、语音音频会话、系统媒体补丁；在 EAS prebuild/重装之后、pod install 之前重新应用。`build-unsigned-ios.sh` 在 xcodebuild 前强制核验，任何必要补丁缺失立即停止。
-- 分离音轨在 VLC 输入播放就绪后挂载，成功后去重；失败可在进度事件重试。一起听仍直接播放音频地址，Jellyfin 内置音轨保持原路径。
-- 播放诊断排除 id=-1 的“关闭”选项，避免把实际零音轨显示为一轨。
-- 从 npm 下载未修改的 57.0.54 依赖验证：原始源码被检查器拒绝，应用补丁后通过且重复执行不改变内容。174 项 JS 测试、lint、类型检查通过。用户曾授权构建 1.8.5 / 20；构建 `94ed4757-38ef-4b5b-8578-5716ed5eeec4` 已通过云端重装后、编译前两次补丁核验。随后用户反馈后台仍不保活并要求暂停编译，已通过 EAS CLI 取消（Build canceled），没有交付 build 20 IPA。未经再次指示不重启构建，后台播放仍待继续排查及真机验收。
-
-## 2026-10-13：iOS 1.8.5 / build 19 真机测试包
-
-按用户授权构建 **1.8.5 / 19**，源码提交 `6c2beba786a6768d95e3248145aad7f79f9e79d0`。EAS `unsigned-device` / Release 构建 `1f04643c-ac62-4f5e-abe0-efa1dca2dee5` 于 2026-10-13 18:30:06（北京时间）完成；JS 界面修复已进入新包；后续发现 prebuild 后重装依赖覆盖了 VLC 原生补丁，详见下述 build 20 修复记录。旧 build 18 不包含这些反馈修复。
-
-- 安装包：`ZV-iOS/release-assets/ZViewer-1.8.5-b19-unsigned.ipa`，47,325,737 字节；未签名，用户自行签名后安装，无需 Metro。
-- SHA-256：`034e03ffdde43fd1e4f7857f0c18d844a443fc64da16c172198e6b020c49e93e`，构建机和本地下载一致。
-- 172 项 JS 测试、lint、类型检查通过。12 个 Go 来源文件核验通过；上传审计通过。ARM64 iOS 设备可执行文件、包内 1.8.5 / 19、VLC、LiveKit、系统媒体、本机 B站桥、Release JS 合同与来源清单检查通过，139 个 ZIP 项 CRC 正常。
-- 本轮只交付 iOS 真机测试 IPA，未推送或发布 GitHub Release。真机解码、声音、后台/锁屏、跨端同步、触摸拖动及原生 Modal 验收由用户继续测试；离线包检验不代表这些功能已在设备通过。
-
-修复范围、交付证据及真机清单见 [1.8.5 / build 19 验证记录](releases/ios-1.8.5-19-validation.md)。下方“未构建”说明均为授权构建前的历史记录，JS 修改已进入本包；VLC 依赖补丁需 build 20 重新构建。
-
-## 2026-10-13：删除重复房间侧栏、评论入口拖动与全屏隐藏
-
-- 一起看侧栏只保留片单，删除“房间”页签；投屏不再渲染侧栏及侧栏展开按钮，媒体区域使用可用宽度。房间信息、在线成员、加入条件和模式切换仍集中在顶部全局房间设置；入房申请的同意/拒绝也移入该弹窗。
-- `RoomCommentButton` 使用 PanResponder 区分拖动与轻点，拖动结束抑制残留点击，避免误开评论。位置按可用区域比例保存到 `zviewer-room-comment-position-v1`，恢复时校验数值；边界包含安全区及按钮尺寸，旋转后保持在可见区域内。
-- 视频全屏与歌曲全屏播放器均隐藏浮动房间评论按钮，退出全屏后恢复位置。歌曲评论、播放队列及其弹窗保持现有全屏交互。
-- 本机 RN Web 预览确认：一起看只有片单、投屏侧栏数量为零，全局设置仍可切换三种模式；连续拖动不打开弹窗、轻点可打开，拖到屏幕外限制在边界，切换模式后重新挂载恢复位置。390×844 / 844×390 / 768×1024 / 1366×1024 下按钮均在视口内且无横向溢出；视频/音乐全屏浮动入口数量均为零，视频退出全屏后恢复位置。
-- 172 项 JS 测试、类型检查和 lint 通过。Expo Go 预览服务继续运行，版本保持 1.8.0 / 18；未启动 IPA/EAS 构建。触摸手势及原生全屏仍需 Expo Go 设备检查，本机预览不替代真机验收。
-
-## 2026-10-13：一起听顶部对齐与账号菜单精简
-
-补充修复：网易云选中下划线改为绝对定位，不参与文字行布局；网易云与哔哩哔哩使用相同行高。390×844 / 844×390 / 768×1024 / 1366×1024 实际预览中，两项文字顶部与高度完全相同，箭头仍居中，无横向溢出。类型检查和 lint 通过，未构建 IPA。
-
-- `MusicPanel` 将网易云下拉标记从文字字符改为已有 Feather `chevron-down`，文字和图标在同一行垂直居中；保持下拉页选择和选中下划线。
-- 音乐账号菜单仅保留“账号登录”“音乐设置”，删除房间模式及 `switchMode` 回调。模式切换仍使用房间设置中的“一起看 / 投屏 / 一起听”。
-- 类型检查和 lint 通过；实际预览确认菜单只有两个操作，390×844 / 844×390 / 768×1024 下箭头和文字中心一致，无横向溢出。Expo Go 继续运行，未启动 IPA/EAS 构建。
-
-
-## 2026-10-13：B站入口、房间模式与浮动评论统一（源码 / Expo Go 预览）
-
-版本保持 **1.8.0 / 18**。本轮未启动 IPA/EAS 构建；下述行为属于当前源码，已有 build 18 安装包需等待下一次授权构建后复测。
-
-- `BiliVideoPicker` 共用于一起看 `SourcePicker`、一起听 `MusicLibrary`、歌曲关联视频 `MusicVideo`：链接/BV/ep/ss 输入、解析、紧凑账号/画质、独立搜索弹窗、分 P/集选择以及失败重试。`BiliCatalog` 移除旧 popup 包装，“我的栏目”仅保留在搜索弹窗内，不再重复提供入口。
-- `biliSelectionFlow.biliPartSelection` 从原生返回的 `resolvedUrl`、CID、当前 P 与 episode 身份构造持久页面，手选分 P 优先于原输入 CID；不把本机临时视频/音轨代理写入片单、播放队列或关联偏好。关联视频单选；一起看保留多选和整部卡；一起听普通视频落为服务器既有 `bili:<BV>:<CID>` 合同，并按选择 P 的时长建立歌曲。
-- 原生 Go 已返回 `resolvedUrl/cid/epId/seasonId`，本轮补全 TS DTO，无原生源改动。PGC 可用于一起看和关联视频；当前服务端音乐队列仅支持 BV/CID，一起听队列对 ep/ss 显示明确错误，不伪造番剧 BV。
-- 共享选择器以服务器、账号和初始关联 URL 为作用域，隐藏/切换入口或曲目后卸载并使解析结果失效；异步完成不能继续添加旧选择。保留忙状态、多选失败项和搜索失败重试。
-- `roomModes` 统一三个协议 ID 对应的名称及顺序 **一起看 → 投屏 → 一起听**。首页创建/列表、房间标题、房间设置和音乐账号菜单全部复用；创建房间补上投屏。WebRTC/推流仍是投屏内部的方式，不是额外房间模式。
-- `RoomCommentButton` 提供右侧浮动入口。一起看/投屏评论与弹幕管理从固定聊天侧栏移到 `AppDialog`；侧栏保留片单/房间。一起听房间评论移出账号菜单，在普通页或全屏播放器所属 Modal 内展示；歌曲评论与播放队列仍保留全屏。纯净视频隐藏浮动入口。
-
-验证：172 项 JS 测试、lint、类型检查通过；Expo Go Metro 与实际 RN Web 页面运行。三处共用表单、单一栏目入口、三种模式、一起看评论/弹幕管理、全屏房间评论开启/关闭已通过界面检查。390×844 / 844×390 / 768×1024 / 1366×1024 搜索列数为 1/3/2/3，搜索和评论弹窗、浮动按钮均在视口内，无横向溢出。使用隔离本机可丢弃数据，不能替代新 IPA 的本机 B站实片、有声播放、关联保存后的原生播放及后台/锁屏持续播放验收。
-
-
-## 2026-10-13：build 18 用户反馈后的源码修复（待新 IPA 验收）
-
-本轮版本仍为 **1.8.0 / 18**，未启动 EAS、未生成新 IPA、未推送或发布。现有 build 18 安装包不包含本段修复；下方构建/发布记录为此前状态。完整说明和复测清单见 [用户反馈修复记录](releases/ios-user-feedback-repairs-2026-10-13.md)。
-
-- `Danmaku` / `danmakuLayout` 补 25%–100% 显示区域，旧偏好默认 70%；滚动及底部固定弹幕共用受限画布。
-- `RoomPlayback` / `sources` 从权威影片及当前 P 恢复 B站身份，清除外设备音轨地址。`biliRoomProtocol` 将本机规范页面和网页可播放的服务器代理分开；`resolveSharedBili` 独立准备普通视频的跨端媒体，`movieId` 保留房主账号解析合同，暂停/seek 不被旧时钟覆盖；本机播放不等待服务器解析。播放诊断先解析实际媒体再探测，不对 B站页面或其他设备代理发 HEAD。
-- `with-vlc-tracks.cjs` 的 `ZViewerDeferredSlaves` 将分离音轨推迟到 VLC 输入播放就绪，并按返回成功去重/失败后重试。必须通过 config plugin 重现，不以修改 node_modules 或生成的 ios 目录作为唯一来源；原生部分需要下一次授权构建及真机声音验证。
-- 一起听搜索与个人栏目采用独立弹窗；评论/队列在全屏 Modal 内展示；歌单可返回原来源页。播放顺序图标采用用户四种参考形状，点击直接循环四种模式，不弹选择框。`biliGrid` 整数卡宽修复最后一列因像素舍入而换行。
-- `VlcPlayer` 跟踪 seek 与自然停止，恢复 seek 的播放意图，显式暂停优先；`MusicPanel` 不把临时暂停广播为房间暂停，曲尾上限保留 0.25 秒。`roomConnection` 在已加入的一起听断线/重连期间保持播放器；`useSystemMedia` 在 loading 时同步拥有的 URI，房主同曲重连保留本机进度。离房、被踢、关房及错误仍释放播放器。
-
-**166 项 JS 测试、类型检查、lint 通过**。实际 RN Web 测试确认四模式直接切换、评论/队列保留全屏、歌单返回、独立弹窗及断线不卸载；390×844 / 844×390 / 768×1024 / 1366×1024 搜索为 1/3/2/3 列且无横向溢出。测试用本机可丢弃数据，不能代替 B站跨端实片听音、后台持续播放、锁屏控制与原生 Modal 的新 IPA 真机验收。
-
-更新日期：2026-10-13。指定修改和 Git 仓库为 `E:/Codex-bulid/ZViewer/ZViewer-client`，iOS 工程位于 `ZV-iOS/`。本轮源码与界面修复已验证，**1.8.0 / build 18** 未签名 IPA 已完成构建、离线检验并补充到现有 1.8.0 Release，源码同步 main。历史 **1.7.5 / build 17** 不包含本轮修复。构建检查与实际设备验收分别记录，详见 [1.8.0 验证记录](releases/ios-1.8.0-18-validation.md)。
-
-## 2026-10-13：iOS 1.8.0 / build 18 构建与发布
-
-本轮已按用户授权构建 IPA，并补充到既有 `client-v1.8.0` Release。源码 app.json/package/lockfile 同步为 1.8.0，buildNumber 为 18；旧 1.7.5 / build 17 仍是历史安装包，不能用于验收下述新修复。
-
-番剧三种来源已采用独立搜索/选集弹窗，具备海报墙/列表、源切换、展开、多选/全选、整部确认及固定底栏；手机和平板横竖屏 2/3/3/4 列均无横向溢出。批量失败缓存提升到 SourcePicker，以稳定集数身份保留解析结果，并与 MovieAddTransaction 的已创建事务配合，签名 URL 变化及刷新失败不会让同一次重试重复添加。
-
-播放修复涵盖聚合 HLS 上游基址和请求头、Emby/Jellyfin 切集乱序与同 URL 新集重载、房主恢复进度/暂停、过期状态回执、一起听精确曲目身份、旧播放器事件及 FM/推荐异步取消。159 项 JS 测试、lint、类型检查通过；当前 Go 审核来源为 `02f62f1fc52f0c47f2a2f8e6fec8ed22d98539fc` 的 12 个文件。
-
-EAS 构建 `a0c5ca7e-dbd1-4e8f-a3fc-7b458b1402fd` 于 2026-10-13 12:10:05（北京时间）完成；`ZViewer-1.8.0-b18-unsigned.ipa` 为 47,308,388 字节。包内 1.8.0 / 18、ARM64 设备、VLC/LiveKit/系统媒体/本机 B站桥及来源清单检查通过，139 个 ZIP 项 CRC 正常。SHA-256 为 `b4485257ba0ec5b45d963f95c0c48294453cdbc0d86f2a858305ea1d833a68c8`，与构建机和 GitHub 公开下载一致；安装需自行签名。
-
-完整范围、布局矩阵、发布回执及原生验收边界见 [1.8.0 / build 18 验证记录](releases/ios-1.8.0-18-validation.md)。原 APK/HAP 和标签 `534e537` 保留，三平台校验文件已更新；本轮源码提交 `0146c1f` 已推送 main，标签自动归档不包含后续 iOS 修复。Expo/浏览器、桌面 VLC 辅助和 IPA 离线检验不替代 iOS 真机验收。
-
-## 2026-10-13：媒体添加错误与简洁搜索弹窗（源码预览）
-
-### Jellyfin / Emby 弹窗进一步对齐
-
-`MediaLibraryPicker` 对照共享双端 `EmbyBrowser` / `MoviePushPanel` 和用户截图，改为简洁挂载/播放方式面板与独立「浏览媒体库」弹窗。弹窗提供搜索、目录层级、展开/还原、列表/海报墙切换、多选/全选、底部固定取消和添加操作，选择高亮并显示数量。电影/目录海报保持 2:3 裁切，Episode 缩略图保持 16:9；宽度变化时海报墙按 1–4 列计算，标题完整换行。逐集批量添加与整部/整季卡确认继续沿用真实条目路径，成功清除选择，失败项保留供重试。整部/整季仅在直属下一层非空且全部为可播放影片时启用；含子目录、非影片或尚未核验时禁用，提交重新检查且不递归穿过目录添加。
-
-播放方式默认服务器转发，可选择直链直连；仅在服务端返回 `directUrl` 时使用直连，否则转发并持久化 `directLink:false`。不会显示浏览器转码开关，iOS 仍使用 VLC 原生链路。107 项 JS 测试、lint、类型检查通过；浏览器检查四种视口的海报、按钮及目录/单片/多选/整季操作，使用本机可丢弃媒体库 fixture，不代表真实 NAS 或 iOS 解码验收。无新 IPA、无版本变更；旧 build 17 不包含本次界面。详情见 [媒体库弹窗预览记录](releases/ios-library-dialog-preview-2026-10-13.md)。
-
-- `cancellation.ts/checkAbort` 替代所有生产调用中的 `signal.throwIfAborted()`。RN 0.86.3 实际安装的 AbortController 缺少后者，造成 Jellyfin/Emby、番剧源和私人漫游共有的 `undefined is not a function`。105 项 JS 测试使用该实际信号实现验证业务与取消；类型检查、lint 通过。
-- `mediaLibrary.ts/addLibraryEntry` 验证双媒体库单集与整季，`animeSources.ts/addAnimeEpisode` 保留 HLS 请求头并避免服务端 API 重复代理，`personalFm.ts/queueFmSong` 从恢复后的队列选取真实歌曲身份。可丢弃本机测试房间验证 Jellyfin/Emby 添加成功、片单更新和反馈；未连接 NAS 改动容器。
-- 共享 Go `resolver.go` 仅展开对象形状的 `data.result`，避免将 UGC 的 `result:"suee"` 状态字符串误当作 PGC envelope。用户视频 `BV1UHpw6LESy` 经真实匿名元数据/playurl 和生产解析器检查成功，CID 42512224146、第 1 P、qn 32、AAC；nav 模拟匿名状态，未使用个人 Cookie或执行 iPhone 解码。11 项 Go 回归通过。
-- 添加弹窗保留来源、链接/搜索、解析与紧凑账号卡，画质折叠。独立搜索弹窗支持展开/还原；普通视频/番剧/影视改为选择器，个人栏目折叠。目录桥增加 WBI view 元数据，单 P 卡片点击直接解析、添加并请求播放，多 P 点击选集即完成操作；展示进度、保留失败链接与重试，并复用已创建条目避免重复添加。
-- `biliCatalog.ts` 规范搜索封面和 DTO；`SourcePoster` 用 `Image.getSize` 读取原始比例，横、竖、方封面均按宽度自适应高度。实际浏览器手机竖/横屏 390×844 / 844×390 为 1/3 列，平板竖/横屏 768×1024 / 1366×1024 为 2/3 列；12 卡片无越界、比例误差小于 0.000004。预览使用几何测试封面，iOS 原生 Modal 与真实图片仍待设备检查。
-
-原生桥与 Go 修改不能通过 Expo 热更新进入旧 IPA。新安装包构建仍需用户明确授权；设备媒体解码、网易云账号歌曲权限与 LiveKit 跨端互听继续单独验收。共享 Go 审核引用及摘要随本地源码提交更新，`stage-native-core.cjs --verify-only` 只检查来源，不消耗 EAS 额度。
-
-## 2026-10-12：1.7.5 / build 17 原生验证与 IPA
-
-- EAS 构建 `89ddf07c-5855-46dd-b40b-6d09e58843aa` 完成，设备 Release IPA 位于 `ZV-iOS/release-assets/ZViewer-1.7.5-b17-unsigned.ipa`，47,277,098 字节。包内版本 1.7.5 / 17、设备 platform IOS、ARM64、iPhone/iPad、最低 iOS 16.4，内置 Release JS、VLCKit 与 LiveKitWebRTC。
-- 本机 SHA-256 与 macOS 构建机一致：`cfa4bd0478892f6ba21af4154c020eef3e75d7f52258e36a81615ede74a51302`。包内无主应用签名、无 provisioning profile；沿用个人签名侧载流程。
-- `LivekitReactNativeModule`、`WebRTCModule`、`LiveKitExpoAppDelegate` 和本机 B站桥均已进入可执行文件；构建检查强制核对 LiveKit RN/WebRTC Pods 版本，并拒绝另一套 react-native-webrtc Pod。包中仅有 LiveKitWebRTC 内核。
-- 修正 Go WBI 重排表、空格编码/特殊字符过滤与原生中文搜索编码。B站匿名公开视频信息及中文搜索实测成功，macOS 执行实际 Objective-C 中文签名测试成功，普通视频/DASH/AAC/分 P 与番剧协议测试通过。
-- LiveKit 对照当前服务端 token/mute/kick 合同，SDK 自动订阅、默认静音、麦克风授权及后台/禁言/离房竞态保护成立；进出房音频生命周期串行，VLC 不覆盖语音会话。这里只确认代码、协议和构建可行性，跨端互听与真机会员正片尚未验收。
-- 原生 Go 来源固定为 `a8abd646e0071a0708a4614e18d9d6cc31389f70` 的 12 文件清单，包内 provenance 和 source-manifest 与审核基线一致；阶段脚本拒绝生产源码增删或哈希漂移。检查工具 `scripts/inspect-unsigned-ipa.py` 使用当前审核基线，避免沿用旧版 9 文件断言。
-
-完整历史证据见 [IPA 检验 JSON](releases/ios-1.7.5-17-ipa-inspection.json) 和 [构建验证 JSON](releases/ios-1.7.5-17-validation.json)。这些构建与协议检查没有覆盖 10 月 13 日报告的 RN 信号缺失和真实 UGC 状态字符串；下方预览及 build 12/15/16 记录亦为历史状态，不能替代设备验收。
-
-## 2026-10-12：下一版源码与 Expo 预览
-
-- 界面保留现有 RN 导航、主题、房间页签及 VLC 控件，入口名称/选集/片单行为对齐双端。长片名完整换行，来源菜单滚动且受屏幕宽度约束。
-- `MediaLibraryPicker` / `mediaLibrary.ts` 提供 Emby/Jellyfin 搜索、目录、逐集多选和整部/整季卡；`MovieSourceSettings` 根据真实 page.path/mountId 切集，根据服务端 MediaSourceId 切版本。房间持久化代理流为 movieId 身份，观众不依赖房主自己的挂载。
-- `SourcePoster` 外站直连失败后用服务端图片代理；媒体库图仅对选定服务器发送认证请求，再交给 Image 受限 data URI。取消旧请求，不把凭据放进图片 URL。
-- PGC 支持 ep/ss 输入、搜索番剧/影视、结果内选 P、整部多 P 卡及原生 ep/season/page/cid 桥接。cliOnly/PGC 在服务端回退前门控；每台设备独立登录和解析。服务器创建接口不物化 cliOnly 时，客户端按已有 PUT 合同补写该标记。
-- `canClearMovies` 区分 root/创建房间的 admin 与实时 host，清空二次确认、单次 DELETE、广播/权威刷新，current-movie null 立即暂停并停源。`useRoomPermissions` 的观众切片按公开权限矩阵走 play-movie Socket，观众不广播房主状态；排序和 REST 编辑权限另行判断。
-- 自动续播设置按服务器/账号/房间保存，房主读最新片单切下一条，末项停播。网易云 401 不清本站会话；补 Cookie 登录/主动复制、默认来源页、B站队列末尾推荐续播与一起听房间讨论，保留 FM/回执规则。
-- 本地弹幕补 dandanplay/protobuf JSON、5 MiB UTF-8 / 20000 条限制及请求体检查；在线连续添加不关面板，已添加标记来自房间实际轨道。PGS 同步保留经 PNG 签名/尺寸/坐标/总量校验的 bitmap，在视频内容画布比例内显示，仍与原生字幕互斥。
-- 连接页增加自动/自定义完整 URL。新的 `serverProbe` 使用 Go 的无凭据探测；仅 tls_unavailable 明文证据且同端口 HTTP 确认成功时回退，证书错误不降级。旧包/Expo Go 无桥时只做 HTTPS 探测，并允许明确填写完整 HTTP 地址。Socket.IO 使用 origin + 显式 prefix/socket.io 传输路径，避免把路径前缀误当 namespace。
-
-LiveKit 固定 `@livekit/react-native` 3.0.0、`@livekit/react-native-webrtc` 144.2.0、插件 1.0.3、`livekit-client` 2.22.3。ScreenShare 同步使用该 WebRTC 包，依赖树移除原 `react-native-webrtc`。新 `voicePermission` / `voiceSessionActive` 桥负责许可及 VLC 音频会话共存标记，不启动旧语音采集。Expo Go/旧开发包缺少新模块时仍可打开界面。
-
-自签证书例外的完整 REST/Socket/Image/VLC 传输通道、原生音频中断与跨端听音、媒体库真实 HLS/Range/seek、PGC 会员正片、VLC ASS/PGS 本机解码、后台独立业务 Socket 尚未完成本轮设备验收。证书例外通道和后台 Socket 仍为独立待实施项。源码和 JS bundle 检查不替代原生构建及设备验证。
-
-## 1. 工程与运行边界
-
-Expo SDK 57、React 19.2.3、React Native 0.86.3、Expo Router；最低 iOS 16.4，bundle `com.zviewer.mobile`，支持 iPhone/iPad。`app.json` 和 config plugins 管理原生配置；`ios/` 为 CNG 生成目录，禁止把临时生成目录或 node_modules 中的手工修改作为唯一修复来源。
-
-| 层 | 主要文件 | 职责 |
+| 层 | 主要入口 | 作用及维护边界 |
 | --- | --- | --- |
-| 入口/导航 | `src/app/_layout.tsx`、`src/app/index.tsx` | Provider、登录/游客、房间列表、全局外观 |
-| 会话 | `src/state/session.tsx`、`src/lib/sessionLease.ts`、`src/lib/socket.ts` | 凭据恢复、HTTP/刷新令牌、业务 Socket、过期请求隔离 |
-| 外观 | `src/state/appearance.tsx`、`src/lib/appearancePreferences.ts`、`Surface.tsx` | 深浅主题、背景、字体和透明度；普通偏好保存为文件 |
-| 房间 | `src/app/room/[roomId].tsx`、`roomPlayback.ts`、`useWatchControl.ts` | 入房/房主/观众、片源状态组合、审批、心跳、方向/全屏 |
-| 播放 | `VlcVideo.tsx`、`vlcPlayer.ts`、`mediaAdapter.ts`、`media.ts` | 单一 VLC 内核、原生控制端口、串行换源、私有鉴权 URL、秒/毫秒转换 |
-| 片源 | `SourcePicker.tsx`、`MoviePanel.tsx`、`sources.ts`、`biliSelection.ts` | 添加/管理影片、目录与选集、分享链接规范化 |
-| B 站 | `biliNative.ts`、`biliSelection.ts`、`BiliAccount.tsx`、`BiliMovieSettings.tsx` | 原生登录/本机解析、服务端回退、分 P/CID、单影片策略 |
-| 字幕/弹幕 | `PlaybackControls.tsx`、`Subtitles.tsx`、`subtitleParser.ts`、`subtitleSync.ts`、`Danmaku.tsx`、`DanmakuManager.tsx` | 播放设置页签、原生字幕选择、文本字幕同步、弹幕导入/显示 |
-| 一起听 | `MusicPanel.tsx`、`musicSyncReceipt.ts`、`MusicLibrary.tsx`、`musicCollection.ts`、`personalFm.ts`、`usePersonalFm.ts` | 音乐发现/队列/歌词、完整歌单、持续漫游、同步回执 |
-| 系统媒体 | `useSystemMedia.ts`、`modules/zviewer-native/ios/ZVSystemMedia.swift` | 锁屏/控制中心信息及操作、原生 VLC 通知桥 |
-| 语音/投屏 | `VoicePanel.tsx`、`livekitProtocol.ts`、`ScreenShare.tsx` | LiveKit token/identity、管理 REST、共享 WebRTC SDK 和 OBS 流媒体 |
+| 导航与启动 | `src/app/_layout.tsx`、`src/app/index.tsx` | Expo Router 根 Provider、会话恢复、连接页、大厅及全局外观；路由文件只放页面入口。 |
+| 房间页 | `src/app/room/[roomId].tsx`、`RoomUi.tsx`、`RoomSettings.tsx` | 模式、成员、房主/观众操作、审批和离房；服务端权限为最终依据。 |
+| 会话与连接 | `src/state/session.tsx`、`sessionLease.ts`、`server.ts`、`socket.ts`、`socketEndpoint.ts` | SecureStore 凭据、HTTP、刷新、Socket.IO、服务器发现与请求生命周期。 |
+| 房间播放状态 | `ZV-iOS/src/lib/roomPlayback.ts`、`ZV-iOS/src/lib/sources.ts`、`ZV-iOS/src/lib/watchSync.ts`、`ZV-iOS/src/hooks/useWatchControl.ts` | 将房间影片身份、片单事件、当前分集和播放器控制组合；不能把设备私有播放 URL 当作房间身份。 |
+| 原生视频 | `VlcVideo.tsx`、`vlcPlayer.ts`、`mediaAdapter.ts`、`media.ts` | 单一 VLCKit 内核、命令/事件桥、媒体替换、seek 和轨道状态。 |
+| B站 | `BiliVideoPicker.tsx`、`biliNative.ts`、`biliSelection.ts`、`biliRoomProtocol.ts`、`modules/zviewer-native/ios/ZVBiliBridge.*` | 选择器、分 P/集身份、本机 Go 解析与媒体代理；Cookie 仅在 iOS Keychain/原生层。 |
+| 媒体库/番剧 | `MediaLibraryPicker.tsx`、`mediaLibrary.ts`、`directorySources.ts`、`AnimePicker.tsx`、`animeSources.ts` | Emby/Jellyfin、整季/集/版本、目录及番剧源；使用服务端媒体 ID 和真实 MediaSource ID。 |
+| 音乐 | `MusicPanel.tsx`、`MusicLibrary.tsx`、`musicQueue.ts`、`musicCollection.ts`、`personalFm.ts`、`usePersonalFm.ts` | 网易云/B站音乐、队列、歌单、一起听、私人漫游与同步确认。 |
+| 字幕/弹幕 | `Subtitles.tsx`、`subtitleParser.ts`、`subtitleSync.ts`、`Danmaku.tsx`、`danmakuImport.ts` | 原生 VLC 轨道、外部字幕、共享文本字幕与本地/在线弹幕。 |
+| 系统媒体 | `useSystemMedia.ts`、`modules/zviewer-native/ios/ZVSystemMedia.swift`、`plugins/with-system-media.cjs` | Now Playing、锁屏/控制中心命令、后台音频声明与原生播放事件。 |
+| 语音/投屏 | `VoicePanel.tsx`、`livekitProtocol.ts`、`ScreenShare.tsx`、`voiceProtocol.ts`、`with-voice-audio.cjs` | 房间语音用 LiveKit；投屏接收使用 WebRTC；分别维护麦克风权限和 VLC 音频会话共存。 |
+| 配置与原生模块 | `app.json`、`plugins/`、`modules/zviewer-native/` | Expo CNG/config plugin 与本地 Swift/Objective-C Expo Module；原生更改要经插件或模块源码重现。 |
 
-Expo Go 和 Web 仅用于界面/业务验证，不包含 VLC、本机 B 站或自定义语音模块；不能用预览中的“原生模块不可用”代表安装包解码失败。
+`ios/` 是 Continuous Native Generation 生成目录。除非维护流程明确要求，不直接手改生成的 iOS 项目或 `node_modules` 作为唯一修复；将持久改动写入 `app.json`、本地 Expo Module 或 config plugin，并从干净依赖重跑 prebuild 验证。
 
-## 2. 会话、片源和鉴权
+## 1.9.0 / build 26 的功能入口
 
-- 登录/刷新凭据使用 SecureStore；恢复时并行读取并限制超时，联网验证后台进行。`SessionLease` 防止退出或更换账号后旧请求恢复旧会话，凭据写入串行化。
-- `RoomPlayback` 组合播放状态、当前影片和片单的独立事件，等待权威影片 ID/CID 后才采用 B 站地址；不把其他设备的 127.0.0.1 CLI 代理地址交给本机 VLC。
-- `nativeVideoSource` 保留服务端路径前缀，以本机 access token 生成播放 URL，房间中保存和广播的地址不含该私有 token。普通媒体拒绝用户名密码、非 HTTP(S) 和跨设备 loopback 地址；不转发固定 Range。
-- `NativeMediaAdapter` 串行替换媒体，丢弃过期解析任务；鉴权更新保留同一媒体的位置，普通状态更新不会反复 seek 到旧广播时间。
-- B 站 Cookie 留在原生 Keychain，JS 只获取状态和当前原生服务签发的随机端口/能力路径。各设备独立解析；本机与服务器 DASH 策略区分处理，解析/账号/画质缓存有作用域和失效控制。
+本版独立更新 iOS 工程，Android/HarmonyOS 的共享 Web、原生桥和 1.8.6 安装包未随 iOS 版本号改变。新增或重构的主要入口如下：
 
-## 3. 播放与轨道
+| 能力 | 入口 | 维护规则 |
+| --- | --- | --- |
+| 播放栏与媒体控件 | `PlaybackControls.tsx`、`MediaPanelUi.tsx`、`ScreenOrientationButton.tsx` | 播放时间、弹幕输入、刷新、倍速、音量、设置和方向按钮共用播放状态；窄屏允许换行，全屏方向切换要与全局方向状态一致。 |
+| 字幕和弹幕设置 | `PlaybackSettings.tsx`、`DanmakuTypeIcon.tsx`、`Danmaku.tsx`、`danmakuImport.ts` | 设置只保留字幕/弹幕两页；四类弹幕开关按本机偏好分别存储。在线来源和轨道管理保留；手动 XML/JSON 导入与 JSON 文本编辑不作为当前 iOS 产品入口。 |
+| 投屏接收 | `ScreenShare.tsx`、`RoomChatPanel.tsx` | iOS 作为 WebRTC 接收端；刷新先关闭旧 peer 再重新宣告 viewer-ready，OBS 播放器刷新旧拉流。暂停接收、聊天和全屏切换不得误释放房间或视频会话。 |
+| 房间语音 | `VoicePanel.tsx`、`voiceVolumes.ts`、`voiceProtocol.ts` | 分开维护本机麦克风状态、LiveKit 远端输出音量与成员音量；默认只听，权限和管理员禁言不能覆盖用户的本机闭麦选择。离房/断线释放音轨与采集。 |
+| 房间设置 | `RoomSettings.tsx` | 模式、房间状态、成员、分享、加入审批与离房集中展示；入房审批与播放申请自动通过是两项独立设置，快照更新不可覆盖正在编辑的字段。 |
+| 网易云导航 | `MusicNavigation.tsx`、`MusicPanel.tsx` | 导航菜单与头像操作互斥，设置入口统一从头像菜单进入；横屏内容限高滚动、浮层采用不透明主题背景。 |
+| 播放显示状态 | `usePlayerDisplay.ts`、`playerDisplay.ts` | UI 控件共享自动/锁定方向与全屏状态；进入全屏默认横屏，退出恢复自动旋转；重复或迟到的系统方向动作要服从最后一次请求。 |
 
-`VlcPlayer` 将 VLC 毫秒转换为房间秒数。每次换源使用 revision，旧原生回调不影响新影片。首播准备期间保留请求的起播/暂停/seek 意图；播放器组件释放时停止旧视图。
+这些界面组件不改变原生媒体内核。继续保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 的单一 VLCKit 播放链，语音使用 LiveKit，投屏使用 WebRTC 接收。若改动播放器或媒体身份，要检查组件拆分没有复制播放器实例、重复订阅原生事件或重置当前房间媒体。
 
-轨道 ID 是当前 VLC 媒体中的轨道索引，换片时清空，禁止跨影片复用。`mediaSettings.tracks` 记录明确的本机选择；`selectedTracks` 在没有明确选择时读取原生 `selected` 标记。`settingsChange` 通知设置面板，选择字幕/音轨不需要等待下一个进度事件才刷新。音量保留本机偏好，字幕地址/延迟随换源清空。
+## 会话、安全和服务端协议
 
-`plugins/with-vlc-tracks.cjs` 在 iOS prebuild 修补固定版本的 expo-libvlc-player：
+- 服务端地址支持自动 HTTPS 探测和显式完整 URL。探测不带登录凭据；证书错误不能降级到明文 HTTP。Socket.IO 的 origin 与 `socketEndpoint.ts` 生成的传输路径要保留反向代理前缀，不能把路径前缀误作 Socket namespace。
+- 会话令牌存放在 Expo SecureStore。`sessionLease.ts` 用 lease/generation 隔离退出、换账号、换服务器后迟到的读取或网络响应；凭据写入串行化。登录失败、401 刷新和游客模式不可互相误触发旧会话恢复。
+- `roomPermissions.ts` 和 `useRoomPermissions.ts` 提供界面门控，服务端仍需重新校验角色。管理员禁言与用户自我静音是独立状态；观众的播放、清空、成员管理操作按房间权限执行。
+- 房间同步标识采用 movieId、page/CID、ep/season 和媒体源身份。不要将带 access token、服务器密码、Cookie、本机 CLI、临时随机代理端口或其他设备的 `127.0.0.1` 地址写入持久化片单、Socket DTO、日志或分享链接。
+- `cancellation.ts`、`deadline.ts`、`sessionLease.ts` 和 `scopedCache.ts` 是异步安全基础设施。新请求开始、切源、切集、切服务器、退出房间和注销时，废弃旧解析/图片/媒体库/播放回调；缓存按服务器、账号、房间或媒体身份设置作用域，退出时清理私有数据。
+- 自签证书的完整原生 REST/Socket/Image/VLC 通道目前不是已支持的通用能力；不得用关闭系统 TLS 校验的方式绕过。遇到证书或代理问题，先分别检查 API、图片、媒体 Range 与 Socket Upgrade 的真实传输链路。
 
-1. Swift `Tracks` 的 audio/video/subtitle 字段改为可选，缺省值不再隐式选择 0 号轨道。
-2. 明确选择某条轨道前取消同类型旧选择；加载已选中的外部字幕 slave 前取消旧字幕，避免 VLC 4 同时叠加多个字幕轨道。
-3. `MediaTrack` 返回实际 `selected` 状态，包括关闭轨道；首播及播放进度回调更新轨道状态，JS 对相同轨道列表去重，不重复触发 `sourceLoad`。
-4. 补丁包含标记并可重复执行。升级 expo-libvlc-player/VLCKit 时必须复查 Swift 记录类型、选择 API 和替换位置，再进行原生编译及真机测试。
+## 播放器、字幕和音乐规则
 
-其他原生集成：`with-system-media.cjs` 桥接系统媒体操作/进度和后台所有权，`with-voice-audio.cjs` 维护语音拥有的音频会话；二者仍需与新的轨道补丁一起执行。
+### VLC 播放与轨道
 
-## 4. 字幕和播放设置
+`NativeMediaAdapter` 串行处理媒体替换和解析。加载编号/revision 用于丢弃旧 VLC 状态与旧输入重试；鉴权刷新若媒体身份不变应尽量保留位置，普通同步心跳不能反复把播放器 seek 回旧时间。房间时间单位为秒，VLC 事件常用毫秒，边界处统一换算。
 
-视频内的齿轮打开统一“播放设置”，包含 **播放 / 字幕 / 弹幕** 页签：
+轨道索引只对当前 VLC 媒体有效，换源必须清除过期 audio/video/subtitle 选择。`mediaAdapter.ts` 区分明确的用户选择与 VLC 实际 `selected` 状态，不得把“关闭”轨道误显示成可用轨道。字幕渲染器同一时刻只启用一种：原生 VLC 内嵌/外部轨道与 RN 同步字幕层互斥。复杂 ASS 字体、定位、绘图及特效由 VLC 原生渲染；JS 文本 overlay 不是完整 libass。
 
-- 播放：画中画、倍速、本机音量、音轨；选中项有主题色高亮和勾号。
-- 字幕：内嵌轨道、关闭字幕、外部 SRT/ASS/VTT 地址及原生延迟、导入/同步字幕和同步字幕样式。片下独立“字幕管理”按钮已移除，全屏也可访问同一设置。
-- 弹幕：开关、字号、区域/样式相关控件及轨道导入/管理。房间聊天栏中的弹幕功能继续可用。
+升级 Expo VLC 依赖时重点检查 `plugins/with-vlc-tracks.cjs` 和 `plugins/vlc-seek.cjs` 是否仍匹配上游 Swift 结构、轨道 API 与 seek 回调。`patch-vlc-native.cjs --check` 应在干净依赖中通过；config plugin 重复运行必须幂等。修改原生补丁后需编译原生包并按具体场景设备验证。
 
-必须保证单一字幕渲染器：选择原生轨道或外部字幕会关闭 React Native 同步字幕层；开启有效同步字幕会取消原生字幕并清除外部地址，房主本地修改和观众收到更新均执行此规则。关闭字幕不重复列出 VLC 的 Disable 项。
+### 房间同步与片源
 
-复杂 ASS 的矢量、字体、定位和特效应由 VLC 原生内嵌/外部字幕渲染。`subtitleParser` 加 `SubtitleOverlay` 是简化文本同步路径，不是完整 libass 实现；经房间传输的 ParsedCue 不含原始 ASS 脚本及字体，不能承诺复杂 ASS 同步后的特效完全一致。
+`watchSync.ts`、`roomPlayback.ts`、`sources.ts` 把房间权威影片状态转成 iOS 可播放 source。必须等待当前影片身份、所选 CID/ep 与来源信息一致；迟到的上一个页面解析不能覆盖新片。播放恢复、暂停、seek、重连和后台唤醒共用同一媒体身份代次。
 
-## 5. 一起听同步
+B站普通 BV 与 PGC ep/ss 保持不同身份；手动选集结果优先于原始链接中的旧 CID。设备本地 Go 解析和临时 CDN 音轨只供本机 VLC，观众共享解析使用服务端可达 URL。服务器分享与房间状态不保存 Keychain Cookie、API key、HTTP Basic 认证或设备回环代理地址。B站声音、DASH slave 挂载/重试与起播需以真实新 IPA 设备实测，不以 Web 页面或存在原生符号代表播放通过。
 
-房主发送 `music:sync-state` 和 `music:host-heartbeat`；观众应用状态并在漂移超过阈值时校正进度。`music:sync-ack` 仅表示一次曲目同步完成，不表示每次心跳。
+Emby/Jellyfin 使用真实 Item ID、Episode ID 与 MediaSourceId；访问图片/流媒体时按当前服务器凭据构造请求，切源或注销时取消旧图片和播放请求。HLS master/子清单相对 URL、Range/seek、转码流过期与服务器前缀在 `hlsPlaylist.ts`、`hlsNative.ts`、`mediaLibrary.ts` 中维护。逐季枚举的排序稳定，单集/多版本切换不应伪造 page 索引为媒体源 ID。
 
-build 16 的 `MusicSyncReceipt` 按服务器、用户、房间、Socket 连接 ID、trackKey 隔离回执；曲目准备完成且当前媒体身份匹配后发送一次。重复心跳、暂停/恢复、seek、同曲重试不连续发送；切歌、清空曲目、断线重连或重新加入时允许新的回执。解析或播放器错误、尚未就绪、房主自己不会发送“已同步”。
+### 一起听和系统媒体
 
-音乐库通过受控服务端接口访问网易云；完整歌单预加载后逐首等待入队确认，取消/失败不会误称全部完成。私人漫游在候选不足时持续补充，切账号、场景或停止后取消旧请求。歌词按歌曲和账号作用域缓存。
+`musicQueue.ts`、`musicCollection.ts` 与 `musicSyncReceipt.ts` 管理队列和房间确认。成功的曲目准备/匹配当前媒体后才记录一次同步回执；重复心跳、暂停、seek 与同曲重试不重复报告“已同步”。加入整份歌单要逐项等待入队确认，取消或失败不得报告整个操作成功。
 
-## 6. 原生模块和后台边界
+`personalFm.ts` 和 `usePersonalFm.ts` 按房间/账号维护漫游候选与请求代次。只有房主在下一首成功加入队列后推进；超时/拒绝保留候选。插播普通歌曲或视频、暂停、拖动、切账号/房间/模式、断连及退出都应取消过期异步工作。
 
-本地 Expo Module 位于 `modules/zviewer-native/ios/`：
+`ZVSystemMedia.swift` 管理 Now Playing 与系统远程命令；`useSystemMedia.ts` 把命令送入当前业务会话。更新/清除都校验媒体或 session ID，旧播放器不能覆盖新曲信息。后台音频会话、系统媒体卡和少量 background task 不等于应用被系统挂起后仍有独立的房间 Socket、审批或自动切曲能力；本项目当前没有独立原生房间业务 Socket。新后台同步能力要以真机、锁屏、系统回收、弱网及跨平台场景单独验收。
 
-- `ZViewerNativeModule.swift`：JS/原生接口。
-- `ZVBiliBridge`：共享 Go B 站实现的 ARM64 XCFramework 桥接。
-- 房间语音已改为 LiveKit RN：`/api/voice/token` 返回 URL/token，`/mute`、`/kick` 管理 identity，SDK 负责轨道与重连。旧 `ZVVoiceCodec` 和原生兼容引擎暂留构建链，但当前房间页面不再调用旧 PCM/Opus Socket 媒体流；后续原生验证后再独立移除。加入只听，主动开启麦克风才请求权限；管理员解禁不自动打开用户关闭的麦克风。
-- `ZVSystemMedia.swift`：Now Playing、远程控制及命令队列。`UIBackgroundModes` 包含 audio。
+### LiveKit 语音和屏幕共享
 
-系统媒体控件/后台音频声明不等于 JS 完全挂起时房间业务持续运行。独立原生业务 Socket（旧计划 I13）的长期心跳、切歌/审批仍未闭环；蓝牙、来电、后台、弱网及 Android/鸿蒙互通需要设备矩阵验证。本轮没有扩大此前 UI 验收为完整音视频/语音验收。
+房间语音用服务端 `/api/voice/token` 返回的 URL/token 与 identity 加入 LiveKit，管理 mute/kick 使用服务端接口和 participant identity。默认加入只听，用户主动开启麦克风才请求权限；管理员解禁不能覆盖用户主动闭麦。`voiceProtocol.ts`、`voiceBinding.ts`、`voiceMicrophone.ts` 与 `with-voice-audio.cjs` 分别处理身份合同、生命周期绑定、权限和原生音频共存。离房、切房、踢出、断网及组件释放要清除本地/远端音轨并停止采集。
 
-## 7. 构建与本地提交
+屏幕共享客户端仅作 WebRTC 接收端，不含屏幕采集端。LiveKit、WebRTC、麦克风、VLC 音频路由及后台播放会竞争原生音频资源，升级 Pods 或 Expo 插件时检查锁定版本、Podfile.lock、Info.plist 和配置 plugin 生成结果。Expo Go 不含这些自定义原生模块。
 
-在 `ZViewer-client/ZV-iOS` 执行：
+## 构建、检查和交付
+
+### 日常源码与预览
 
 ```powershell
-npm run lint
-npm run typecheck
-npm test
-npx expo export --platform ios --output-dir .expo-export-test/b18-ios
-npx expo export --platform web --output-dir .expo-export-test/b18-web
-node scripts/check-playback-settings-ui.cjs
-python scripts/check-ass-media.py "E:/Codex-bulid/ZViewer/TEST视频/败犬女主太多了！ - S01E02 - 第2集.mkv"
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-ios-unsigned.ps1
+Set-Location E:/Codex-bulid/ZViewer/ZViewer-client/ZV-iOS
+npm run check
+npm start
 ```
 
-`unsigned-device` 是当前可复现的设备构建 profile。构建脚本在本仓库按 `scripts/native-core-baseline.json` 暂存 12 个共享 Go 来源/模块/许可文件及摘要；基线锁定 `02f62f1fc52f0c47f2a2f8e6fec8ed22d98539fc`，逐文件哈希、Git 内容及文件清单均必须一致。`--verify-only` 只验证来源，不构建；macOS EAS worker 校验固定 Go/Opus 下载摘要，构建 Bilicore/Opus 并执行编解码 smoke，CNG 应用 config plugins，安装 Pods 后以 iphoneos ARM64 Release 构建并打包内置 JS 的未签名 IPA。旧 simulator/development profile 没有相同 vendor 准备步骤，不能直接当作已可用的设备构建替代品。`.easignore` 排除历史 `.expo-export-test` 目录，保留本次校验生成的 `.native-staging`。
+`npm run check` 依次检查 VLC 插件补丁、Expo lint、TypeScript 与 `tests/*.test.mjs`。UI 修改优先用 Expo Go/Web 检查常用 iPhone/iPad 竖屏、横屏、窄宽度、键盘、安全区、全屏和无溢出；启动 Expo 后确认服务使用预期端口 8081。结束服务后检查端口释放。Expo Go/Web 只证明 JS/UI，不证明 VLC/Go/LiveKit/Swift 原生代码。
 
-```powershell
-python scripts/inspect-unsigned-ipa.py <IPA绝对路径>
+### 原生依赖和 IPA
+
+不要因文档检查或普通 UI 修改启动 EAS/Xcode IPA 构建。用户明确要求构建后，先在 Mac 按本工程版本化 Expo 文档核对 SDK 57 的 API/插件，再以干净依赖执行现有原生检查和脚本。iOS IPA 只能使用当前仓库 `ZV-iOS/scripts/` 的受检构建入口；iOS build 完成后更新本文件，再在此指定 Git 仓库本地提交。未经授权不消耗 EAS 额度。
+
+IPA 检查至少包含：Bundle ID/版本/build、设备 ARM64 而非模拟器切片、未签名状态与无意外 provisioning profile、内置 Release JS、VLC/LiveKit/自定义桥符号、Go 原生来源摘要和依赖许可、IPA 全部 CRC 与 SHA-256。未签名 IPA 需要用户自己的合法签名及设备授权才能安装。
+
+构建脚本链条说明：`stage-native-core.cjs --verify-only` 只核验共享 Go 来源与锁定摘要；真正构建前必须运行不带 `--verify-only` 的脚本，将已核验源码写入本地 `.native-staging/`。`prepare-native-ios.sh` 在 Mac 读取该暂存目录并准备设备 ARM64 Bilicore/Opus；`patch-vlc-native.cjs --check` 检查可重现原生补丁；`build-unsigned-ios.sh` 或对应 PowerShell 包装脚本执行 iphoneos Release 与 IPA 打包；`inspect-unsigned-ipa.py` 检验最终 IPA。完整设备构建、测试及上传审计必须针对当前提交和新包重新执行，不能复用旧 build 记录。
+
+得到用户明确的构建指示后，在 Mac 工程目录按需要执行：
+
+```sh
+cd ZV-iOS
+npm run check
+node scripts/stage-native-core.cjs
+npm run native:patch
+bash scripts/prepare-native-ios.sh
+bash scripts/build-unsigned-ios.sh
+python3 scripts/inspect-unsigned-ipa.py /absolute/path/to/ZViewer-unsigned.ipa
 ```
 
-离线检查要求 iOS 设备 Mach-O、VLC/LiveKit/原生桥接/系统媒体、共享来源摘要、依赖许可证和内置 JS；拒绝误交模拟器包或带意外签名/描述文件的包。另需断言目标版本/build/bundleId、全 ZIP CRC 和 SHA-256。IPA 需用户自行签名后安装。本次记录见 [iOS 1.8.0 / build 18](releases/ios-1.8.0-18-validation.md)；[历史 1.5.1 说明](releases/ios-1.5.1-release-notes.md) 复用 build 16 的行为不适用于本次。每次构建交付后只在指定 `ZViewer-client` 仓库本地 commit，保留其他未跟踪资产。
+`prepare-native-ios.sh` 需要 Xcode 命令行工具和网络，以锁定摘要下载 Go/Opus 并构建设备库；准备产物进入本地 Vendor/构建目录，未经核对不提交生成的 XCFramework、静态库或头文件。若只做 JS/UI 改动，无需运行原生准备和 IPA 打包。Windows 不能执行上述 Xcode 构建。
 
-## 8. 2026-10-03 截图反馈对应修复
+### 验收层级
 
-| 反馈 | 定位和修复 | 验证 |
+| 层级 | 可以证明 | 不能代替 |
 | --- | --- | --- |
-| 音轨/字幕缺少高亮 | `RoomButton.selected`、原生 selected 回报、`settingsChange` 驱动 UI | 默认轨道/本机选择/换片清理单测；设置页签/倍速可视高亮 Web 检查 |
-| 一起听连续“已同步” | 移除每次 adapter.apply 后的无条件回执，改用曲目/连接回执门控 | 30 次重复心跳、未就绪、旧曲迟到、切歌、重连的单测 |
-| 两张同步观影 Invalid URL | `biliSelection` 提取完整分享文本中的 HTTP(S) 地址，保留分 P/CID；片单恢复、添加、本机/服务端解析统一处理 | 两个截图链接、BV、b23.tv、标题/标点、权威 CID、非法地址和既有鉴权规范化回归 |
-| 字幕管理位置 | 统一播放设置页签，全屏仍可访问 | iPad 横屏/竖屏、iPhone 共 18 项检查，0 JS 异常 |
-| ASS 特效旁的额外纯文本 | 原生轨道可选缺省/互斥选择、同步字幕层与原生渲染互斥 | 指定真实 MKV 的轨道/字体/ASS 内容和本地 Range/seek 检查；最终视觉效果待 iOS 真机复验 |
+| 单元/协议测试 | 映射、权限门控、取消、同步算法、fixture 合同 | UI、原生模块、网络服务或媒体解码。 |
+| RN Web/Expo Go | React 页面布局、交互和 JS 流程 | VLC/Go/LiveKit、Keychain、真实系统媒体或后台运行。 |
+| 原生编译/IPA 离线检查 | 目标切片、桥接符号、依赖与包结构 | 设备安装、账号登录、实际听音/画面与系统行为。 |
+| iOS 模拟器 | 已实际运行的 API/播放场景 | iPhone/iPad 硬件编解码、麦克风、蓝牙、系统挂起和外网网络。 |
+| 物理 iPhone/iPad | 现场实际记录的场景和设备 | 未执行的格式、时长、后台状态或网络拓扑。 |
 
-本轮自动验证：**74/74 单测**、lint/typecheck、iOS/Web 导出通过；播放设置 Web **18/18**（1180×820、820×1180、390×844 及全屏），已人工查看截图。Web 预览缺少原生轨道，不将 Web 中的倍速高亮检查等同于真机音轨/字幕高亮验收。
+用户反馈的新问题优先于源码测试或模拟器通过。若用户反馈仍有播放或同步错误，维护状态写明复现条件、客户端/服务端版本、房主/观众、房间模式、网络和前后台状态；区分用户报告、日志证据和已重复复现，不提前宣告修复。
 
-指定 MKV 长 1441.117 秒，HEVC/Opus，简日/繁日两条 ASS，26 个内嵌字体附件；每轨 2597 条 Dialogue、1775 个定位标签、1308 个绘图标签。桌面 libVLC 3 经本地 8 MiB 上限 Range 服务完成两字幕切换/关闭/恢复，以及 55/120/700/1300 秒 seek（15 个 206 请求）。这些是实际文件的解码/读取辅助证据，**不证明 iOS VLCKit 4 的重复字幕已经视觉验收**。
+## 常见故障定位
 
-真机优先复验：播放该 MKV，切简日→繁日→关闭→简日，确认每次只有一个高亮项且特效保留、屏幕边缘无额外纯文本；再开启同步字幕、切回内嵌字幕，检查互斥。使用两个原分享文本对应影片测试观众晚加入/暂停/seek/重连；一起听保持同曲至少一分钟，房主每个观众仅收到一次同步提示，切歌或重连允许新提示。横竖屏和全屏均测试设置关闭/重开。
+| 现象 | 优先核对 |
+| --- | --- |
+| 登录后旧账号重新出现 | SecureStore 读写、`SessionLease` 代次、退出期间的迟到刷新/服务器响应。 |
+| 同片重复重载或进度回跳 | movieId/CID/ep、服务器心跳基线、seek intent、NativeMediaAdapter 旧解析任务和原生事件编号。 |
+| B站有画面无声 | DASH 音轨地址、deferred slave 是否成功加入当前 VLC input、媒体加载编号与设备新 IPA；分开检查房间共享 URL 和本机解析结果。 |
+| Jellyfin seek 后停播/旧集恢复 | Item/MediaSourceId、`timeline.ts` 与 VLC 时间换算、旧恢复回调和新媒体操作代次。 |
+| 字幕重复/轨道错选 | VLC 与 RN overlay 是否同时启用、轨道是否仍属于当前媒体、关闭轨道是否识别为 selected=false。 |
+| 锁屏显示正常但后台换曲/同步停止 | 系统音频声明与实际 JS 生命周期；目前没有独立原生房间 Socket，需明确记录该能力边界。 |
+| LiveKit 断线后残留麦克风 | token/连接代次、`voiceSessionActive`、权限状态、VLC 音频会话及离房清理。 |
+| 只有设备 IPA 出问题而 JS 测试通过 | 核对新 IPA 中的原生插件补丁、Pod 版本、编译 slice 和 Xcode 日志；Web 结果不能排除原生线程或音轨生命周期问题。 |
 
-### build 16 交付记录
+## 维护检查表
 
-EAS：[1.5.0 / build 16](https://expo.dev/accounts/YOUR_ACCOUNT/projects/zviewer-ios/builds/a7973a7c-db58-437a-8957-81b05a759250)。状态 **FINISHED**，已下载并通过离线包检查。版本 **1.5.0 / 16**、bundle `com.zviewer.mobile`、iOS device ARM64、未签名/未加密、iPhone/iPad、最低 iOS 16.4，包含 VLC、自定义原生桥接、系统媒体及内置 JS（3,198,491 bytes）。检查到本轮播放设置/轨道/回执相关 JS 标记。
-
-- 本地包：`ZV-iOS/release-assets/ZViewer-iOS-1.5.0-build16-unsigned.ipa`
-- 大小：45,094,781 bytes。
-- SHA-256：`1220bdd48cf9308eb98d2b71b32e95c365c8d3cfe312bdbb25ab92b0e3e28ac7`。
-- [下载未签名 IPA](https://expo.dev/artifacts/eas/J-Bb1K9O9sMcYsQ2mRrnqzPN2Cq1GVDOJfOzyzmE9jM.ipa)；[离线检查 JSON](releases/ios-1.5.0-16-ipa-inspection.json)。
-- 三尺寸布局和同步字幕→原生外部字幕→同步字幕切换 **18/18** Web 检查通过；本轮独立后端、Web 服务、VLC Range 服务均已关闭。
-- 源码和维护文档本地提交主题：`fix(ios): resolve screenshot playback and sync issues`。完整哈希从本仓库对应 Git 记录获取。
-
-安装需要自行签名；本轮未进行 iOS 真机视觉/音频复验，特别是 ASS 特效与边缘文本、原生音轨/字幕高亮、跨端真实听歌回执仍需按上述真机步骤复测。
-
-本轮记录：[build 16 验证证据](releases/ios-1.5.0-16-validation.json)。既有 build 15 的发布/安装信息见 [build 15 交付记录](releases/ios-1.5.0-15-unsigned.md)。Expo API 与构建方式按 [SDK 57 文档](https://docs.expo.dev/versions/v57.0.0/)、[config mods](https://docs.expo.dev/config-plugins/mods/) 和 [EAS Build](https://docs.expo.dev/build/introduction/) 核对。
-
-## 2026-10-13 目录片源弹窗对齐（Expo 预览）
-
-OpenList、FTP、WebDAV、服务器文件统一使用 `ZV-iOS/src/components/DirectoryPicker.tsx`。添加影片面板仅保留空间/挂载选择、浏览、手动路径与添加；目录在独立 `AppDialog` 中打开，可展开/还原。弹窗包含上级目录、当前目录、路径、空间切换及多选；固定底栏显示选择数量、成功/失败反馈、取消和添加。内容宽度不足 600 时两栏上下排列，宽屏并排；长文件名允许完整换行。
-
-`ZV-iOS/src/lib/directorySources.ts` 集中 roots、browse、resolve 和批量添加协议。挂载保留 `mountId`、`serverUrl`、原始文件 `path` 与 `directLink:false`；服务器文件保留 `uploads:/` 或 `custom:N:/` 前缀，手动路径绑定当前空间。父目录不能越出配置根目录，目录不作为文件添加。切换目录/空间清空选择，批量部分失败只移除成功项，失败项保留供重试。请求使用 RN 兼容的 `checkAbort`，卸载取消旧请求；刷新空间列表后，已打开弹窗会重新读取根目录。
-
-本轮 lint、typecheck 和 **114/114 测试**通过。隔离本机接口中实际操作了四种来源的浏览/单文件添加、服务器文件的空间切换/目录进入/单个与批量添加/手动路径，以及弹窗展开/还原。390×844、844×390、768×1024、1366×1024 的页面检查确认横向无溢出、固定底栏在视口内；手机竖屏堆叠，其他尺寸并排。横屏高度较小时目录内容滚动。
-
-这是源码和 Expo UI 预览验证，未启动 EAS/IPA 构建，未改变原生模块/共享 Go 来源。隔离测试数据不证明真实挂载、原生 VLC 播放或 iOS 安全区/键盘的设备验收。详细记录见 [目录弹窗验证说明](releases/ios-directory-dialog-preview-2026-10-13.md)。
-
-## 9. iOS 1.5.1 发布（2026-10-03）
-
-- 独立 iOS Release/标签：[ios-v1.5.1](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/ios-v1.5.1)。源码 app.json、package.json 和 package-lock.json 版本同步为 1.5.1；构建号保留 16，本轮没有构建新的 IPA。
-- 发布附件保留真实安装包文件名 `ZViewer-iOS-1.5.0-build16-unsigned.ipa`，内部版本 **1.5.0 / 16**，SHA-256 与上节一致。Release 说明在开头明确版本差异；附件仍需自行签名。
-- 源码 ZIP 由发布标签对应的已提交源码生成，包含本轮 iOS 修复、维护文档及 vendor/mediabunny，排除未跟踪模板文件、构建缓存和私有凭据。
-- 附件包含 IPA、源码 ZIP、原始 build 16 IPA 检查/验证 JSON 和本次发布 SHA256SUMS。使用既有 74 单测、18 Web 检查及真实 MKV 辅助验证证据；不新增真机验收结论。
+1. 先核对客户端源码、服务端 API/Socket 合同和三端行为，再确认改动归属共享 JS、iOS 独立 RN、Go bridge、Swift module 或 config plugin。
+2. 检查异步任务取消、媒体身份、权限、凭据与旧回调；测试房主/观众、切房/切源、断线重连和失败恢复。
+3. 运行 `npm run check`；如改了共享协议或解析，补相应固定向量和 Go/服务端隔离测试。
+4. UI 变更在 Expo Go/Web 检查 iPhone/iPad 竖横屏；原生能力变更必须等待明确构建授权，并按真实新包实测。
+5. 收尾时更新本文件中的当前版本/状态、真实验证范围和仍未解决的问题。发行源码不得包含账号密码、Cookie、证书、私钥、签名 profile、日志中的令牌或任何 `AGENTS.md`。

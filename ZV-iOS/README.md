@@ -1,100 +1,21 @@
 # ZViewer iOS
 
-独立 Expo SDK 57 / React Native 工程，当前版本 **1.9.0 / build 26（Mac 本地设备 Release）**。本轮对齐播放、弹幕、语音、投屏和房间设置，修复方向按钮与音乐菜单交互，保留此前 Kazumi/B站同步、Jellyfin 跳转恢复及网易云曲尾续播修复。保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 内核，LiveKit 用于房间语音，WebRTC 用于投屏接收。见 [发行说明](../docs/releases/ios-1.9.0-release-notes.md) 和 [设备 IPA 核验](../docs/releases/ios-1.9.0-26-validation.md)。
+`ZV-iOS/` 是独立的 Expo SDK 57 / React Native 0.86 客户端，使用 Expo Router、VLCKit、LiveKit 与项目自有原生模块；它不通过 Capacitor 加载根目录客户端。当前版本为 **1.9.0 / build 26**，发布标签为 [`ios-v1.9.0`](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/ios-v1.9.0)。对应设备 Release IPA 未签名，安装前需使用个人证书和设备授权侧载；IPA 内置生产 JS，不依赖 Metro。
 
-227 项测试及界面模拟器检查通过；本轮没有扩大真实跨端媒体、语音、硬件解码、蓝牙、锁屏按钮或后台自然跨曲的验收范围。此前模拟器媒体联调和旧版用户真机结果按原记录保留。
+本版主要更新播放器栏与字幕/弹幕设置、方向切换、投屏全屏/刷新/聊天、房间设置和 LiveKit 音量操作。媒体内核仍为 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 实例；投屏只接收 WebRTC 画面，不采集屏幕。维护入口、模块边界、运行限制和故障定位见 [iOS 维护文档](../docs/ios-maintenance-architecture.md)。
 
-b14 修复开屏原生纵向布局增长、会话恢复等待和退出后旧请求回写，并校验损坏外观偏好；原 b13 功能继续保留。具体根因、回归与当前包见 [开屏复核](../docs/ios-openscreen-fix-summary.md)。
-
-历史 [b15 功能/布局补充](../docs/releases/ios-1.5.0-15-followup-preview.md)：整份歌单播放/追加、连续私人漫游、在线弹幕搜索弹窗和双列集名、横竖展开菜单、音乐首页与日推日期。当时用户完成真机 UI 复验并提交 unsigned-device EAS Build；原 I13 限制保留。
-
-**更新说明：** 当前已具备 Mac 本地 Xcode 构建流程，无需消费 EAS 云端额度；云构建仍可用于没有 Mac 的环境。设备 IPA 未签名，需要自己的证书和设备授权后侧载。
-
-当前已验收发行包与构建记录见[维护文档](../docs/ios-maintenance-architecture.md)。历史 [iOS 1.5.1 发行说明](../docs/releases/ios-1.5.1-release-notes.md)、[1.5.0 / b15 交付记录](../docs/releases/ios-1.5.0-15-unsigned.md)及原 Release 附件保留。
-
-## 播放与投屏界面对齐（2026-10-14）
-
-播放栏、字幕 / 弹幕设置和房间语音按另外两端截图调整，移除音轨选择，投屏新增全屏、刷新与内嵌聊天；房间设置补充模式导航、状态卡片与固定离开按钮。方向按钮改为点击直接切换，与 Android / HarmonyOS 共用相同图标与操作语义，全屏按钮也控制方向。弹幕补齐固定 / 滚动 / 彩色 / 高级类型过滤，移除手动文件导入与 JSON 编辑；网易云导航和头像菜单互斥，并改为不透明背景。227 项测试、81 项阶段性页面检查及模拟器检查通过；本次发行另外构建 1.9.0 / 26 设备 IPA，真实跨端媒体待实测。见[界面对齐记录](../docs/ios-player-share-ui-20261014.md)。
-
-## Mac 本地开发（2026-10-14）
-
-模拟器 Bilicore / Opus 准备、原生补丁检查、CNG Scene 生命周期适配、Debug 构建与联调启动脚本已加入工程。实际启动和媒体测试边界见 [Mac 开发记录](../docs/ios-mac-development-20261014.md)。在本工程运行 `npm run check`，再按记录准备 `ios/ZViewer.xcworkspace`。
-
-## b13 功能基线
-
-- 当前影片/片单/播放状态乱序协调，规范 URL/cid 本机解析，切换与重连代次隔离；观众 watch 控制申请和房主审批统一进入屏内/手势/系统命令路径。
-- 影片级 B站 CLI/服务器 MP4/管理员 DASH、自动/手动与真实 qn、失败保留策略和进度；解析有限缓存、账号会话/cid/服务器/策略隔离。Go 来源逐文件固定核对和打包摘要。
-- 语音稳定 instanceId、volatile 拥塞丢帧、媒体初始化 ACK 后收发和断线重绑；后台释放麦克风/语音音频，前台静音重入。
-- 重复曲目按队列项推进，四种播放模式/结束处理；账号/音质/服务器改变重新取流。歌词 20 项/5 分钟请求合并、旧曲隔离、失败重试和当前行。
-- 两模式 Now Playing 状态/标题/封面/动作、sessionId 比较清理、原生 VLC 命令和进度桥接；后台 audio 声明；封面流式读取 ≤2 MB。
-- 浅/深/系统主题、本地背景文件、圆角/透明度/模糊/位置/缩放/旋转/遮罩及减少动态效果；持续根主题和独立 Modal 覆盖，普通表面替代不可用玻璃效果。
-- 一键切换并锁定横 / 竖屏、解除方向锁恢复自动；进入全屏锁横屏，退出全屏恢复自动旋转；一起看三分区双击与 ±15 秒，一起听纯净视频手势控制真实音频。
-- 音乐静音关联视频搜索/分 P/追加/删除、画质/解析策略/同源重加；44pt 收起按钮、图片规范化/失败占位、评论/楼层回复。番剧多选、批量/部分失败保留重试。
-
-既有片单、挂载管理、字幕弹幕、网易云账号/歌单、B站 QR/Keychain/目录、共享观看接收及 OBS-FLV 保留。
-
-## 预览和构建
-
-本地设备构建在 `ZV-iOS/` 运行以下命令。设备与模拟器原生依赖共用 Vendor 输出目录，切换目标时必须重新准备对应库；构建脚本会拒绝将模拟器 Bilicore 用于 IPA。CNG 生成 `ios/`，源码修改保存在 Module/config plugin。
+## 日常开发与检查
 
 ```sh
 npm ci
 npm run check
-node scripts/stage-native-core.cjs
-bash scripts/prepare-native-ios.sh
-npx expo prebuild --platform ios --no-install
-npm run native:patch
-(cd ios && pod install)
-bash scripts/build-unsigned-ios.sh
-python3 scripts/inspect-unsigned-ipa.py ios/build/ZViewer-unsigned.ipa
+npm start
 ```
 
-下载缓存继续按固定 SHA-256 校验；网络无法访问 Go 原始域名时可以设置 `ZVIEWER_GO_DOWNLOAD_BASE` 使用相同版本镜像。IPA 输出为 `ios/build/ZViewer-unsigned.ipa`，本轮交付副本在 `release-assets/ZViewer-iOS-1.9.0-release.ipa`，同目录保留 SHA-256。生成工程、依赖、IPA 和私有联调会话不提交 Git。Release 包含生产 JS，启动不依赖 Metro，也不包含 Debug 注入的服务器登录信息。
+`npm run check` 运行原生来源及 VLC 补丁检查、lint、TypeScript 和 `tests/*.test.mjs`。普通界面改动先用 Expo Go 或 Expo Web 预览；这些环境没有项目的 VLC、Go、LiveKit、Keychain 和 Swift 模块，结果只代表 JS/UI 流程。关闭开发服务后，确认 Expo 使用的 8081 端口已释放。
 
-以下为保留的 Windows/EAS 云构建入口：
+## 原生工程与 IPA
 
-```powershell
-cd ZV-iOS
-./scripts/build-ios-unsigned.ps1
-# 等待完成：./scripts/build-ios-unsigned.ps1 -Wait
-```
+`ios/` 是 Expo CNG 生成目录。持久原生改动写入 `app.json`、`plugins/` 或 `modules/zviewer-native/`，不要以手改生成目录或 `node_modules` 作为唯一来源。iOS IPA/EAS 构建须按项目维护流程明确安排；设备构建需要 Mac/Xcode。交付前检查 Bundle ID、版本/build、ARM64 设备切片、未签名状态、生产 JS、VLC/LiveKit/原生桥、共享 Go 来源摘要、依赖许可和 IPA SHA-256。自动测试、Web 预览、模拟器及 IPA 离线检查不能替代实际设备播放、麦克风、蓝牙、锁屏和后台验收。
 
-上传脚本先规范 Bash 为 LF，再验证 12 个共享 Go/依赖/许可证文件与参考 `02f62f1fc52f0c47f2a2f8e6fec8ed22d98539fc` 一致、生成来源摘要。EAS archive 限定本工程；workflow 下载校验固定 Go/Opus、重建 ARM64 vendors、host Opus smoke、CNG/Pods、iphoneos Release 和 unsigned IPA。
-
-当前独立 iOS 发行附件为 `ZViewer-iOS-1.9.0-release.ipa`（1.9.0 / build 26，未签名，需个人签名安装），发布于 `ios-v1.9.0`。Expo Go 不含 VLC/Go/语音桥接，模拟器流程见 [Mac 开发记录](../docs/ios-mac-development-20261014.md)。
-
-```sh
-npm ci
-npm test
-npm run lint
-npm run typecheck
-npx expo-doctor
-npx expo export --platform ios
-# 下载 IPA 后检查：
-python scripts/inspect-unsigned-ipa.py release-assets/ZViewer-iOS-1.9.0-release.ipa
-```
-
-b14 的 59 项单测、lint/typecheck、iOS/Web 导出、37 项 Yoga 布局记录（含旧版复现）、13 项真实 Provider 的模拟原生端口回归、20 项开屏 Web 和 43 项既有 Web 房间布局复验通过。Yoga 使用独立 3.2.1 WASM，并启用与 RN Fabric 默认一致的 ErrataAll；这些检查不能替代 UIKit 真机。Doctor 20/21：WebRTC New Architecture 未测试、私有本地模块无 Directory 元数据，未屏蔽。Go 两包可编译但源目录无测试，不等于 CDN 回归。
-
-新脚本 `check-ios-421.cjs`（协议/合成语音帧）、`check-ios-range-421.cjs`（本地 MKV 传输）、`check-continuation-ui.cjs`（Web 三尺寸布局，网易云上游 fixture）需隔离官方 v4.2.1 服务和 Web 导出服务，默认端口 7343/7347。不连接 NAS，不读取用户音乐/B站账号；历史报告不覆盖。
-
-## 验收边界
-
-真机出声/解码、十分钟 MKV/MP4、HEVC/FLAC/HLS/分离轨、实际 CDN/账号、跨端语音/蓝牙/来电、原生方向/键盘/大字体/PiP/安全区，均待后续新包验证。系统完整歌词页没有等价实现，保留应用内歌词。
-
-后台 host 播放/暂停/seek 有原生通路；**JS 完全暂停时没有独立原生房间 Socket 心跳/切歌/观众审批管线**，待前台恢复回流，不能宣称完整后台同步闭环。重复曲目的跨端同步未新增线上队列项字段。重连完整既有成员列表受现有服务端契约限制。
-
-继续 `UIRequiresFullScreen=true`，iPad Split View 关闭；复杂 ASS 特效使用 VLC 原文件。无自动 push、标签、证书签名、TestFlight 或商店发布。CNG 管理生成目录，维护本地 Module/config plugin，不手改生成工程，不执行 Capacitor iOS 同步；遵循 [AGENTS.md](AGENTS.md)。
-
-开屏回归脚本：`check-home-ui.cjs`、`check-session-startup.cjs` 默认输出隔离 b14 测试目录，依赖本工作区已有 Playwright/esbuild；既有 `check-continuation-ui.cjs` 支持 `IOS_TEST_OUTPUT` 避免覆盖历史证据。`check-home-yoga.mjs` 使用工程实际 homeLayout 样式，在工程外 `npm pack yoga-layout@3.2.1` 并解包，再传入包的 `dist/src/index.js` 路径；不添加应用运行时依赖。
-
-b15 新增 `check-room-yoga.mjs`：六尺寸/两模式/侧栏共 24 组实际 roomLayout 模型；扩展 Web 房间回归为 59 项，覆盖用户 iPad 尺寸及手机短横屏。用户 Expo Go 真实运行仍待验收。
-
-本轮界面验证：59 单测、29 首页/59 房间音乐/21 来源 Web，0 JS 异常。首页包括两主题/黑白背景/低透明度的文字对比度；check-native-parity.cjs 包含 60 来源/80 集、分列、多选重试和真实后端保存，支持 IOS_TEST_OUTPUT。iOS/Web 导出及 expo-blur ~57.0.3/默认壁纸纳入通过，Doctor 20/21 提示未隐藏。b14 首页 Yoga/Provider 是历史专项证据，不是当前原生完整页面验收。
-
-b15 展开播放器补充：`check-music-player-ui.cjs`（同隔离端口/依赖，支持 IOS_TEST_OUTPUT）覆盖六尺寸、80 行歌词与封面/控件边界，共 31 项。原房间 59 项复验通过。播放卡/图标工具栏/完整歌词区与双端结构对齐，iPad 竖屏双栏；原生安全区/大字体/音频仍待验收。无新 EAS Build/Update，见 [音乐页补充](../docs/releases/ios-1.5.0-15-music-preview.md)。
-
-### 2026-10-02 音乐首页横幅与滑动补充
-
-iOS 横幅改为加载原始宽图并等比铺满，去掉仅用于专辑封面的 CDN 方图裁切；支持手动左右滑动、双向首尾循环和定位条，短拖动/竖向滚动不切图，手动操作避开自动轮播。70 单测、60 项 RN Web/CDP 触摸与既有功能检查、lint/typecheck、本地 iOS/Web 导出通过；这不是 UIKit 真机通过证明。只修改 iOS 与维护记录，双端程序未变；没有新增 EAS Build/Update 或 IPA，继续 Expo Go Reload。
-详见 [横幅补充](../docs/releases/ios-1.5.0-15-banner-preview.md)。
+历史版本与发布状态可查看客户端 Git 历史和 [GitHub Releases](https://github.com/Zero-wyc/ZViewerAPP/releases)。发行源码不得包含凭据、Cookie、私钥、证书、provisioning profile、构建缓存或 `AGENTS.md`。

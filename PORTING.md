@@ -11,7 +11,7 @@ Shared by the existing Vite client and its native hosts:
 - `src/`: login, rooms, Socket.IO, playback, chat, danmaku, subtitles, music, voice
 - `public/`: bundled web assets and workers
 - `vendor/`: patched media dependencies
-- `docs/`: platform maintenance notes and release records
+- `docs/`: the Android, HarmonyOS and iOS platform maintenance manuals
 - Vite and TypeScript configuration
 
 Owned by each native host:
@@ -26,12 +26,12 @@ when reviewing shared code and before building both native packages.
 
 ## iOS project
 
-`ZV-iOS/` is an Expo/React Native project. Run `npm start` from that directory
-to start development. It now implements server login, room navigation, chat and
-basic single-track video playback; the remaining product features still require
-native iOS implementations and device tests. See `ZV-iOS/README.md` and
-`docs/ios-windows-acceptance.md`. Do not run `cap add ios` or `cap sync ios`
-against `ZV-iOS/`.
+`ZV-iOS/` is an independent Expo/React Native project. Run `npm start` from
+that directory for UI preview and `npm run check` for the current JS checks.
+Native playback, voice, system media and bridges have separate iOS
+implementations and require iOS build/device validation. See `ZV-iOS/README.md`
+and `docs/ios-maintenance-architecture.md`. Do not run `cap add ios` or
+`cap sync ios` against `ZV-iOS/`.
 
 ## HarmonyOS host contract
 

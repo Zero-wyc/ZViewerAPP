@@ -1,313 +1,76 @@
-# Android 应用维护架构整理
+# Android 客户端维护文档
 
-## 2026-10-14：1.8.6 正式发布（Android/HarmonyOS）
+更新日期：2026-10-14。本文与同目录的 HarmonyOS、iOS 维护文档采用统一命名 `平台-maintenance-architecture.md`。
 
-用户授权发布安卓/鸿蒙，并明确 iOS 1.8.6 暂缓。沿用下方已验证的 **1.8.6 / 186** 正式签名 APK，不重复构建；新 Release 仅 APK、HAP 和双端 SHA256SUMS。完整三端源码同步 main，不单独上传源码 ZIP；iOS 候选源码保留不表示已发布/通过同步验收。远端附件大小、摘要、匿名下载与源码归档检查见 [发布验证](releases/client-1.8.6-publication.md)。
+## 当前状态与范围
 
-## 2026-10-13：1.8.6 关于应用与更新检查（本地候选）
+- Android 源码及已发布安装包为 **1.8.6 / versionCode 186**，目标服务端以已集成的 v4.5.3 协议为基线。版本以 `package.json` 和 `ZV-Android/app/build.gradle` 为准。
+- 客户端修改、Git 提交均在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。`ZViewer-source code` 是本地服务端目录，不在其中改客户端。
+- Android 与 HarmonyOS 共用根目录 React/Vite 界面，但原生宿主不同；iOS 是 `ZV-iOS` 中独立的 Expo/React Native 工程。三端实现和验收不能互相替代。
 
-主页品牌栏新增 `src/mobile/AboutApp.tsx`，以原生 `App.getInfo()` 显示实际版本和构建号。`src/mobile/appUpdates.ts` 从公开 GitHub Releases 列表筛选正式 `client-vX.Y.Z`，按数字比较版本，匹配 APK，排除 iOS 独立标签、预发行、debug/unsigned 和无安装包的 Release。每次进程启动自动检查，只有发现更新才弹出；手动检查展示最新/失败/限流/超时结果。不携带服务端登录凭据，不静默下载安装。
-
-`ExternalLinksPlugin` 通过系统浏览器打开受限的本项目 HTTPS 发布/下载地址，`src/platform/appUpdates.ts` 提供统一调用。界面复用全局颜色、圆角、玻璃透明度和模糊变量，原生 Back/Escape 走统一弹层返回栈。横屏小高度可滚动，标题/关闭按钮保留可访问性。共享鸿蒙协议见对应维护文档。
-
-版本 **1.8.6 / 186**，正式签名 APK 构建和证书校验通过；76 项适配、4 项媒体、3 项更新服务回归及 5 种尺寸深浅主题 UI 验证通过。浏览器验证使用原生桥接替身及 Release 夹具，不冒充 Android 设备/系统浏览器安装验收。未发布，见 [三端候选验证](releases/client-1.8.6-local-validation.md)。
-
-更新日期：2026-10-13
-
-## 2026-10-13：1.8.5 / 185 三端统一发布
-
-发布前补充隐私构建修正：Android Go AAR 使用 `gomobile bind -trimpath -ldflags="-s -w"`，移除 Go 与 C/NDK 调试信息里的本机用户名/绝对路径。重新构建、验签、资源摘要和双 ABI 各 128 个导出动态符号与旧包一致核验通过；不改变媒体解析行为，HAP 与已验收 IPA 保持原包。
-
-将此前房间入口/音乐评论侧栏优化及 `48e0e5c` 的旋转解锁图标、全屏默认横屏更新统一以 **1.8.5 / 185** 重新打包。根 package/lockfile、Android Gradle、HarmonyOS AppScope 已同步；本轮没有再修改这些行为，保留 src/platform 和各自原生桥。网页分别由 android:sync / harmony:web 生成，沿用原发布签名。
-
-76 项适配 + 4 项媒体回归、TypeScript/Vite、双端 Debug/Release 构建通过；实际 APK/HAP 版本 1.8.5 / 185、签名及既有证书一致，两端各 29 项共享网页资源摘要匹配。此前房间 30 组布局和旋转 8 组桥接界面记录继续有效，尚未将物理设备旋转专项记为通过。用户本轮真机“全部通过”的确认指向 iOS build 23，不挪用为安卓/鸿蒙新增实机证明。
-
-按用户指示源码上传 main，发布 client-v1.8.5 三端 Release。README 和发行说明完整展示三端操作与状态，iOS 当前可用，Android/HarmonyOS 发布签名 APK/HAP，iOS 沿用已验收的未签名 IPA，不重新云构建。见 [1.8.5 发行说明](releases/client-1.8.5.md) 和 [三端发布验证](client-v1.8.5-release-validation-20261013.md)。下方候选状态是历史记录。
-
-## 2026-10-13：旋转解锁图标与全屏横屏默认值（本地构建）
-
-顶部及播放器的旋转解锁按钮由圆箭头改为 `LockKeyholeOpen`（打开的锁），提示“解除旋转锁定（自动旋转）”，与重载视频的圆箭头区分。视频进入网页或原生容器全屏时，Android/HarmonyOS 默认锁定横屏并启用沉浸显示；退出全屏、卸载播放器或离房时恢复自动旋转。全屏期间手动解除锁定后，普通重绘不会重新锁定，下次进入全屏重新使用横屏默认值。
-
-Android `PlayerDisplay.toggleOrientation` 现接收显式 `{ isLandscape }` 目标，旧调用未传参数时仍保留切换行为；全屏已处于横屏时不会再反转为竖屏。共享 `setPlayerFullscreen` 串行处理原生显示操作，跳过已被后续请求取代的排队操作，快速退出后迟到的锁定调用会由退出恢复操作收尾；系统栏操作失败也会尝试恢复方向。普通浏览器全屏不强制调用移动端方向锁定。
-
-76 项适配（含 7 项方向/全屏回归）、4 项媒体测试、8 组双平台桥接模拟界面检查及双端 Debug/Release 构建通过；APK 验签和 29 个网页文件摘要比对通过。本地候选保留 **1.8.0 / 180**，位于 `release/orientation-ui-20261013/`，包含此前房间界面优化，未发布。原生实机旋转和全屏仍待验收，详见 [验证记录](client-fullscreen-orientation-validation-20261013.md)。
-
-## 2026-10-13：双端房间入口与评论侧栏优化（本地构建）
-
-基于 **1.8.0 / 180** 完成本地界面优化：一起看视频下方仅保留“聊天 / 片单”，删除“房间”标签；模式切换、房间状态、名称/密码/审批设置、在线观众、分享及离房统一进入右上角房间按钮。一起听头像菜单不再接收 `roomModeMenu`，保留音乐账户与音乐设置功能；`MusicAppShell.commentsOnlyDock` 使移动房间右侧侧栏仅显示评论，移除房间状态、流量统计与重复语音面板。
-
-`MobileRoom` 的房间 Modal 使用可选 `keepMounted`：收起后隐藏界面并释放滚动锁/返回处理，但保留 `RoomInfoPanel` 的房间设置、禁言和房管事件监听。切换模式仍由房主调用原有 `useRoomModeSwitch`，观众跟随广播，忙碌/断线时禁用按钮。侧栏悬停仅处理鼠标指针，触摸通过点击切换；把手层级高于面板，展开后仍可点击收起。
-
-69 项适配、4 项媒体回归、TypeScript/Vite、Android 与 HarmonyOS Debug/Release 构建通过。30 组共享布局及交互检查覆盖五种尺寸、深浅主题，模式往返、嵌套设置返回、评论发送、关闭设置后的事件同步和观众权限通过。Android APK 验签及包内 29 个网页资源摘要比对通过。安装包为 `release/room-ui-20261013/` 中的本地候选，未发布；浏览器隔离夹具不等同于 Android 真机 WebView 验收。详见 [验证记录](client-room-ui-validation-20261013.md)。
-
-## 2026-10-13：1.8.0 / 180 发布
-
-按用户要求，将已实现的 1.7.6 / 176 服务端 v4.5.3 对齐内容统一升为 **1.8.0 / 180** 重新打包，源码发布至 `Zero-wyc/ZViewerAPP` main，Release 标签为 `client-v1.8.0`。Android 的 `versionName` / `versionCode`、根包版本与鸿蒙 AppScope 同步更新，继续使用既有发布签名。发布附件为 APK、HAP、SHA256SUMS.txt，源码使用 GitHub 自动生成归档。
-
-本版包括默认音乐音量、私人漫游连续播放、B 站搜索自适应多列及 Go WBI/UGC 修复，详见 [1.8.0 发行说明](releases/client-1.8.0.md)。本轮 `android:sync`、Debug/Release 构建通过，APK 清单为 1.8.0 / 180，v2 签名与既有证书一致，包内 29 个共享网页文件与构建结果摘要匹配，详见 [1.8.0 构建与发布验证](client-v1.8.0-release-validation-20261013.md)。下方 1.7.6 记录保留此前功能验证范围；物理设备、真实音源、后台锁屏、蓝牙与跨端同步仍需专项验证。本轮未构建或发布 iOS。
-
-## 2026-10-13：1.7.6 / 176 对齐服务端 v4.5.3（本地构建）
-
-已通过 GitHub 接口确认上游 main 为 `9e2a0d4f3d9796067ac17274feabeccbb065d411`，与本次更新方案一致。共享业务增加 `roomDefaultMusicVolume`（缺省 50%）和 `initialMusicVolume`；有效本地 0～1 音量优先，包括 0/1，无效记录安全回退。公开设置晚到不会覆盖本次手动调整，即使存储写入失败；主音频、预载和升格统一音量，切服仍由原有 settingsRevision 隔离旧响应。
-
-`personal-fm.ts` 保存房间级候选、最多 100 首历史、模式及请求代次。只有房主启用 FM，等待 `music:queue-upsert` 的 `afterCurrent: true` 成功 ack 后再播放和广播；8 秒超时/拒绝不丢候选。自然 ended、播放器与系统下一首共用续播入口。切页面保留会话；普通歌曲/B站插播停用 FM；暂停、进度拖动、离房、断连、切模式和组件销毁使旧请求失效。重复/当前/已播放候选被去重，显式单曲循环仍循环当前曲。旧模式空响应不能在新连接发起默认源回退。
-
-B站添加影片搜索结果改为按行排序的 CSS Grid，按结果容器宽度自动排布；320/360/393 手机两列，852 横屏和 768 平板四列，16:9 封面，标题两行、UP 名省略、计数换行。搜索输入可收缩，分页、分 P 选择、图片代理及关闭时请求取消保留。原生导航、系统媒体、语音音频路由和连接证书通道沿用原有实现。
-
-69 项适配、4 项媒体回归、Go 核心测试、20 组搜索布局与 8 组播放器音量场景通过。浏览器用真实 0.6 秒 WAV 音频自然 ended 连续 6 首并跨候选批次，中途卸载/重挂 FM 页面保持会话；模拟 ack 验证拒绝/迟到权限边界。双端 Debug/Release 构建和签名验证通过，包内各 29 个共享网页文件与最终构建一致。验证是本地隔离夹具，不等同于真实网易云/VIP、B站在线解析、物理设备、后台锁屏、蓝牙或跨端验收。当前 adb/hdc 无连接设备，本轮未安装/执行原生设备专项，未发布 GitHub Release。详细记录见 [1.7.6 验证](client-v1.7.6-alignment-453-validation-20261013.md)。
-
-Android 已用 Go 1.26.8 重新生成 `bilicore.aar`，Gradle `buildBilibiliCore` 实际执行；本版 APK 纳入此前共享 WBI 重排/UTF-8/特殊字符及 UGC `result:"suee"` 响应修复。正式签名证书 SHA-256 与 1.7.5 一致。网页资源由 `android:sync` 生成。
-
-
-
-## 2026-10-13：共享 B站普通视频响应修复（源码）
-
-`native/bilicore/core/resolver.go` 仅在 `data.result` 是对象时展开 PGC 响应。普通视频 playurl 的 `result:"suee"` 是状态字符串，过去被误当作嵌套对象，导致本机解析失败；`ugc_test.go` 已覆盖真实响应形状。共享 Go 11 项测试通过，用户提供的公开视频 `BV1UHpw6LESy` 经匿名真实请求返回第 1 P、480P 视频及 AAC 音轨。此次只更新共享源码，当前 Android 1.7.5 / 175 安装包未重建；网页资源和平台桥未修改。iOS 修复与界面记录见 [2026-10-13 源码预览](releases/ios-follow-up-fixes-2026-10-13.md)。
-
-## 2026-10-12：共享 B站 WBI 核心修复
-
-iOS IPA 复核时修正 `native/bilicore/core/wbi.go` 的 WBI 字符重排表、空格百分号编码和特殊字符过滤，并加入固定签名向量测试。此共享源码修复供后续双端构建使用；当前 Android 1.7.5 / 175 安装包未重新构建，不能视为已包含修复。iOS 搜索桥使用同一协议规则的 Objective-C 签名函数，构建机另跑原生中文关键词签名检查。
-
-## 2026-10-12：iOS 独立源码预览对齐
-
-iOS 在 `ZV-iOS/` 以 RN 控件实现本版片单长标题、番剧切源/选集、Emby/Jellyfin 整季/版本与清空入口，语音迁移为 LiveKit。当前只完成源码和 Expo 预览检查；双端 1.7.5 的构建、原生桥及生成资源未变化。跨端真实语音/影片仍待 iOS 新原生包联调，不沿用双端验收结果。实施详情见 [iOS 预览记录](releases/ios-next-preview-2026-10-12.md)。
-
-## 2026-10-12：1.7.5 / 175 长标题与番剧源菜单修复
-
-本版汇总下方 1.7.4 本地对齐内容，并按用户要求发布 Android/HarmonyOS **1.7.5 / 175**。`MovieListPanel` 的普通与展开片单共用完整多行标题，不使用单行省略或行数截断；连续英文字符串允许断行，播放/删除按钮仍占独立网格列。
-
-`Select` 新增可选 `menuWidth="content"`，只在 `AnimeSourceBrowser` 的源选择启用。展开后按真实文字宽度、内边距、勾选图标及滚动条预留空间，菜单受视口限制并在右侧空间不足时向左调整；触发器宽度与搜索栏不改变，其他选择器默认行为保留。源选项保持单行，极端超出整个视口的名称可在菜单内横向滚动，不撑宽页面。
-
-双端版本配置和既有发布签名同步更新；公告仍排除。40 组共享布局检查覆盖五种屏幕尺寸、深浅主题和普通/展开状态，56 项适配、4 项媒体回归及双端 Debug/Release 构建通过。实际 App、包内资源及安装包校验记录见 [1.7.5 验证记录](client-v1.7.5-ui-validation-20261012.md)，发行说明见 [client-v1.7.5](releases/client-1.7.5.md)。未修改原生桥、NAS 或 iOS。
-
-## 2026-10-12：1.7.4 / 174 本地对齐服务端 v4.5.1
-
-本轮本地开发版本 **1.7.4 / 174**，服务端固定提交 `c8fa5bad0c6efcffbc0dc3bfe4c199f8a9b8d8f6`。共享番剧浏览器/认证海报、切源保留与失败项重试，Emby/Jellyfin 搜索/海报元数据/整剧整季/切集多版本、媒体库 HLS 相对分片、一键清空与播放生命周期、B 站搜索分 P 和音量拖动清理已实现。**按用户要求不加入公告**；评论新窗口/侧坞/快捷键仍排除，iOS 不涉及。
-
-维护入口：`AnimeSourceBrowser`/`AnimePoster`、`EmbyBrowser`/媒体库 API 与 `seriesPages.ts`/`mediaLibraryUrl.ts`、`MoviePushPanel`/`MovieListPanel`、`roomStore`、`library-hls-proxy.ts`/`hls-engine`、`useWatchTogether`、`useVolumeSliderDrag`/`bodyScrollLock`。播放/显示使用选定服务器通道，持久化与广播保持逻辑 URL；版本用真实 MediaSource ID，观众按房间影片 ID 播放，媒体凭据不进入房间状态。没有新增或替换原生桥、B 站解析和编解码能力。
-
-56 项适配、4 项媒体回归、102 组共享浏览器布局、两端实际 App 各两种媒体库普通/放大共 8 组、16 组房主/普通浏览器观众 MP4→切集→转码 HLS→清空记录通过。两端 Debug/Release 构建及既有发布签名验证通过，包内网页与最终 dist 比对。Medium Phone / Pura 90 Pro 均为模拟器；真实第三方番剧 10 组查询有结果/详情，首图 9 组成功、1 组上游 502。用户物理设备、真实媒体库正片、自签 HTTPS、后台/蓝牙与生产源仍需独立验收。
-
-本地交付 `release/client-v1.7.4-test1/`，源码本地提交；未上传 GitHub、发布 Release 或修改 NAS。完整证据与边界见 [1.7.4 对齐验证](client-v1.7.4-alignment-451-validation-20261012.md) 和 [发行说明](releases/client-1.7.4.md)。下方 1.7.3 及更早记录保留其历史发布状态。
-
-### 1.7.3 用户验收与发布确认
-
-2026-10-11 用户确认 Android / HarmonyOS 检测通过，并授权上传双端源码至 `Zero-wyc/ZViewerAPP` main、发布 `client-v1.7.3`。沿用已验收的 1.7.3 / 173 既有签名 APK/HAP，新增发布说明和 README 更新；下方本地交付及待验收描述保留为当时阶段记录。用户确认未扩写成未经提供的真机型号/单项统计。本轮不更新 iOS。见 [1.7.3 发行说明](releases/client-1.7.3.md)。
-
-## 2026-10-11：1.7.3 / 173 媒体库截图问题修复
-
-修复用户真机反馈的三处遗漏：`EmbyBrowser` 单集海报墙恢复图片（16:9，剧集/季仍 2:3）；移除目录固定 420px/50dvh 限制，整个内容区按 flex 分配，放大实际扩展目录可视高度；补当前目录全选/取消全选，排除文件夹、按原始顺序批量添加，换目录清空。Jellyfin 同步复用，不变更图片 API、连接映射和原生媒体协议。
-
-43 项适配和 4 项媒体回归、双端构建及既有发布签名验证通过；64 组浏览器布局显式验证封面加载与放大增高，17 组选择行为覆盖全选/取消/部分补全/批量路径顺序。Android WebView 与鸿蒙 ArkWeb 从 App 入口分别联调两种媒体库，验证真实批量写入。详细证据与模拟器/夹具覆盖边界见 [1.7.3 修复记录](client-v1.7.3-media-browser-fix-20261011.md)。本轮本地交付，未发布，iOS 不涉及；以下 1.7.2 和更早章节保留历史状态。
-
-## 2026-10-11：1.7.2 / 172 对齐服务端 v4.4.7
-
-本次本地版本 **1.7.2 / 172**，参考服务端固定提交 `32d3cdecb498e12af7bd5e0f5acd49b6b8576e08`。新增 B 站关键词搜索、完整片单搜索与触屏上移/下移、房主自动连播、弹幕连续添加、Emby/Jellyfin 海报墙及紧凑单集网格。旧版章节属于历史记录；未发布 GitHub，本轮 iOS 不涉及。完整实现、证据和覆盖边界见 [1.7.2 验证记录](client-v1.7.2-alignment-447-validation-20261011.md)。
-
-- 共享入口：`BiliSearchModal` / `MoviePushPanel` 直接解析选中的 URL，保留本机代理与 cliOnly 边界；`playlistOrder` 检查完整排列及 root/创建者权限；`autoContinue` 从最新片单选下一部，通过确认后切片，取消/离房/角色变化使旧回调失效，播放器重挂载保留开关。
-- `DanmakuSearchModal` 按 source:id 跟随实际轨道状态，成功保持打开，失败重试；`EmbyBrowser` 图片经选定服务器连接映射，不拼账号凭据，缺图占位、等高双列海报、两行标题、季/单集多选。
-- `Modal` / `overlayBack` / `useNativeBack` 管理可用视口、安全区、内部滚动及顶层面板返回；Kazumi/AniSubs 集数动画与 CLI 锁图标同步。保留既有移动设置、1.7.1 HLS 和媒体恢复逻辑，不移植新增评论窗口/侧坞/快捷键。
-
-43 项适配和 4 项媒体测试、TypeScript/Vite、Android Debug/Release APK 构建通过。最终 APK 使用既有发布密钥，apksigner 校验通过，证书与 1.7.1 一致。Medium Phone WebView 411×914 通过 Emby/Jellyfin 海报/单集共 4 组，实际图片代理、多选、面板返回均通过；浏览器另外覆盖 320/360/393 窄竖屏和 852 横屏、深浅主题共 32 组。本地 v4.4.7 下手机房主 MP4 → HLS → MP4 自然连播及普通浏览器观众真实解码/时间推进、末尾停止通过。未将模拟器结果称为物理手机、真实媒体库、B 站/Kazumi 正片、听音/蓝牙/后台或十分钟关房完整验收。交付与覆盖边界见上述记录。
-
-### 1.7.0 真机验收与发布确认
-
-2026-10-07 用户确认 Android / HarmonyOS 真机验收通过，授权向 `Zero-wyc/ZViewerAPP` 上传源码并发布 `client-v1.7.0`。复用已验收的正式签名 APK/HAP，仅补充验收与发布文档；下方本地交付状态及“待验收”清单保留为发布前记录。未扩写未提供的设备型号或单项场景日志。正式发行说明与验收证据见 [1.7.0 交付记录](releases/client-1.7.0-adaptation.md)。
-
-## 2026-10-07：1.7.0 / 170 双端适配交付
-
-当前本地交付版本为 **1.7.0 / 170**，目标上游 `ba033096bc9c3a85a2058918a002b80a5f484ec8`。正式 APK 与鸿蒙 HAP 均已构建并验证既有发布签名；本地源码提交、ZIP、SHA-256 和脱敏证据一起交付。尚未发布远端 Release。本轮不修改或构建 iOS，下方 1.6.0 及更早章节属于历史记录。详见 [1.7.0 交付记录](releases/client-1.7.0-adaptation.md)、[发行说明](releases/client-1.7.0.md)。
+## 代码入口
 
 | 功能 | 维护入口与约束 |
 | --- | --- |
-| PGC 解析 | `native/bilicore/core/pgc.go`、`mobile_input.go`、`quality.go`；ep/ss、整季、短链、试看/业务错误，与 ArkTS 使用同一 fixture。保留设备编码能力、普通画质和 AAC 筛选，手动档位不能静默降低；Cookie 留在 Go/原生。 |
-| 本机代理接口 | `native/bilicore/mobile/mobile.go` 的 `/resolve` 接收 epId/seasonId/bvid、cid、page、preferMp4/forceDash 与能力；AAR 由 `scripts/build-bilicore.mjs` 生成。 |
-| cliOnly / 分集 | 共享 `bilibili/`、`roomStore`、`movie-source-resolver`、`useVideoSource`、`buffer-mode`；影片先写 cliOnly，等待 cid 对应并检查账号会话。只在本机播放/下载时包装 CDN 地址，禁止服务器媒体兜底及广播回环地址；缓冲先解析本机身份再查缓存。 |
-| 服务器证书通道 | `src/platform/serverConnection.ts`、`connectionTransport.ts` → `ServerConnectionPlugin.java` → `native/bilicore/mobile/server_connection.go`；仅选定 origin 使用随机路径私有通道，原生 Cookie、HTTP 流、Range 和 WS 共用作用域；撤销关闭请求和升级 Socket，外域仍严格校验。 |
-| 连接入口 | `src/App.tsx`、`src/mobile/serverUrl.ts`；自动 HTTPS 优先，探测无凭据，HTTP 回退需要明确的同端口明文服务证据。自定义完整 URL 与每服务器证书例外分别保存。 |
-| 语音 / 一起听 | `voice-chat/transport.ts` 从实际 selected candidate 判断 UDP/TCP；保留音轨清理和原生路由。一起听末尾推荐、默认来源和房间评论已对齐，侧坞隐藏时保持挂载，语音仍是单实例。 |
+| 首页、房间、移动布局 | `src/App.tsx`、`src/mobile/MobileRoom.tsx`、`src/mobile/mobile.css`；房间状态与权限在 `src/upstream/store/roomStore.ts` 及相关 hooks。 |
+| 服务器连接与凭据 | `src/platform/connectionTransport.ts`、`serverConnection.ts` 与 `ZV-Android/app/src/main/java/com/zviewer/mobile/ServerConnectionPlugin.java`；连接证书和私有凭据留在原生侧，不能进入房间广播、网页日志或发布源码。 |
+| 媒体播放与同步 | `src/upstream/modules/player/`、`sync-playback/`、`src/platform/playerDisplay.ts`；真实媒体身份与设备本地可播 URL 分离，切片/seek/离房要废弃过期异步任务。 |
+| 视频显示、返回与系统媒体 | `src/mobile/PlayerDisplayControls.tsx`、`useNativeBack.ts`、`useSystemMediaSession.ts`；原生实现为 `PlayerDisplayPlugin.java`、`SystemMediaSessionPlugin.java`、`PlaybackService.java`。全屏退出须恢复方向与系统栏。 |
+| B 站解析、账号、代理 | `native/bilicore/core/`、`native/bilicore/mobile/`、`scripts/build-bilicore.mjs`、`BilibiliProxyPlugin.java`、`src/platform/bilibiliProxy.ts`；WBI、PGC、UGC、画质与音轨仍需分别回归。Cookie 留在本机原生/Go 层。 |
+| 媒体库与番剧 | `src/upstream/modules/emby/`、`jellyfin/`、`kazumi/`、`anisubs/`、`modules/player/services/library-hls-proxy.ts`；HLS 相对路径用选定服务器路由，媒体库版本使用真实 MediaSource ID。 |
+| 音乐与语音 | `src/upstream/modules/music/`、`voice-chat/`、`src/mobile/useMusicAudioRouting.ts`、`AudioRoutingPlugin.java`；私人漫游仅房主在片单写入成功确认后推进，LiveKit 使用服务端返回的 URL/token/identity。 |
+| 更新入口 | `src/mobile/AboutApp.tsx`、`appUpdates.ts`、`src/platform/appUpdates.ts`、`ExternalLinksPlugin.java`；只识别正式客户端 Release 和 APK，下载链接由系统浏览器打开。 |
 
-本轮 `test:adaptation` 26 项、`test:media` 4 项与 Go 测试通过。Medium Phone 打包调试 APK 实测自签名证书例外 API、原生 Cookie、NDJSON、206 Range、MP4 seek 和 Socket.IO WebSocket；外域与撤销隔离通过。已有本机会员账号实测免费/会员 PGC MP4，会员 ep508405 实际时长约 1449.98 秒，跳至约 400 秒后继续出帧，非试看。DASH 契约通过但未新增真实 PGC DASH 实播；不把模拟器帧统计称为人工听音。
+`src/upstream` 是按服务端协议移植的共享业务，`src/mobile` 是双端移动 UI，`src/platform` 是可替换平台契约。`public/` 与 `vendor/mediabunny/` 是运行时资源；更新上游时应做定向移植，保留本地桥、补丁和生成物边界。`patches/playsvideo+0.4.7.patch` 是媒体修复的安装时依赖，不能作为旧过程文件删除。
 
-非会员/服务端房主身份交叉、真实房间快速分 P/切 ep、生产穿透地址、LiveKit UDP/TCP 双向音频和真机蓝牙/后台/系统控件仍按交付记录列为待验收。Android 既有最低 API 24 与媒体能力限制保留，生成网页与 AAR 不提交。
+### 共享层与宿主的调用链
 
-## 2026-10-04：1.6.0 / 160 新服务端适配交付
+React 页面先调用 `src/platform/contracts.ts` 中定义的能力，再由 `runtime.ts` 选择 Capacitor 插件。`MainActivity.java` 注册插件，Java 宿主负责权限、WebView、系统媒体和到 Go 解析器的连接。新增平台能力时，应先确定请求参数、返回值、失败码和取消语义，再同步 HarmonyOS 的 `zviewerNative` 方法；仅在 Java 增加方法会使鸿蒙共享页面落入不可用状态。
 
-当前双端发布版本为 **1.6.0 / 160**，目标上游 `9827929088a31d7cb1d6bf7ceac096df640a2416`（v4.3.7 后 4 个提交）；已发布的 1.5.0 和下方历史验收记录仍按原版本解释。完整构建与验收边界见 [交付记录](releases/client-1.6.0-adaptation.md)。**iOS 尚未适配本次新服务端与 LiveKit，本轮无 IPA。**
+根目录 `npm run build` 的 `dist/` 会在 `android:sync` 后进入 Android `app/src/main/assets/public/`。`src/`、`public/` 和 `vendor/` 是源，生成的网页资源不能手工修复。上游服务端改动需要先确认 REST/Socket DTO 与房间权限，再将差异定向移植到 `src/upstream`，不要覆盖 `src/platform`、原生插件、本机连接通道、主题和本地媒体补丁。
 
-| 功能 | 维护入口与约束 |
+### 房间、播放与权限
+
+房间状态以服务端当前影片、片单和角色广播为权威。`roomStore.ts` 记录的影片 ID、CID、剧集和服务器逻辑 URL 跨设备一致；Go 本机代理的随机回环 URL 只能在当前设备解析/播放时产生，不能写进片单、缓存的逻辑身份或 Socket 广播。观众拿到播放状态早于片单元数据时，`useVideoSource` 应等待匹配影片资料；切 P/集、离房、切服或新请求开始后，旧解析结果必须失效。
+
+`MovieListPanel.tsx`、`MoviePushPanel.tsx` 和 `playlistOrder.ts` 管理片单展示、添加、排序。完整排列与 root/房主权限由共享层先校验，服务端仍作最终鉴权。清空片单使用单次服务端删除请求并等待权威广播；响应失败不能先清 UI。自动续播位于 `room/watch-together/autoContinue.ts`，只从最新片单选下一部；房间/角色/模式变更需取消等待中的推进。`src/upstream/modules/sync-playback/` 负责房主/观众心跳、seek 抑制和状态合并，播放控制改动必须联测媒体换源与自然结束。
+
+`src/upstream/modules/player/engines/` 根据媒体格式选择 MP4、HLS、DASH、FLV 或浏览器转码路径。`library-hls-proxy.ts` 处理媒体库主/子清单、相对分片与鉴权；`patches/playsvideo+0.4.7.patch` 修复 MKV cue 与 AAC 时间轴，`modules/subtitles/pgs-decoder.ts` 负责 PGS 位图。只有解析返回、Range=206 或容器识别成功，不代表设备解码成功；HEVC/Opus、ASS/PGS 与多音轨需按具体设备实播、拖动和字幕切换记录。
+
+### B站双实现与质量规则
+
+Android 的 `native/bilicore/core/wbi.go`、`pgc.go`、`resolver.go`、`quality.go` 与 `mobile/mobile.go` 构成 WBI、UGC/PGC、画质和本机 HTTP 代理链。根前端 `src/upstream/modules/bilibili/` 展示质量与解析状态。HarmonyOS 的 ArkTS WBI/Resolver 是独立实现：改签名、重排表、特殊字符编码、会员错误、分 P/集、DASH 音轨或业务 `result` 解析时，两边都要用同一固定输入向量与真实请求核对。普通画质自动选择要排除设备不兼容的 HDR/Dolby 档位；手选画质失败不能悄悄报告更高或不同轨道。
+
+账号登录且本机代理可用时，默认“自动最高”只在账号权限、真实轨道与设备解码能力允许的普通画质中选择；HDR/杜比档位不能只按 qn 数值自动选入。没有可播的 1080p 以上画质，或高画质恢复预算耗尽时，优先尝试真实可用的 720p；若源站不提供 720p，继续尝试实际可播的更低档位并显示真实画质。会员/地域/影片删除等权限错误不能靠降画质掩盖。用户手选画质后以手选为准，登录回调或代理重连不能擅自升档；切 P 与换片须重新核对当前媒体身份、实际轨道和音视频同步。
+
+`cliOnly` 影片必须先保持原有逻辑身份，只允许本机 CLI/本机账号路径解析。房主的桌面 `127.0.0.1` 地址不可能供观众设备使用，服务器代理兜底也不能突破 `cliOnly` 约束。Android 的服务器连接例外只作用于明确选择的 origin；随机私有通道供 HTTP、Range 与 WebSocket 使用，撤销时关闭在途请求。普通外域仍按系统 TLS 校验，不要全局关闭证书验证。
+
+### 音乐、语音、外观和系统能力
+
+`music/store.ts`、`MusicPlayerContext.tsx`、`hooks/useListenTogether.ts`、`personal-fm.ts` 管理队列、房间同步及私人漫游。默认音乐音量为 50%，已有有效本机音量优先；晚到的服务器设置不能覆盖刚完成的手动调整。房主私人漫游需等 `music:queue-upsert` 成功确认才推进，失败/超时保留候选，普通歌曲插播与离房停止旧请求。`voice-chat/hooks/useVoiceChat.ts` 使用服务端 `/api/voice/token` 给出的 LiveKit URL/token/identity；管理员禁言和用户主动闭麦是不同状态，离房/切服应释放音轨与音频路由。
+
+`MobileAppearance.tsx` 与 `appearance.css` 将主题变量提升到根节点，让 body Portal 的弹层也继承深浅主题、背景与玻璃参数；切主题不可重建视频/音频元素。`useNativeBack.ts` 依次处理顶层弹窗、播放器设置、全屏及离房；`PlayerDisplayPlugin.java` 按显式目标方向设置全屏，退出时恢复系统栏与自动旋转。`useSystemMediaSession.ts` 和 Java 媒体服务按 sessionId 所有权更新封面、进度、歌词与控制，旧播放器不得清除新会话。系统控制对观众仍要服从房间权限。
+
+### 常见故障定位
+
+| 现象 | 优先核对 |
 | --- | --- |
-| LiveKit 语音 | `modules/voice-chat/hooks/useVoiceChat.ts` 使用 `/api/voice/token/mute/kick`，使用返回 URL 和 identity；保留主业务 Socket、移动持久面板、原生麦克风权限和音频路由。重连中显示媒体中断，自动播放被阻止时提供恢复按钮。 |
-| 语音生命周期 | token/权限/connect/publish 用 generation 与取消控制；离房、切服、失败、被踢统一停止原始与处理后的音轨，关闭 AudioContext 并移除 audio。管理员禁言与用户主动闭麦分开保存。 |
-| 字幕与媒体 | `modules/subtitles/pgs-decoder.ts`、`mkv-embedded.ts`、`useSubtitles.ts`、`SubtitleOverlay.tsx` 完成有序 PGS 解码与画布定位；保留设备文本字幕偏好。`patches/playsvideo+0.4.7.patch` 由 postinstall 重现视频 cue/AAC 修复。 |
-| 本地弹幕 | `modules/danmaku/localImport.ts`、`DanmakuTrackCard.tsx` 支持 XML/JSON，5 MiB 输入与 20000 条限制；房间 JSON 请求不超过服务端 1 MiB 限制，失败回滚并反馈，不误报保存成功。Android 使用系统文档选择器，无全盘存储权限。 |
-| 网易云账号 | `useNcmLogin.ts`、`MusicCookieModal.tsx`、`MusicTopNav.tsx` 新增 Cookie 登录/主动复制；游客拒绝，业务 401 不触发会话刷新，关闭后清空临时输入。扫码和 B 站本机凭据体系保留。 |
+| 网页已修复但 APK 仍旧 | `npm run android:sync` 是否重建并复制最新 `dist`；包内资源摘要是否与输出一致。 |
+| B站能解析却黑屏/无声 | 实际选中的视频/音频轨道、CDN Range、WebView 解码器和原生代理请求；区分 WBI/权限、CDN 和编解码失败。 |
+| 观众反复换源或跳回旧进度 | current-movie 与片单到达顺序、movieId/CID、请求代次、主动 seek 抑制及旧心跳。 |
+| 自签服务器 API 可用但媒体/Socket 失败 | selected origin、原生私有通道、Range/WS Upgrade、路径前缀与撤销后的连接清理。 |
+| 后台系统控件失效 | `SystemMediaSessionPlugin`、`PlaybackService`、媒体 sessionId、权限与前后台生命周期；构建通过不等于锁屏实测。 |
+| 浅色弹窗文字或模糊异常 | 根 CSS 变量、Portal 边界、播放器黑色画布和内部面板叠加的 blur/文字阴影。 |
 
-Android 调试 APK 已在 Medium Phone 模拟器安装。与隔离新服务端、鸿蒙和桌面 SDK 三方联调，远端解码电平非零、桌面接收到 Android 上传媒体字节；管理静音/解禁/踢出、收起面板、本地弹幕保存/观众拒绝与回滚、Cookie 错误/空值和弹窗布局均通过。系统选择器实际返回带中文内容的 XML；H.264/AAC 测试片解码、PGS 定位和现有 639 MB MKV 的 467 条 ASS 提取通过。18 项自动回归通过。
+## 验证矩阵
 
-正式交付为 `com.zviewer.mobile` 的 1.6.0 / 160 Release APK，使用既有发布密钥，apksigner 验证通过，证书 SHA-256 与 1.3.0 一致。用户已确认鸿蒙纯外网域名语音可连接，见 [发行说明](releases/client-1.6.0.md)。真机可听性、蓝牙/耳机、首次拒绝权限后重试、后台锁屏通话、生产代理 UDP/TURN，以及真实长片多次 seek/字幕跨端广播仍需独立验收；不得将模拟器媒体统计当成人工听音结论。旧 v4.2.1 语音协议不受此版本支持。
+每次媒体/房间改动至少覆盖登录与切服、房主/观众权限、添加/切片/清空、播放暂停和 seek、字幕/弹幕、离房重入、一起听及语音释放。B站变更补本机登录态/游客态、普通 BV、多 P、PGC、DASH 双轨、真实画质和账号不足错误。平台能力变更补横竖屏/全屏恢复、系统媒体控制、来电/耳机/蓝牙及后台。记录来源属于单元测试、浏览器夹具、模拟器还是物理设备，不得把其中一个层级写成另一个层级的验收。
 
-本轮 iOS 对齐补充：以共享 MusicHomePage/MusicDailyPage/MusicFmPage/DanmakuSearchModal 为参考，新增整份歌单替换或追加、连续漫游、来源下拉与双列弹幕选集、横竖菜单切换、音乐首页卡及日推历史日期。仅 iOS RN 业务与维护资料修改；本端原生和共享运行代码未改、未重新发布。69 项单测与隔离 v4.2.1 的 Web/协议检查通过，真机和完整权限差异保留；没有 EAS 云构建。详见 [预览补充](releases/ios-1.5.0-15-followup-preview.md)。
+## 构建与维护顺序
 
-源码核对基线：`client-v1.5.0`，提交 `1ca96fd46963ff5cb89beb6c3d31e1d7b9f501fc`。2026-10-02 已将该标签的共享前端、Android/HarmonyOS 原生源码及版本文件同步至指定仓库 `E:/Codex-bulid/ZViewer/ZViewer-client`，保留 iOS b12 源码与证据。下述新增路径现已在本目录可读，亦可用 `git show client-v1.5.0:<路径>` 复核。见 [本地同步与验证](client-1.5.0-local-sync-2026-10-02.md)。本次构建验证不代表新增设备验收。
+1. 对照本地服务端源码和既有 REST/Socket 事件、DTO、角色权限，列出影响 Android、HarmonyOS 和 iOS 的行为差异；只把所需共享逻辑定向移植到本仓库。涉及平台契约、B站签名或媒体解析时同步检查 HarmonyOS 的独立实现和维护文档。
+2. 运行 `npm run test:adaptation`、`npm run test:media`、`npm run build`；Go 核心改动另在 `native/bilicore` 运行 `go test ./...`。
+3. 执行 `npm run android:sync`，让 Capacitor 重新生成 Android 网页资源；AAR 由 `scripts/build-bilicore.mjs` 构建，发布时使用 `gomobile bind -trimpath -ldflags="-s -w"` 并扫描本机路径/账号泄露。
+4. 在 `ZV-Android` 构建相应 Debug/Release APK，核对版本、签名证书、包内资源和 SHA-256。完成一个可交付版本后在本仓库本地提交。
 
-## 1. 当前开发进程
-
-| 客户端 | 当前状态 | 维护结论 |
-| --- | --- | --- |
-| Android | 发布版本 1.8.0 / 180；既有签名 APK | 对齐 v4.5.3；功能验证与设备边界见上方本轮及 1.7.6 记录 |
-| HarmonyOS | 发布版本 1.8.0 / 180；ArkWeb 正式签名 HAP | 与 Android 同步发布；不沿用历史版本的真机验收结论 |
-| iOS | 独立已发布 1.5.1；本地候选 1.7.5 / build 17 | 本轮未构建或发布；候选与后续源码修复边界见 [iOS 维护文档](ios-maintenance-architecture.md) |
-
-当前 Android 的发布入口是 `ZV-Android/`，网页入口是仓库根目录的 `src/`。`ZV-HarmonyOS/` 不应复制 Android Gradle 或 Java 代码；它通过 ArkWeb 加载同一份 `dist/`。
-
-1.3.5 的一起听导航在 Android 手机、横屏和平板固定折叠，忽略旧的展开偏好；播放器下箭头增加浅色圆形底板。修改共享组件后同步两端，维护位置与回归清单见 [双端维护与发布](mobile-release-maintenance.md#一起听界面维护135)。
-
-1.5.0 新增原生系统播放控件、封面及歌词同步，完善后台播放和自动旋转，修复横屏安全区、头像与追加视频弹窗。一起看采用中间双击播放、全屏左右双击跳转15秒；一起听仅在视频全屏使用相同手势。用户已确认双端测试全部通过，维护位置与正式构建验收见 [1.5.0 发布记录](releases/client-1.5.0.md)。
-
-## 2. 代码归属边界
-
-### 2.1 Android 与 HarmonyOS 共同维护
-
-| 代码 | 作用 | 修改后的动作 |
-| --- | --- | --- |
-| `src/App.tsx` | 服务端地址、账号/游客登录、会话恢复、房间列表和创建入口；Android 房间与首页共用外观壳 | 先完成浏览器构建，再分别同步 Android/HarmonyOS |
-| `src/mobile/` | 移动端房间壳、返回键、旋转、B 站账号入口、音乐音频路由和全局外观入口 | 业务行为在这里统一；原生调用只能经过 `src/platform/` |
-| `src/upstream/` | 播放器、同步观影、一起听、语音、屏幕共享、弹幕、字幕、音乐及挂载浏览器 | 共享功能升级的主要位置；避免写平台判断分支 |
-| `src/platform/contracts.ts` | 原生能力的行为契约和返回数据类型 | 新增原生能力时先扩展契约，再分别实现宿主 |
-| `src/platform/bilibiliProxy.ts`、`runtime.ts` 等 | 运行时识别、B 站代理、显示、生命周期、音频和权限适配 | 保持 Android Capacitor 和 HarmonyOS `zviewerNative` 的兼容语义 |
-| `public/`、`vendor/mediabunny/` | 图标、字体、工作线程和网页媒体依赖 | 共享前端资源；改动后重新构建网页包 |
-| `vite.config.ts`、`tsconfig*.json`、`capacitor.config.ts`、`package.json` | 构建和依赖配置 | Android/HarmonyOS 共用根依赖；不要在平台目录重复安装网页依赖 |
-| `native/bilicore` 中的解析规则和接口约定 | B 站账号权限、WBI、DASH 轨道和回退行为的参考实现 | 行为要与 HarmonyOS ArkTS 版本保持一致；源文件本身不是同一个运行时产物 |
-
-### 2.2 Android 独自维护
-
-| 路径 | 内容 | 维护要点 |
-| --- | --- | --- |
-| `ZV-Android/app/src/main/java/com/zviewer/mobile/MainActivity.java` | 注册 Capacitor 插件和宿主生命周期 | 插件注册名不能随意改变 |
-| `ZV-Android/app/src/main/java/com/zviewer/mobile/BilibiliProxyPlugin.java` | 调用 Go Mobile API、二维码登录、状态查询、退出和二维码保存 | Cookie 只留在原生/Go 侧；JS 只接收脱敏状态 |
-| `ZV-Android/app/src/main/java/com/zviewer/mobile/PlayerDisplayPlugin.java` | 旋转、沉浸式显示、解除锁定 | 与 `src/platform/playerDisplay.ts` 的方法名保持一致 |
-| `ZV-Android/app/src/main/java/com/zviewer/mobile/AudioRoutingPlugin.java` | 一起听与语音之间的媒体音频路由 | 只处理系统音频会话，不把业务状态搬入 Java |
-| `SystemMediaSessionPlugin.java`、`PlaybackService.java`、`PlaybackWebView.java` | 系统媒体控件、封面、媒体前台服务与播放期间的 WebView 后台管线 | JS 持有播放状态和房间权限；暂停/离开释放播放锁，离开销毁媒体服务；对应布局为 `capacitor_bridge_layout_main.xml` |
-| `ZV-Android/app/src/main/AndroidManifest.xml`、Gradle 文件和资源 | 权限、包名、启动页、签名和 Android 构建 | 证书、密码、本机 SDK 路径不进仓库 |
-| `native/bilicore/core/`、`native/bilicore/mobile/` | Go B 站解析、代理、二维码和移动绑定 | 修改时同时考虑 AAR 构建和 Android WebView 播放链路 |
-| `scripts/build-bilicore.mjs` | 从 Go 源码生成 Android AAR | Android 构建自动调用；不要手工提交生成的 AAR |
-
-### 2.2.1 Android 1.3.0 全局外观适配（历史）
-
-以下仅描述 1.3.0 外观改动，当时没有新增 Java 插件或改变服务端协议；1.5.0 已新增系统媒体插件与服务，不能沿用“没有新增插件”的结论。外观改动集中在共享移动网页层，通过 isGlobalAppearanceRuntime() 同时在 Android 与 HarmonyOS 启用：
-
-| 文件 | 改动 | Android 结果 |
-| --- | --- | --- |
-| `src/App.tsx` | 将房间内容与首页内容统一放进 `MobileAppearance`；Android 房间不再绕过背景引擎 | 背景图片、遮罩、位置、缩放、旋转、深浅模式和玻璃参数在页面切换时保持一致 |
-| `src/mobile/MobileAppearance.tsx` | 增加 `global`、`room` 作用域；把主题属性和 CSS 变量同步到 `document.documentElement`；支持 `mobile-appearance-open` 事件 | 渲染到 `body` 的弹窗、播放器设置和消息提示也能读取外观参数；房间内可从设置打开外观面板 |
-| `src/mobile/MobileRoom.tsx` | 房间设置增加“外观设置”入口；在 Android 与 HarmonyOS 显示 | 不在播放器控制区域叠加悬浮按钮，减少误触 |
-| `src/mobile/appearance.css` | 增加房间标题栏、面板、语音面板、弹层和全局 Material/玻璃变量映射；保留播放器黑色画布 | 观影和一起听页面使用同一套背景与玻璃视觉，同时保持视频控件可读性 |
-| `src/platform/runtime.ts` | `isGlobalAppearanceRuntime()` 识别 Android 与 HarmonyOS | Android 与鸿蒙共用外观壳；iOS 独立工程保持不变 |
-
-播放器元素不会因为主题变化而重建；H.264 测试视频、横竖屏、全屏、返回键、房间模式切换和主题持久化已在 Android 模拟器验证。
-
-### 2.3 HarmonyOS 独自维护
-
-HarmonyOS 代码见 [HarmonyOS 应用维护架构](harmonyos-maintenance-architecture.md)。Android 不直接引用以下文件：
-
-- `ZV-HarmonyOS/entry/src/main/ets/pages/Index.ets`：ArkWeb、本地资源拦截、权限和返回事件。
-- `ZV-HarmonyOS/entry/src/main/ets/services/BilibiliResolver.ets`：ArkTS WBI、画质选择和 DASH 结果整理。
-- `ZV-HarmonyOS/entry/src/main/ets/services/BilibiliLocalProxy.ets`：回环 HTTP 代理、Range/HEAD、CDN 白名单和备用地址。
-- `ZV-HarmonyOS/entry/src/main/ets/services/BilibiliCredentialStore.ets`：凭据安全存储。
-- `ZV-HarmonyOS/scripts/bridge-bootstrap.js`：把 `zviewerHost` 请求桥接为网页使用的 `window.zviewerNative`。
-
-## 3. 当前功能与代码入口
-
-| 功能 | 共享代码 | Android 独有代码 | 维护说明 |
-| --- | --- | --- | --- |
-| 服务端连接、账号/游客登录、令牌刷新、会话恢复 | `src/App.tsx`、`src/upstream/lib/api.ts`、`src/upstream/store/authStore.ts`、`src/upstream/hooks/useSocket.ts` | 无额外业务实现 | API、Socket 事件和本地会话变更先改共享层 |
-| 房间列表、创建、加入、密码/审批、离开和房主状态 | `src/App.tsx`、`src/mobile/MobileRoom.tsx`、`src/mobile/useMobileRoom.ts`、`src/upstream/store/roomStore.ts` | 无额外业务实现 | 服务端权限仍是最终校验；移动端只负责交互和状态展示 |
-| 同步观影、播放/暂停/拖动、房主/观众同步 | `src/upstream/modules/room/watch-together/`、`src/upstream/modules/sync-playback/`、`src/upstream/modules/player/` | WebView 媒体能力由 Android 系统提供 | 播放器、同步和源解析要一起回归 |
-| 片单、影片切换、分集和弹幕轨道 | `MovieListPanel.tsx`、`MoviePushPanel.tsx`、`useWatchTogether.ts`、`src/upstream/modules/danmaku/` | 无额外业务实现 | B 站分 P 缓存和权限由共享状态配合原生解析状态完成 |
-| B 站扫码登录、自动最高普通画质、手动选档、失败回退 | `src/mobile/BilibiliAccount.tsx`、`src/upstream/modules/bilibili/`、`src/platform/bilibiliProxy.ts` | `BilibiliProxyPlugin.java`、`native/bilicore/` | 共享层只处理产品规则和 UI；Cookie、二维码和代理不能进入房间广播 |
-| MP4/MKV、DASH、HLS、FLV、FLAC 等媒体路径 | `src/upstream/modules/player/engines/`、`vendor/mediabunny/`、`src/upstream/lib/mediaFormat.ts` | Android WebView/系统解码器 | 具体编码支持取决于设备，不能只依据解析成功判断可播放 |
-| 一起听、音乐队列、歌词和音乐房间同步 | `src/upstream/modules/music/`、`src/mobile/useMusicAudioRouting.ts` | `AudioRoutingPlugin.java` | 修改音频模式时检查语音和音乐同时开启的路由 |
-| 语音聊天、麦克风权限、静音和成员状态 | `src/upstream/modules/voice-chat/`、`src/platform/permissions.ts` | Android 权限声明和 WebView 音频行为 | 权限拒绝、恢复前台和耳机切换要在真实设备验证 |
-| 屏幕共享观看 | `src/upstream/modules/screen-sharing/` | 无采集端实现；Android 只观看桌面端推流/WebRTC | 移动端不提供发起屏幕采集 |
-| 字幕、弹幕、评论和聊天 | `src/upstream/modules/subtitles/`、`src/upstream/modules/danmaku/`、`src/upstream/components/CommentPanel.tsx` | 无额外业务实现 | 字体、缩放和安全区由移动 CSS 与 WebView 布局共同影响 |
-| FTP、WebDAV、OpenList、Emby、Jellyfin、服务端文件和直链 | 对应 `src/upstream/modules/{ftp,webdav,openlist,emby,jellyfin,server-files,direct-link}/` | 无额外业务实现 | 这些源仍受服务端权限和媒体格式限制 |
-| 旋转、沉浸式显示、返回键、最小化和生命周期 | `src/mobile/PlayerDisplayControls.tsx`、`src/mobile/useNativeBack.ts`、`src/platform/{playerDisplay,lifecycle}.ts` | `PlayerDisplayPlugin.java`、`MainActivity.java`、Manifest | 原生插件只实现系统动作，页面状态由 React 管理 |
-
-## 4. Android 升级顺序
-
-系统媒体与旋转的维护契约、生命周期及后台验收条件见 [双端维护与发布](mobile-release-maintenance.md#系统媒体控件后台播放与旋转2026-10-01)。一起看也需要系统媒体会话，不能仅对一起听创建后台服务。默认方向与解除手动锁定都使用 FULL_USER，尊重设备的自动旋转设置。
-
-1. 先判断需求属于共享业务、平台契约还是 Android 宿主。
-2. 共享业务改 `src/`，完成 TypeScript/Vite 构建后再执行 `npm run android:sync`。
-3. 需要系统能力时，先在 `src/platform/contracts.ts` 定义最小接口，再实现 Java 插件。
-4. B 站解析规则变化时，同时检查 `native/bilicore`、`BilibiliProxyPlugin` 和网页的 `useBilibiliQuality`。
-5. Android 版本号、包名、签名和权限只改 `ZV-Android/`；发布密钥始终放在仓库外。
-
-## 5. 维护检查清单
-
-- 共享网页改动：构建根项目，确认产物后同步 Android 和 HarmonyOS。
-- 全局外观由 `isGlobalAppearanceRuntime()` 在 Android/HarmonyOS 同时启用；`appearance.css` 是两端颜色、玻璃与移动布局的共同来源。浅色设置 dialog 重新绑定主题变量并取消文字阴影；内部 main/side 不叠加模糊，弹幕分组透明；B 站账号入口使用主题强调色。
-- 原生桥接改动：检查插件/代理名称、方法名、错误返回和生命周期。
-- B 站改动：确认 Cookie 不出原生侧，代理仍只监听回环地址，房间不广播本机代理 URL。
-- 原生安全区：Android `MainActivity` 用 WindowInsets、HarmonyOS `Index.ets` 用 WindowAvoidArea 同步动态 CSS 安全区；检查全屏/横竖屏、主题系统栏图标及恢复状态。
-- B 站播放时序：媒体状态、current-movie 与 movie-list 到达次序不固定。移动端需等当前影片 DTO 到达再解析；房主 `127.0.0.1:9333` 是房主设备本机 CLI 地址，不可交给其他设备播放。客户端本机代理使用独立随机端口，并保留 CDN 签名查询参数与 Range。
-- 设备回归：检查本机 B 站登录、高画质/实际编解码、真实 CDN Range/206、延迟列表竞态且无远端 CLI 回环请求；浅色文字对比与播放器设置不能出现第二层淡白色 blur。
-- 播放器改动：分别检查单轨、DASH 双轨、Range、seek、暂停恢复和前后台切换。
-- 发布改动：核对 `CHANGELOG.md`、`docs/releases/`、版本号和签名，不提交 APK、AAR、密钥或日志。
-
-## 6. 1.5.0 新增维护入口与回归
-
-Android 系统入口为 `SystemMediaSessionPlugin.java → PlaybackService.java`，播放期间持有 PARTIAL_WAKE_LOCK，`PlaybackWebView.java` 按播放状态维持媒体管线；暂停释放锁，离开销毁服务。默认/解锁使用 FULL_USER。歌词兼容键与通知当前行不代表所有系统都有完整歌词页。
-
-| 能力 | 共享源码入口（仓库相对路径） | 维护要求 |
-| --- | --- | --- |
-| 系统媒体 | `src/mobile/useSystemMediaSession.ts`、`src/platform/{contracts,mediaSession}.ts`；`src/upstream/modules/room/watch-together/WatchTogetherCore.tsx` 与音乐 `hooks/useMediaSession.ts` | 一起看/一起听均接入；sessionId/actions 校验，业务秒/系统毫秒，观众命令经过审批；旧播放器只能清理自己的会话 |
-| 歌词与封面 | `src/upstream/modules/music/hooks/useSystemLyrics.ts`、`utils/lyricRequest.ts` | 合并请求、20 项/5 分钟缓存、LRC 上限 65536 字符；媒体桥接上限 262144 字符；切无歌词曲清空，旧图片回调不能覆盖新曲 |
-| 旋转与手势 | `src/mobile/PlayerDisplayControls.tsx`、`src/platform/playerDisplay.ts`、`src/mobile/videoGestures.ts`；`useWatchGestures.ts`、`useMusicVideoGestures.ts` | 首次切换锁定、再次自动；中心双击播放，全屏侧边 ±15 秒；音乐仅纯净模式启用并操作音频；单击显示控件 |
-| 音乐 UI | `src/upstream/modules/music/components/{MusicTopNav,MusicAppShell,MusicVideoModal}.tsx`、`hooks/useBackgroundVideoSync.ts`、`utils/neteaseImage.ts` | 宽屏仍折叠、44px 可见关闭区、背景铺满/前景避让、弹窗与键盘滚动、头像占位、删除后同源重加重新加载 |
-
-系统控件权限、真正后台音频、旧会话清理、歌词快切、系统旋转锁和触屏去重需单独回归。后台不能只看 paused=false；需确认后台状态、时间推进和实际音轨输出。历史解码限制继续保留。所有客户端修改及 Git 操作统一在指定 ZViewer-client 仓库完成，遵循根 Agents.md。
-
-## 7. 文档入口
-
-- 双端版本、清理与发布步骤：[`mobile-release-maintenance.md`](mobile-release-maintenance.md)
-- 当前 1.8.0 发行说明：[`releases/client-1.8.0.md`](releases/client-1.8.0.md)
-
-- 共享移植边界：[`PORTING.md`](../PORTING.md)
-- Android v4.2.1 适配记录：[`android-v4.2.1-adaptation-report.md`](android-v4.2.1-adaptation-report.md)
-- Android 全局外观适配：[`android-global-appearance.md`](android-global-appearance.md)
-- 鸿蒙同步适配方案：[`harmonyos-global-appearance-sync-plan.md`](harmonyos-global-appearance-sync-plan.md)
-- HarmonyOS 维护架构：[`harmonyos-maintenance-architecture.md`](harmonyos-maintenance-architecture.md)
-- iOS 后续开发：[`ios-continuation-plan.md`](ios-continuation-plan.md)
-
-## 2026-10-02 iOS 界面对齐交接
-
-双端继续共用 src/，iOS 使用 RN + VLC。mobileDesign、Surface/AppDialog、来源下拉/集中选集移植产品布局与字段；默认背景复用 public/Nacho3.jpg，首页 B站账号改为可见文字，标题/提示有主题底色，竖屏评论位于视频下方。59 单测、29 首页/59 房间/21 来源 Web、24 Yoga 通过；只修改 iOS 与维护文档，未改双端程序。本轮无新增 EAS Build/Update 或 IPA，继续 Expo Go 预览；I13 后台业务 Socket 和原生等效验收保持待完成。详见 [b15 预览](releases/ios-1.5.0-15-preview.md)。
-
-### 2026-10-02 展开音乐播放器补充
-
-展开页重做为共享双端的播放卡/图标工具栏/独立完整歌词结构；iPad 竖屏双栏，窄屏手机切换歌词，短横屏压缩控件，封面明确宽高防止拉伸。新增 31 项播放页 Web 和既有 59 项房间复验均通过，0 JS 异常；59 单测、lint/typecheck 和 iOS/Web 导出通过。源码编号仍为 15，无新云端构建/更新或 IPA，继续 Expo Go Reload。原生安全区、大字体、旋转、VLC 出声和后台限制仍待设备验证。详见 [音乐页补充](releases/ios-1.5.0-15-music-preview.md)。
-
-### 2026-10-02 音乐首页横幅与滑动补充
-
-iOS 横幅改为加载原始宽图并等比铺满，去掉仅用于专辑封面的 CDN 方图裁切；支持手动左右滑动、双向首尾循环和定位条，短拖动/竖向滚动不切图，手动操作避开自动轮播。70 单测、60 项 RN Web/CDP 触摸与既有功能检查、lint/typecheck、本地 iOS/Web 导出通过；这不是 UIKit 真机通过证明。只修改 iOS 与维护记录，双端程序未变；没有新增 EAS Build/Update 或 IPA，继续 Expo Go Reload。
-详见 [横幅补充](releases/ios-1.5.0-15-banner-preview.md)。
-
-### 2026-10-02 iOS 发布交接
-
-用户确认 iOS 真机 UI 通过；本轮 iOS 对齐版本 1.5.0，以未签名 IPA 独立发布。Android/鸿蒙源码已与现有 client-v1.5.0 发布提交核对一致，未重新构建双端包。由于 Expo Build 的额度限制，iOS 端更新与错误修复会出现延迟，不会与 Android/鸿蒙两端同步完成（除非有人有 Mac 帮忙编译）。
-
-
-## 2026-10-09 1.7.1 Kazumi 与授权切片修复
-
-共享 HLS loader 支持 Kazumi/AniSubs 代理上游基址及防盗链参数继承，避免重复代理和相对子清单错误；媒体鉴权先还原所选服务器逻辑 URL，再映射本机通道，token 仅附到同源 API。MobileRoom 只在首次播放器挂载传入恢复记录，切回原片不再恢复旧暂停状态。保留 src/platform/ 连接边界与既有原生播放策略。
-
-31 项适配、4 项媒体回归和 Android/HarmonyOS debug 构建通过；浏览器房主 + 已授权普通用户在两个模拟器顺序测试 Kazumi《成神之日》1/2/3 集，1280×720 解码、时间推进及切片同步通过。详见 [本地验收](watch-kazumi-local-validation-20261009.md)。服务端权限矩阵查询与浏览器事件修复见 [PR #11](https://github.com/Zero-wyc/ZViewer/pull/11)，NAS 未改动，完整生效需要后续更新服务端网页/后端及 App。此次未发布正式版本，未覆盖物理设备或 iOS；鸿蒙交付为 unsigned debug HAP。
-
-
-## 2026-10-09：1.7.1 / 171 正式发布
-
-用户确认双端测试通过并授权发布 [ZViewer-Client V1.7.1](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.7.1)。正式签名 APK/HAP 沿用已有发布证书，校验版本、签名和共享资源；源码推送 Zero-wyc/ZViewerAPP 的 main，移除跟踪的 AGENTS.md 并加入忽略规则，排除测试账号、配置和签名私钥。Release 附件仅 APK、HAP、SHA256SUMS.txt，源码采用 GitHub 自动生成的 zip/tar.gz。此前 debug 联调记录保留其当时的验收边界；本次用户确认不补写未知真机型号或专项测量数据。
-
-服务端修复仍由 [PR #11](https://github.com/Zero-wyc/ZViewer/pull/11) 交付；NAS 未改动，完整切片修复需要服务端前后端和 App 一并更新。本次不构建 iOS IPA。
+不要把 `dist/`、Android `build/`、`app/libs/`、本地签名配置或测试截图提交为源码。浏览器夹具、模拟器、构建和安装包检查只证明对应层级；真机播放、后台音频、旋转、蓝牙与跨端同步须单独记录实际设备结果。历史版本与发行记录可由 Git 历史及 GitHub Releases 查询。

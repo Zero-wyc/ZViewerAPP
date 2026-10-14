@@ -18,7 +18,7 @@ On Windows use `gradlew.bat`.
 The native AAR is generated automatically by Gradle; do not commit it.
 Debug uses package `com.zviewer.mobile.debug`, so it can coexist with release.
 
-Use the Android and HarmonyOS device acceptance checklists in `docs/` for native
-verification. Do not commit build outputs,
-SDK paths, signing keys, account cookies or user recordings. Preserve upstream
-licenses and record changes to the embedded Go fork and media library.
+Use the platform maintenance documents in `docs/` for code ownership, build
+steps and native acceptance boundaries. Do not commit build outputs, SDK paths,
+signing keys, account cookies or user recordings. Preserve upstream licenses
+and record changes to the embedded Go fork and media library.
