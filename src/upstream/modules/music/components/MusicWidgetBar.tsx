@@ -80,7 +80,7 @@ export function MusicWidgetBar() {
   const positionSec = usePlaybackPosition(0.5)
 
   const setPlayerOverlayOpen = useMusicStore((s) => s.setPlayerOverlayOpen)
-  const setQueuePopupOpen = useMusicStore((s) => s.setQueuePopupOpen)
+  const openQueuePopup = useMusicStore((s) => s.openQueuePopup)
   const setPendingAlbumDetail = useMusicStore((s) => s.setPendingAlbumDetail)
   const setPage = useMusicStore((s) => s.setPage)
   const loginStatus = useMusicStore((s) => s.loginStatus)
@@ -678,7 +678,7 @@ export function MusicWidgetBar() {
           <button
             type="button"
             className="flex h-5 w-5 items-center justify-center text-[var(--md-sys-color-on-surface)] transition-transform hover:opacity-70 active:scale-90"
-            onClick={() => setQueuePopupOpen(true)}
+            onClick={() => openQueuePopup('widget')}
             title="播放队列"
             aria-label="播放队列"
           >

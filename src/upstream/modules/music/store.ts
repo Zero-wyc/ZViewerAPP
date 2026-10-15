@@ -176,6 +176,10 @@ export interface MusicState {
   playerOverlayClosing: boolean
   /** 队列弹窗（MusicQueuePopup）开关 */
   queuePopupOpen: boolean
+  /** 队列弹窗归属：widget = 主框架底栏；player = 完整播放器。两处入口
+   *  共用同一开关，只允许归属方渲染/切换，避免完整播放器打开时
+   *  底层弹窗（尤其 sheet placement）误挂在视口 */
+  queuePopupOwner: 'widget' | 'player'
   /** 网易云扫码登录弹窗开关 */
   loginModalOpen: boolean
   /** 待打开的专辑详情（播放条「查看专辑」跨页跳转目标；我的音乐页消费后置空） */
@@ -224,8 +228,11 @@ export interface MusicState {
   setPlayerOverlayOpen: (open: boolean) => void
   /** 带滑出动画关闭完整播放器覆盖层（0.5s 后卸载） */
   closePlayerOverlay: () => void
-  /** 设置队列弹窗开关 */
-  setQueuePopupOpen: (open: boolean) => void
+  /** 按归属打开或切换队列弹窗 */
+  openQueuePopup: (owner: 'widget' | 'player') => void
+  toggleQueuePopup: (owner: 'widget' | 'player') => void
+  /** 仅关闭当前归属方的弹窗，忽略已卸载入口的迟到回调 */
+  closeQueuePopup: (owner: 'widget' | 'player') => void
   /** 设置登录弹窗开关 */
   setLoginModalOpen: (open: boolean) => void
   /** 设置待打开的专辑详情（null 清除；写入后应切页到 mymusic 消费） */
@@ -268,9 +275,21 @@ const defaultState = {
   playerOverlayOpen: false,
   playerOverlayClosing: false,
   queuePopupOpen: false,
+  queuePopupOwner: 'widget' as 'widget' | 'player',
   loginModalOpen: false,
   pendingAlbumDetail: null,
   pendingMyDetail: null,
+}
+
+let overlayCloseTimer: ReturnType<typeof setTimeout> | undefined
+
+function cancelOverlayClose() {
+  if (overlayCloseTimer !== undefined) clearTimeout(overlayCloseTimer)
+  overlayCloseTimer = undefined
+}
+
+function canOpenQueue(state: MusicState, owner: 'widget' | 'player') {
+  return !state.playerOverlayClosing && state.playerOverlayOpen === (owner === 'player')
 }
 
 export const useMusicStore = create<MusicState>((set) => ({
@@ -345,23 +364,50 @@ export const useMusicStore = create<MusicState>((set) => ({
     }
   },
   setSearchKeywords: (keywords) => set({ searchKeywords: keywords }),
-  setPlayerOverlayOpen: (open) => set({ playerOverlayOpen: open }),
+  setPlayerOverlayOpen: (open) => {
+    cancelOverlayClose()
+    set({
+      playerOverlayOpen: open,
+      playerOverlayClosing: false,
+      queuePopupOpen: false,
+      queuePopupOwner: open ? 'player' : 'widget',
+    })
+  },
   /** 带滑出动画关闭完整播放器覆盖层：先标记 closing（0.5s 滑出动画），
    *  动画结束后真正卸载（对应 Hydrogen .player-leave 过渡） */
   closePlayerOverlay: () => {
-    set({ playerOverlayClosing: true })
-    setTimeout(() => {
-      set({ playerOverlayOpen: false, playerOverlayClosing: false })
+    cancelOverlayClose()
+    set({ playerOverlayClosing: true, queuePopupOpen: false })
+    overlayCloseTimer = setTimeout(() => {
+      overlayCloseTimer = undefined
+      set({
+        playerOverlayOpen: false,
+        playerOverlayClosing: false,
+        queuePopupOpen: false,
+        queuePopupOwner: 'widget',
+      })
     }, 500)
   },
-  setQueuePopupOpen: (open) => set({ queuePopupOpen: open }),
+  openQueuePopup: (owner) =>
+    set((s) => canOpenQueue(s, owner) ? { queuePopupOwner: owner, queuePopupOpen: true } : {}),
+  toggleQueuePopup: (owner) =>
+    set((s) =>
+      !canOpenQueue(s, owner) ? {} : s.queuePopupOwner === owner
+        ? { queuePopupOpen: !s.queuePopupOpen }
+        : { queuePopupOwner: owner, queuePopupOpen: true }
+    ),
+  closeQueuePopup: (owner) =>
+    set((s) => (s.queuePopupOwner === owner ? { queuePopupOpen: false } : {})),
   setLoginModalOpen: (open) => set({ loginModalOpen: open }),
   setPendingAlbumDetail: (d) => set({ pendingAlbumDetail: d }),
   setPendingMyDetail: (d) => set({ pendingMyDetail: d }),
   /** 重置为初始状态（离开房间时调用；页面记忆仅应用加载时恢复，
    *  此处回到「进入一起听默认页」设置对应页面：创建/切换/离开房间
    *  再进入时恒落到用户配置的网易云首页或哔哩哔哩页） */
-  reset: () => set({ ...defaultState, page: defaultMusicPage() }),
+  reset: () => {
+    cancelOverlayClose()
+    set({ ...defaultState, page: defaultMusicPage() })
+  },
   resetPlayback: () =>
     set({
       queue: [],

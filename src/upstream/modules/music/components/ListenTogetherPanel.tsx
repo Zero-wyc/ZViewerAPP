@@ -185,7 +185,8 @@ function ListenTogetherInner({
 
   const closePlayerOverlay = useMusicStore((s) => s.closePlayerOverlay)
   const queuePopupOpen = useMusicStore((s) => s.queuePopupOpen)
-  const setQueuePopupOpen = useMusicStore((s) => s.setQueuePopupOpen)
+  const queuePopupOwner = useMusicStore((s) => s.queuePopupOwner)
+  const toggleQueuePopup = useMusicStore((s) => s.toggleQueuePopup)
   const loginStatus = useMusicStore((s) => s.loginStatus)
 
   // 手机竖屏：完整播放器切上下单列（封面+控制在上、歌词在下）；
@@ -838,8 +839,8 @@ function ListenTogetherInner({
               biliCollecting={biliCollecting}
               onBiliCollect={handleBiliCollect}
               onOpenBiliFavModal={() => setBiliFavModalOpen(true)}
-              queuePopupOpen={queuePopupOpen}
-              onToggleQueuePopup={() => setQueuePopupOpen(!queuePopupOpen)}
+              queuePopupOpen={queuePopupOpen && queuePopupOwner === 'player'}
+              onToggleQueuePopup={() => toggleQueuePopup('player')}
               queuePlacement={toolbarScrollable ? 'sheet' : 'side'}
               socket={socket}
               roomId={roomId}
@@ -921,8 +922,8 @@ function ListenTogetherInner({
               songId={songId}
               onAddMusicVideo={() => setShowMusicVideo(true)}
               getBiliSourceUrl={buildBiliSourceUrl}
-              queuePopupOpen={queuePopupOpen}
-              onToggleQueuePopup={() => setQueuePopupOpen(!queuePopupOpen)}
+              queuePopupOpen={queuePopupOpen && queuePopupOwner === 'player'}
+              onToggleQueuePopup={() => toggleQueuePopup('player')}
               socket={socket}
               roomId={roomId}
               canManage={canManage ?? isHost}

@@ -134,6 +134,7 @@ function ShellInner({
   const playerOverlayOpen = useMusicStore((s) => s.playerOverlayOpen)
   const playerOverlayClosing = useMusicStore((s) => s.playerOverlayClosing)
   const queuePopupOpen = useMusicStore((s) => s.queuePopupOpen)
+  const queuePopupOwner = useMusicStore((s) => s.queuePopupOwner)
   const loginModalOpen = useMusicStore((s) => s.loginModalOpen)
   const setLoginModalOpen = useMusicStore((s) => s.setLoginModalOpen)
   // 带滑出动画的覆盖层关闭（0.5s 滑出后卸载）
@@ -420,14 +421,17 @@ function ShellInner({
         )}
       >
         <MusicWidgetBar />
-        {queuePopupOpen && (
-          <MusicQueuePopup
-            socket={socket}
-            roomId={roomId}
-            isHost={isHost}
-            canManage={canManage}
-          />
-        )}
+        {queuePopupOpen &&
+          queuePopupOwner === 'widget' &&
+          !playerOverlayOpen &&
+          !playerOverlayClosing && (
+            <MusicQueuePopup
+              socket={socket}
+              roomId={roomId}
+              isHost={isHost}
+              canManage={canManage}
+            />
+          )}
       </div>
 
       {/* ===== 右侧悬浮工具坞（语音聊天 / 房间状态 / 流量统计）：默认仅显示

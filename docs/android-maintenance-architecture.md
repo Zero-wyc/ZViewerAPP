@@ -10,6 +10,18 @@
 
 ## 代码入口
 
+### 2026-10-15 一起听全屏队列修复
+
+`useToolbarScrollable.ts` 只测量正常文档流中直接子项的布局底边与底部 padding，不再用包含绝对定位队列浮层的 `scrollHeight` 判断是否需要滚动。旧实现可复现 `side → sheet → side` 循环，最终触发 React `Maximum update depth exceeded`，播放器界面卸载。真实按钮过多时仍开启滚动并使用 sheet；按钮减少后恢复 side。
+
+`music/store.ts` 的队列增加 `widget/player` 归属，入口使用 `openQueuePopup/toggleQueuePopup/closeQueuePopup(owner)`。打开、关闭完整播放器时原子收起队列并转移归属，隐藏底栏及退出动画期间的迟到操作不能再打开队列；重开或离房取消未完成的 500ms 退出定时器。`MusicAppShell` 只挂载底栏拥有的弹窗，`ListenTogetherPanel` 只显示播放器拥有的弹窗，竖屏隐藏的 `PlayerSongControl` 不挂载第二份弹窗。队列依旧消费原有 `MusicPlayerContext`。
+
+验证：150 项适配、4 项媒体回归通过，双端同步资源及 Debug 原生构建成功。`scripts/check-music-queue-ui.mjs` 使用真实组件和隔离数据，检查 393×852、852×393、1280×800、800×1280，每种开关 8 次；原先导致崩溃的独立工具栏场景另验 `side → sheet → side` 稳定转换。先运行 `npm run dev -- --config scripts/fixtures/music-queue.vite.ts`，再执行 `node scripts/check-music-queue-ui.mjs`；该脚本沿用项目其他 UI 检查使用的相邻服务端 Playwright 依赖。
+
+实际安装本轮 Debug APK 后，Medium_Phone 恢复默认密度 420，WebView 为 411×914 / 914×411、dpr=2.625；Medium_Tablet 为 1280×800 / 800×1280、dpr=2。四种原生窗口分别用 ADB 点击开关 6 次，DOM 始终只有一个队列，收起全屏后底栏队列可再次独立打开；队列操作期间没有新增渲染异常，静音 WAV 时钟推进。测试注入的是同源构建的真实界面组件及隔离播放器数据，不替代真实房间音乐同步、后台音频或硬件音质验收。平板 CDP 曾回放导航前缓存的 insets 注入空 DOM 异常，已与本次操作期间的异常分开记录，未通过过滤本次错误取得通过结果。
+
+最新修复验证包位于 `release/music-queue-fix-20261015/`，版本仍为 1.9.6/196；APK 是独立 `.debug` 包，v2 签名验证通过，每包构建后各计算一次 SHA-256。此前 `release/client-v1.9.6/` 的 Release 文件早于本节修复，不能将其视作包含本修复。签名、安装与详细证据见 [验证报告](mobile-screen-sharing-validation-2026-10-15.md)，未发布 GitHub Release。
+
 ### 1.9.6 / 196 本地交付与大屏界面
 
 按用户确认的鸿蒙真机、Android 虚拟机范围收口后，Release 原生屏幕共享入口开放，仍要求每次显式屏幕授权；不再依赖 Debug 门控。源码版本升为 1.9.6/196，本地签名安装包待用户最终安装，公开发行仍为 1.9.5。Android 音画四观众后台连续 602.438 秒通过，系统 440 Hz 与合成麦克风 880 Hz 频带持续、四路解码帧和音频包推进；停止后 MediaProjection 为 null，采集服务释放。录音器重建后的模拟器注音流须重开校准，不能据此宣称 Android 实体麦克风音质已验收。

@@ -10,6 +10,18 @@
 
 ## 代码入口
 
+### 2026-10-15 一起听全屏队列黑屏与重复弹窗修复
+
+黑屏已在真实共享组件的独立场景复现：侧挂队列的绝对定位溢出增加 `scrollHeight`，`useToolbarScrollable` 因而切成 sheet；浮层脱离测量后又切回 side，形成无限布局更新并触发 React `Maximum update depth exceeded`。现只测量正常文档流直接子项的底边，不把弹窗尺寸算入工具栏高度。按钮真实溢出仍滚动，队列按可用空间切换布局。
+
+`music/store.ts` 用 `queuePopupOwner: widget/player` 约束打开、切换与关闭；完整播放器进入、退出立即收起旧弹窗，重开或重置取消退出定时器，退出期间禁止重新打开队列。`MusicAppShell` 的底栏弹窗与 `ListenTogetherPanel` 的播放器弹窗独立挂载；手机竖屏隐藏的竖向 `PlayerSongControl` 不挂载队列，仅横向工具行显示一份。关闭按钮只关闭自身入口的弹窗，过期回调不能影响新入口。
+
+150 项适配、4 项媒体与 5 组浏览器 UI 回归通过；四种浏览器尺寸各开关 8 次，含隐藏 DOM 的队列总数均为 1。独立工具栏回归还覆盖真实按钮增减及 `side → sheet → side` 转换。运行方式与 Android 维护文档一致，测试入口为 `scripts/fixtures/music-queue.vite.ts` 和 `scripts/check-music-queue-ui.mjs`。
+
+用户用 HoKit 覆盖安装本轮 HAP 并确认打开后，通过 HDC 接入实际 arm64 平板 ArkWeb（1440×960、dpr=2），使用真实界面构建及隔离播放器数据、系统点击开关队列 6 次，并验证工具栏三态切换；队列只挂一份，无渲染异常，静音 WAV 时钟持续推进约 9.14 秒。检查后卸载夹具、恢复原页面样式并停止测试音源。这是原生运行时的界面回归，尚未由本次检查证明真实房间歌曲、同步与后台播放已通过；此前用户确认的屏幕共享验收范围保持单独记录。
+
+最新修复 HAP 为 `release/music-queue-fix-20261015/ZViewer-HarmonyOS-1.9.6-music-queue-debug.hap`，Debug 构建、版本 1.9.6/196、本机既有签名 Profile，`hap-sign-tool verify-app` 通过。HDC 安装仍返回不受信任来源 9568322，实际安装经用户 HoKit 完成；不能写成 HDC 安装通过。网页资源只由 `npm run harmony:web` 生成，临时签名配置已还原，每包只计算一次 SHA-256。此前 `release/client-v1.9.6/` 的 Release 文件尚不含本节修复，不应直接发布旧包。
+
 ### 1.9.6 / 196 本地交付与大屏界面
 
 用户已确认鸿蒙屏幕共享功能验收通过。Release 入口开放，固定 `https://zviewer.local` 来源、有效会话、15 秒预备窗口和每次显式授权仍保留；诊断任务查询与 Web 调试仅 Debug 提供。源码版本为 1.9.6/196，已准备本地签名 Release，公开发行仍为 1.9.5；新增界面修正需要安装新包后确认，不将旧包验收自动扩展到新界面。

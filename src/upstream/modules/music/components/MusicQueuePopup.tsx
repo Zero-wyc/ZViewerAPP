@@ -57,7 +57,7 @@ export function MusicQueuePopup({
   const biliRecommendedKeys = useMusicStore((s) => s.biliRecommendedKeys)
   const currentKey = useMusicStore((s) => s.currentKey)
   const isPlaying = useMusicStore((s) => s.isPlaying)
-  const setQueuePopupOpen = useMusicStore((s) => s.setQueuePopupOpen)
+  const closeQueuePopup = useMusicStore((s) => s.closeQueuePopup)
   /** 歌词页入口（side / sheet）启用黑底高斯模糊皮肤；音乐主页 widget
    *  上方弹出（top）保持原 glass-card 浅色毛玻璃 */
   const darkGlass = placement !== 'top'
@@ -259,7 +259,7 @@ export function MusicQueuePopup({
           <button
             type="button"
             className="flex h-7 w-7 items-center justify-center text-[var(--md-sys-color-on-surface-variant)] transition-opacity hover:opacity-70 active:scale-90"
-            onClick={() => setQueuePopupOpen(false)}
+            onClick={() => closeQueuePopup(placement === 'top' ? 'widget' : 'player')}
             title="关闭"
             aria-label="关闭队列弹窗"
           >
