@@ -6,7 +6,7 @@ import { screenShareCapturePolicy } from '../services/ScreenShareCapturePolicy';
 const DOMAIN = 0x5A56;
 
 export default class EntryAbility extends UIAbility {
-  onBackground(): void { screenShareCapturePolicy.end(); }
+  onBackground(): void { screenShareCapturePolicy.background(); }
   onDestroy(): void { screenShareCapturePolicy.end(); }
   onCreate(_want: Want, _launchParam: AbilityConstant.LaunchParam): void {
     hilog.info(DOMAIN, 'ZViewer', 'Ability created');

@@ -49,17 +49,29 @@ export interface ScreenShareCapabilities {
   systemAudio: boolean
   background: boolean
   experimental: boolean
+  maxFrameRate?: number
   reason?: string
 }
 export interface ScreenShareSession { sessionId: string }
 export interface ScreenSharePeer extends ScreenShareSession { peerId: string }
-export interface ScreenShareStart extends ScreenShareSession { iceServers: RTCIceServer[] }
+export interface ScreenShareAudioOptions { systemAudio: boolean; microphone: boolean }
+export type ScreenShareResolution = 'native' | '720p' | '1080p' | '1440p' | '2160p'
+export interface ScreenShareVideoOptions { resolution: ScreenShareResolution; frameRate: 30 | 60 | 90 }
+export interface ScreenShareStart extends ScreenShareSession { iceServers: RTCIceServer[]; systemAudio?: boolean; microphone?: boolean; resolution?: ScreenShareResolution; frameRate?: 30 | 60 | 90 }
 export interface ScreenShareSettings {
   width: number
   height: number
   /** Measured capture rate; zero until measured. Never report the requested rate as measured. */
   frameRate: number
+  /** Requested ceiling and native track configuration are distinct from measured capture FPS. */
+  targetFrameRate?: number
+  configuredFrameRate?: number
+  frameRateMeasured?: boolean
   audio: boolean
+  systemAudio?: boolean
+  microphone?: boolean
+  microphoneSuppressed?: boolean
+  microphoneSuppressionReason?: 'voice' | 'admin-muted'
 }
 export interface ScreenShareEvent extends ScreenShareSession {
   type: 'state' | 'capture-ended' | 'error' | 'ice' | 'peer-state' | 'stats'
@@ -76,6 +88,7 @@ export interface ScreenShareNativePort {
   stop(options: ScreenShareSession): Promise<void>
   pause(options: ScreenShareSession): Promise<void>
   resume(options: ScreenShareSession): Promise<void>
+  setAudioOptions(options: ScreenShareSession & ScreenShareAudioOptions): Promise<ScreenShareSettings>
   createOffer(options: ScreenSharePeer): Promise<RTCSessionDescriptionInit>
   setAnswer(options: ScreenSharePeer & { description: RTCSessionDescriptionInit }): Promise<void>
   addIceCandidate(options: ScreenSharePeer & { candidate: RTCIceCandidateInit }): Promise<void>
@@ -86,6 +99,7 @@ export interface HarmonyNativeBridge {
   getScreenShareCaptureSupport?(): Promise<{ supported: boolean }>
   armScreenShareCapture?(options: ScreenShareSession): Promise<void>
   cancelScreenShareCapture?(options: ScreenShareSession): Promise<void>
+  screenShareCaptureStarted?(options: ScreenShareSession): Promise<void>
   getAppInfo?(): Promise<{ version: string; build: string }>
   openExternalUrl?(url: string): Promise<void>
   configureServerConnection?(policy: { url: string; allowUntrustedCertificate: boolean }): Promise<{ url: string }>

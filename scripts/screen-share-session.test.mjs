@@ -56,6 +56,15 @@ test('viewer-ready before capture is recovered through sharer-ready, duplicate r
   await t.controller.dispose()
 })
 
+test('selected picture quality and audio reach the native session before sharer-ready', async () => {
+  const t = setup()
+  await t.controller.start({ systemAudio: true, microphone: false, resolution: '1440p', frameRate: 60 })
+  const options = t.calls.find(([name]) => name === 'start')[1]
+  assert.equal(options.resolution, '1440p'); assert.equal(options.frameRate, 60); assert.equal(options.systemAudio, true)
+  assert.equal(t.state().settings.width, 576, 'native settings, not selected presets, describe capture')
+  await t.controller.dispose()
+})
+
 test('permission rejection is retryable and never broadcasts sharer-ready', async () => {
   let deny = true
   const t = setup({ start: async () => { if (deny) throw { code: 'permission-denied', message: 'private native detail' }; return { width: 720, height: 1280, frameRate: 0, audio: false } } })

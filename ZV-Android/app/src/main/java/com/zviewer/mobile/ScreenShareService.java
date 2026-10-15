@@ -13,6 +13,8 @@ public final class ScreenShareService extends Service {
     private static final int NOTIFICATION = 4102;
     private Runnable stopped;
     private boolean ended;
+    private Notification notification;
+    private boolean audioCaptureEnabled;
     final class LocalBinder extends Binder { ScreenShareService service() { return ScreenShareService.this; } }
 
     @Override public void onCreate() {
@@ -23,12 +25,21 @@ public final class ScreenShareService extends Service {
         PendingIntent stop = PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         PendingIntent open = PendingIntent.getActivity(this, 1, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         Notification.Builder builder = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
-        Notification notification = builder
-            .setSmallIcon(android.R.drawable.ic_menu_view).setContentTitle("ZViewer 正在共享屏幕")
+        notification = builder
+            .setSmallIcon(R.drawable.ic_screen_share).setContentTitle("ZViewer 正在共享屏幕")
             .setContentText("房间观众可看到屏幕内容，点击停止结束共享").setOngoing(true)
             .setContentIntent(open).addAction(new Notification.Action.Builder(null, "停止共享", stop).build()).build();
         if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIFICATION, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
         else startForeground(NOTIFICATION, notification);
+    }
+    /** Called from a foreground user action after RECORD_AUDIO permission has been granted. */
+    void enableAudioCapture() {
+        if (ended) throw new IllegalStateException("Screen capture service ended");
+        if (audioCaptureEnabled) return;
+        if (Build.VERSION.SDK_INT >= 30) {
+            startForeground(NOTIFICATION, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION | ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
+        }
+        audioCaptureEnabled = true;
     }
     void setStopped(Runnable callback) { stopped = callback; if (ended) callback.run(); }
     @Override public IBinder onBind(Intent intent) { return new LocalBinder(); }

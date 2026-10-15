@@ -27,8 +27,14 @@ function harness(options = {}) {
     useCallback(fn, deps) { const i = cursor++; if (!slots[i] || deps.some((v, k) => v !== slots[i].deps[k])) slots[i] = { fn, deps }; return slots[i].fn },
     useEffect(fn, deps) { const i = cursor++; if (!slots[i] || deps.some((v, k) => v !== slots[i].deps[k])) { const old = slots[i]; slots[i] = { deps }; effects.push(() => { old?.cleanup?.(); slots[i].cleanup = fn() }) } },
   }
+  class Track extends EventTarget {
+    kind = 'audio'; readyState = 'live'; enabled = true; stopped = false
+    stop() { this.stopped = true; this.readyState = 'ended' }
+    clone() { return new Track() }
+    end() { this.readyState = 'ended'; this.dispatchEvent(new Event('ended')) }
+  }
   class MediaStream {
-    constructor(tracks = [{ enabled: true, stopped: false, stop() { this.stopped = true } }]) { this.tracks = tracks; streams.push(this) }
+    constructor(tracks = [new Track()]) { this.tracks = tracks; streams.push(this) }
     getTracks() { return this.tracks }
     getAudioTracks() { return this.tracks }
   }
@@ -51,8 +57,12 @@ function harness(options = {}) {
   const window = new EventTarget(), document = new EventTarget()
   document.hidden = false
   document.body = { appendChild() {} }
-  document.createElement = () => ({ play: async () => {}, pause() {}, remove() {} })
+  document.createElement = () => ({ dataset: {}, style: {}, play: async () => {}, pause() {}, remove() {} })
   let server = 'https://server.example'
+  const { microphoneCapture } = loadTs('src/platform/microphoneCapture.ts', {
+    './permissions': { permissions: { requestMicrophoneStream: async () => options.permission ? options.permission() : new MediaStream() } },
+    './roomMicrophoneCoordination': { coordinateRoomMicrophone: async () => {}, coordinateMicrophonePolicy: async () => {} },
+  }, { MediaStream })
   const { useVoiceChat } = loadTs('src/upstream/modules/voice-chat/hooks/useVoiceChat.ts', {
     '../../../../platform/connectionTransport': loadTs('src/platform/connectionTransport.ts', {}, { URL }),
     '../transport': loadTs('src/upstream/modules/voice-chat/transport.ts'),
@@ -60,11 +70,11 @@ function harness(options = {}) {
     '@/lib/api': { getApiUrl: () => server, apiFetch: async (url, init) => { requests.push({ url, init }); return options.token ? options.token() : { ok: true, status: 200, json: async () => ({ success: true, token: 'test-only', url: 'wss://rtc.example' }) } } },
     '@/components/ui/message': { message: { warning: m => messages.push(m), error: m => messages.push(m) } },
     '@/lib/mediaTeardown': { ROOM_MEDIA_TEARDOWN_EVENT: 'teardown' },
-    '../../../../platform/permissions': { permissions: { requestMicrophoneStream: async () => options.permission ? options.permission() : new MediaStream() } },
+    '../../../../platform/microphoneCapture': { microphoneCapture },
   }, { window, document, navigator: { userAgent: 'Android' }, MediaStream, AudioContext, setInterval: () => 1, clearInterval() {} })
   const render = (roomId = 'room-a') => { cursor = 0; output = useVoiceChat({ roomId, username: 'test' }); while (effects.length) effects.shift()(); return output }
   render()
-  return { render, rooms, streams, contexts, messages, requests, RoomEvent, window, MediaStream, switchServer: () => { server = 'https://new.example' } }
+  return { render, rooms, streams, contexts, messages, requests, RoomEvent, window, MediaStream, microphoneCapture, switchServer: () => { server = 'https://new.example' } }
 }
 
 test('LiveKit joins the returned URL, reconnects visibly, and releases raw and processed capture on teardown', async () => {
@@ -138,4 +148,64 @@ test('server switch during a token request cancels joining without acquiring mic
   token.resolve({ ok: true, status: 200, json: async () => ({ success: true, token: 'test', url: 'wss://old.example' }) }); await joining
   assert.equal(h.streams.length, 0)
   assert.equal(h.render().joining, false)
+})
+
+test('voice and screen share reuse capture without duplicate microphone audio or administrator-mute bypass', async () => {
+  const h = harness()
+  const share = await h.microphoneCapture.acquire({ consumer: 'screen-share' })
+  await h.render().join()
+  const sharedTrack = share.stream.getAudioTracks()[0]
+  assert.equal(sharedTrack.enabled, false, 'voice publishing owns microphone delivery')
+  h.render().toggleMic()
+  assert.equal(sharedTrack.enabled, true, 'an independent share microphone remains available when room voice is muted')
+  const room = h.rooms[0]
+  room.localParticipant.metadata = '{"adminMuted":true}'
+  room.emit(h.RoomEvent.ParticipantMetadataChanged)
+  assert.equal(sharedTrack.enabled, false)
+  h.render().leave()
+  share.setEnabled(false); share.setEnabled(true)
+  assert.equal(sharedTrack.enabled, false, 'leaving voice cannot evade a room administrator mute')
+  assert.equal(sharedTrack.stopped, false, 'leaving voice retains the share lease')
+  h.render('room-b')
+  assert.equal(sharedTrack.enabled, true, 'another room does not inherit moderation from the previous room')
+  share.release()
+  assert.ok(h.streams.every(stream => stream.getTracks().every(track => track.stopped)))
+})
+
+test('system audio sharing switches off microphone monitoring and rejects enabling a feedback loop', async () => {
+  const h = harness(); await h.render().join()
+  h.render().toggleMonitor()
+  assert.equal(h.render().monitorEnabled, true)
+  h.microphoneCapture.setScreenShareState({ active: true, systemAudio: true })
+  assert.equal(h.render().monitorEnabled, false)
+  h.render().toggleMonitor()
+  assert.equal(h.render().monitorEnabled, false)
+  assert.ok(h.messages.some(message => message.includes('重复录入')))
+  h.microphoneCapture.setScreenShareState({ active: false, systemAudio: false })
+  h.render().toggleMonitor()
+  assert.equal(h.render().monitorEnabled, true)
+  h.render().leave()
+})
+
+test('share microphone is silenced before LiveKit publication completes and restored when a pending join is cancelled', async () => {
+  const publish = defer(), h = harness({ publish: () => publish.promise })
+  const share = await h.microphoneCapture.acquire({ consumer: 'screen-share' })
+  const joining = h.render().join(); await new Promise(resolve => setImmediate(resolve))
+  assert.equal(share.stream.getAudioTracks()[0].enabled, false)
+  h.render().leave(); publish.resolve(); await joining
+  assert.equal(share.stream.getAudioTracks()[0].enabled, true)
+  share.release()
+})
+
+test('system microphone revocation leaves voice visibly and a user-initiated retry opens a new physical stream', async () => {
+  const h = harness(); await h.render().join()
+  h.streams[0].getAudioTracks()[0].end()
+  assert.equal(h.render().joined, false)
+  assert.ok(h.rooms[0].disconnected)
+  assert.ok(h.messages.some(message => message.includes('麦克风采集已被系统停止')))
+  assert.equal(h.rooms.length, 1, 'capture is never resumed without another user join')
+  await h.render().join()
+  assert.equal(h.render().joined, true)
+  assert.equal(h.rooms.length, 2)
+  h.render().leave()
 })

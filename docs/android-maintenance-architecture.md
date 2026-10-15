@@ -10,6 +10,20 @@
 
 ## 代码入口
 
+### 2026-10-15 共享画质档位与当前验收
+
+共享页提供本机、720P、1080P、2K（2560×1440 上限）、4K（3840×2160 上限），以及 30/60/90 fps。默认 720P/30 fps；开始后锁定画质，停止后重选。`ScreenShareStart` 传递 `resolution`/`frameRate`，原生在授权前验证并保存；`setSize()` 同时限制长、短边，保持比例、偶数尺寸且不放大源画面。本机档不设尺寸上限。旋转复用相同档位并调整已有 VirtualDisplay；VideoSource 与帧投递节流均使用所选帧率。`targetFrameRate` 是目标上限，`frameRate` 是采集实际测量值，不承诺 4K/90 fps 在所有设备或多观众下均可达到。
+
+本轮用户已确认鸿蒙 v4、v5 真机测试通过，Android 按用户要求使用虚拟机验收。Android 原生音频已收到其他应用 440 Hz、合成麦克风 880 Hz，暂停静音、源禁止捕获、本 UID 排除、WebView 麦克风交接、已知管理员禁言保持均有实际接收证据；10 秒音频样本时长约 10.03–10.04 秒、墙钟 10.036 秒。模拟器 gRPC 合成注音在 AudioRecord 重建后出现失真，保持产品采集/连接不变而重开注音流即可恢复 880 Hz，需在每次录音器重建后重新校准，不能将其当成真实硬件麦克风音质证明。新 APK 已完成五档分辨率及高帧率请求的实际接收解码，编码端解除固定 30 后继续复测；145 项适配回归通过。最新结果见 [验证报告](mobile-screen-sharing-validation-2026-10-15.md)，后文首轮 PoC 的视频限定和失败描述属于历史记录。
+
+### 2026-10-15 音频共享与麦克风协调（正在设备验收）
+
+在下述首轮视频 PoC 的基础上，`ScreenShareAudioCapture.java` 增加 Android 10+ `AudioPlaybackCapture` 系统声音和独立麦克风输入，48 kHz/16-bit/mono PCM 混合后交给固定版本 WebRTC 的外部音频回调；播放捕获只接受允许被录制的媒体/游戏，并排除本应用 UID，防止将房间语音和本地监听回送。ADM 自带硬件录音关闭；此版本 SDK 在外部输入模式传入 `bytesRead=0`，应填充整个回调 buffer，且必须自行提供单调时钟 10 ms 节流，不能使用空转循环。暂停停止音频录音器并关闭视频/音频发送，恢复按用户选择重开。
+
+`microphoneCapture.ts` 为房间语音提供可取消、引用计数的麦克风 lease，消费者只持有独立克隆。Android 原生共享麦克风与 WebView 语音之间通过 `roomMicrophoneCoordination.ts` 串行交接：开启 WebView 采集前等待原生停止/释放硬件麦克风，WebView 最后释放后才允许原生恢复。`setMicrophonePolicy` 保留已知管理员禁言和房间语音发送状态；退出语音不能绕过已知禁言。共享麦克风在房间语音发送时让出，避免同一句话重复送达；系统声音共享期间关闭自己的语音监听。原生状态返回实际系统音频、麦克风及抑制原因，UI 保留用户选择并显示实际状态。管理员状态来自已有 LiveKit metadata，未收到的服务器禁言不能由客户端猜测。
+
+前台服务声明 `mediaProjection|microphone` 与对应权限，在用户前台操作取得 `RECORD_AUDIO` 后才启用音频服务类型。新的共享控制页复用 AppIcon、背景、玻璃效果、明暗主题和图标，系统声音/麦克风可独立控制；浏览器 UI 验证不能代替原生音频能量和时钟测量。用户指定本轮先鸿蒙真机、再 Android 虚拟机；本节实现已完成 Java 编译和共享自动回归，模拟器结果与最终交付状态以 [验证报告](mobile-screen-sharing-validation-2026-10-15.md) 的最新记录为准，生产门控暂保留。
+
 ### 2026-10-15 手机屏幕共享验证实现（尚未发行）
 
 当前发行仍为 1.9.5 / 195。本地新增的手机房主共享属于 Debug 验证功能，`ScreenSharePlugin.getCapabilities()` 与 `start()` 同时使用 `BuildConfig.DEBUG` 门控，Release 不能绕过前端直接启动未经验收的采集。完整合同、模拟器结果和剩余验收见 [屏幕共享验证报告](mobile-screen-sharing-validation-2026-10-15.md)，不得将其标为双端正式交付。

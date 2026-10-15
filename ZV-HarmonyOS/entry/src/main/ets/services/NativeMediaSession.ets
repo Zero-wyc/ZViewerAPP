@@ -1,6 +1,6 @@
 import { common, wantAgent, WantAgent } from '@kit.AbilityKit';
 import { avSession } from '@kit.AVSessionKit';
-import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
+import { backgroundMediaTasks } from './BackgroundMediaTasks';
 import { image } from '@kit.ImageKit';
 import { http } from '@kit.NetworkKit';
 import { webview } from '@kit.ArkWeb';
@@ -133,12 +133,19 @@ export class NativeMediaSession {
 
   private async setBackgroundRunning(playing: boolean): Promise<void> {
     if (playing && !this.backgroundRunning && this.launchAgent !== null) {
-      await backgroundTaskManager.startBackgroundRunning(this.context,
-        backgroundTaskManager.BackgroundMode.AUDIO_PLAYBACK, this.launchAgent);
+      await backgroundMediaTasks.set(this.context, 'playback', 'audioPlayback', () => {
+        this.backgroundRunning = false;
+        this.controller.onActive();
+        const id = this.state?.sessionId;
+        if (id !== undefined) {
+          const command = JSON.stringify({ sessionId: id, action: 'pause', position: -1 });
+          void this.controller.runJavaScript(`window.dispatchEvent(new CustomEvent('zviewer:media-command',{detail:${command}}))`).catch(() => {});
+        }
+      });
       this.backgroundRunning = true;
       this.controller.onActive();
     } else if (!playing && this.backgroundRunning) {
-      await backgroundTaskManager.stopBackgroundRunning(this.context);
+      await backgroundMediaTasks.release('playback');
       this.backgroundRunning = false;
     }
   }

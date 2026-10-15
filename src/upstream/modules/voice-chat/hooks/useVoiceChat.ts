@@ -6,7 +6,8 @@ import type { RemoteParticipant, RemoteTrack } from 'livekit-client'
 import { apiFetch, getApiUrl } from '@/lib/api'
 import { message } from '@/components/ui/message'
 import { ROOM_MEDIA_TEARDOWN_EVENT } from '@/lib/mediaTeardown'
-import { permissions } from '../../../../platform/permissions'
+import { microphoneCapture } from '../../../../platform/microphoneCapture'
+import type { MicrophoneLease } from '../../../../platform/microphoneCapture'
 
 export interface VoiceMember { id: string; username: string }
 export interface UseVoiceChatOptions { roomId: string | undefined; username?: string }
@@ -36,6 +37,8 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
   const busy = useRef(false)
   const abortRef = useRef<AbortController | null>(null)
   const localStream = useRef<MediaStream | null>(null)
+  const microphoneLease = useRef<MicrophoneLease | null>(null)
+  const voicePublished = useRef(false)
   const micTrack = useRef<MediaStreamTrack | null>(null)
   const captureCtx = useRef<AudioContext | null>(null)
   const levelsCtx = useRef<AudioContext | null>(null)
@@ -73,8 +76,12 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
     if (room) void room.disconnect().catch(() => {})
     micTrack.current?.stop()
     micTrack.current = null
-    localStream.current?.getTracks().forEach(track => track.stop())
+    microphoneLease.current?.release()
+    microphoneLease.current = null
     localStream.current = null
+    voicePublished.current = false
+    // Retain the last administrator mute until authoritative metadata or a room change.
+    microphoneCapture.setVoiceState({ joined: false, publishing: false })
     for (const id of remote.current.keys()) cleanupRemote(id)
     captureCtx.current?.close().catch(() => {})
     levelsCtx.current?.close().catch(() => {})
@@ -141,7 +148,10 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
     for (const p of [room.localParticipant, ...room.remoteParticipants.values()]) if (adminMuted(p.metadata)) muted.add(p.identity)
     setVoiceMutedIds(muted)
     const enabled = micIntent.current && !muted.has(room.localParticipant.identity)
+    microphoneLease.current?.setEnabled(enabled)
     if (micTrack.current) micTrack.current.enabled = enabled
+    microphoneCapture.setVoiceState({ joined: room.state === ConnectionState.Connected,
+      publishing: voicePublished.current && enabled, adminMuted: muted.has(room.localParticipant.identity) })
     setMicEnabled(enabled)
   }, [])
 
@@ -165,8 +175,16 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
       if (!res.ok || !data.success || !data.url || !data.token) {
         throw new Error(res.status === 503 ? '语音服务尚未就绪，请稍后重试' : res.status === 404 ? '语音接口不可用，请检查服务端版本及 /rtc 代理配置' : res.status === 401 ? '请重新登录 ZViewer 后加入语音' : data.message || '获取语音凭证失败')
       }
-      const stream = await permissions.requestMicrophoneStream({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } })
-      if (!active()) { stream.getTracks().forEach(t => t.stop()); return }
+      microphoneCapture.setRoomScope(`${server}\n${roomId}`)
+      const lease = await microphoneCapture.acquire({ consumer: 'voice', signal: controller.signal, enabled: micIntent.current,
+        onEnded: () => {
+          if (!active()) return
+          leave()
+          message.warning('麦克风采集已被系统停止，请检查权限后重新加入语音')
+        } })
+      if (!active()) { lease.release(); return }
+      microphoneLease.current = lease
+      const stream = lease.stream
       localStream.current = stream
       const ctx = new AudioContext()
       captureCtx.current = ctx
@@ -197,7 +215,13 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
         .on(RoomEvent.ParticipantConnected, () => refreshMembers(room))
         .on(RoomEvent.ParticipantDisconnected, p => { if (active()) { cleanupRemote(p.identity); refreshMembers(room) } })
         .on(RoomEvent.ParticipantMetadataChanged, () => refreshMembers(room))
-        .on(RoomEvent.ConnectionStateChanged, state => { if (active()) { setMediaConnected(state === ConnectionState.Connected); if (state !== ConnectionState.Connected) setTransport(null) } })
+        .on(RoomEvent.ConnectionStateChanged, state => { if (active()) {
+          setMediaConnected(state === ConnectionState.Connected)
+          microphoneCapture.setVoiceState({ joined: state === ConnectionState.Connected,
+            publishing: voicePublished.current && micIntent.current && !adminMuted(room.localParticipant.metadata) })
+          if (state !== ConnectionState.Connected) setTransport(null)
+          else void captureCtx.current?.resume().catch(() => { if (active()) setAudioBlocked(true) })
+        } })
         .on(RoomEvent.AudioPlaybackStatusChanged, () => { if (active()) setAudioBlocked(!room.canPlaybackAudio) })
         .on(RoomEvent.Disconnected, reason => {
           if (!active()) return
@@ -206,6 +230,8 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
         })
       await room.connect(connectionUrl(data.url), data.token)
       if (!active()) { room.removeAllListeners(); void room.disconnect().catch(() => {}); return }
+      // Silence the share clone before publication can start sending its first packet.
+      voicePublished.current = true
       refreshMembers(room)
       await room.localParticipant.publishTrack(track, { source: Track.Source.Microphone, audioPreset: AudioPresets.music, dtx: false, red: true })
       if (!active()) { room.removeAllListeners(); void room.disconnect().catch(() => {}); return }
@@ -230,10 +256,17 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
     if (!room || !micTrack.current) return
     if (adminMuted(room.localParticipant.metadata)) { message.warning('您已被管理员语音禁言'); return }
     micIntent.current = !micIntent.current
+    microphoneLease.current?.setEnabled(micIntent.current)
     micTrack.current.enabled = micIntent.current
+    microphoneCapture.setVoiceState({ joined: room.state === ConnectionState.Connected,
+      publishing: voicePublished.current && micIntent.current })
     setMicEnabled(micIntent.current)
   }, [])
   const toggleMonitor = useCallback(() => {
+    if (!monitorIntent.current && microphoneCapture.getSnapshot().systemAudioSharing) {
+      message.warning('共享系统声音时已关闭本地麦克风监听，避免声音被重复录入')
+      return
+    }
     monitorIntent.current = !monitorIntent.current
     setMonitorEnabled(monitorIntent.current)
   }, [])
@@ -315,6 +348,19 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
   }, [joined])
 
   useEffect(() => {
+    const stopCapturedMonitor = () => {
+      if (!microphoneCapture.getSnapshot().systemAudioSharing) return
+      monitorIntent.current = false
+      setMonitorEnabled(false)
+      if (monitorGain.current) monitorGain.current.gain.value = 0
+      monitorAudio.current?.pause()
+    }
+    stopCapturedMonitor()
+    return microphoneCapture.subscribe(stopCapturedMonitor)
+  }, [])
+
+  useEffect(() => {
+    microphoneCapture.setRoomScope(roomId ? `${getApiUrl()}\n${roomId}` : undefined)
     window.addEventListener(ROOM_MEDIA_TEARDOWN_EVENT, leave)
     const onForeground = () => { if (!document.hidden) void resumeAudio() }
     document.addEventListener('visibilitychange', onForeground)

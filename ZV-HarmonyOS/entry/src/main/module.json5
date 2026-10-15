@@ -18,7 +18,7 @@
         "startWindowIcon": "$media:startIcon",
         "startWindowBackground": "$color:start_window_background",
         "exported": true,
-        "backgroundModes": ["audioPlayback"],
+        "backgroundModes": ["audioPlayback", "audioRecording"],
         "skills": [
           {
             "entities": ["entity.system.home"],
@@ -33,7 +33,7 @@
       {
         "name": "ohos.permission.MICROPHONE",
         "reason": "$string:microphone_permission_reason",
-        "usedScene": { "abilities": ["EntryAbility"], "when": "inuse" }
+        "usedScene": { "abilities": ["EntryAbility"], "when": "always" }
       }
     ]
   }

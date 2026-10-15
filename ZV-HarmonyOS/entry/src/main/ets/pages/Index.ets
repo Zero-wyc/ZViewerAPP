@@ -7,6 +7,7 @@ import { DEBUG } from 'BuildProfile';
 import { NativeMediaSession, MediaSessionState } from '../services/NativeMediaSession';
 import { ServerConnection, ConnectionPolicy } from '../services/ServerConnection';
 import { screenShareCapturePolicy } from '../services/ScreenShareCapturePolicy';
+import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 
 const LOCAL_ORIGIN = 'https://zviewer.local';
 const LOCAL_PAGE = `${LOCAL_ORIGIN}/index.html`;
@@ -16,6 +17,7 @@ const bilibiliProxy = new BilibiliLocalProxy();
 const serverConnection = new ServerConnection();
 interface ProbeArgument { url: string; }
 interface ScreenShareArgument { sessionId: string; }
+interface CaptureTaskState { id: number; modes: string[]; submodes: string[]; suspended: boolean; }
 interface AppVersionInfo { version: string; build: string; }
 
 function mimeType(path: string): string {
@@ -64,13 +66,24 @@ class HarmonyHost {
   }
 
   private async perform(action: string, argument: string): Promise<string | null> {
-    if (action === 'getScreenShareCaptureSupport') return JSON.stringify({ supported: DEBUG });
+    if (action === 'getScreenShareCaptureSupport') {
+      if (!DEBUG) return JSON.stringify({ supported: false });
+      const tasks = await backgroundTaskManager.getAllContinuousTasks(this.context);
+      const states: CaptureTaskState[] = tasks.map((task: backgroundTaskManager.ContinuousTaskInfo): CaptureTaskState => ({
+        id: task.continuousTaskId, modes: task.backgroundModes, submodes: task.backgroundSubModes, suspended: task.suspendState
+      }));
+      return JSON.stringify({ supported: true, tasks: states });
+    }
     if (action === 'armScreenShareCapture') {
       screenShareCapturePolicy.arm((JSON.parse(argument) as ScreenShareArgument).sessionId, this.controller);
       return null;
     }
     if (action === 'cancelScreenShareCapture') {
-      screenShareCapturePolicy.cancel((JSON.parse(argument) as ScreenShareArgument).sessionId);
+      await screenShareCapturePolicy.cancel((JSON.parse(argument) as ScreenShareArgument).sessionId);
+      return null;
+    }
+    if (action === 'screenShareCaptureStarted') {
+      await screenShareCapturePolicy.started((JSON.parse(argument) as ScreenShareArgument).sessionId, this.context);
       return null;
     }
     if (action === 'getAppInfo') {

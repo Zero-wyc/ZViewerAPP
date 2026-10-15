@@ -1,4 +1,4 @@
-import type { ScreenShareEvent, ScreenShareNativePort, ScreenShareSettings, ScreenShareState } from '../platform/contracts'
+import type { ScreenShareAudioOptions, ScreenShareVideoOptions, ScreenShareEvent, ScreenShareNativePort, ScreenShareSettings, ScreenShareState } from '../platform/contracts'
 
 export interface ScreenShareSocket {
   connected: boolean
@@ -119,7 +119,7 @@ export function createScreenShareSession(options: {
   })
   // Keep a rejected listener subscription observable through start(), without an unhandled rejection.
   void listening.catch(() => {})
-  const start = (): Promise<void> => {
+  const start = (audio: ScreenShareAudioOptions & Partial<ScreenShareVideoOptions> = { systemAudio: false, microphone: false }): Promise<void> => {
     if (pendingStart) return pendingStart
     if (disposed || sessionId || pendingStop) return Promise.resolve()
     const id = options.newId()
@@ -128,7 +128,7 @@ export function createScreenShareSession(options: {
     pendingStart = (async () => {
       await listening
       if (!active(id) || !socket.connected) { await stop(); return }
-      const settings = await native.start({ sessionId: id, iceServers: options.iceServers })
+      const settings = await native.start({ sessionId: id, iceServers: options.iceServers, ...audio })
       if (!active(id)) { await native.stop({ sessionId: id }); return }
       publish({ state: 'sharing', settings })
       transport()
@@ -159,5 +159,15 @@ export function createScreenShareSession(options: {
     unsubscribe?.()
     await stop()
   }
-  return { start, stop, pause, dispose, getSnapshot: () => snapshot }
+  const setAudioOptions = async (audio: ScreenShareAudioOptions) => {
+    const id = sessionId
+    if (!id || !['sharing', 'paused'].includes(snapshot.state)) return
+    try {
+      const settings = await native.setAudioOptions({ sessionId: id, ...audio })
+      if (active(id)) publish({ settings, error: undefined })
+    } catch (error) {
+      if (active(id)) publish({ error: error instanceof Error ? error.message : '声音设置失败，请重试。' })
+    }
+  }
+  return { start, stop, pause, setAudioOptions, dispose, getSnapshot: () => snapshot }
 }

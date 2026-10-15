@@ -342,7 +342,7 @@ html[data-mobile-appearance-theme] .player-settings-dialog .player-settings-side
   backdrop-filter: none;
 }
 /* Video and its controls keep their own dark surface, including fullscreen. */
-.app-shell-room .mobile-player {
+.app-shell-room .mobile-player:not(:has(.mobile-screen-share-host)) {
   --md-sys-color-on-surface: #edf1ef;
   --md-sys-color-on-surface-variant: #a8b3b6;
   --md-sys-color-surface: #111417;
