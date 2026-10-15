@@ -4,7 +4,7 @@
 
 ## 当前状态与范围
 
-- HarmonyOS 源码及已发布安装包为 **1.9.0 / versionCode 190**，服务端协议以已集成的 v4.5.3 为基线。版本以 `package.json`、`ZV-HarmonyOS/AppScope/app.json5` 为准。
+- HarmonyOS 当前发行源码与安装包为 **1.9.5 / versionCode 195**，服务端协议以已集成的 v4.5.3 为基线。版本以 `package.json`、`ZV-HarmonyOS/AppScope/app.json5` 为准。
 - 客户端源码和 Git 操作均在 `E:/Codex-bulid/ZViewer/ZViewer-client`；共享 React/Vite 前端与 Android 相同，原生部分使用 HarmonyOS ArkTS 与 ArkWeb。
 - B站 Cookie、服务端凭据和本机代理状态只保存在原生侧。不能进入 React 状态持久化、网页日志、Socket 房间广播或公开源码。
 
@@ -95,6 +95,8 @@
 共享改动覆盖账号/游客、创建/加入/审批/离房、片单权限、普通 MP4 与媒体库 HLS、B站 BV/分 P/PGC、弹幕与字幕、一起听和 LiveKit。ArkTS 改动增加固定来源导航、回环代理安全、系统返回、麦克风拒绝后重试、前后台恢复、全屏/旋转和系统媒体。区分单元/桥接替身、ArkWeb 调试、模拟器、物理手机/平板结果；模拟器成功不得外推 HEVC Main 10、真实蓝牙/后台或生产穿透网络。
 
 ## 构建与维护顺序
+
+本轮正式发行：`client-v1.9.5`，Android/HarmonyOS 为 `1.9.5 / 195`。前述 1.9.0 未签名 Debug HAP 属于界面与 RTC 模拟器验收阶段，发行使用重新构建的正式签名 Release HAP。`hap-sign-tool verify-app` 通过、证书链与 1.9.0 一致，包内版本 195；Android APK 的 v2 签名及前版证书比较亦通过。双端各 30 个网页资源与同步目录逐项匹配，发行包包含双端 SHA-256。说明为 `docs/releases/client-1.9.5.md`，源码推送 main；本轮不构建或上传 iOS IPA，真机仍受原 Profile 授权限制。
 
 1. 服务端升级时先核对本地服务端 REST/Socket 合同、角色权限和媒体身份；在本仓库定向移植共享层差异，检查 ArkTS 独立的 WBI、代理、证书和媒体桥。若共享契约变化，同时核对 Android 维护文档及平台实现。
 2. 共享前端改动在根目录运行 `npm run test:adaptation`、`npm run test:media`、`npm run build`。

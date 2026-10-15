@@ -4,7 +4,7 @@
 
 ## 当前状态与范围
 
-- Android 源码及已发布安装包为 **1.9.0 / versionCode 190**，目标服务端以已集成的 v4.5.3 协议为基线。版本以 `package.json` 和 `ZV-Android/app/build.gradle` 为准。
+- Android 当前发行源码与安装包为 **1.9.5 / versionCode 195**，目标服务端以已集成的 v4.5.3 协议为基线。版本以 `package.json` 和 `ZV-Android/app/build.gradle` 为准。
 - 客户端修改、Git 提交均在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。`ZViewer-source code` 是本地服务端目录，不在其中改客户端。
 - Android 与 HarmonyOS 共用根目录 React/Vite 界面，但原生宿主不同；iOS 是 `ZV-iOS` 中独立的 Expo/React Native 工程。三端实现和验收不能互相替代。
 
@@ -97,6 +97,8 @@ Android 的 `native/bilicore/core/wbi.go`、`pgc.go`、`resolver.go`、`quality.
 每次媒体/房间改动至少覆盖登录与切服、房主/观众权限、添加/切片/清空、播放暂停和 seek、字幕/弹幕、离房重入、一起听及语音释放。B站变更补本机登录态/游客态、普通 BV、多 P、PGC、DASH 双轨、真实画质和账号不足错误。平台能力变更补横竖屏/全屏恢复、系统媒体控制、来电/耳机/蓝牙及后台。记录来源属于单元测试、浏览器夹具、模拟器还是物理设备，不得把其中一个层级写成另一个层级的验收。
 
 ## 构建与维护顺序
+
+本轮正式发行：`client-v1.9.5`，Android/HarmonyOS 为 `1.9.5 / 195`。此前 1.9.0 Debug 模拟器记录保留为同一轮界面修复的验收历史。正式 Android APK 通过 `apksigner` v2 验证，证书与 1.9.0 一致；正式 HAP 通过 `hap-sign-tool verify-app`，证书链亦与前版一致。两个包各 30 个网页资源与各平台同步目录逐项匹配，双端 SHA-256 随发行包提供。发布入口为 `docs/releases/client-1.9.5.md`，源码推送 main；本轮仅双端，无 iOS 构建及 IPA 上传。
 
 1. 对照本地服务端源码和既有 REST/Socket 事件、DTO、角色权限，列出影响 Android、HarmonyOS 和 iOS 的行为差异；只把所需共享逻辑定向移植到本仓库。涉及平台契约、B站签名或媒体解析时同步检查 HarmonyOS 的独立实现和维护文档。
 2. 运行 `npm run test:adaptation`、`npm run test:media`、`npm run build`；Go 核心改动另在 `native/bilicore` 运行 `go test ./...`。
