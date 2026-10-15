@@ -24,6 +24,10 @@ Manifest 新增 `ACCESS_NETWORK_STATE` 与 `FOREGROUND_SERVICE_MEDIA_PROJECTION`
 
 新增会话和平台测试由 `npm run test:adaptation` 执行，覆盖授权失败、取消、晚到流、旧 session、早到/晚到观众、SDP/ICE 排队、4 观众上限和销毁。Android 模拟器实际捕获与跨 ArkWeb 接收单独记录；真机授权、系统停止、后台、热量/耗电和真实 Wi-Fi/TURN 网络仍须按计划验收。
 
+本轮实际证据：Medium_Phone x86_64、Android 17/API 37，应用 target 36；通过本地鉴权 Pion TURN v4.1.4 向 Pura 90 Pro HarmonyOS 7.0.0/API 26 ArkWeb 和 3 个 Chrome 观众连续发送 603.282 秒。四路周期采样均 connected，实际 VP8、14–18 fps、竖屏 576×1280，旋转到 1280×576 后恢复；暂停收到黑帧、恢复继续解码、短暂切后台采集继续。主动停止后 projection、前台任务和采集/连接线程均退出；再次授权后锁屏触发 capture-ended，采集和服务释放。证据是原生采集 + 本地 DTO 中继，不等于完整真实房间、真机 H.264/30fps 或公网验收。
+
+验证包位于 `release/screen-share-poc-20261015/`，APK 为 `com.zviewer.mobile.debug` / 1.9.5-debug / 195，Debug v2 签名通过；HAP unsigned 状态单独记录。每个最终包构建后各一次 SHA-256。适配测试共 106 项、媒体测试 4 项通过，另有浏览器替身 UI 验证。实现检查点为 9f4e94c；本轮只本地提交，不发布 Release，不启动 iOS 构建。鸿蒙发送端和真机条件未通过前继续保持生产门控。
+
 ### 既有能力入口
 
 | 功能 | 维护入口与约束 |

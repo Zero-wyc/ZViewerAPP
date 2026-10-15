@@ -90,22 +90,31 @@ Android 桥参数日志和原生 WebRTC 常规日志已关闭，避免 SDP/ICE �
 
 ## 测试结果
 
-自动化、持续测试与安装包最终结果在本轮结束时补齐。证据文件位于忽略的 `.ui-validation/screen-share-native/`；该目录可能含仅供本机排障的原生日志，不能整体打包公开。
+证据文件位于忽略的 `.ui-validation/screen-share-native/`；该目录可能含仅供本机排障的原生日志，不能整体打包公开。实现已保存到本地提交 `9f4e94c`；后续文档提交只补充验收结果。
 
 - 会话/平台/鸿蒙原生授权策略新增行为测试：15 项通过。合并原有回归后 `test:adaptation` 共 106 项通过；媒体回归另 4 项通过。
 - 房主组件浏览器替身：320×640、360×800、393×852、852×393 的开始/暂停/恢复/停止，无横向溢出；unsupported、OBS 分支与活动采集中切换 roomId 后重置控制状态通过。
 - Android 实际采集：授权拒绝、再次授权、连续帧、多个 native PeerConnection 已验证。暂停时已在鸿蒙观众画面读取到黑帧，恢复后继续解码；短暂切后台时 dumpsys 仍显示系统采集活跃。
-- Android → HarmonyOS ArkWeb + 3 Chrome：四路实际解码，竖屏 576×1280，旋转后 1280×576，再恢复竖屏；实际视频 codec 为 VP8，稳定采集/解码约 16–18 fps。
-- 10 分钟持续试验及停止/系统停止：进行中，尚未判定通过。
+- Android → HarmonyOS ArkWeb + 3 Chrome：四路实际解码，竖屏 576×1280，旋转后 1280×576，再恢复竖屏；实际视频 codec 为 VP8，持续采样解码帧率 14–18 fps，未达到计划目标的 30 fps。
+- 本地 Pion TURN v4.1.4 中继持续试验通过：2026-10-15 04:40:33.821–04:50:37.103 UTC，总计 603.282 秒，四路连续连接；20 次周期采样全部 connected，最后一次采样各观众累计解码约 9,407–9,410 帧，ICE 保活请求与响应持续增长。没有把合成 MediaStream 用作原生房主源。
+- 主动停止后的系统核对通过：MediaProjection 为空、ScreenShareService 已退出、屏幕帧投递与 native PeerConnection 工作线程已释放。再次授权开始后，系统锁屏触发 capture-ended 回调，MediaProjection 和前台服务同时退出，通过系统停止路径验证。
 - HarmonyOS 房主：授权拒绝通过；确认后未返回实时视频流，未通过。
 - 两端真机、麦克风/系统音频、来电、真实 Wi-Fi/公网 TURN、热量和耗电：未进行。
 
-第一轮中继试验在约 2 分钟时遇到 HarmonyOS 观众连接失败，三路 Chrome 当时仍连接；该失败保留为证据。第二轮延长模拟器屏幕超时后重新测试；在完成持续试验前不将此前短时收帧写成稳定性通过，也不将关联的配置变化直接认定为根因修复。
+前两轮基于临时 node-turn 测试中继，分别在约 2 分钟和 6 分钟观察到 HarmonyOS 观众连接失败，三路 Chrome 当时仍连接；失败日志保留。已在该测试依赖的 refresh.js 中核实续租读取 `defaultLifetime`、`maxAllocateTimeout`，而 server.js 实际定义 `defaultAllocatetLifetime`、`maxAllocateLifetime`，会产生无效的续租时长。替换为独立的 Pion TURN 实现后完成上述 10 分钟持续验证。该缺陷属于临时测试中继，不在客户端源码或运行时依赖中；不能据此宣称修复了产品里本不存在的 TURN 服务。
 
 ## 构建与交付状态
 
 - `npm run build`、`android:sync`、`harmony:web` 使用共享源生成网页资源，未手改 HarmonyOS rawfile/web。
-- Android Debug APK 和 HarmonyOS Debug unsigned HAP 已构建并安装到对应模拟器进行验证；最终包路径、一次 SHA-256 与本地 Git 提交在本轮结束时记录。
+- Android Debug APK 和 HarmonyOS Debug unsigned HAP 已构建并安装到对应模拟器进行验证。APK 为 `com.zviewer.mobile.debug` / `1.9.5-debug` / 195，min SDK 24、target SDK 36，v2 Debug 签名验证通过，桥参数日志为 none，包含 arm64-v8a/armeabi-v7a/x86/x86_64 的 WebRTC 库。HAP 为 `com.zviewer.mobile` / 1.9.5 / 195，未签名，仅本轮模拟器安装验收可用。
+- 最终验证包在忽略目录 `release/screen-share-poc-20261015/`，每个最终文件在构建后各计算一次 SHA-256，记录于同目录 `SHA256SUMS.txt`：
+
+| 文件 | SHA-256 |
+| --- | --- |
+| ZViewer-1.9.5-screen-share-poc-debug.apk | `969cae84de74bec0e27d1951c7212f72f8ea58ea83c7992a956804c95189d94d` |
+| ZViewer-1.9.5-screen-share-poc-debug-unsigned.hap | `6a912dc8e884fb19e5085095f924cab72cffaa8621ea381376b95992a687a6b5` |
+
+包内 Android/HarmonyOS 网页入口同为 `index-DM8FEnxV.js`，HAP 包内版本信息已读取核对。最终 APK/HAP 均已安装到模拟器；HAP 的 unsigned 状态保持明确，不将模拟器安装成功写成真机签名通过。
 - 未构建 iOS，未修改服务端，未推送 GitHub、未发布 Release。
 - 正式签名 Release、完整真实房间验收和双端真机条件未达成，因此不能勾选计划中的最终交付完成。
 
