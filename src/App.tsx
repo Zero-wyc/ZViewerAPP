@@ -559,7 +559,7 @@ export default function App() {
           </form>
 
           <div className="security-note">
-            <ShieldCheck size={16} />推荐使用 HTTPS 服务地址；局域网测试可使用 HTTP。
+            <ShieldCheck size={16} aria-hidden="true" /><span>推荐使用 HTTPS 服务地址；局域网测试可使用 HTTP。</span>
           </div>
         </section>
       ) : (
@@ -646,67 +646,67 @@ export default function App() {
             )}
           </div>
 
-          {createOpen && (
-            <div className="sheet-backdrop" role="presentation" onClick={() => !creating && setCreateOpen(false)}>
-              <form className="create-sheet" onSubmit={handleCreateRoom} onClick={(event) => event.stopPropagation()}>
-                <div className="sheet-header">
-                  <div>
-                    <span className="eyebrow">新的放映室</span>
-                    <h2>创建房间</h2>
-                  </div>
-                  <button className="icon-button" type="button" disabled={creating} onClick={() => setCreateOpen(false)} aria-label="关闭">
-                    <X size={21} />
-                  </button>
-                </div>
+        </section>
+      )}
+      {screen === 'rooms' && createOpen && (
+        <div className="sheet-backdrop" role="presentation" onClick={() => !creating && setCreateOpen(false)}>
+          <form className="create-sheet" role="dialog" aria-modal="true" aria-labelledby="create-room-title" onSubmit={handleCreateRoom} onClick={(event) => event.stopPropagation()}>
+            <div className="sheet-header">
+              <div>
+                <span className="eyebrow">新的放映室</span>
+                <h2 id="create-room-title">创建房间</h2>
+              </div>
+              <button className="icon-button" type="button" disabled={creating} onClick={() => setCreateOpen(false)} aria-label="关闭">
+                <X size={21} />
+              </button>
+            </div>
 
-                <label className="field-label" htmlFor="room-name">房间名称</label>
+            <label className="field-label" htmlFor="room-name">房间名称</label>
+            <div className="input-shell compact-input">
+              <UsersRound size={18} />
+              <input id="room-name" value={roomName} onChange={(event) => setRoomName(event.target.value)} placeholder="留空将自动生成" maxLength={80} />
+            </div>
+
+            <span className="field-label mode-label">房间模式</span>
+            <div className="room-mode-grid">
+              <button type="button" className={roomMode === 'watch-together' ? 'active' : ''} onClick={() => setRoomMode('watch-together')}>
+                <MonitorPlay size={20} /><span>同步观影</span>
+              </button>
+              <button type="button" className={roomMode === 'listen-together' ? 'active' : ''} onClick={() => setRoomMode('listen-together')}>
+                <Music2 size={20} /><span>一起听</span>
+              </button>
+            </div>
+
+            <div className="create-form-grid">
+              <div>
+                <label className="field-label" htmlFor="room-password">房间密码</label>
+                <div className="input-shell compact-input">
+                  <LockKeyhole size={18} />
+                  <input id="room-password" type="password" value={roomPassword} onChange={(event) => setRoomPassword(event.target.value)} placeholder="可选" />
+                </div>
+              </div>
+              <div>
+                <label className="field-label" htmlFor="max-viewers">人数上限</label>
                 <div className="input-shell compact-input">
                   <UsersRound size={18} />
-                  <input id="room-name" value={roomName} onChange={(event) => setRoomName(event.target.value)} placeholder="留空将自动生成" maxLength={80} />
+                  <input id="max-viewers" type="number" min="1" max="100" value={maxViewers} onChange={(event) => setMaxViewers(Number(event.target.value))} />
                 </div>
-
-                <span className="field-label mode-label">房间模式</span>
-                <div className="room-mode-grid">
-                  <button type="button" className={roomMode === 'watch-together' ? 'active' : ''} onClick={() => setRoomMode('watch-together')}>
-                    <MonitorPlay size={20} /><span>同步观影</span>
-                  </button>
-                  <button type="button" className={roomMode === 'listen-together' ? 'active' : ''} onClick={() => setRoomMode('listen-together')}>
-                    <Music2 size={20} /><span>一起听</span>
-                  </button>
-                </div>
-
-                <div className="create-form-grid">
-                  <div>
-                    <label className="field-label" htmlFor="room-password">房间密码</label>
-                    <div className="input-shell compact-input">
-                      <LockKeyhole size={18} />
-                      <input id="room-password" type="password" value={roomPassword} onChange={(event) => setRoomPassword(event.target.value)} placeholder="可选" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="field-label" htmlFor="max-viewers">人数上限</label>
-                    <div className="input-shell compact-input">
-                      <UsersRound size={18} />
-                      <input id="max-viewers" type="number" min="1" max="100" value={maxViewers} onChange={(event) => setMaxViewers(Number(event.target.value))} />
-                    </div>
-                  </div>
-                </div>
-
-                <label className="approval-row">
-                  <span><strong>入房需要批准</strong><small>观众加入前由房主确认</small></span>
-                  <input type="checkbox" checked={requireApproval} onChange={(event) => setRequireApproval(event.target.checked)} />
-                  <span className="switch-track" aria-hidden="true"><span /></span>
-                </label>
-
-                <button className="primary-button sheet-submit" type="submit" disabled={creating || !connected}>
-                  {creating ? <RefreshCw className="spin" size={19} /> : <Plus size={19} />}
-                  {creating ? '正在创建' : '创建并进入房间'}
-                  {!creating && <ArrowRight size={19} />}
-                </button>
-              </form>
+              </div>
             </div>
-          )}
-        </section>
+
+            <label className="approval-row">
+              <span><strong>入房需要批准</strong><small>观众加入前由房主确认</small></span>
+              <input type="checkbox" checked={requireApproval} onChange={(event) => setRequireApproval(event.target.checked)} />
+              <span className="switch-track" aria-hidden="true"><span /></span>
+            </label>
+
+            <button className="primary-button sheet-submit" type="submit" disabled={creating || !connected}>
+              {creating ? <RefreshCw className="spin" size={19} /> : <Plus size={19} />}
+              {creating ? '正在创建' : '创建并进入房间'}
+              {!creating && <ArrowRight size={19} />}
+            </button>
+          </form>
+        </div>
       )}
       </>}
     </MobileAppearance>

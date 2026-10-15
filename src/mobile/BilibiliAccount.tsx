@@ -57,7 +57,7 @@ export function BilibiliAccount({ className = '' }: { className?: string }) {
         maskImage: `url("${import.meta.env.BASE_URL}bilibili.svg")`, WebkitMaskImage: `url("${import.meta.env.BASE_URL}bilibili.svg")`,
       }} />
     </button>
-    <Modal open={open} title="B 站账号" onClose={close} footer={null}>
+    <Modal open={open} title={<span className="bili-account-title"><span>B站账号</span>{proxy.loggedIn && <>·<span className="bili-account-login-state">已登录</span></>}</span>} onClose={close} footer={null}>
       {proxy.loggedIn ? <div className="bili-account-panel">
         <p>{proxy.user?.name || 'B 站用户'} · {proxy.user?.vipStatus ? '大会员' : '普通账号'}</p>
         <p>默认自动选择本机可播放的最高普通画质；高画质不可用时优先 720p。自动模式排除 HDR 和杜比视界。</p>

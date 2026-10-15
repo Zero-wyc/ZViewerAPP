@@ -4,7 +4,7 @@
 import { createServer } from 'node:http'
 import { Server } from 'socket.io'
 import { createReadStream, statSync } from 'node:fs'
-const user = { id: 999, username: 'emulator-test', role: 'guest' }
+const user = { id: 999, username: 'emulator-test', role: process.env.ZVIEWER_FIXTURE_ROLE === 'root' ? 'root' : 'guest' }
 const room = { roomId: 'native-fixture', name: 'WebRTC 模拟器测试', mode: 'screen-share', shareMethod: 'webrtc', hasPassword: false, requireApproval: false, viewerCount: 1 }
 const server = createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*')

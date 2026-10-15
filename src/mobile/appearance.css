@@ -81,8 +81,15 @@ html[data-mobile-appearance-theme="light"] {
 .app-shell .brand-subtitle,
 .app-shell .server-summary small,
 .app-shell .room-meta,
-.app-shell .security-note,
 .app-shell .intro-copy p { color: var(--appearance-muted); }
+.app-shell .security-note {
+  justify-content: flex-start; align-items: flex-start; gap: 8px;
+  padding: 12px 14px; border: 1px solid var(--appearance-line); border-radius: var(--appearance-radius);
+  color: var(--appearance-text); background: var(--appearance-surface); font-size: 12px; line-height: 1.6;
+}
+.app-shell .security-note svg { flex-shrink: 0; margin-top: 2px; }
+/* Let the last connection hint scroll clear of the two fixed shortcuts. */
+.app-shell .connect-view { padding-bottom: 128px; }
 .app-shell .connection-pill,
 .app-shell .login-panel,
 .app-shell .room-row,
@@ -131,6 +138,7 @@ html[data-mobile-appearance-theme="light"] {
 .app-shell .rooms-toolbar { border-color: var(--appearance-line); }
 .app-shell .sheet-backdrop { background: rgba(8, 15, 25, .58); }
 .app-shell .create-sheet { border-radius: var(--appearance-radius) var(--appearance-radius) 0 0; }
+.app-shell .create-sheet .icon-button { color: var(--appearance-text); }
 .app-shell .approval-row strong { color: var(--appearance-text); }
 .app-shell .approval-row small { color: var(--appearance-muted); }
 
@@ -374,6 +382,9 @@ html[data-mobile-appearance-theme] .mobile-room-settings-shortcuts > .bilibili-a
   -webkit-mask-size: contain; mask-size: contain;
 }
 .bilibili-account-trigger[data-logged-in="true"] .bilibili-status-icon { background: #fb7299; }
+.bili-account-title { display: inline-flex; align-items: baseline; gap: 4px; }
+.bili-account-login-state { color: #c43667; }
+html[data-mobile-appearance-theme="dark"] .bili-account-login-state { color: #ff91b5; }
 .bilibili-account-trigger:focus-visible { outline: 2px solid var(--appearance-accent); outline-offset: 3px; }
 html[data-mobile-appearance-theme] .mobile-room-settings-shortcuts > .bilibili-account-trigger { width: 64px; height: auto; }
 .connection-mode-field { position: relative; margin-top: 8px; }
