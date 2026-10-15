@@ -32,6 +32,15 @@ Go's runtime and `golang.org/x/mobile` use BSD terms preserved at
 uses MIT, preserved at `public/licenses/go-qrcode-MIT.txt`.
 Versions are pinned in `native/bilicore/go.mod` and `go.sum`.
 
+## Android native WebRTC
+
+The experimental Android screen-sharing sender uses `io.github.webrtc-sdk:android:144.7559.15`.
+WebRTC uses BSD-style license terms, with additional notices for its bundled dependencies.
+See [the Android SDK distribution](https://github.com/webrtc-sdk/android),
+[WebRTC license](https://webrtc.googlesource.com/src/+/refs/heads/main/LICENSE) and
+[third-party notices](https://webrtc.googlesource.com/src/+/refs/heads/main/third_party/).
+The AAR is fetched by Gradle; local binaries and test TURN credentials are not source assets.
+
 ## JavaScript dependencies
 
 Dependency versions and origins are recorded in `package-lock.json`. React,

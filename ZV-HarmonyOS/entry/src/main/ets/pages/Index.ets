@@ -6,6 +6,7 @@ import { BilibiliLocalProxy } from '../services/BilibiliLocalProxy';
 import { DEBUG } from 'BuildProfile';
 import { NativeMediaSession, MediaSessionState } from '../services/NativeMediaSession';
 import { ServerConnection, ConnectionPolicy } from '../services/ServerConnection';
+import { screenShareCapturePolicy } from '../services/ScreenShareCapturePolicy';
 
 const LOCAL_ORIGIN = 'https://zviewer.local';
 const LOCAL_PAGE = `${LOCAL_ORIGIN}/index.html`;
@@ -14,6 +15,7 @@ interface PollQrArgument { key: string; }
 const bilibiliProxy = new BilibiliLocalProxy();
 const serverConnection = new ServerConnection();
 interface ProbeArgument { url: string; }
+interface ScreenShareArgument { sessionId: string; }
 interface AppVersionInfo { version: string; build: string; }
 
 function mimeType(path: string): string {
@@ -62,6 +64,15 @@ class HarmonyHost {
   }
 
   private async perform(action: string, argument: string): Promise<string | null> {
+    if (action === 'getScreenShareCaptureSupport') return JSON.stringify({ supported: DEBUG });
+    if (action === 'armScreenShareCapture') {
+      screenShareCapturePolicy.arm((JSON.parse(argument) as ScreenShareArgument).sessionId, this.controller);
+      return null;
+    }
+    if (action === 'cancelScreenShareCapture') {
+      screenShareCapturePolicy.cancel((JSON.parse(argument) as ScreenShareArgument).sessionId);
+      return null;
+    }
     if (action === 'getAppInfo') {
       const bundle = await bundleManager.getBundleInfoForSelf(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
       const version: AppVersionInfo = { version: bundle.versionName, build: String(bundle.versionCode) };
@@ -137,7 +148,7 @@ class HarmonyHost {
       .catch(() => console.error('Unable to deliver native response'));
   }
 
-  dispose(): void { void this.media.destroy(); }
+  dispose(): void { screenShareCapturePolicy.end(); void this.media.destroy(); }
 }
 
 @Entry
@@ -260,6 +271,7 @@ struct Index {
           return this.localResource(event.request.getRequestUrl());
         })
         .onShowFileSelector((event) => this.selectDanmakuFile(event))
+        .onScreenCaptureRequest((event) => screenShareCapturePolicy.request(event.handler))
         .onPermissionRequest((event) => {
           const request = event.request;
           const resources = request.getAccessibleResource();

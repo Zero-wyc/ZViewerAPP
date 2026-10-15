@@ -10,6 +10,20 @@
 
 ## 代码入口
 
+### 2026-10-15 手机屏幕共享验证实现（未通过发送端验收）
+
+当前发行仍为 1.9.5 / 195。屏幕共享实验功能仅在 Debug 通过 `getScreenShareCaptureSupport` 开放，正式包返回 unsupported；不能将构建成功或授权弹窗成功写成已支持手机实时共享。详细结果见 [屏幕共享验证报告](mobile-screen-sharing-validation-2026-10-15.md)。
+
+共享层调用 `screenShare.ts → harmonyScreenShare.ts`；只有此平台后端持有实际 MediaStream 与 ArkWeb PeerConnection，React 房主组件只交换 sessionId、SDP、ICE 和状态。授权路径是 `contracts.ts → bridge-bootstrap.js → Index.ets → ScreenShareCapturePolicy.ets`，ArkWeb 的 onScreenCaptureRequest 将 ScreenCaptureHandler 交给原生策略。策略仅接受 `https://zviewer.local`（及其尾斜杠形式），要求 Debug、有效 sessionId、15 秒内预备授权且无并行请求，再显示明确的本机确认窗口。确认后使用 SDK 的 `WebCaptureMode.HOME_SCREEN`；拒绝、取消或旧会话不能授权后续采集。未放宽现有来源校验，也未添加系统级 CAPTURE_SCREEN 权限。
+
+实际采集尝试使用 ArkWeb 由原生 ScreenCaptureHandler 授权的 `getDisplayMedia()`；这条路径已在安装的 Debug HAP 中实际调用和授权。当前 Pura 90 Pro x86_64、HarmonyOS 7.0.0(26.0.0) 模拟器确认后仍未返回屏幕流，原生日志出现 `BaseScreenCaptureSource window callback is nullptr`，45 秒后按 capture-start-failed 退出；这只是已观察到的失败位置，尚未证明其根因。尚无连续采集、编码或作为房主向另一端发送视频的通过证据。
+
+`harmonyScreenShare.ts` 对挂起采集提供取消和 45 秒超时；如果系统晚到返回流，过期 session 会立即停止全部轨道。ICE 在 remote description 设置前有界排队；暂停禁用视频轨道，停止逐个关闭 PeerConnection、停止轨道、移除统计和待授权。EntryAbility 的 `onBackground/onDestroy`、Index 销毁发出 `zviewer:screen-capture-stop`，验证版仅承诺前台采集尝试。对已经授权但尚未返回的 ArkWeb 请求，JS 没有原生 AbortSignal 取消能力：会话被失效并清理任何晚到流，页面/宿主销毁才是最终原生回收边界；这项限制必须在可靠取消得到设备验证前解决，不能按完整清理已通过记录。
+
+麦克风、系统音频和后台持续任务均未开放，真实帧率无测量证据时返回 0 并显示待测，不把 track.getSettings().frameRate 的配置值冒充结果。目标构建配置为 compatibleSdkVersion 6.1.0(23)、targetSdkVersion 26.0.0；模拟器系统、目标 SDK 和真实设备应分别记录。原有 WebRTC 观众端保留，Android MediaProjection 到此 ArkWeb 的实际解码是“观众能力”证据，不等于鸿蒙房主采集通过。
+
+### 既有能力入口
+
 | 功能 | 维护入口与约束 |
 | --- | --- |
 | 宿主启动和 ArkWeb 生命周期 | `ZV-HarmonyOS/entry/src/main/ets/entryability/EntryAbility.ets`、`pages/Index.ets`；页面创建 `zviewerHost` 并注入 `window.zviewerNative`，加载生成的 `rawfile/web`。 |

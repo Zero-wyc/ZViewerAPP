@@ -10,6 +10,22 @@
 
 ## 代码入口
 
+### 2026-10-15 手机屏幕共享验证实现（尚未发行）
+
+当前发行仍为 1.9.5 / 195。本地新增的手机房主共享属于 Debug 验证功能，`ScreenSharePlugin.getCapabilities()` 与 `start()` 同时使用 `BuildConfig.DEBUG` 门控，Release 不能绕过前端直接启动未经验收的采集。完整合同、模拟器结果和剩余验收见 [屏幕共享验证报告](mobile-screen-sharing-validation-2026-10-15.md)，不得将其标为双端正式交付。
+
+`src/platform/contracts.ts` 定义能力、会话、错误、真实采集设置及 SDP/ICE 边界；`screenShare.ts` 分派原生后端；`src/mobile/screenShareSession.ts` 仅管理房间信令和会话状态。`MobileScreenShareHost.tsx` 驱动开始、暂停发送、恢复、停止，`MobileRoom.tsx` 按房主/观众分流，房主屏幕共享也接收入房审批。采集 sessionId 与 socket peerId 分开；旧会话回调不得启动新连接或停止新采集。Socket 断开、房间关闭、离房、切模式、pagehide、组件销毁都会停止当前会话；网络恢复后不自动再次申请屏幕授权。
+
+Android 入口为 `ScreenSharePlugin.java`、`ScreenShareService.java`、`MainActivity.java` 和 Manifest。MediaProjection 每次开始重新申请用户授权；得到同意后先启动 `mediaProjection` 类型的前台服务，再绑定服务和消费一次授权 token。单个 VirtualDisplay 的 Surface 接入 WebRTC `SurfaceTextureHelper → VideoSource → VideoTrack → native PeerConnection`，不向网页注入视频帧。旋转通过 `onCapturedContentResize()` 调整现有 display/纹理，不重复创建 projection。发送端使用 Maven 固定版本 `io.github.webrtc-sdk:android:144.7559.15`，优先设备实际提供的 H.264，保留 VP8 等协商回退；模拟器 VP8 结果不能当作真机 H.264 验证。
+
+Manifest 新增 `ACCESS_NETWORK_STATE` 与 `FOREGROUND_SERVICE_MEDIA_PROJECTION`；前者是原生 WebRTC 网络监视器所需的普通权限，漏掉会在 native network_thread 中抛 SecurityException 并触发进程中止。服务为非导出、START_NOT_STICKY，通知提供停止按钮，不在启动/系统恢复时复用旧授权。API 24/25 使用无通知通道的兼容 Notification.Builder，API 26+ 使用专用通道。暂停禁用视频发送轨道，系统捕获仍存在；界面明确提示用停止结束采集。首轮视频独立发送，麦克风、系统音频和 LiveKit 混音均未开放。
+
+清理先失效 sessionId、停止帧投递和轨道发送，再逐个关闭/释放 PeerConnection，释放视频轨道/源、VirtualDisplay、projection callback、projection、Surface、纹理、factory/EGL，最后解绑和停止前台服务。各释放步骤独立容错；系统状态栏停止、通知停止、task 移除和宿主销毁走相同清理。原生统计只回传宽高、实际帧投递速率和连接状态；`capacitor.config.ts` 关闭 Android 桥参数日志，原生 WebRTC 日志设为 LS_NONE，避免 SDP/ICE 凭据和地址进入常规日志。诊断输出必须留在忽略目录中，不能用于公开发行材料。
+
+新增会话和平台测试由 `npm run test:adaptation` 执行，覆盖授权失败、取消、晚到流、旧 session、早到/晚到观众、SDP/ICE 排队、4 观众上限和销毁。Android 模拟器实际捕获与跨 ArkWeb 接收单独记录；真机授权、系统停止、后台、热量/耗电和真实 Wi-Fi/TURN 网络仍须按计划验收。
+
+### 既有能力入口
+
 | 功能 | 维护入口与约束 |
 | --- | --- |
 | 首页、房间、移动布局 | `src/App.tsx`、`src/mobile/MobileRoom.tsx`、`src/mobile/mobile.css`；房间状态与权限在 `src/upstream/store/roomStore.ts` 及相关 hooks。 |

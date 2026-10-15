@@ -5,6 +5,7 @@ def releaseSigning = releaseKeys.collectEntries { [(it): System.getenv(it)] }
 def hasReleaseSigning = releaseKeys.every { releaseSigning[it] }
 
 android {
+    buildFeatures { buildConfig = true }
     namespace = "com.zviewer.mobile"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
@@ -68,6 +69,7 @@ repositories {
 }
 
 dependencies {
+    implementation 'io.github.webrtc-sdk:android:144.7559.15'
     implementation files('libs/bilicore.aar')
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"

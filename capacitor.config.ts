@@ -13,6 +13,8 @@ const config: CapacitorConfig = {
   },
   android: {
     path: 'ZV-Android',
+    // Native signaling carries SDP/ICE credentials; never log bridge arguments.
+    loggingBehavior: 'none',
     allowMixedContent: true,
   },
 }

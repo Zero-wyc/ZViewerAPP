@@ -96,6 +96,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid #65d59b; outline-
 .mobile-status { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 34px; background: #453921; color: #ffdfad; font-size: 12px; }
 .mobile-watch-layout { max-width: 1200px; margin: auto; }
 .mobile-player { width: 100%; aspect-ratio: 16 / 9; background: #000; min-width: 0; overflow: visible; }
+.mobile-player:has(.mobile-screen-share-host) { aspect-ratio: auto; max-height: none; }
+.mobile-screen-share-host { padding: 24px 18px; color: #f1f5f9; background: #111820; overflow-wrap: anywhere; }
+.mobile-screen-share-host h2 { margin: 10px 0; font-size: 20px; }
+.mobile-screen-share-host p { margin: 10px 0; font-size: 14px; line-height: 1.6; }
+.mobile-screen-share-host .mobile-screen-share-note { color: #fcd34d; }
+.mobile-screen-share-actions { display: flex; gap: 12px; flex-wrap: wrap; padding: 8px 0; }
+.mobile-screen-share-actions button { min-height: 44px; }
+.mobile-screen-share-actions .mobile-text-button { color: #edf4fa; background: #1e3445; border: 1px solid #4a6171; border-radius: 8px; padding: 10px 14px; }
 .mobile-room-details { min-width: 0; display: flex; flex-direction: column; }
 .mobile-room-tabs { display: flex; border-bottom: 1px solid #343d41; height: 52px; flex: 0 0 52px; }
 .mobile-room-tabs button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; color: #a8b3b6; border-bottom: 2px solid transparent; font-size: 14px; }
@@ -120,6 +128,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #65d59b; outline-
 .mobile-room-music > header { flex: 0 0 64px; }
 .mobile-music-content { min-height: 0; flex: 1; position: relative; overflow: hidden; }
 .mobile-approval { display: flex; align-items: center; gap: 8px; padding: 4px 12px; background: #233c30; }
+.mobile-watch-layout > .mobile-approval { grid-column: 1 / -1; }
 .mobile-approval span { flex: 1; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
 .mobile-room .zart-stage .zart-video-container { min-height: 0; }
 .mobile-room .zart-web-fullscreen { z-index: 500; }

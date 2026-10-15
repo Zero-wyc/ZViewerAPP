@@ -35,6 +35,9 @@
   window.zviewerNative = {
     platform: 'harmony',
     getAppInfo: () => request('getAppInfo', null),
+    getScreenShareCaptureSupport: () => request('getScreenShareCaptureSupport', null),
+    armScreenShareCapture: (options) => request('armScreenShareCapture', options),
+    cancelScreenShareCapture: (options) => request('cancelScreenShareCapture', options),
     openExternalUrl: (url) => request('openExternalUrl', url),
     configureServerConnection: (policy) => request('configureServerConnection', policy),
     probeServerConnection: (options) => request('probeServerConnection', options),

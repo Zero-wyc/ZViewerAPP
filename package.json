@@ -13,7 +13,7 @@
     "android:open": "cap open android",
     "postinstall": "patch-package --error-on-fail",
     "test:media": "node --experimental-specifier-resolution=node --test scripts/media-regression.test.mjs",
-    "test:adaptation": "node --test scripts/voice-adaptation.test.mjs scripts/danmaku-import.test.mjs scripts/music-cookie.test.mjs scripts/pgc-connection.test.mjs scripts/harmony-connection.test.mjs scripts/watch-kazumi.test.mjs scripts/hls-auth.test.mjs scripts/alignment-447.test.mjs scripts/alignment-451.test.mjs scripts/alignment-453.test.mjs scripts/player-display.test.mjs scripts/webrtc-pip.test.mjs scripts/screen-share-gestures.test.mjs"
+    "test:adaptation": "node --test scripts/voice-adaptation.test.mjs scripts/danmaku-import.test.mjs scripts/music-cookie.test.mjs scripts/pgc-connection.test.mjs scripts/harmony-connection.test.mjs scripts/watch-kazumi.test.mjs scripts/hls-auth.test.mjs scripts/alignment-447.test.mjs scripts/alignment-451.test.mjs scripts/alignment-453.test.mjs scripts/player-display.test.mjs scripts/webrtc-pip.test.mjs scripts/screen-share-gestures.test.mjs scripts/screen-share-session.test.mjs scripts/screen-share-platform.test.mjs scripts/screen-share-harmony-policy.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

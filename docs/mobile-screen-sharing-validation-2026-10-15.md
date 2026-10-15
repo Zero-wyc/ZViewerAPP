@@ -1,0 +1,124 @@
+# 手机屏幕共享：实现与模拟器验证记录
+
+日期：2026-10-15。基线：Android/HarmonyOS 1.9.5 / 195。状态：**Debug PoC，双端交付未完成，未发布 Release**。
+
+用户说明暂时没有可用真机，并要求先进行模拟器测试与验收。本报告将原生实帧、浏览器替身、本地信令中继与真机证据分别记载，不能将构建通过、弹出授权窗口或观众接收能力写成双端房主采集完成。原始交付标准见 [交付计划](mobile-screen-sharing-delivery-plan.md)。
+
+## 实现范围与门控
+
+- Android：MediaProjection + 原生 WebRTC Sender，专用前台服务和停止通知；仅 Debug 可用。
+- HarmonyOS：ArkWeb 原生 ScreenCaptureHandler 授权路径与平台发送后端；仅 Debug 允许尝试，当前模拟器未返回采集流。
+- 移动房主与观众正确分流；验证包可创建或切换 screen-share 房间。原有 WebRTC/OBS 观众页保留，OBS 房主显示电脑推流说明。
+- 共享控制：明确用户操作后开始、暂停视频发送、恢复、停止；屏幕共享房主接收入房审批。暂停仍持有系统采集，页面明确提示停止才能结束采集。
+- 当前只有视频；麦克风、系统音频、混音和 HarmonyOS 后台采集均未开放。发送连接上限为 4，更多观众不会创建额外编码连接。
+- 正式包的能力查询与原生开始入口双重门控；源码版本和公开发行仍是 1.9.5 / 195，没有将 PoC 标为新正式版本。
+
+## 合同审计
+
+服务端核对范围为本地只读源码 `backend/src/modules/webrtc-signaling/`、房主注册与观众加入处理器，以及桌面 `frontend/src/modules/screen-sharing/`。未修改服务端、未连接 NAS SSH。
+
+| 事件 | 客户端发送 | 服务端转发/约束 |
+| --- | --- | --- |
+| viewer-ready | `{ roomId }` | 校验已入房，向房主发送 `{ from: socketId }` |
+| sharer-ready | `{ roomId }` | 校验房主权限，向其他成员广播 `{ roomId }` |
+| signal-offer | `{ to, data: { type: 'offer', sdp } }` | 校验双方同房，转发 `{ from, data }` |
+| signal-answer | `{ to, data: { type: 'answer', sdp } }` | 同房校验并转发 |
+| signal-ice-candidate | `{ to, data: RTCIceCandidateInit }` | 同房校验并转发 |
+| viewer-left | 接收 `{ viewerSocketId }` | 释放该观众的连接，不停止本机采集 |
+
+现有 DTO 足以交换原生 Sender 的 SDP/ICE，不需要先改服务端协议。原服务端没有专门的共享停止通知；当前关闭发送连接并依靠观众端的连接状态与重连流程。停止提示、自动恢复和整个真实房间的完整端到端体验仍属于后续验收，不能由本地 DTO 中继试验替代。
+
+房主采集 sessionId 与观众 socket peerId 独立。平台后端拥有媒体轨道、编码和 PeerConnection，`screenShareSession.ts` 只持有控制状态与信令映射；没有通过 React MediaStream 注入原生视频帧。每次开始生成新 sessionId，旧授权结果、旧 ICE、旧统计和旧停止事件不能覆盖新会话。
+
+### 平台接口
+
+契约在 `src/platform/contracts.ts`，facade 在 `src/platform/screenShare.ts`：
+
+| 操作 | 返回/语义 |
+| --- | --- |
+| getCapabilities | video、microphone、systemAudio、background、experimental、reason |
+| start | sessionId + ICE 配置；明确用户操作后申请授权，返回实际采集设置 |
+| pause/resume | 当前 session 的视频轨道发送开关，不复用系统授权重新开采集 |
+| stop | 当前 session 失效并释放资源；重复/过期 stop 不影响后续会话 |
+| createOffer/setAnswer | 平台独占 PeerConnection，前端仅转发 SDP |
+| addIceCandidate | 有界缓存 remote description 之前到达的 ICE |
+| removePeer | 释放一个观众的连接 |
+| screenShareEvent | state、capture-ended、error、ice、peer-state、stats，均带 sessionId |
+
+会话在 socket 断开、房间关闭、离房、切模式、pagehide 和组件销毁时停止；重新联网后不自动再次申请屏幕捕获。错误只显示统一的本地说明，原生技术错误和网络细节不直接呈现给用户。
+
+## 原生路径与权限
+
+### Android
+
+`MainActivity → ScreenSharePlugin → MediaProjection 系统授权 → ScreenShareService 前台任务 → VirtualDisplay/Surface → SurfaceTextureHelper → VideoSource/VideoTrack → 每观众 native PeerConnection`。
+
+固定依赖：`io.github.webrtc-sdk:android:144.7559.15`；compile/target SDK 36，min SDK 24。Manifest 增加普通权限 ACCESS_NETWORK_STATE 和 FOREGROUND_SERVICE_MEDIA_PROJECTION，服务非导出且 START_NOT_STICKY。API 24/25 与 26+ 分别使用兼容通知与通知通道。
+
+每次新采集都重新请求系统授权，得到授权后才启动前台服务并消费一次 token。旋转调整现有 display 与纹理，避免再次创建 projection。系统回调、通知停止、宿主销毁走同一个释放入口。优先协商设备实际提供的 H.264，保留其他视频编码回退；实际 codec 以接收端统计为准。
+
+已修复模拟器 PoC 发现的缺少 ACCESS_NETWORK_STATE 问题：原生 WebRTC 的网络监视器此前抛 SecurityException 并使进程中止。补齐权限后已进入实际编码/跨端解码验证。清理顺序还调整为先停止帧投递和轨道，再关闭连接和释放编码资源。
+
+Android 桥参数日志和原生 WebRTC 常规日志已关闭，避免 SDP/ICE 中的临时凭据与地址进入常规日志。测试生成的数据保存在忽略目录，不纳入源码提交或发行资料。
+
+### HarmonyOS
+
+`screenShare.ts → harmonyScreenShare.ts → armScreenShareCapture → bootstrap → Index → ScreenShareCapturePolicy → onScreenCaptureRequest/ScreenCaptureHandler → ArkWeb getDisplayMedia/RTCPeerConnection`。
+
+目标工程为 compatibleSdkVersion 6.1.0(23)、targetSdkVersion 26.0.0。授权要求 Debug、固定本地来源、有效会话、15 秒预备窗口、无并行请求，以及用户点击本机确认；没有新增高权限 CAPTURE_SCREEN 声明。EntryAbility 后台/销毁与页面销毁失效会话并请求停止。
+
+本次实际尝试了安装 HAP 中的原生授权路径。拒绝可以得到 permission-denied；确认后底层建立了屏幕捕获请求，但模拟器没有向 JS 返回视频流。已观察到的原生日志位置为 `BaseScreenCaptureSource window callback is nullptr`；目前只能将其作为定位线索，不能据此断言全部 HarmonyOS 设备都不支持。
+
+平台后端在 45 秒没有得到流时返回 capture-start-failed，取消立即使会话失效；任何晚到流都会停止轨道。但 ArkWeb getDisplayMedia 不提供原生 AbortSignal，已经交给系统而尚未返回的采集请求，最终回收仍依赖页面/宿主销毁。这一清理边界尚未通过设备验证，是正式交付阻塞项。
+
+曾核对 OHPM 的原生 `@ohos/webrtc` 1.0.3 包：所取得的 HAR 只有 arm64-v8a 库，无法直接作为当前 x86_64 模拟器的验证路径。该依赖未加入工程，也没有把录屏文件作为实时共享替代。
+
+## 验证环境与证据边界
+
+| 项目 | 环境 |
+| --- | --- |
+| Android 房主 | Android Studio Medium_Phone，x86_64，Android 17 / API 37（codename REL，系统镜像目录 android-37.2）；应用 target 36 |
+| HarmonyOS 观众/采集尝试 | DevEco Pura 90 Pro，x86_64，HarmonyOS 7.0.0(26.0.0) |
+| 其他观众 | 3 个独立 Chrome PeerConnection / video 实例 |
+| 媒体来源 | Android MediaProjection 实际采集模拟器屏幕中的移动图案与时钟，不使用画布流冒充原生采集 |
+| 信令 | 测试工具在本机转发与正式服务相同的 offer/answer/ICE DTO；没有连接生产房间 |
+| 网络 | 本机临时鉴权 TURN，经模拟器 NAT 转发；凭据随机生成，仅在忽略目录存在 |
+| UI 检查 | 独立浏览器替身，以合成 canvas 流驱动真实房主组件，不能当作原生验收 |
+| 真机 | 本轮无可用设备，未进行 |
+
+临时 TURN 用于隔离模拟器 NAT 条件。源码的既有 ICE 配置仍只有公共 STUN，本轮没有把本机 TURN 或凭据写入产品。真实跨公网网络若需要 TURN，仍需要正式的配置与鉴权来源；本机 relay 验证不能证明现有发行配置已经具备中继能力。
+
+## 测试结果
+
+自动化、持续测试与安装包最终结果在本轮结束时补齐。证据文件位于忽略的 `.ui-validation/screen-share-native/`；该目录可能含仅供本机排障的原生日志，不能整体打包公开。
+
+- 会话/平台/鸿蒙原生授权策略新增行为测试：15 项通过。合并原有回归后 `test:adaptation` 共 106 项通过；媒体回归另 4 项通过。
+- 房主组件浏览器替身：320×640、360×800、393×852、852×393 的开始/暂停/恢复/停止，无横向溢出；unsupported、OBS 分支与活动采集中切换 roomId 后重置控制状态通过。
+- Android 实际采集：授权拒绝、再次授权、连续帧、多个 native PeerConnection 已验证。暂停时已在鸿蒙观众画面读取到黑帧，恢复后继续解码；短暂切后台时 dumpsys 仍显示系统采集活跃。
+- Android → HarmonyOS ArkWeb + 3 Chrome：四路实际解码，竖屏 576×1280，旋转后 1280×576，再恢复竖屏；实际视频 codec 为 VP8，稳定采集/解码约 16–18 fps。
+- 10 分钟持续试验及停止/系统停止：进行中，尚未判定通过。
+- HarmonyOS 房主：授权拒绝通过；确认后未返回实时视频流，未通过。
+- 两端真机、麦克风/系统音频、来电、真实 Wi-Fi/公网 TURN、热量和耗电：未进行。
+
+第一轮中继试验在约 2 分钟时遇到 HarmonyOS 观众连接失败，三路 Chrome 当时仍连接；该失败保留为证据。第二轮延长模拟器屏幕超时后重新测试；在完成持续试验前不将此前短时收帧写成稳定性通过，也不将关联的配置变化直接认定为根因修复。
+
+## 构建与交付状态
+
+- `npm run build`、`android:sync`、`harmony:web` 使用共享源生成网页资源，未手改 HarmonyOS rawfile/web。
+- Android Debug APK 和 HarmonyOS Debug unsigned HAP 已构建并安装到对应模拟器进行验证；最终包路径、一次 SHA-256 与本地 Git 提交在本轮结束时记录。
+- 未构建 iOS，未修改服务端，未推送 GitHub、未发布 Release。
+- 正式签名 Release、完整真实房间验收和双端真机条件未达成，因此不能勾选计划中的最终交付完成。
+
+## 后续退出条件
+
+1. 定位鸿蒙确认后不返回视频流的具体系统/API 边界，验证另一设备持续收到鸿蒙屏幕，并补齐可证明的原生取消/系统停止回收。
+2. 将本地 DTO 验证推进到实际测试服务的房间权限、审批、晚加入、多观众、停止提示、断网恢复和离房的完整端到端验证。
+3. 明确正式 TURN 配置与鉴权来源；当前静态 STUN 不能满足所有 NAT 网络。
+4. 双端真机完成计划矩阵，记录实际 codec、首帧、宽高/帧率、10 分钟、1/2/4 观众、后台/旋转/系统停止/来电/权限撤销与热量耗电。
+5. 根据实际音频验证再开放能力，完成正式签名包与版本说明，然后解除生产门控。未通过前不以“双端屏幕共享已交付”发布。
+
+## 官方 API 依据
+
+- [Android MediaProjection](https://developer.android.com/media/grow/media-projection)：授权 token、前台任务、单个 projection 生命周期和系统停止回调。
+- [OpenHarmony ArkWeb onScreenCaptureRequest](https://github.com/openharmony/docs/blob/master/zh-cn/application-dev/reference/apis-arkweb/arkts-basic-components-web-events.md#onscreencapturerequest10)：原生授权回调及 ScreenCaptureHandler。
+- [WebRTC Android SDK](https://github.com/webrtc-sdk/android)：固定 Maven AAR 的发行来源。具体 API 同时以本地固定版本编译结果核对。

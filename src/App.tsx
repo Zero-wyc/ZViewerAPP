@@ -35,12 +35,13 @@ import { MobileAppearance } from './mobile/MobileAppearance'
 import { AboutApp } from './mobile/AboutApp'
 import { startEmbeddedProxy } from './platform/bilibiliProxy'
 import { isGlobalAppearanceRuntime } from './platform/runtime'
+import { useScreenShareCapabilities } from './mobile/useScreenShareCapabilities'
 
 const MobileRoom = lazy(() => import('./mobile/MobileRoom'))
 
 type LoginMode = 'account' | 'guest'
 type Screen = 'connect' | 'rooms'
-type RoomMode = 'watch-together' | 'listen-together'
+type RoomMode = 'watch-together' | 'listen-together' | 'screen-share'
 
 interface AuthUser {
   id: number
@@ -129,6 +130,7 @@ export default function App() {
   const [maxViewers, setMaxViewers] = useState(10)
   const [requireApproval, setRequireApproval] = useState(false)
   const [roomMode, setRoomMode] = useState<RoomMode>('watch-together')
+  const screenShareCapability = useScreenShareCapabilities()
   const [error, setError] = useState('')
   const restoreStarted = useRef(false)
   const activeRoomId = location.pathname.startsWith('/room/') ? decodeURIComponent(location.pathname.slice(6)) : null
@@ -675,6 +677,9 @@ export default function App() {
               <button type="button" className={roomMode === 'listen-together' ? 'active' : ''} onClick={() => setRoomMode('listen-together')}>
                 <Music2 size={20} /><span>一起听</span>
               </button>
+              {screenShareCapability?.video && <button type="button" className={roomMode === 'screen-share' ? 'active' : ''} onClick={() => setRoomMode('screen-share')}>
+                <MonitorPlay size={20} /><span>屏幕共享（验证版）</span>
+              </button>}
             </div>
 
             <div className="create-form-grid">

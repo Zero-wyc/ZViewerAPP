@@ -29,11 +29,14 @@ import { VoiceChatPanel } from '@/modules/voice-chat/components/VoiceChatPanel'
 import { useMusicAudioRouting } from './useMusicAudioRouting'
 import { BilibiliAccount } from './BilibiliAccount'
 import { isGlobalAppearanceRuntime } from '../platform/runtime'
+import MobileScreenShareHost from './MobileScreenShareHost'
+import { useScreenShareCapabilities } from './useScreenShareCapabilities'
 
 type Tab = 'chat' | 'movies'
 
 export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeave: () => void }) {
   const { socket, connected } = useSocket()
+  const screenShareCapability = useScreenShareCapabilities()
   const location = useLocation()
   useViewerList()
   const room = useMobileRoom(socket, roomId, location.state || {})
@@ -106,7 +109,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
   }, [voiceOpen])
 
   useEffect(() => {
-    if (!socket || !room.isHost || mode !== 'listen-together') return
+    if (!socket || !room.isHost || (mode !== 'listen-together' && mode !== 'screen-share')) return
     const receive = (data: { viewerSocketId: string; username: string; roomId: string }) => {
       if (data.roomId !== roomId) return
       setRequests(current => [...current.filter(r => r.viewerSocketId !== data.viewerSocketId), data])
@@ -171,9 +174,16 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
         </div>
       ) : (
         <div className="mobile-watch-layout">
+          {requests.map(request => <div className="mobile-approval" key={request.viewerSocketId}>
+            <span>{request.username} 申请加入</span>
+            <button className="icon-button" aria-label={`批准 ${request.username}`} disabled={approvalBusy !== null} onClick={() => approve(request.viewerSocketId, true)}><Check size={20} /></button>
+            <button className="icon-button" aria-label={`拒绝 ${request.username}`} disabled={approvalBusy !== null} onClick={() => approve(request.viewerSocketId, false)}><X size={20} /></button>
+          </div>)}
           <div className="mobile-player" data-testid="player">
             {mode === 'screen-share'
-              ? shareMethod === 'stream-push'
+              ? room.isHost
+                ? <MobileScreenShareHost socket={socket} roomId={roomId} streamPush={shareMethod === 'stream-push'} />
+                : shareMethod === 'stream-push'
                 ? <StreamPushViewer roomId={roomId} streamKey={streamKey || ''} streamStatus={streamStatus} playerOnly />
                 : <WebrtcWatchPage roomId={roomId} playerOnly />
               : <WatchTogetherPanel key={`${room.isHost}:${playerKey}`} roomId={roomId} isHost={room.isHost}
@@ -203,6 +213,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
         {ready && room.isHost && <div className="mobile-mode-switch" role="group" aria-label="房间模式">
           <button aria-pressed={mode === 'watch-together'} disabled={isModeSwitching || !connected} onClick={() => handleSwitchMode('watch-together')}><MonitorPlay size={18} />一起看</button>
           <button aria-pressed={mode === 'listen-together'} disabled={isModeSwitching || !connected} onClick={() => handleSwitchMode('listen-together')}><Music2 size={18} />一起听</button>
+          {screenShareCapability?.video && <button aria-pressed={mode === 'screen-share'} disabled={isModeSwitching || !connected} onClick={() => handleSwitchMode('screen-share')}><MonitorPlay size={18} />屏幕共享（验证版）</button>}
         </div>}
         <div className="mobile-room-settings-shortcuts">
         {isGlobalAppearanceRuntime() && <button className="mobile-text-button mobile-appearance-entry" onClick={() => {

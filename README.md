@@ -1,5 +1,7 @@
 # ZViewer Mobile Client
 
+开发中：Android/HarmonyOS 手机房主屏幕共享正在 Debug 包内验证，当前正式发行仍只有屏幕共享接收能力。原生采集、模拟器跨端接收与剩余验收分别记录在 [屏幕共享验证报告](docs/mobile-screen-sharing-validation-2026-10-15.md)，尚未达到双端交付或发布条件。
+
 **Android / HarmonyOS 1.9.5**：构建号 **195**，更新投屏全屏手势、Android 系统画中画、更多菜单与弹窗可读性，统一账号图标、悬浮入口和连接表单；鸿蒙因跨应用白屏取消画中画入口。
 
 **iOS 1.9.0 / build 26**：播放器、弹幕设置、房间语音、投屏、房间设置、方向控制和音乐菜单完成独立更新；设备 Release IPA 未签名，需自行签名后侧载。维护入口见 [iOS 维护文档](docs/ios-maintenance-architecture.md)，发布包见 [iOS 1.9.0 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0)。

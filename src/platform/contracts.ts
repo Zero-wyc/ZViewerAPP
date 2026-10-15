@@ -40,7 +40,52 @@ export interface PermissionsPort {
   requestMicrophoneStream(constraints: MediaStreamConstraints): Promise<MediaStream>
 }
 
+/** The platform backend owns capture, tracks, codecs and every PeerConnection. UI only relays signaling. */
+export type ScreenShareState = 'idle' | 'requesting-permission' | 'starting' | 'sharing' | 'paused' | 'stopping' | 'stopped' | 'error'
+export type ScreenShareErrorCode = 'unsupported' | 'permission-denied' | 'capture-start-failed' | 'capture-ended' | 'encoder-failed' | 'transport-failed' | 'cancelled'
+export interface ScreenShareCapabilities {
+  video: boolean
+  microphone: boolean
+  systemAudio: boolean
+  background: boolean
+  experimental: boolean
+  reason?: string
+}
+export interface ScreenShareSession { sessionId: string }
+export interface ScreenSharePeer extends ScreenShareSession { peerId: string }
+export interface ScreenShareStart extends ScreenShareSession { iceServers: RTCIceServer[] }
+export interface ScreenShareSettings {
+  width: number
+  height: number
+  /** Measured capture rate; zero until measured. Never report the requested rate as measured. */
+  frameRate: number
+  audio: boolean
+}
+export interface ScreenShareEvent extends ScreenShareSession {
+  type: 'state' | 'capture-ended' | 'error' | 'ice' | 'peer-state' | 'stats'
+  state?: ScreenShareState
+  code?: ScreenShareErrorCode
+  peerId?: string
+  candidate?: RTCIceCandidateInit
+  connectionState?: RTCPeerConnectionState
+  settings?: ScreenShareSettings
+}
+export interface ScreenShareNativePort {
+  getCapabilities(): Promise<ScreenShareCapabilities>
+  start(options: ScreenShareStart): Promise<ScreenShareSettings>
+  stop(options: ScreenShareSession): Promise<void>
+  pause(options: ScreenShareSession): Promise<void>
+  resume(options: ScreenShareSession): Promise<void>
+  createOffer(options: ScreenSharePeer): Promise<RTCSessionDescriptionInit>
+  setAnswer(options: ScreenSharePeer & { description: RTCSessionDescriptionInit }): Promise<void>
+  addIceCandidate(options: ScreenSharePeer & { candidate: RTCIceCandidateInit }): Promise<void>
+  removePeer(options: ScreenSharePeer): Promise<void>
+}
+
 export interface HarmonyNativeBridge {
+  getScreenShareCaptureSupport?(): Promise<{ supported: boolean }>
+  armScreenShareCapture?(options: ScreenShareSession): Promise<void>
+  cancelScreenShareCapture?(options: ScreenShareSession): Promise<void>
   getAppInfo?(): Promise<{ version: string; build: string }>
   openExternalUrl?(url: string): Promise<void>
   configureServerConnection?(policy: { url: string; allowUntrustedCertificate: boolean }): Promise<{ url: string }>
