@@ -145,10 +145,8 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
   const searchAssistLimit = useMusicSettingsStore((s) => s.searchAssistLimit)
   /** 聚焦态（驱动容器加宽动画，Hydrogen searchShow 同语义） */
   const [focused, setFocused] = useState(false)
-  /** 悬停可见态：默认隐藏，鼠标移入左侧悬停区才显示搜索框 */
-  const [searchVisible, setSearchVisible] = useState(false)
-  /** 手机端搜索：触屏无 hover，点击搜索图标唤出全宽搜索层 */
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
+  /** 窄屏搜索：点击常驻图标唤出全宽搜索层 */
+  const [searchOverlayOpen, setSearchOverlayOpen] = useState(false)
   /** 下拉条目（热榜/建议共用关键词列表） */
   const [assistItems, setAssistItems] = useState<string[]>([])
   /** 面板模式：空输入 = 热搜榜 / 有输入 = 建议（Hydrogen currentTitle 数据源） */
@@ -369,12 +367,11 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
     else void loadHotList()
   }
 
-  /** 失焦：收起面板与高亮；鼠标已划出悬停区则一并隐藏搜索框
-      （手机端搜索层保持打开——由关闭按钮控制，避免点建议/滚列表误关） */
+  /** 失焦：收起面板与高亮，宽屏搜索框保持可见。
+      窄屏搜索层由关闭按钮控制，避免点建议/滚列表误关。 */
   const handleSearchBlur = () => {
     setFocused(false)
     setActiveIndex(-1)
-    if (!isMobile) setSearchVisible(false)
   }
 
   /** 执行搜索：写入关键词并跳搜索页（Hydrogen searchInfo 同语义）；
@@ -387,13 +384,13 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
     if (page === 'bilibili') {
       setBiliSearchKeyword(value)
       searchInputRef.current?.blur()
-      setMobileSearchOpen(false)
+      setSearchOverlayOpen(false)
       return
     }
     setSearchKeywords(value)
     setPage('search')
     searchInputRef.current?.blur()
-    setMobileSearchOpen(false)
+    setSearchOverlayOpen(false)
   }
 
   /** 键盘导航：↑↓ 循环高亮，Enter 选中高亮项或直接搜索；输入法组合态忽略 */
@@ -535,33 +532,20 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
 
   return (
     <header className="relative flex shrink-0 items-center gap-4 px-6 pt-4 pb-2 md:px-8 max-md:gap-2 max-md:px-3 max-md:pt-3 max-md:pb-1.5">
-      {/* ===== 左：搜索框（项目玻璃拟态语言）：glass 底 + 主题模糊度 +
-          圆角描边，聚焦 220→260px 加宽；居中输入。默认隐藏，鼠标移入
-          悬停区（w-56 定宽与右区对称，保证中间导航组真正水平居中）才
-          淡入显示。手机端不渲染（触屏无 hover 唤不出），改下方搜索
-          图标 + 全宽搜索层 ===== */}
+      {/* ===== 宽屏：常驻搜索框，背景增加不透明度；不依赖悬停。
+          外层与账户区对称；中等宽度收窄，大屏聚焦时 220→260px 加宽。
+          窄屏改用下方搜索图标 + 全宽搜索层 ===== */}
       {!isMobile && (
-        <div
-          className="group relative h-10 w-56 shrink-0"
-          onMouseEnter={() => setSearchVisible(true)}
-          onMouseLeave={() => {
-            // 未聚焦（或已失焦）时才收起，避免鼠标短暂划出打断输入
-            if (
-              !searchInputRef.current ||
-              document.activeElement !== searchInputRef.current
-            ) {
-              setSearchVisible(false)
-            }
-          }}
-        >
+        <div className="relative h-10 w-44 shrink-0 lg:w-56">
           <div
             className={cn(
-              'glass absolute left-0 top-1/2 flex h-9 -translate-y-1/2 items-center overflow-hidden transition-[width,border-color,opacity] duration-300 ease-[cubic-bezier(0.24,0.97,0.59,1)]',
-              focused ? 'w-[260px]' : 'w-[220px]',
-              !searchVisible && 'pointer-events-none opacity-0'
+              'glass absolute left-0 top-1/2 flex h-9 -translate-y-1/2 items-center overflow-hidden transition-[width,border-color] duration-300 ease-[cubic-bezier(0.24,0.97,0.59,1)]',
+              focused ? 'w-44 lg:w-[260px]' : 'w-44 lg:w-[220px]'
             )}
             style={{
               borderRadius: 'calc(var(--md-sys-shape-corner) / 2)',
+              backgroundColor:
+                'color-mix(in srgb, var(--md-sys-color-surface) 88%, transparent)',
               borderColor: focused
                 ? 'var(--md-sys-color-primary)'
                 : 'var(--glass-border)',
@@ -599,7 +583,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
         </div>
       )}
 
-      {/* ===== 手机端：搜索图标（触屏无 hover，点击唤出全宽搜索层）；
+      {/* ===== 窄屏：常驻搜索图标，点击唤出全宽搜索层；
           与右区头像同为 36px 圆钮，保证导航组居中对称 ===== */}
       {isMobile && (
         <button
@@ -609,7 +593,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
             border:
               '1px solid color-mix(in srgb, var(--md-sys-color-on-surface) 40%, transparent)',
           }}
-          onClick={() => setMobileSearchOpen(true)}
+          onClick={() => setSearchOverlayOpen(true)}
           aria-label="搜索音乐"
           title="搜索音乐"
         >
@@ -620,9 +604,9 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
         </button>
       )}
 
-      {/* ===== 手机端全宽搜索层：覆盖顶栏（毛玻璃底），输入框 + 关闭按钮 +
+      {/* ===== 全宽搜索层：覆盖顶栏（毛玻璃底），输入框 + 关闭按钮 +
           联想面板；聚焦空输入拉热榜、输入拉建议，搜索完成自动收起 ===== */}
-      {isMobile && mobileSearchOpen && (
+      {isMobile && searchOverlayOpen && (
         <div
           className="absolute inset-0 z-[2002] flex items-center gap-2 px-3 pb-2 pt-3"
           style={{
@@ -678,7 +662,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
                 'color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent)',
             }}
             onClick={() => {
-              setMobileSearchOpen(false)
+              setSearchOverlayOpen(false)
               setFocused(false)
               setActiveIndex(-1)
             }}
@@ -689,7 +673,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
               style={{ color: 'var(--md-sys-color-on-surface)' }}
             />
           </button>
-          {focused && assistPanel}
+          {focused && page !== 'bilibili' && assistPanel}
         </div>
       )}
 
@@ -906,8 +890,13 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
 
       {/* ===== 右：账户菜单（房间模式切换已收入菜单内分组）；定宽 224px
           与左区搜索框对称，头像靠右对齐，保证中间导航组真正水平居中；
-          手机端收窄为仅头像宽度（左侧搜索同宽对称） ===== */}
-      <div className="relative flex w-56 shrink-0 items-center justify-end max-md:w-9">
+          窄屏收窄为仅头像宽度，保持两侧等宽 ===== */}
+      <div
+        className={cn(
+          'relative flex shrink-0 items-center justify-end',
+          isMobile ? 'w-9' : 'w-44 lg:w-56'
+        )}
+      >
         <button
           type="button"
           className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full transition-opacity hover:opacity-80"

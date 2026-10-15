@@ -11,6 +11,7 @@ import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
 import {
   Play,
   Pause,
+  SkipForward,
   Volume2,
   Volume1,
   VolumeX,
@@ -214,6 +215,9 @@ interface PlayerControlBarProps {
   videoRef: React.RefObject<HTMLVideoElement>
   watchTogether: WatchTogetherState
   isPlaying: boolean
+  onNextMovie?: () => void
+  nextMovieAvailable?: boolean
+  nextMoviePending?: boolean
   isFullscreen?: boolean
   onToggleFullscreen?: () => void
   isWebFullscreen?: boolean
@@ -242,6 +246,9 @@ export function PlayerControlBar({
   videoRef,
   watchTogether,
   isPlaying,
+  onNextMovie,
+  nextMovieAvailable = false,
+  nextMoviePending = false,
   isFullscreen,
   onToggleFullscreen,
   isWebFullscreen,
@@ -592,7 +599,10 @@ export function PlayerControlBar({
         </div>
 
         {/* 控制按钮行 */}
-        <div className="player-controls-row flex items-center gap-1 md:gap-1.5">
+        <div
+          className="player-controls-row flex items-center gap-1 md:gap-1.5"
+          data-next-movie={!!onNextMovie}
+        >
           {/* 播放 / 暂停 */}
           <ControlButton
             label={
@@ -609,6 +619,15 @@ export function PlayerControlBar({
           >
             {isPlaying ? <Pause size={18} /> : <Play size={18} />}
           </ControlButton>
+          {onNextMovie && (
+            <ControlButton
+              label="下一个影片"
+              disabled={!nextMovieAvailable || nextMoviePending}
+              onClick={onNextMovie}
+            >
+              <SkipForward size={18} fill="currentColor" strokeWidth={1.5} />
+            </ControlButton>
+          )}
 
           {/* 时间 */}
           <div className="player-time select-none px-0.5 md:px-1 text-[10px] md:text-xs font-medium tabular-nums text-[var(--md-sys-color-on-surface)]">
@@ -626,7 +645,7 @@ export function PlayerControlBar({
           </ControlButton>
 
           {/* 弹幕输入框（桌面端显示） */}
-          <div className="player-desktop-composer hidden min-w-0 flex-1 items-center gap-1 md:flex">
+          <div className="player-desktop-composer ml-auto hidden min-w-0 flex-1 items-center gap-1 md:flex md:max-w-[640px]">
             <DanmakuInput onSend={onSendDanmaku} placeholder="发个友善的弹幕" />
           </div>
 

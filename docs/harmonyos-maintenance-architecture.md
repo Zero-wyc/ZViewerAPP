@@ -4,11 +4,21 @@
 
 ## 当前状态与范围
 
-- HarmonyOS 当前发行源码与安装包为 **1.9.5 / versionCode 195**，服务端协议以已集成的 v4.5.3 为基线。版本以 `package.json`、`ZV-HarmonyOS/AppScope/app.json5` 为准。
+- HarmonyOS 当前发行源码与安装包为 **2.0.0 / versionCode 200**，服务端协议以已集成的 v4.5.3 为基线。版本以 `package.json`、`ZV-HarmonyOS/AppScope/app.json5` 为准。
 - 客户端源码和 Git 操作均在 `E:/Codex-bulid/ZViewer/ZViewer-client`；共享 React/Vite 前端与 Android 相同，原生部分使用 HarmonyOS ArkTS 与 ArkWeb。
 - B站 Cookie、服务端凭据和本机代理状态只保存在原生侧。不能进入 React 状态持久化、网页日志、Socket 房间广播或公开源码。
 
 ## 代码入口
+
+### 2.0.0 / 200：搜索入口与下一部（2026-10-15）
+
+`MusicTopNav.tsx` 在小于 768px 的窄屏保留搜索按钮与展开层；宽屏搜索框常驻，不依赖鼠标悬停，背景使用 88% 不透明度。768–1023px 将左右预留列及搜索框收窄为 176px；大屏维持 220px、聚焦 260px，避免遮挡来源导航。网易云与 B站分别走原来的歌曲/视频搜索；B站搜索层不展示网易云热搜。
+
+一起看播放键右侧新增三角形加竖线的下一部按钮，弹幕输入区域最多 640px。`useNextPlaylistMovie.ts` 读取完整权威片单与现有 manageMovie 权限，`playlistPlayback.ts` 发送 play-movie 并等待服务端确认；请求去重，房主片单丢失时最多重新 register-host 一次。不会乐观修改当前影片。末尾、预览、切房、权限撤销、影片被删除或重新排序时禁止继续旧操作；失败允许重试。按用户最终要求，本版未新增自动连播开关或服务端连播功能。
+
+155 项适配和 4 项媒体回归通过；触屏搜索 16 组、下一部 12 组（各含普通/全屏两种布局）通过，覆盖深浅主题、320px 窄屏、手机和平板横竖屏。原生 WebView/ArkWeb 检查使用真实组件、系统点击及隔离的 API/房间确认数据，不冒充生产账号搜索或真实跨端影片同步；具体结果见 [2.0.0 验证记录](client-2.0.0-validation.md)。复现方式：分别启动 `scripts/fixtures/music-search.vite.ts`（4182）与 `playlist-controls.vite.ts`（4183），执行对应 `scripts/check-music-search-ui.mjs`、`scripts/check-playlist-controls-ui.mjs`。
+
+正式安装包从最终 2.0.0/200 源码重新构建成功，输出 `release/client-v2.0.0/`；`hap-sign-tool verify-app` 验证通过，证书链与 1.9.5 一致，30 个包内网页资源匹配最终同步目录。搜索和下一部在实体平板 ArkWeb 中通过系统点击检查，使用隔离数据；此次最终 Release HAP 未再次通过 HoKit 安装，不能把签名验证当作最终包安装验收。构建后各端安装包仅计算一次 SHA-256，发布读取保存摘要。源码与文档同步 main，发行说明见 [2.0.0](releases/client-2.0.0.md)。iOS 本轮不构建、不上传。
 
 ### 2026-10-15 一起听全屏队列黑屏与重复弹窗修复
 
@@ -152,7 +162,7 @@ Debug unsigned HAP 位于 `release/screen-share-poc-20261015/`，包内 1.9.5/19
 
 ## 构建与维护顺序
 
-本轮正式发行：`client-v1.9.5`，Android/HarmonyOS 为 `1.9.5 / 195`。前述 1.9.0 未签名 Debug HAP 属于界面与 RTC 模拟器验收阶段，发行使用重新构建的正式签名 Release HAP。`hap-sign-tool verify-app` 通过、证书链与 1.9.0 一致，包内版本 195；Android APK 的 v2 签名及前版证书比较亦通过。双端各 30 个网页资源与同步目录逐项匹配，发行包包含双端 SHA-256。说明为 `docs/releases/client-1.9.5.md`，源码推送 main；本轮不构建或上传 iOS IPA，真机仍受原 Profile 授权限制。
+历史正式发行 `client-v1.9.5 / 195`：当时 HAP 通过 `hap-sign-tool verify-app`，证书链与 1.9.0 一致，包内版本 195；Android APK 的 v2 签名和前版证书比较亦通过，双端各 30 个网页资源匹配同步目录。前述 1.9.0 未签名 Debug HAP 属于界面与 RTC 模拟器验收历史。本轮为 `client-v2.0.0 / 200`，请使用上文与 [2.0.0 验证记录](client-2.0.0-validation.md) 的最终包信息；不构建或上传 iOS IPA，鸿蒙设备安装仍受 Profile 授权和安装来源限制。
 
 1. 服务端升级时先核对本地服务端 REST/Socket 合同、角色权限和媒体身份；在本仓库定向移植共享层差异，检查 ArkTS 独立的 WBI、代理、证书和媒体桥。若共享契约变化，同时核对 Android 维护文档及平台实现。
 2. 共享前端改动在根目录运行 `npm run test:adaptation`、`npm run test:media`、`npm run build`。

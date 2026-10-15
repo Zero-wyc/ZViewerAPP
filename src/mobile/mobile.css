@@ -290,6 +290,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid #65d59b; outline-
   .player-display-controls { grid-column: span 1; width: 100%; margin: 0; }
   .player-display-controls[data-fullscreen="true"] { grid-column: span 2; }
   .player-display-controls .player-tool { flex: 1; }
+  .player-controls-row[data-next-movie="true"] { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .player-controls-row[data-next-movie="true"]:has(.player-display-controls[data-fullscreen="true"]) { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .player-controls-row[data-next-movie="true"] .player-tool { min-width: 0; }
 }
 
 /* 移动壳统一使用 top-layer 弹层，手机、平板和全屏不再切换定位参照物。 */

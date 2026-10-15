@@ -34,6 +34,7 @@ import {
 } from '@/components/DanmakuLayer'
 import { VideoStatsMenu } from '@/components/VideoStatsMenu'
 import { useWatchTogether } from './useWatchTogether'
+import { useNextPlaylistMovie } from './useNextPlaylistMovie'
 import { fetchBilibiliDanmakuByCid } from '@/modules/danmaku/api'
 import type { DanmakuItem } from '@/modules/danmaku/types'
 import {
@@ -100,6 +101,7 @@ export function WatchTogetherCore({
   initialPlayback,
 }: WatchTogetherCoreProps) {
   const { socket } = useSocket()
+  const nextMovie = useNextPlaylistMovie(roomId, isHost)
   // CLI 代理健康检查与 socket 事件监听提升到全局级别，
   // 确保 localOnline/agents 始终更新，不依赖 BilibiliParseSettings 是否渲染。
   // CLI 在服务器全局注册（不绑定房间），配置页只需填服务器地址。
@@ -1945,6 +1947,9 @@ export function WatchTogetherCore({
           videoRef={videoRef}
           watchTogether={watchTogether}
           isPlaying={isPlaying}
+          onNextMovie={nextMovie.visible ? nextMovie.playNext : undefined}
+          nextMovieAvailable={nextMovie.available}
+          nextMoviePending={nextMovie.pending}
           isFullscreen={isFullscreen}
           onToggleFullscreen={handleToggleFullscreen}
           isWebFullscreen={isWebFullscreen}

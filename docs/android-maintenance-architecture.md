@@ -4,11 +4,21 @@
 
 ## 当前状态与范围
 
-- Android 当前发行源码与安装包为 **1.9.5 / versionCode 195**，目标服务端以已集成的 v4.5.3 协议为基线。版本以 `package.json` 和 `ZV-Android/app/build.gradle` 为准。
+- Android 当前发行源码与安装包为 **2.0.0 / versionCode 200**，目标服务端以已集成的 v4.5.3 协议为基线。版本以 `package.json` 和 `ZV-Android/app/build.gradle` 为准。
 - 客户端修改、Git 提交均在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。`ZViewer-source code` 是本地服务端目录，不在其中改客户端。
 - Android 与 HarmonyOS 共用根目录 React/Vite 界面，但原生宿主不同；iOS 是 `ZV-iOS` 中独立的 Expo/React Native 工程。三端实现和验收不能互相替代。
 
 ## 代码入口
+
+### 2.0.0 / 200：搜索入口与下一部（2026-10-15）
+
+`MusicTopNav.tsx` 在小于 768px 的窄屏保留搜索按钮与展开层；宽屏搜索框常驻，不依赖鼠标悬停，背景使用 88% 不透明度。768–1023px 将左右预留列及搜索框收窄为 176px；大屏维持 220px、聚焦 260px，避免遮挡来源导航。网易云与 B站分别走原来的歌曲/视频搜索；B站搜索层不展示网易云热搜。
+
+一起看播放键右侧新增三角形加竖线的下一部按钮，弹幕输入区域最多 640px。`useNextPlaylistMovie.ts` 读取完整权威片单与现有 manageMovie 权限，`playlistPlayback.ts` 发送 play-movie 并等待服务端确认；请求去重，房主片单丢失时最多重新 register-host 一次。不会乐观修改当前影片。末尾、预览、切房、权限撤销、影片被删除或重新排序时禁止继续旧操作；失败允许重试。按用户最终要求，本版未新增自动连播开关或服务端连播功能。
+
+155 项适配和 4 项媒体回归通过；触屏搜索 16 组、下一部 12 组（各含普通/全屏两种布局）通过，覆盖深浅主题、320px 窄屏、手机和平板横竖屏。原生 WebView/ArkWeb 检查使用真实组件、系统点击及隔离的 API/房间确认数据，不冒充生产账号搜索或真实跨端影片同步；具体结果见 [2.0.0 验证记录](client-2.0.0-validation.md)。复现方式：分别启动 `scripts/fixtures/music-search.vite.ts`（4182）与 `playlist-controls.vite.ts`（4183），执行对应 `scripts/check-music-search-ui.mjs`、`scripts/check-playlist-controls-ui.mjs`。
+
+正式安装包从最终 2.0.0/200 源码重新构建成功，输出 `release/client-v2.0.0/`；`apksigner` 验证通过，证书与 1.9.5 一致，32 个包内网页资源匹配最终同步目录。平板模拟器覆盖安装正式 APK、手机模拟器覆盖安装 Debug APK 后冷启动通过；手机原正式包名使用其他测试签名，覆盖拒绝详情见验证记录。构建后各端安装包仅计算一次 SHA-256，发布读取保存摘要。源码与文档同步 main，发行说明见 [2.0.0](releases/client-2.0.0.md)。iOS 本轮不构建、不上传。
 
 ### 2026-10-15 一起听全屏队列修复
 
@@ -154,7 +164,7 @@ Android 的 `native/bilicore/core/wbi.go`、`pgc.go`、`resolver.go`、`quality.
 
 ## 构建与维护顺序
 
-本轮正式发行：`client-v1.9.5`，Android/HarmonyOS 为 `1.9.5 / 195`。此前 1.9.0 Debug 模拟器记录保留为同一轮界面修复的验收历史。正式 Android APK 通过 `apksigner` v2 验证，证书与 1.9.0 一致；正式 HAP 通过 `hap-sign-tool verify-app`，证书链亦与前版一致。两个包各 30 个网页资源与各平台同步目录逐项匹配，双端 SHA-256 随发行包提供。发布入口为 `docs/releases/client-1.9.5.md`，源码推送 main；本轮仅双端，无 iOS 构建及 IPA 上传。
+历史正式发行 `client-v1.9.5 / 195`：当时 Android APK 通过 `apksigner` v2 验证，证书与 1.9.0 一致；HAP 通过 `hap-sign-tool verify-app`，证书链与前版一致，两个包各 30 个网页资源匹配同步目录。此前 1.9.0 Debug 模拟器记录亦保留为验收历史。本轮为 `client-v2.0.0 / 200`，请使用上文与 [2.0.0 验证记录](client-2.0.0-validation.md) 的最终包信息；仅 Android/HarmonyOS，无 iOS 构建或 IPA 上传。
 
 1. 对照本地服务端源码和既有 REST/Socket 事件、DTO、角色权限，列出影响 Android、HarmonyOS 和 iOS 的行为差异；只把所需共享逻辑定向移植到本仓库。涉及平台契约、B站签名或媒体解析时同步检查 HarmonyOS 的独立实现和维护文档。
 2. 运行 `npm run test:adaptation`、`npm run test:media`、`npm run build`；Go 核心改动另在 `native/bilicore` 运行 `go test ./...`。
