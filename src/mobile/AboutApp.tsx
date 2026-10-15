@@ -5,6 +5,7 @@ import { getRuntimePlatform } from '../platform/runtime'
 import { installedAppVersion, openReleaseLink } from '../platform/appUpdates'
 import { checkAppUpdate, RELEASES_URL, type AppUpdate, type UpdatePlatform } from './appUpdates'
 import './about-app.css'
+import { AppIcon } from './AppIcon'
 let automaticChecked = false
 
 export function AboutApp() {
@@ -44,10 +45,10 @@ export function AboutApp() {
   }, [open])
   const visit = async (url: string) => { try { await openReleaseLink(url) } catch (error) { setMessage(error instanceof Error ? error.message : '无法打开浏览器') } }
   return <>
-    <button type="button" className="icon-button about-entry" aria-label="关于应用" title="关于应用" onClick={() => setOpen(true)}><Info size={20} /></button>
+    <button type="button" className="appearance-trigger about-trigger" aria-label="关于应用" title="关于应用" onClick={() => setOpen(true)}><Info size={20} /></button>
     <dialog ref={dialog} className="about-dialog" aria-labelledby="about-title" onCancel={event => { event.preventDefault(); setOpen(false) }} onClick={event => { if (event.target === dialog.current) { const box = dialog.current.getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) setOpen(false) } }}>
       <div className="about-heading"><div><span className="eyebrow">ZVIEWER</span><h2 id="about-title">关于应用</h2></div><button type="button" className="icon-button" aria-label="关闭关于应用" onClick={() => setOpen(false)}><X size={22} /></button></div>
-      <div className="about-identity"><div className="brand-mark">Z</div><div><strong>ZViewer</strong><p>和朋友一起看，一起听。</p></div></div>
+      <div className="about-identity"><AppIcon /><div><strong>ZViewer</strong><p>和朋友一起看，一起听。</p></div></div>
       <div className="about-version"><span>当前版本</span><strong>{info ? `V${info.version}` : '读取中…'}</strong><small>{platform === 'harmony' ? 'HarmonyOS' : platform === 'android' ? 'Android' : '界面预览'}{info?.build ? ` · 构建 ${info.build}` : ''}</small></div>
       <button type="button" className="primary-button" disabled={checking} onClick={() => void check(false)}><RefreshCw size={18} className={checking ? 'spin' : ''} />{checking ? '正在检查更新…' : '检查更新'}</button>
       <p className="about-status" role="status">{message || '每次启动时自动检查，有新版本会提醒你。'}</p>

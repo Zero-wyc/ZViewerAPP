@@ -69,13 +69,21 @@
 
 - `WebrtcWatchPage.tsx` / `WatchControlsBar.tsx` 已移除观看端批注图层、工具栏和相关订阅；全屏隐藏连接状态与分辨率，保留必要播放操作。`RemoteVideoPlayer` 只使用共享控制栏，避免叠加 ArtPlayer 的另一套操作。
 - 在用户启动的 Mate 90 Pro 模拟器实际 ArkWeb 中，使用两个真实 RTCPeerConnection 在设备内回环传输变化的视频，复现了“主视频持续出帧、调用 `video.requestPictureInPicture()` 后系统小窗纯白”。这证明能力标志及进入事件不等于 MediaStream 可渲染；本次来源为本机生成视频与测试信令服务，并非生产房主或物理手机投屏验收。
-- WebRTC 改用明确标注的“应用内小窗”：对原 video 舞台固定定位，保持原 MediaStream/解码器，支持拖动、恢复与关闭。模拟器已核对持续出帧及恢复；此模式不支持跨应用悬浮。不要重新对 ArkWeb 的实时流调用网页 PiP；[ArkWeb 官方说明](https://raw.githubusercontent.com/openharmony/docs/master/zh-cn/application-dev/web/web-picture-in-picture.md)列出的媒体范围为 H.264/H.265/HLS，并未保证 WebRTC MediaStream。普通 URL 视频能力须独立核验。后续真正系统级 WebRTC PiP 需要适配原生 RTC 渲染面，不能把 URL 播放器移植视为完成。
-- Android 使用单独的 Activity PiP 平台实现；鸿蒙不会调用 Capacitor Android 插件。应用内小窗、切房/离房清理、视频帧就绪条件在共享前端维护，`rawfile/web` 仍只通过 `npm run harmony:web` 生成。
+- 后续按用户要求尝试跨应用悬浮：在 Mate 90 Pro 模拟器强制发送 H.264，接收端统计确认 `video/H264`、实际解码 640×360，再调用网页 PiP 并按 Home。系统浮窗仍白屏，故按要求取消鸿蒙画中画功能，包括应用内小窗入口；`WebrtcWatchPage` 在 Harmony 上固定不支持，处理函数同步拒绝进入。Android 保留单独的 Activity PiP 与应用内兜底，鸿蒙不调用 Capacitor Android 插件。
+- 不要凭能力标志重新对 ArkWeb 的实时流开放网页 PiP；[ArkWeb 官方说明](https://raw.githubusercontent.com/openharmony/docs/master/zh-cn/application-dev/web/web-picture-in-picture.md)列出的媒体范围为 H.264/H.265/HLS，并未保证 WebRTC MediaStream。普通 URL 视频能力须独立核验；今后若恢复真正系统级 WebRTC PiP，需要原生 RTC 渲染面及跨应用持续出帧证据。`rawfile/web` 仍只通过 `npm run harmony:web` 生成。
 - `src/mobile/useScreenShareDisplay.ts` 为 WebRTC 与 OBS/FLV 共用横屏自动全屏、单击显隐控制栏和双击暂停/恢复播放。280ms 的单击判定窗口避免双击同时切换控制栏；排除按钮、滑条、拖动、长按和多指，离开全屏取消未处理点击；小窗尺寸变化不触发全屏。保留原流和连接，仅切换本机播放状态。
 - 全局 `message` 四类提示及确认提示使用不透明语义背景与配套文字，申请通知和 Modal 避免透明背景导致的低对比度；浅色/深色警告、错误颜色在根变量补齐，Portal 的房间说明文字同步主题，顶部提示避让安全区。
 - 房间设置把外观和本机 B站登录状态并列为两个有外框的按钮，窄屏保持可读与可点。一起看“更多”由 `PlayerMoreMenu.tsx` 渲染到独立 Portal，普通观看向下展开；全屏下方不足时改用上方并滚动，菜单不覆盖“更多”按钮，打开时保持控制栏可见，并处理旋转、滚动、返回键及 Escape。
 - `scripts/check-screen-share-ui.mjs` 覆盖双端三种视口、明暗主题、提示至少 4.5:1 对比度、原视频保留/持续出帧、小窗恢复和菜单边界。原生模拟器需安装 Debug HAP，通过仅 Debug 启用的 ArkWeb 调试接入；测试 REST/信令由本机 `scripts/fixtures/native-screen-share-server.mjs` 提供，测试后恢复连接设置，不提交设备数据、截图、生成资源或签名资料。
-- 本次最终结果：91 项适配测试、4 项媒体测试和 6 组浏览器场景通过。Mate 90 Pro 模拟器实际 ArkWeb 中，最终 HAP 通过横屏自动全屏、全屏单击显隐/双击暂停恢复、更多菜单下弹与按钮可点击、应用内小窗持续出帧及恢复；Android 模拟器另通过真正 Activity 系统画中画。两个设备的原视频和 MediaStream 保持，原连接配置已还原。测试源为本机信令替身、设备内 RTC 回环和测试 MP4，未替代物理手机、生产房主或跨应用鸿蒙 PiP 验收；未签名 HAP 仅供模拟器，本轮未发布 Release。
+- 首轮结果：91 项适配测试、4 项媒体测试和 6 组浏览器场景通过。Mate 90 Pro 模拟器实际 ArkWeb 通过横屏自动全屏、全屏单击显隐/双击暂停恢复、更多菜单下弹与按钮可点击；Android 模拟器另通过真正 Activity 系统画中画。测试源为本机信令替身、设备内 RTC 回环和测试 MP4，未替代物理手机或生产房主验收。当前鸿蒙小窗已按后续跨应用试验结果取消。
+
+### 2026-10-15 首页图标、悬浮入口与连接表单
+
+- `BilibiliAccount.tsx` 的全部移动端入口：首页、房间设置、B站解析设置及本机解析提示，统一使用用户指定的 `public/bilibili.svg`。CSS mask 未登录为黑色、已登录为 `#fb7299`，搭配白底矩形，保留本机账号弹窗及无障碍状态名称。状态继续通过原生账号桥更新，绝不根据服务器登录态着色。
+- 首页及关于弹窗的 Z 字标替换为 `AppIcon.tsx`，复用与应用图标一致的 `public/favicon.jpg`；连接状态只呈现 Wifi/WifiOff 图标，详细状态保留于无障碍名称。独立品牌分组避免窄屏文字逐字换行。
+- 关于按钮移出带滤镜的品牌栏，采用背景调节按钮同款 fixed 悬浮样式，在其上方留 12px 间距，并共同遵循系统安全区。连接模式保留原生 select，外层与地址输入框统一圆角、背景及焦点提示；证书复选项增加间距，不改连接例外范围。
+- `scripts/check-mobile-identity-ui.mjs` 使用桥接替身覆盖双端三种视口、明暗主题和账号两态共 24 组，包含账号/关于弹窗及连接模式、证书选项。91 项适配、4 项媒体、6 组投屏/菜单浏览器回归均通过；投屏回归改为断言 Harmony 没有任何 PiP/应用内小窗按钮，Android 继续检查原生桥及兜底。
+- 新 Debug HAP 已安装至 Mate 90 Pro 模拟器，在实际 ArkWeb 确认白底粉色账号图标、应用图标、无文字连接图标、上下悬浮按钮间距及弹窗；连接模式可在自动/自定义间切换。设备内真实 RTC 回环持续解码 640×360，房间账号图标正常且无 PiP 入口。另在 Android 模拟器检查共享界面。连接配置已恢复；未触碰物理设备，未发布 Release，1.9.0/190 未升版；HAP 未签名，仅供模拟器测试，未启动 iOS 构建。
 
 共享改动覆盖账号/游客、创建/加入/审批/离房、片单权限、普通 MP4 与媒体库 HLS、B站 BV/分 P/PGC、弹幕与字幕、一起听和 LiveKit。ArkTS 改动增加固定来源导航、回环代理安全、系统返回、麦克风拒绝后重试、前后台恢复、全屏/旋转和系统媒体。区分单元/桥接替身、ArkWeb 调试、模拟器、物理手机/平板结果；模拟器成功不得外推 HEVC Main 10、真实蓝牙/后台或生产穿透网络。
 

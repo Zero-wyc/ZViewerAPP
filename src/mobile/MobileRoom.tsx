@@ -209,7 +209,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
           setSettingsOpen(false)
           window.dispatchEvent(new Event('mobile-appearance-open'))
         }}><Palette size={18} />外观设置</button>}
-        {ready && <BilibiliAccount className="mobile-text-button mobile-bilibili-entry" showLoginState />}
+        {ready && <BilibiliAccount className="mobile-bilibili-entry" />}
         </div>
         {ready && <><RoomInfoPanel roomId={roomId} isHost={room.isHost} />
           <div className="mobile-room-footer"><span>房间号 {roomId} · {viewers.length} 位观众</span><button className="mobile-text-button" onClick={() => { setSettingsOpen(false); setLeaveOpen(true) }}>离开房间</button></div>

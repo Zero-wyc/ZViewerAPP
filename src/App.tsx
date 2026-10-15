@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
+  ChevronDown,
   Eye,
   EyeOff,
   Globe2,
@@ -29,6 +30,7 @@ import { useSystemSettingsStore } from '@/store/systemSettingsStore'
 import { normalizeServerUrl } from './mobile/serverUrl'
 import { useNativeBack } from './mobile/useNativeBack'
 import { BilibiliAccount } from './mobile/BilibiliAccount'
+import { AppIcon } from './mobile/AppIcon'
 import { MobileAppearance } from './mobile/MobileAppearance'
 import { AboutApp } from './mobile/AboutApp'
 import { startEmbeddedProxy } from './platform/bilibiliProxy'
@@ -439,17 +441,17 @@ export default function App() {
       {roomContent || <>
       <header className="brand-bar">
         <BilibiliAccount />
-        <div className="brand-mark">Z</div>
-        <div>
+        <div className="brand-identity"><AppIcon /><div>
           <div className="brand-name">ZViewer</div>
           <div className="brand-subtitle">移动端</div>
+        </div></div>
+        <div className={`connection-pill ${connected ? 'is-connected' : ''}`} role="status"
+          aria-label={restoring ? '正在连接服务器' : connected ? '服务器已连接' : '服务器未连接'}
+          title={`${restoring ? '正在连接服务器' : connected ? '服务器已连接' : '服务器未连接'}${session && readServerPolicy(session.serverUrl) ? ' · 证书例外' : ''}`}>
+          {connected ? <Wifi size={20} aria-hidden="true" /> : <WifiOff size={20} aria-hidden="true" />}
         </div>
-        <div className="connection-pill">
-          {connected ? <Wifi size={14} /> : <WifiOff size={14} />}
-          {restoring ? '连接中' : connected ? '已连接' : '未连接'}{session && readServerPolicy(session.serverUrl) ? ' · 证书例外' : ''}
-        </div>
-        <AboutApp />
       </header>
+      <AboutApp />
 
       {screen === 'connect' ? (
         <section className="connect-view">
@@ -474,11 +476,15 @@ export default function App() {
             </div>
 
             <label className="field-label" htmlFor="address-mode">连接模式</label>
-            <select id="address-mode" value={addressMode} disabled={loading} onChange={event => { setAddressMode(event.target.value as 'auto' | 'custom'); setSelectedAddress('') }}>
-              <option value="auto">自动（优先 HTTPS）</option><option value="custom">自定义完整地址</option>
-            </select>
-            <label className="field-label"><input type="checkbox" checked={allowUntrusted} disabled={loading} onChange={event => { setAllowUntrusted(event.target.checked); setSelectedAddress('') }} /> 允许此服务器使用不受信任的证书</label>
-            {allowUntrusted && <p className="field-label">仅为当前服务器启用证书例外；独立语音服务器仍验证证书。</p>}
+            <div className="input-shell connection-mode-field">
+              <Globe2 size={19} aria-hidden="true" />
+              <select id="address-mode" value={addressMode} disabled={loading} onChange={event => { setAddressMode(event.target.value as 'auto' | 'custom'); setSelectedAddress('') }}>
+                <option value="auto">自动（优先 HTTPS）</option><option value="custom">自定义完整地址</option>
+              </select>
+              <ChevronDown size={18} aria-hidden="true" />
+            </div>
+            <label className="connection-certificate-option"><input type="checkbox" checked={allowUntrusted} disabled={loading} onChange={event => { setAllowUntrusted(event.target.checked); setSelectedAddress('') }} /><span>允许此服务器使用不受信任的证书</span></label>
+            {allowUntrusted && <p className="field-label connection-certificate-note">仅为当前服务器启用证书例外；独立语音服务器仍验证证书。</p>}
             {selectedAddress && <p className="field-label">连接地址：{selectedAddress}</p>}
             <div className="mode-switch" role="tablist" aria-label="登录方式">
               <button

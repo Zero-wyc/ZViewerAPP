@@ -1,10 +1,10 @@
-.about-entry { flex-shrink: 0; }
+.appearance-trigger.about-trigger { bottom: calc(88px + var(--app-safe-bottom)); }
 .about-dialog { color: var(--appearance-text, #edf1ef); background: var(--appearance-glass, #182027); border: 1px solid var(--appearance-line, #39434b); border-radius: var(--appearance-radius, 20px); padding: 24px; width: min(480px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); overflow-y: auto; box-sizing: border-box; backdrop-filter: blur(var(--appearance-blur, 16px)); }
 .about-dialog::backdrop { background: rgba(0, 0, 0, .55); backdrop-filter: blur(4px); }
 .about-heading, .about-identity, .about-release-title { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .about-heading h2 { margin: 4px 0 0; font-size: 24px; }
 .about-heading { position: sticky; top: 0; z-index: 1; background: var(--appearance-surface, #182027); border-radius: 8px; padding: 6px; }
-.about-dialog .icon-button, .about-entry { color: var(--appearance-text, #edf1ef); }
+.about-dialog .icon-button { color: var(--appearance-text, #edf1ef); }
 .about-identity { justify-content: flex-start; margin: 26px 0; }
 .about-identity strong { font-size: 23px; }
 .about-identity p, .about-update p, .about-status { color: var(--appearance-muted, #a5afb4); font-size: 13px; line-height: 1.6; }

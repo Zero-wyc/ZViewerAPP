@@ -355,3 +355,39 @@ html[data-mobile-appearance-theme] .mobile-room-footer { color: var(--appearance
 html[data-mobile-appearance-theme] .secondary-panel > .glass-strong {
   background: var(--appearance-surface); color: var(--appearance-text);
 }
+
+.brand-identity { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.app-shell .brand-mark.app-icon, .about-dialog .brand-mark.app-icon {
+  display: block; width: 38px; height: 38px; flex-shrink: 0; object-fit: cover; padding: 0;
+}
+.app-shell .brand-bar .connection-pill { justify-content: center; flex-shrink: 0; width: 40px; height: 40px; padding: 0; margin-left: 0; }
+.bilibili-account-trigger,
+html[data-mobile-appearance-theme] .mobile-room-settings-shortcuts > .bilibili-account-trigger {
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  width: 48px; height: 42px; min-height: 42px; padding: 7px 9px;
+  border: 1px solid #d5dce3; border-radius: 10px; background: #fff; cursor: pointer;
+}
+.bilibili-status-icon {
+  display: block; width: 28px; height: 28px; background: #000;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+  -webkit-mask-size: contain; mask-size: contain;
+}
+.bilibili-account-trigger[data-logged-in="true"] .bilibili-status-icon { background: #fb7299; }
+.bilibili-account-trigger:focus-visible { outline: 2px solid var(--appearance-accent); outline-offset: 3px; }
+html[data-mobile-appearance-theme] .mobile-room-settings-shortcuts > .bilibili-account-trigger { width: 64px; height: auto; }
+.connection-mode-field { position: relative; margin-top: 8px; }
+.app-shell label[for="address-mode"] { margin-top: 16px; }
+.connection-mode-field select {
+  width: 100%; min-width: 0; align-self: stretch; appearance: none; -webkit-appearance: none;
+  border: 0; outline: none; background: transparent; color: var(--appearance-text); font: inherit; font-size: 15px; cursor: pointer;
+}
+.connection-mode-field > svg:last-child { pointer-events: none; }
+.connection-mode-field:focus-within { outline: 2px solid var(--appearance-accent); outline-offset: 2px; }
+.connection-mode-field option { background: var(--appearance-surface, #fff); color: var(--appearance-text, #172536); }
+.connection-certificate-option {
+  display: flex; align-items: flex-start; gap: 9px; margin: 12px 0 18px;
+  color: var(--appearance-muted, #a8b3b6); font-size: 12px; line-height: 20px; cursor: pointer;
+}
+.connection-certificate-option input { width: 18px; height: 18px; margin: 1px 0 0; flex-shrink: 0; accent-color: var(--appearance-accent); }
+.connection-certificate-note { margin: -8px 0 18px; line-height: 1.6; }

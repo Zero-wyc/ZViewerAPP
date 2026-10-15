@@ -70,7 +70,7 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
   } | null>(null)
   const [isPictureInPicture, setIsPictureInPicture] = useState(false)
   const platform = getRuntimePlatform()
-  const mobilePiP = platform === 'android' || platform === 'harmony'
+  const mobilePiP = platform === 'android'
   const [nativePiPSupported, setNativePiPSupported] = useState(false)
   const [inlinePiP, setInlinePiP] = useState(false)
   const [pipPosition, setPipPosition] = useState<{ left: number; top: number } | null>(null)
@@ -79,7 +79,8 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
   const pipRequest = useRef<AbortController | null>(null)
   const pipBusy = useRef(false)
   const [frameReady, setFrameReady] = useState(false)
-  const isPiPSupported = mobilePiP || !!document.pictureInPictureEnabled
+  // ArkWeb can decode MediaStream yet show a white cross-app PiP window.
+  const isPiPSupported = platform !== 'harmony' && (mobilePiP || !!document.pictureInPictureEnabled)
   const [isWebFullscreen, setIsWebFullscreen] = useState(false)
 
   useEffect(() => {
@@ -335,6 +336,7 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
   }
 
   const handleTogglePictureInPicture = async () => {
+    if (!isPiPSupported) return
     const video = videoRef.current
     if (!video || pipBusy.current) return
     if (inlinePiP) { setInlinePiP(false); return }

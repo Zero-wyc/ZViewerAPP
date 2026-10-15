@@ -5,7 +5,7 @@ import { embeddedBilibiliProxy, isEmbeddedBilibiliHost, startEmbeddedProxy, useE
 import type { BilibiliQrSession } from '../platform/contracts'
 import { getRuntimePlatform } from '../platform/runtime'
 
-export function BilibiliAccount({ className = 'mobile-text-button', showLoginState = false }: { className?: string; showLoginState?: boolean }) {
+export function BilibiliAccount({ className = '' }: { className?: string }) {
   const proxy = useEmbeddedProxyStatus()
   const [open, setOpen] = useState(false)
   const [qr, setQr] = useState<BilibiliQrSession | null>(null)
@@ -50,7 +50,13 @@ export function BilibiliAccount({ className = 'mobile-text-button', showLoginSta
   }
   if (!isEmbeddedBilibiliHost()) return null
   return <>
-    <button className={className} type="button" onClick={() => setOpen(true)}>B 站账号{proxy.loggedIn ? ' · 已登录' : showLoginState ? ' · 未登录' : ''}</button>
+    <button className={`bilibili-account-trigger ${className}`} type="button" data-logged-in={proxy.loggedIn}
+      aria-label={`B 站账号 · ${proxy.loggedIn ? '已登录' : '未登录'}`} title={`B 站账号 · ${proxy.loggedIn ? '已登录' : '未登录'}`}
+      onClick={() => setOpen(true)}>
+      <span className="bilibili-status-icon" aria-hidden="true" style={{
+        maskImage: `url("${import.meta.env.BASE_URL}bilibili.svg")`, WebkitMaskImage: `url("${import.meta.env.BASE_URL}bilibili.svg")`,
+      }} />
+    </button>
     <Modal open={open} title="B 站账号" onClose={close} footer={null}>
       {proxy.loggedIn ? <div className="bili-account-panel">
         <p>{proxy.user?.name || 'B 站用户'} · {proxy.user?.vipStatus ? '大会员' : '普通账号'}</p>
