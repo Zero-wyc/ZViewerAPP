@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowRight,
+  Cast,
   CheckCircle2,
   ChevronDown,
   Eye,
@@ -672,14 +673,14 @@ export default function App() {
             <span className="field-label mode-label">房间模式</span>
             <div className="room-mode-grid">
               <button type="button" className={roomMode === 'watch-together' ? 'active' : ''} onClick={() => setRoomMode('watch-together')}>
-                <MonitorPlay size={20} /><span>同步观影</span>
+                <MonitorPlay size={20} /><span>一起看</span>
               </button>
+              {screenShareCapability?.video && <button type="button" className={roomMode === 'screen-share' ? 'active' : ''} onClick={() => setRoomMode('screen-share')}>
+                <Cast size={20} /><span>投屏</span>
+              </button>}
               <button type="button" className={roomMode === 'listen-together' ? 'active' : ''} onClick={() => setRoomMode('listen-together')}>
                 <Music2 size={20} /><span>一起听</span>
               </button>
-              {screenShareCapability?.video && <button type="button" className={roomMode === 'screen-share' ? 'active' : ''} onClick={() => setRoomMode('screen-share')}>
-                <MonitorPlay size={20} /><span>屏幕共享（验证版）</span>
-              </button>}
             </div>
 
             <div className="create-form-grid">

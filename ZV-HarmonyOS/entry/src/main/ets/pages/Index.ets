@@ -67,7 +67,7 @@ class HarmonyHost {
 
   private async perform(action: string, argument: string): Promise<string | null> {
     if (action === 'getScreenShareCaptureSupport') {
-      if (!DEBUG) return JSON.stringify({ supported: false });
+      if (!DEBUG) return JSON.stringify({ supported: true });
       const tasks = await backgroundTaskManager.getAllContinuousTasks(this.context);
       const states: CaptureTaskState[] = tasks.map((task: backgroundTaskManager.ContinuousTaskInfo): CaptureTaskState => ({
         id: task.continuousTaskId, modes: task.backgroundModes, submodes: task.backgroundSubModes, suspended: task.suspendState

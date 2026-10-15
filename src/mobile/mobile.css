@@ -68,7 +68,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #65d59b; outline-
 .app-shell h1 { font-size: 26px; line-height: 1.3; }
 .login-panel { box-shadow: none; background: transparent; padding: 0; border: 0; backdrop-filter: none; }
 .primary-button { background: #65d59b; }
-.room-mode-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.room-mode-grid { grid-template-columns: none; }
 .room-row { background: #1b2024; }
 .room-title-line, .room-copy, .room-title-line strong { min-width: 0; }
 .room-title-line strong { overflow-wrap: anywhere; }
@@ -94,7 +94,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid #65d59b; outline-
 .mobile-room-title span { color: #a8b3b6; font-size: 12px; }
 .mobile-room-header > button { flex-shrink: 0; width: 44px; height: 44px; }
 .mobile-status { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 34px; background: #453921; color: #ffdfad; font-size: 12px; }
-.mobile-watch-layout { max-width: 1200px; margin: auto; }
+.mobile-watch-layout { width: 100%; max-width: none; margin: 0; }
+.mobile-player-stage { min-width: 0; }
 .mobile-player { width: 100%; aspect-ratio: 16 / 9; background: #000; min-width: 0; overflow: visible; }
 .mobile-player:has(.mobile-screen-share-host) { aspect-ratio: auto; max-height: none; background: transparent; padding: 12px; }
 .mobile-screen-share-host {
@@ -168,7 +169,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #65d59b; outline-
 .mobile-room-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #343d41; margin-top: 16px; padding-top: 12px; color: #a8b3b6; font-size: 12px; }
 .mobile-text-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 12px; color: #65d59b; font-size: 14px; }
 .mobile-mode-switch { display: flex; gap: 8px; padding-bottom: 16px; }
-.mobile-mode-switch button { display: flex; align-items: center; justify-content: center; flex: 1; gap: 8px; min-height: 44px; border-bottom: 2px solid #343d41; font-size: 14px; }
+.mobile-mode-switch button { display: flex; align-items: center; justify-content: center; flex: 1; min-width: 0; white-space: nowrap; gap: 8px; min-height: 44px; border-bottom: 2px solid #343d41; font-size: 14px; }
 .mobile-mode-switch button[aria-pressed="true"] { border-color: #65d59b; color: #65d59b; }
 .mobile-join { max-width: 380px; margin: 0 auto; padding: 64px 24px; display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center; }
 .mobile-join h1 { font-size: 22px; line-height: 1.4; }
@@ -190,10 +191,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid #65d59b; outline-
 .mobile-voice-panel {
   position: fixed;
   z-index: 510;
-  top: max(72px, var(--app-safe-top, env(safe-area-inset-top, 0px)));
+  top: calc(var(--mobile-room-header-bottom, calc(64px + var(--app-safe-top, 0px))) + 8px);
   right: max(12px, var(--app-safe-right, env(safe-area-inset-right, 0px)));
   width: min(360px, calc(100vw - 24px));
-  max-height: calc(100dvh - 96px);
+  max-height: max(0px, calc(100dvh - var(--mobile-room-header-bottom, calc(64px + var(--app-safe-top, 0px))) - 16px - var(--app-safe-bottom, 0px)));
   overflow-y: auto;
   overscroll-behavior: contain;
   background: #1b2024;
@@ -394,29 +395,24 @@ button:focus-visible, input:focus-visible { outline: 2px solid #65d59b; outline-
 }
 
 @media (min-width: 900px) {
-  .mobile-watch-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); min-height: calc(100dvh - 64px); }
-  .mobile-player { align-self: start; margin-top: 24px; }
-  .mobile-room-details { border-left: 1px solid #343d41; height: calc(100dvh - 64px); }
-  .mobile-tab-panel { height: auto; }
-}
-/* 平板横屏的非全屏布局：播放器在左侧可用区域内居中，避免贴着顶部后下方留下大块空白。 */
-@media (min-width: 1000px) and (orientation: landscape) {
-  .mobile-watch-layout:not(:has(.zart-web-fullscreen)) {
-    align-items: center;
-  }
-  .mobile-watch-layout:not(:has(.zart-web-fullscreen)) .mobile-player {
-    align-self: center;
-    margin-top: 0;
-  }
+  .mobile-watch-layout { display: grid; grid-template-columns: minmax(0, 1fr) clamp(320px, 30vw, 400px); min-height: calc(100dvh - var(--mobile-room-header-bottom, 64px) - var(--app-safe-bottom, 0px)); }
+  .mobile-player-stage { display: flex; align-items: center; justify-content: center; padding: 24px; min-height: 0; }
+  .mobile-player-stage > .mobile-player { margin: 0; max-width: min(100%, calc((100dvh - var(--mobile-room-header-bottom, 64px) - var(--app-safe-bottom, 0px) - 48px) * 1.777778)); }
+  .mobile-player-stage:has(.mobile-screen-share-host) { align-items: flex-start; }
+  .mobile-player-stage > .mobile-player:has(.mobile-screen-share-host) { max-width: 100%; }
+  .mobile-room-details { border-left: 1px solid #343d41; height: calc(100dvh - var(--mobile-room-header-bottom, 64px) - var(--app-safe-bottom, 0px)); min-height: 0; }
+  .mobile-tab-panel { height: auto; min-height: 0; }
 }
 @media (orientation: landscape) {
   .mobile-room-music:has(.music-player-overlay) > .mobile-room-header { display: none; }
 }
 @media (orientation: landscape) and (max-height: 540px) {
   .mobile-room:not(.mobile-room-music) .mobile-room-header { min-height: 48px; padding-block: 2px; }
-  .mobile-watch-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(270px, 1fr); }
-  .mobile-player { align-self: start; max-height: calc(100dvh - 48px); }
-  .mobile-room-details { height: calc(100dvh - 48px); }
+  .mobile-watch-layout { display: grid; grid-template-columns: minmax(0, 1fr) clamp(270px, 32vw, 340px); }
+  .mobile-player-stage { display: flex; align-items: center; justify-content: center; padding: 12px; }
+  .mobile-player-stage > .mobile-player { margin: 0; max-width: min(100%, calc((100dvh - var(--mobile-room-header-bottom, 48px) - var(--app-safe-bottom, 0px) - 24px) * 1.777778)); }
+  .mobile-player-stage > .mobile-player:has(.mobile-screen-share-host) { max-width: 100%; }
+  .mobile-room-details { height: calc(100dvh - var(--mobile-room-header-bottom, 48px) - var(--app-safe-bottom, 0px)); }
   .mobile-tab-panel { height: auto; min-height: 0; }
 }
 @media (max-width: 360px) {

@@ -1,5 +1,4 @@
 import { webview } from '@kit.ArkWeb';
-import { DEBUG } from 'BuildProfile';
 import { common } from '@kit.AbilityKit';
 import { backgroundMediaTasks } from './BackgroundMediaTasks';
 
@@ -27,7 +26,7 @@ class ScreenShareCapturePolicy {
   }
 
   arm(sessionId: string, controller: webview.WebviewController): void {
-    if (!DEBUG || !/^[A-Za-z0-9-]{1,96}$/.test(sessionId)) throw new Error('unsupported');
+    if (!/^[A-Za-z0-9-]{1,96}$/.test(sessionId)) throw new Error('unsupported');
     void this.cancel(this.sessionId).catch(() => {});
     this.sessionId = sessionId;
     this.armedUntil = Date.now() + 15000;
@@ -35,7 +34,7 @@ class ScreenShareCapturePolicy {
   }
   request(handler: ScreenCaptureHandler): void {
     const origin = handler.getOrigin();
-    if (!DEBUG || (origin !== 'https://zviewer.local' && origin !== 'https://zviewer.local/') ||
+    if ((origin !== 'https://zviewer.local' && origin !== 'https://zviewer.local/') ||
       !this.sessionId || Date.now() > this.armedUntil || this.pending !== null) {
       handler.deny(); return;
     }

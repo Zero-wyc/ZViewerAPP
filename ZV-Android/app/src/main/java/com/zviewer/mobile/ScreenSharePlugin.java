@@ -23,7 +23,7 @@ import org.webrtc.*;
 import org.webrtc.audio.JavaAudioDeviceModule;
 import java.util.*;
 
-/** PoC sender: all capture/SDP/ICE ownership stays native; the bridge carries DTOs only. */
+/** Native sender: capture/SDP/ICE ownership stays native; the bridge carries DTOs only. */
 @CapacitorPlugin(name = "ScreenShare", permissions = @Permission(alias = "screenAudio", strings = { Manifest.permission.RECORD_AUDIO }))
 public final class ScreenSharePlugin extends Plugin {
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -70,15 +70,13 @@ public final class ScreenSharePlugin extends Plugin {
     }
     @PluginMethod public void getCapabilities(PluginCall call) {
         JSObject value = new JSObject();
-        // Production stays gated until both physical-device PoCs pass the delivery plan.
-        value.put("video", BuildConfig.DEBUG); value.put("microphone", BuildConfig.DEBUG); value.put("systemAudio", BuildConfig.DEBUG && Build.VERSION.SDK_INT >= 29);
-        value.put("background", true); value.put("experimental", true);
-        value.put("reason", BuildConfig.DEBUG ? "系统音频受播放应用的录制策略限制；房间语音使用麦克风时，共享麦克风会自动让出" : "原生屏幕共享正在验证，正式版暂未开放");
+        value.put("video", true); value.put("microphone", true); value.put("systemAudio", Build.VERSION.SDK_INT >= 29);
+        value.put("background", true); value.put("experimental", false);
+        value.put("reason", "系统音频受播放应用的录制策略限制；房间语音使用麦克风时，共享麦克风会自动让出");
         call.resolve(value);
     }
     @PluginMethod public void start(PluginCall call) {
         main.post(() -> {
-            if (!BuildConfig.DEBUG) { call.reject("原生屏幕共享尚未通过真机验收", "unsupported"); return; }
             String id = call.getString("sessionId", "");
             if (!id.matches("[A-Za-z0-9-]{1,96}") || session != null) { call.reject("共享正在启动或运行", "capture-start-failed"); return; }
             if (call.getBoolean("systemAudio", false) && Build.VERSION.SDK_INT < 29) { call.reject("系统音频共享需要 Android 10 或更新版本", "unsupported"); return; }

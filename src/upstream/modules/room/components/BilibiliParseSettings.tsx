@@ -36,7 +36,6 @@ import { getApiUrl } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useSystemSettingsStore } from '@/store/systemSettingsStore'
 import { isEmbeddedBilibiliHost } from '../../../../platform/bilibiliProxy'
-import { BilibiliAccount } from '../../../../mobile/BilibiliAccount'
 
 export interface BilibiliParseSettingsProps {
   /** 影片 ID，配置按此 key 独立存储 */
@@ -274,7 +273,6 @@ export function BilibiliParseSettings({
 
   return (
     <div className="w-full">
-      {isEmbeddedBilibiliHost() && <BilibiliAccount />}
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}

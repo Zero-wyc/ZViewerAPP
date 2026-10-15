@@ -115,7 +115,7 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
   return {
     async getCapabilities() {
       const supported = (await getHarmonyBridge()?.getScreenShareCaptureSupport?.())?.supported === true && typeof navigator.mediaDevices?.getDisplayMedia === 'function'
-      return { video: supported, microphone: supported, systemAudio: supported, background: supported, maxFrameRate: 60, experimental: true, reason: supported ? undefined : '此安装包或系统未开放原生屏幕共享' }
+      return { video: supported, microphone: supported, systemAudio: supported, background: supported, maxFrameRate: 60, experimental: false, reason: supported ? undefined : '此安装包或系统未开放原生屏幕共享' }
     },
     async start(options) {
       if (sessionId) throw Object.assign(new Error('已有共享会话'), { code: 'capture-start-failed' })

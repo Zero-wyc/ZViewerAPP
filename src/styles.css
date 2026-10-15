@@ -281,7 +281,7 @@ h1 { margin: 0; font-size: clamp(31px, 9vw, 44px); line-height: 1.08; letter-spa
 .sheet-header h2 { margin: 0; font-size: 25px; letter-spacing: 0; }
 .compact-input { min-height: 46px; }
 .mode-label { margin-top: 19px; }
-.room-mode-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.room-mode-grid { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 7px; }
 .room-mode-grid button {
   display: grid;
   min-width: 0;

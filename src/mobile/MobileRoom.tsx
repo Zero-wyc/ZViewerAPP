@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { ArrowLeft, Check, Film, Headphones, MessageCircle, MonitorPlay, Music2, Palette, Plus, RefreshCw, UsersRound, WifiOff, X } from 'lucide-react'
+import { ArrowLeft, Cast, Check, Film, Headphones, MessageCircle, MonitorPlay, Music2, Palette, Plus, RefreshCw, UsersRound, WifiOff, X } from 'lucide-react'
 import { useSocket } from '@/hooks/useSocket'
 import { useRoomStore } from '@/store/roomStore'
 import { useAuthStore } from '@/store/authStore'
@@ -62,6 +62,27 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
   const [voiceAvailable, setVoiceAvailable] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
   const [requests, setRequests] = useState<{ viewerSocketId: string; username: string }[]>([])
+  const roomElement = useRef<HTMLElement>(null)
+  useLayoutEffect(() => {
+    const root = roomElement.current, header = root?.querySelector<HTMLElement>('.mobile-room-header')
+    if (!root || !header) return
+    const update = () => root.style.setProperty('--mobile-room-header-bottom', `${Math.max(0, header.getBoundingClientRect().bottom)}px`)
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(header)
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, { passive: true })
+    window.visualViewport?.addEventListener('resize', update)
+    window.visualViewport?.addEventListener('scroll', update)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update)
+      window.visualViewport?.removeEventListener('resize', update)
+      window.visualViewport?.removeEventListener('scroll', update)
+      root.style.removeProperty('--mobile-room-header-bottom')
+    }
+  }, [])
   const [approvalBusy, setApprovalBusy] = useState<string | null>(null)
   const permissions = { isHost: room.isHost, isModerator: !!user && moderators.includes(Number(user.id)), role: user?.role }
   const canAdd = canRoomViewerPerform(matrix, 'addMovie', permissions)
@@ -139,7 +160,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
   const music = mode === 'listen-together'
   const ready = room.phase === 'ready'
   return (
-    <main className={`mobile-room ${music && ready ? 'mobile-room-music' : ''}`}>
+    <main ref={roomElement} className={`mobile-room ${music && ready ? 'mobile-room-music' : ''}`}>
       <header className="mobile-room-header">
         <button className="icon-button" aria-label="离开房间" title="离开房间" onClick={() => setLeaveOpen(true)}><ArrowLeft size={22} /></button>
         <div className="mobile-room-title"><strong>{name || roomId}</strong><span>{room.isHost ? '房主' : '观众'} · {music ? '一起听' : mode === 'screen-share' ? '屏幕共享' : '同步观影'}</span></div>
@@ -179,7 +200,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
             <button className="icon-button" aria-label={`批准 ${request.username}`} disabled={approvalBusy !== null} onClick={() => approve(request.viewerSocketId, true)}><Check size={20} /></button>
             <button className="icon-button" aria-label={`拒绝 ${request.username}`} disabled={approvalBusy !== null} onClick={() => approve(request.viewerSocketId, false)}><X size={20} /></button>
           </div>)}
-          <div className="mobile-player" data-testid="player">
+          <div className="mobile-player-stage"><div className="mobile-player" data-testid="player">
             {mode === 'screen-share'
               ? room.isHost
                 ? <MobileScreenShareHost socket={socket} roomId={roomId} streamPush={shareMethod === 'stream-push'} />
@@ -188,7 +209,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
                 : <WebrtcWatchPage roomId={roomId} playerOnly />
               : <WatchTogetherPanel key={`${room.isHost}:${playerKey}`} roomId={roomId} isHost={room.isHost}
                   isWebFullscreen={fullscreen} onToggleWebFullscreen={() => setFullscreen(value => !value)} initialPlayback={playerKey === 'init' ? room.playback : null} />}
-          </div>
+          </div></div>
           <section className="mobile-room-details">
             <nav className="mobile-room-tabs" aria-label="房间面板">
               <button aria-selected={tab === 'chat'} onClick={() => setTab('chat')}><MessageCircle size={18} />聊天</button>
@@ -212,8 +233,8 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
       <Modal keepMounted open={settingsOpen} title="房间" onClose={() => setSettingsOpen(false)} footer={null}>
         {ready && room.isHost && <div className="mobile-mode-switch" role="group" aria-label="房间模式">
           <button aria-pressed={mode === 'watch-together'} disabled={isModeSwitching || !connected} onClick={() => handleSwitchMode('watch-together')}><MonitorPlay size={18} />一起看</button>
+          {screenShareCapability?.video && <button aria-pressed={mode === 'screen-share'} disabled={isModeSwitching || !connected} onClick={() => handleSwitchMode('screen-share')}><Cast size={18} />投屏</button>}
           <button aria-pressed={mode === 'listen-together'} disabled={isModeSwitching || !connected} onClick={() => handleSwitchMode('listen-together')}><Music2 size={18} />一起听</button>
-          {screenShareCapability?.video && <button aria-pressed={mode === 'screen-share'} disabled={isModeSwitching || !connected} onClick={() => handleSwitchMode('screen-share')}><MonitorPlay size={18} />屏幕共享（验证版）</button>}
         </div>}
         <div className="mobile-room-settings-shortcuts">
         {isGlobalAppearanceRuntime() && <button className="mobile-text-button mobile-appearance-entry" onClick={() => {

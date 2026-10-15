@@ -21,11 +21,14 @@ function setup(debug = true, backgroundTasks) {
   return { policy, controller, handler, delivered, tasks, backgroundMediaTasks, consent, dialog: () => dialog, time: value => { now = value } }
 }
 
-test('Harmony production and foreign origins never receive capture authorization', () => {
+test('Harmony Release requires explicit consent and foreign origins never receive capture authorization', () => {
   const production = setup(false)
-  assert.throws(() => production.policy.arm('session-1', production.controller), /unsupported/)
-  const denied = production.handler(); production.policy.request(denied)
-  assert.equal(denied.denials, 1); assert.equal(denied.grants, 0)
+  const unarmed = production.handler(); production.policy.request(unarmed)
+  assert.equal(unarmed.denials, 1); assert.equal(unarmed.grants, 0)
+  production.policy.arm('session-1', production.controller)
+  const allowed = production.handler(); production.policy.request(allowed)
+  assert.equal(allowed.grants, 0)
+  production.dialog().secondaryButton.action(); assert.equal(allowed.grants, 1)
   const t = setup(); t.policy.arm('session-1', t.controller)
   for (const origin of ['https://zviewer.local.evil', 'http://zviewer.local', 'https://foreign.example']) {
     const h = t.handler(origin); t.policy.request(h); assert.equal(h.denials, 1); assert.equal(h.grants, 0)
