@@ -26,7 +26,7 @@ export interface AnimeSourceBrowserProps {
 }
 
 interface Props extends AnimeSourceBrowserProps {
-  kind: 'kazumi' | 'anisubs'
+  kind: 'kazumi' | 'anisubs' | 'cms'
   title: string
   getSources: () => Promise<AniSubsSource[]>
   search: (source: string, keyword: string) => Promise<AniSubsSearchResult[]>
@@ -123,12 +123,12 @@ export function AnimeSourceBrowser({
       const show = shows.current.find((item) => item.id === path)
       if (!show) return []
       const generation = sourceGeneration.current
-      const items = await getEpisodes(sourceId, path)
+      const items = await getEpisodes(show.source || sourceId, path)
       if (generation !== sourceGeneration.current) return []
       const entries = items.map((episode): EmbyDirectoryEntry => {
         const key = JSON.stringify([path, episode.id])
         selections.current.set(key, {
-          sourceId,
+          sourceId: show.source || sourceId,
           episode,
           title: `${show.title} - ${episode.title}`,
         })
@@ -209,8 +209,8 @@ export function AnimeSourceBrowser({
       onClose={() => onOpenChange(false)}
       title={title}
       rootLabel="搜索结果"
-      searchPlaceholder="输入番剧名称搜索"
-      emptyText="输入关键词开始搜索番剧"
+      searchPlaceholder={kind === 'cms' ? '输入影片名称搜索' : '输入番剧名称搜索'}
+      emptyText={kind === 'cms' ? '输入关键词开始搜索影片' : '输入关键词开始搜索番剧'}
       showParentDirectory={false}
       episodeGrid
       preserveSearchTerm
@@ -221,7 +221,7 @@ export function AnimeSourceBrowser({
       onQuickAddSeries={(entry) => {
         void addSeries(entry)
       }}
-      disabled={disabled || addingSeries}
+      disabled={disabled || addingSeries || !sourceId}
       searchPrefix={
         <div>
           <Select

@@ -1,3 +1,4 @@
+import type { CmsSourceMeta } from '@/modules/cms/types'
 import { getEmbeddedProxyStatus } from '../../platform/bilibiliProxy'
 import { create } from 'zustand'
 import { unwrapCliProxyUrl } from '@/modules/bilibili/cliApi'
@@ -68,6 +69,9 @@ export interface Movie {
   serverUrl?: string | null
   path?: string | null
   username?: string | null
+  directLinkProxy?: boolean
+  serverProxy?: boolean
+  sourceMountId?: number | null
   directLink?: boolean
   /** 影片级浏览器播放引擎（playsvideo）开关：false 时强制原生直连播放 */
   playsvideoEnabled?: boolean
@@ -96,7 +100,7 @@ export interface Movie {
    * ani-subs 番剧源元数据。
    * 仅 sourceType='anime' 时有值，用于播放时重新解析播放地址。
    */
-  sourceMeta?: AniSubsSourceMeta | null
+  sourceMeta?: AniSubsSourceMeta | CmsSourceMeta | null
 }
 
 export interface MovieDto {
@@ -132,6 +136,9 @@ export interface MovieDto {
   serverUrl: string | null
   path: string | null
   username: string | null
+  directLinkProxy?: boolean
+  serverProxy?: boolean
+  sourceMountId?: number | null
   directLink: boolean
   /** 影片级浏览器播放引擎（playsvideo）开关 */
   playsvideoEnabled?: boolean
@@ -140,7 +147,7 @@ export interface MovieDto {
   /** Emby/Jellyfin 专属：是否存在多版本；false 时不渲染清晰度选择框 */
   multiVersion?: boolean
   /** ani-subs 番剧源元数据（仅 source='anime' 时有值） */
-  sourceMeta: AniSubsSourceMeta | null
+  sourceMeta: AniSubsSourceMeta | CmsSourceMeta | null
   order: number
   createdAt: string
   updatedAt: string
@@ -159,6 +166,9 @@ export function mapDtoToMovie(dto: MovieDto): Movie {
     path: dto.path,
     username: dto.username,
     directLink: dto.directLink,
+    directLinkProxy: dto.directLinkProxy === true,
+    serverProxy: dto.serverProxy === true,
+    sourceMountId: dto.sourceMountId ?? null,
     playsvideoEnabled: dto.playsvideoEnabled !== false,
     cliOnly: dto.cliOnly === true,
     multiVersion: dto.multiVersion === true,
@@ -207,6 +217,10 @@ export interface PreviewPlayRequest {
 }
 
 interface RoomState {
+  mediaAttachProgress: string
+  setMediaAttachProgress: (text: string) => void
+  hostOffline: boolean
+  setHostOffline: (offline: boolean) => void
   roomId: string
   roomName: string
   password: string
@@ -382,12 +396,15 @@ interface RoomState {
       path?: string
       username?: string
       password?: string
-      directLink?: boolean
+      directLinkProxy?: boolean
+  serverProxy?: boolean
+  sourceMountId?: number | null
+  directLink?: boolean
       /** Emby/Jellyfin 专属：是否存在多版本；false 时不渲染清晰度选择框 */
       multiVersion?: boolean
       /** 影片级浏览器播放引擎（playsvideo）开关：false 时强制原生直连播放 */
       playsvideoEnabled?: boolean
-      sourceMeta?: AniSubsSourceMeta | null
+      sourceMeta?: AniSubsSourceMeta | CmsSourceMeta | null
       cliOnly?: boolean
     }
   ) => Promise<ReturnType<typeof mapDtoToMovie> | undefined>
@@ -426,8 +443,11 @@ interface RoomState {
       path?: string
       username?: string
       password?: string
-      directLink?: boolean
-      sourceMeta?: AniSubsSourceMeta | null
+      directLinkProxy?: boolean
+  serverProxy?: boolean
+  sourceMountId?: number | null
+  directLink?: boolean
+      sourceMeta?: AniSubsSourceMeta | CmsSourceMeta | null
       /** 仅允许 CLI 模式（B站 番剧/影视） */
       cliOnly?: boolean
       multiVersion?: boolean
@@ -443,6 +463,8 @@ interface RoomState {
 }
 
 const defaultState = {
+  hostOffline: false,
+  mediaAttachProgress: '',
   roomSessionRevision: 0,
   autoContinueRevision: 0,
   autoContinueEnabled: false,
@@ -492,6 +514,8 @@ const defaultState = {
 }
 
 export const useRoomStore = create<RoomState>((set, get) => ({
+  setMediaAttachProgress: mediaAttachProgress => set({ mediaAttachProgress }),
+  setHostOffline: hostOffline => set({ hostOffline }),
   ...defaultState,
   setAutoContinueEnabled: (enabled) => set(state => ({ autoContinueEnabled: enabled, autoContinueRevision: state.autoContinueRevision + 1 })),
   setRoomId: (id) => set({ roomId: id, roomSessionRevision: get().roomSessionRevision + 1, ...(id !== get().roomId ? { autoContinueEnabled: false } : {}) }),

@@ -21,6 +21,7 @@
 export const SOCKET_EVENT = {
   /** 房主广播完整播放状态 */
   STATE: 'watch-together-state',
+  CHECK_STATUS: 'watch-together-check-status',
   /** 房主发送控制指令（play/pause/seek/rate） */
   CONTROL: 'watch-together-control',
   /** 观众请求房主当前状态（用于初始同步） */
@@ -99,7 +100,7 @@ export const PLAY_PAUSE_DEBOUNCE_MS = 100
  * 观众端通过离散事件（play/pause/seek/rate）获得即时响应，
  * 心跳仅用于周期性进度校正，5s 间隔足够保持同步。
  */
-export const HEARTBEAT_INTERVAL_MS = 5000
+export const HEARTBEAT_INTERVAL_MS = 2000
 
 /**
  * 房主心跳超时阈值（毫秒）。
@@ -118,3 +119,5 @@ export const HEARTBEAT_TIMEOUT_MS = 15000
  * 仅离散事件与定时心跳驱动同步。
  */
 export const STATE_BROADCAST_TIME_THRESHOLD = 2
+
+export const CHECK_STATUS_INTERVAL_MS = 10000

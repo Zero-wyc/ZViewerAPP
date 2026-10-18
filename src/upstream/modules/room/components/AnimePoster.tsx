@@ -5,7 +5,7 @@ import { apiFetch, getApiUrl } from '@/lib/api'
 export function AnimePoster({ cover, title, kind, referer }: {
   cover?: string
   title: string
-  kind: 'kazumi' | 'anisubs'
+  kind: 'kazumi' | 'anisubs' | 'cms'
   referer: string
 }) {
   const server = getApiUrl()

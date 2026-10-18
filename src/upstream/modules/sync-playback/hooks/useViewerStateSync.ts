@@ -80,6 +80,11 @@ export type UseViewerStateSyncReturn = void
  *    观众端跟随房主 seek 时（通过 control 事件），若目标位置不在缓冲范围内且为 MSE 流，
  *    调用 executeSeek → 引擎 seekTo（不重建媒体源）。用 isReloadingRef 锁防止并发。
  */
+function currentMediaIdentity(): string {
+  const room = useRoomStore.getState()
+  return room.roomSessionRevision + '|' + room.currentMovieId + '|' + room.watchTogether.sourceUrl
+}
+
 export function useViewerStateSync({
   roomId,
   isHostRef,
@@ -95,7 +100,7 @@ export function useViewerStateSync({
 
   // Bug #8 修复：handleState 串行化处理
   const isApplyingRef = useRef(false)
-  const pendingStateRef = useRef<WatchTogetherState | null>(null)
+  const pendingStateRef = useRef<{state: WatchTogetherState; force: boolean} | null>(null)
   // seek 并发锁：防止 executeSeek 期间重复触发
   const isReloadingRef = useRef(false)
   // 缓存上次应用的 isPlaying，用于判断是否需要 play/pause
@@ -110,6 +115,7 @@ export function useViewerStateSync({
 
   useEffect(() => {
     if (!socket || isHostRef.current) return
+    let disposed = false
 
     /**
      * 应用状态变化：按字段分离同步，避免不必要的操作导致视频卡顿。
@@ -119,10 +125,13 @@ export function useViewerStateSync({
      */
     const applyStateChanges = async (
       state: WatchTogetherState,
-      isSourceChange: boolean
+      isSourceChange: boolean,
+      forceSync = false
     ) => {
       const video = videoRef.current
-      if (!video) return
+      if (!video || disposed || state.sourceUrl !== useRoomStore.getState().watchTogether.sourceUrl) return
+      const identity = currentMediaIdentity()
+      const current = () => !disposed && identity === currentMediaIdentity()
 
       // 1. sourceUrl 变化 → applySourceToVideo（含完整同步）
       if (isSourceChange) {
@@ -182,6 +191,7 @@ export function useViewerStateSync({
         // 传入 state.currentTime 作为 startTime：DASH 引擎从该时间对应
         // 的字节位置开始下载，而非从文件头顺序下载到目标位置才播放
         // （房主切清晰度/换片时观众从房主当前进度起播，避免长缓冲）。
+        if (!current()) return
         await applySourceToVideo(
           video,
           state,
@@ -190,7 +200,7 @@ export function useViewerStateSync({
         )
         // applySourceToVideo 后视频元素可能已替换，重新获取
         const currentVideo = videoRef.current
-        if (!currentVideo) return
+        if (!currentVideo || !current()) return
 
         // 源变化时完整同步所有字段
         if (state.currentTime > 0) {
@@ -247,6 +257,11 @@ export function useViewerStateSync({
         }
       }
 
+      if (forceSync && Number.isFinite(state.currentTime) && state.currentTime >= 0) {
+        const done = await executeSeek({ video, targetTime: state.currentTime, state, seekTo,
+          suppressEventsRef, isReloadingRef, onSeekFailed: reloadVideo })
+        if (!done && current()) video.currentTime = state.currentTime
+      }
       // 2.3 currentTime 不再单独设置（由 host-heartbeat 校正）
       // 进度校正由 useViewerHeartbeat 处理，避免高频 seek 卡顿
     }
@@ -275,10 +290,10 @@ export function useViewerStateSync({
       const isSourceChange = lastAppliedSourceUrlRef.current !== state.sourceUrl
       setWatchTogether(state)
 
-      const processState = async (s: WatchTogetherState) => {
+      const processState = async (s: WatchTogetherState, force = false) => {
         isApplyingRef.current = true
         try {
-          await applyStateChanges(s, isSourceChange)
+          await applyStateChanges(s, lastAppliedSourceUrlRef.current !== s.sourceUrl, force)
         } catch (err: unknown) {
           console.error('[useViewerStateSync] applyStateChanges failed:', err)
           message.error(err instanceof Error ? err.message : '视频源加载失败')
@@ -289,10 +304,10 @@ export function useViewerStateSync({
 
       const drain = async () => {
         // 持续消费 pendingStateRef，直到清空
-        while (pendingStateRef.current) {
+        while (!disposed && pendingStateRef.current) {
           const next = pendingStateRef.current
           pendingStateRef.current = null
-          await processState(next)
+          await processState(next.state, next.force)
         }
         // 释放 drain 启动者获取的那一次抑制
         suppressEventsRef.current = false
@@ -306,7 +321,7 @@ export function useViewerStateSync({
       // 串行化 applySourceToVideo：若上一次 apply 还在进行中，
       // 仅缓存最新 state，等上一次完成后处理最新值。
       if (isSourceChange) {
-        pendingStateRef.current = state
+        pendingStateRef.current = {state, force: !payload.diff}
         if (isApplyingRef.current) return
         // 成为 drain 启动者：获取抑制，drain 结束时统一释放
         suppressEventsRef.current = true
@@ -316,14 +331,15 @@ export function useViewerStateSync({
 
       // 非 sourceUrl 变化：直接同步，不需要串行化（各自 acquire/release 配对）
       suppressEventsRef.current = true
-      void processState(state).then(() => {
+      void processState(state, !payload.diff).then(() => {
         suppressEventsRef.current = false
       })
     }
 
     const handleControl = (payload: ControlPayload) => {
       const video = videoRef.current
-      if (!video) return
+      if (!video || disposed) return
+      const identity = currentMediaIdentity()
 
       // seek 到未缓冲区域：交给 executeSeek 处理（内部管理锁 + suppressEventsRef）
       if (payload.action === 'seek' && typeof payload.value === 'number') {
@@ -339,7 +355,7 @@ export function useViewerStateSync({
           onSeekFailed: reloadVideo,
         }).then((didSeek) => {
           // 未触发 MSE seek 时执行普通 seek
-          if (!didSeek) {
+          if (!didSeek && !disposed && identity === currentMediaIdentity()) {
             suppressEventsRef.current = true
             video.currentTime = targetTime
             suppressEventsRef.current = false
@@ -375,6 +391,9 @@ export function useViewerStateSync({
     // 初始状态请求由 usePlaybackStateRequest 通过 ack 直接获取（不在此处重复 emit）
 
     return () => {
+      disposed = true
+      pendingStateRef.current = null
+      downloadAbortRef.current?.abort()
       socket.off(SOCKET_EVENT.STATE, handleState)
       socket.off(SOCKET_EVENT.CONTROL, handleControl)
     }

@@ -89,3 +89,13 @@ export function buildSocketAuth(): Record<string, string> {
   const token = getAccessToken()
   return token ? { token } : {}
 }
+
+/** Stored JWT expiry is a hint only; server-scoped 401/403 remains authoritative. */
+export function isAccessTokenExpired(now = Date.now()): boolean {
+  const token = getAccessToken()
+  if (!token) return false
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+    return Number.isFinite(payload.exp) && payload.exp * 1000 <= now
+  } catch { return false }
+}

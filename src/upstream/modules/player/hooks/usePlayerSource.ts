@@ -1,3 +1,4 @@
+import { useRoomStore } from '@/store/roomStore'
 /**
  * usePlayerSource Hook（v2 重写）。
  *
@@ -358,6 +359,7 @@ export function usePlayerSource(
       activeEngineSessions.set(video, { seq: sessionSeq, dispose })
       // 登记活跃引擎类型（统计面板经 getActiveEngineType 读取）
       activeEngineTypes.set(video, engineType)
+      useRoomStore.getState().setMediaAttachProgress('')
       playerRef.current = result.player ?? null
       return true
     },
@@ -414,6 +416,13 @@ export function usePlayerSource(
       authRetried = false
     ): Promise<void> => {
       if (!mountedRef.current || !video.isConnected) return
+      const stages: Record<string, string> = {probe:'正在读取媒体轨道',index:'正在建立关键帧索引',ffmpeg:'正在加载音频组件',seg0:'正在生成首个分段',decision:'正在选择播放路径',workers:'正在启动音频处理',segments:'正在处理媒体分段'}
+      const progressKey = useRoomStore.getState().roomSessionRevision + '|' + useRoomStore.getState().currentMovieId
+      source = {...source, onAttachProgress: (stage, detail) => {
+        if (progressKey !== useRoomStore.getState().roomSessionRevision + '|' + useRoomStore.getState().currentMovieId) return
+        useRoomStore.getState().setMediaAttachProgress((stages[stage] ?? '正在准备播放') + (stage === 'segments' && detail ? ' ' + detail : ''))
+      }}
+      useRoomStore.getState().setMediaAttachProgress('')
       const previousUrl = appliedSourceUrlRef.current
       // attach 世代基准：cleanup 之后的值才是本次会话的起点（初始 -1 仅
       // 兜底 cleanup 前的异常路径，正常流程必然被 cleanup 后的赋值覆盖）

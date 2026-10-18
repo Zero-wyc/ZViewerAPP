@@ -1,3 +1,9 @@
+import { resolveMovieSource } from '@/modules/room/watch-together/movie-source-resolver'
+import { getApiUrl, refreshAccessToken } from '@/lib/api'
+import { isAccessTokenExpired } from '@/lib/authTransport'
+import { resolveProxyUrl } from '@/modules/player/services/url-proxy'
+import { isServerApiUrl } from '@/modules/player/services/hls-proxy'
+import { logicalConnectionUrl } from '../../../../platform/connectionTransport'
 /**
  * 视频源管理 Hook（v2 重写）：负责将 WatchTogetherState 中的视频源应用到
  * <video> 元素，包括 MSE DASH 合并、音频同步、以及组件挂载时的源恢复。
@@ -323,6 +329,9 @@ export function useVideoSource({
   watchTogether,
   isHostRef,
 }: UseVideoSourceOptions): UseVideoSourceReturn {
+  const authRecoveryRef = useRef<(error: Error) => Promise<boolean>>(async () => false)
+  const authRecoveryRunning = useRef<Promise<boolean> | null>(null)
+  const authRecoveryAttempt = useRef('')
   const nativeRecoveryRef = useRef<(error: Error) => Promise<void>>(async () => {})
   const nativeRecoveryRunning = useRef<Promise<void> | null>(null)
   const nativeAttachmentDepth = useRef(0)
@@ -338,7 +347,7 @@ export function useVideoSource({
         return
       }
       if (suppressEventsRef.current) return
-      message.error(err.message)
+      void authRecoveryRef.current(err).then(recovered => { if (!recovered) message.error(err.message) }).catch(() => message.error('登录续期失败，请重新登录或重试'))
     },
     [suppressEventsRef]
   )
@@ -347,6 +356,37 @@ export function useVideoSource({
     videoRef,
     onPlaybackError: handlePlaybackError,
   })
+  authRecoveryRef.current = async error => {
+    const store = useRoomStore.getState()
+    const video = videoRef.current
+    const state = store.watchTogether
+    if (!video || state.sourceType === 'bilibili') return false
+    const server = getApiUrl()
+    const routed = resolveProxyUrl(state.sourceUrl, state.headers, state.format, { noProxyFallback: state.noProxyFallback })
+    if (!isServerApiUrl(logicalConnectionUrl(routed), logicalConnectionUrl(server))) return false
+    if (!/\b(401|403)\b/.test(error.message) && !isAccessTokenExpired()) return false
+    if (authRecoveryRunning.current) return authRecoveryRunning.current
+    const key = server + '|' + store.roomSessionRevision + '|' + store.currentMovieId + '|' + state.sourceUrl
+    if (authRecoveryAttempt.current === key) return false
+    authRecoveryAttempt.current = key
+    const snapshot = { time: video.currentTime, rate: video.playbackRate, playing: !video.paused }
+    const current = () => getApiUrl() === server && useRoomStore.getState().roomSessionRevision === store.roomSessionRevision &&
+      useRoomStore.getState().currentMovieId === store.currentMovieId && useRoomStore.getState().watchTogether.sourceUrl === state.sourceUrl && videoRef.current === video
+    const task = (async () => {
+      const refreshed = await refreshAccessToken()
+      if (!current()) return true
+      if (!refreshed) throw new Error('登录已失效，请重新登录')
+      const source = toPlayerSource({ ...state, isPlaying: snapshot.playing }, snapshot.time)
+      await forceReload(video, source)
+      if (!current()) return true
+      video.currentTime = snapshot.time; video.playbackRate = snapshot.rate
+      if (snapshot.playing) await safePlay(video)
+      else video.pause()
+      return true
+    })()
+    authRecoveryRunning.current = task
+    try { return await task } finally { authRecoveryRunning.current = null }
+  }
   const restoredRef = useRef(false)
 
   const cleanupMedia = cleanup
@@ -423,6 +463,13 @@ export function useVideoSource({
   const resolveViewerEffectiveState = useCallback(
     async (state: WatchTogetherState): Promise<WatchTogetherState> => {
       if (isHostRef.current || !state.sourceUrl) return state
+      const room = useRoomStore.getState()
+      const movie = room.movies.find(m => m.id === room.currentMovieId)
+      if (movie && (['cms', 'anime'].includes(movie.sourceType) || (movie.sourceType === 'kazumi' && movie.sourceMeta) || movie.sourceType === 'ftp')) {
+        const resolved = await resolveMovieSource({movie, sourceType: movie.sourceType})
+        if (room.roomSessionRevision !== useRoomStore.getState().roomSessionRevision || room.currentMovieId !== useRoomStore.getState().currentMovieId) throw new DOMException('Playback session replaced', 'AbortError')
+        return {...state, ...resolved}
+      }
       const override = await ensureViewerLocalOverride(state)
       if (override && override.movieId === useRoomStore.getState().currentMovieId) {
         return withViewerOverride(state, override.resolved)
@@ -453,7 +500,9 @@ export function useVideoSource({
         return
       }
 
+      const context = useRoomStore.getState()
       const effectiveState = await resolveViewerEffectiveState(state)
+      if (context.roomSessionRevision !== useRoomStore.getState().roomSessionRevision || context.currentMovieId !== useRoomStore.getState().currentMovieId) return
       if (!video.isConnected) return
       if (useRoomStore.getState().viewerCliRequiredMovieId != null) {
         cleanupMedia()

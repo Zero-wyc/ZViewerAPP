@@ -108,6 +108,7 @@ export interface StatePayload {
 
 /** `host-heartbeat` 事件 payload：房主定时广播的轻量心跳信息 */
 export interface HeartbeatPayload {
+  clientTs?: number
   currentTime: number
   isPlaying: boolean
   /**
@@ -129,6 +130,8 @@ export interface HeartbeatPayload {
 
 /** 统一心跳协议（#14）：房主在线 / 房主离线共用同一事件 */
 export interface SyncHeartbeatPayload {
+  roomId?: string
+  hostOnline?: boolean
   /** 来源：'host'（房主在线） | 'server'（房主离线，服务器接管） */
   source: 'host' | 'server'
   /** 房主在线时直接携带的字段 */

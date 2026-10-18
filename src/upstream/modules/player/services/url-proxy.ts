@@ -287,6 +287,8 @@ export function resolveMediaRoute(
     return { url: appendAuthToken(sameHostApi), allowFallback: false }
   }
 
+  if (options?.noProxyFallback === true) return { url, allowFallback: false }
+
   const hasHeaders = !!(headers && Object.keys(headers).length > 0)
   const isBili = isBilibiliMediaUrl(url)
 
@@ -337,10 +339,7 @@ export function resolveMediaRoute(
   // - 127.0.0.1 / localhost 是浏览器信任源，已在上方 CLI 分支直连放行；
   // - 挂载直链模式（noProxyFallback）跳过本分支：保持源站直传语义，
   //   升级失败由 direct 引擎直接抛错提示，不静默转代理。
-  if (
-    window.location.protocol === 'https:' &&
-    options?.noProxyFallback !== true
-  ) {
+  if (window.location.protocol === 'https:') {
     try {
       if (new URL(url).protocol === 'http:') {
         console.warn(

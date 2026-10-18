@@ -72,6 +72,7 @@ export function useHostBroadcast({
       seqRef.current += 1
       socket.emit(SOCKET_EVENT.STATE, {
         roomId,
+        clientTs: Date.now(),
         state: stateWithCli,
         diff,
         seq: seqRef.current,
@@ -83,7 +84,7 @@ export function useHostBroadcast({
   const sendControl = useCallback(
     (action: ControlAction, value?: number) => {
       if (!socket || !isHostRef.current) return
-      socket.emit(SOCKET_EVENT.CONTROL, { roomId, action, value })
+      socket.emit(SOCKET_EVENT.CONTROL, { roomId, action, value, clientTs: Date.now() })
     },
     [socket, roomId, isHostRef]
   )
@@ -105,6 +106,7 @@ export function useHostBroadcast({
     seqRef.current += 1
     socket.emit(SOCKET_EVENT.STATE, {
       roomId,
+      clientTs: Date.now(),
       state: newState,
       seq: seqRef.current,
     })

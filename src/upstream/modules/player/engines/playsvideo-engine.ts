@@ -24,7 +24,9 @@
  * 两个必须绕开的限制：
  * 1. **不支持自定义请求头**：`loadUrl()` 内部由 mediabunny `UrlSource` 裸
  *    fetch 取流，无法携带防盗链 Referer/UA，也受 CORS 约束。因此跨域源
- *   一律走后端 `/api/stream/proxy`（同源、后端注入 headers、透传 Range）。
+ *   一律走后端 `/api/stream/proxy`（同源、后端注入 headers、透传 Range）；
+ *   挂载直链模式（noProxyFallback）例外——保持源站直传零中转语义，
+ *   要求源站允许 CORS，失败直接报错不回退代理（见 resolvePlaysVideoUrl）。
  * 2. **内嵌字幕由 playsvideo 提取，但由 ZViewer 渲染**：
  *    playsvideo 的产物是本机 `<track>` + blob URL，无法经 socket 广播给
  *    观众，因此 playsvideo-subtitle-bridge 会把它们取回并解析成
@@ -38,6 +40,7 @@
  * 标签且丢弃样式表头，所以 ASS 特效在此链路下不可恢复地退化为纯文本。
  */
 import { PlaysVideoEngine } from 'playsvideo'
+import type { KeyframeIndex } from 'playsvideo'
 import {
   fetchPlaysVideoTrackCues,
   publishPlaysVideoSubtitle,
@@ -58,14 +61,20 @@ import {
   isRelativeUrl,
 } from '../services/url-proxy'
 
+
 /**
- * 引擎准备超时（毫秒）。
+ * 引擎准备超时模型（活动超时制，替代旧 60s 绝对超时）。
  *
- * 起播需完成探测 + 关键帧索引 + 首段产出，大文件或慢源可能耗时较久；
- * 超时后 attach 直接失败并向上抛错——**不降级原生播放**（原生解码
- * DTS/AC3 等编码会无声或再次失败），由用户决定重载或调整影片级开关。
+ * 起播需完成探测 + 关键帧索引 + 首段产出，大文件或慢源可能耗时较久。
+ * worker 在这些长耗时阶段每 3s 发 progress 心跳（本地补丁），主线程
+ * 任一进展事件到达即重置活动计时器——慢源只要仍在取流/处理就不被
+ * 硬杀；真死源（完全无事件）45s 即报错。绝对兜底防病态场景
+ * （事件持续但永不 ready）无限等待。超时后 attach 直接失败并向上
+ * 抛错——**不降级原生播放**（原生解码 DTS/AC3 等编码会无声或再次
+ * 失败），由用户决定重载或调整影片级开关。
  */
-const READY_TIMEOUT_MS = 60_000
+const ACTIVITY_TIMEOUT_MS = 45_000
+const ABSOLUTE_TIMEOUT_MS = 300_000
 
 /**
  * 诊断 hook：定位 endOfStream 调用来源。
@@ -134,6 +143,12 @@ export function isPlaysVideoSupported(): boolean {
  * 本引擎**必须**保证同源：mediabunny 的裸 fetch 既带不了防盗链头，
  * 也过不了 CORS。故跨域源一律后端代理——代价是服务器承担流量，
  * 换来的是任意容器/编码都能播。
+ *
+ * 例外：挂载直链模式（noProxyFallback，一起看挂载直链影片）与 direct/hls
+ * 引擎同语义——源站直传、服务器零媒体流量。mediabunny 裸 fetch 直连跨域
+ * 源站需要源站允许 CORS，失败不回退代理（静默转代理会让服务器带宽跑满
+ * 并掩盖直链本身的问题），由 attach 错误路径补充可操作指引。
+ * 带防盗链 headers 的源不适用本例外：裸 fetch 带不了 headers，仍走代理。
  */
 function resolvePlaysVideoUrl(source: PlayerSource): string {
   const url = source.url
@@ -141,8 +156,56 @@ function resolvePlaysVideoUrl(source: PlayerSource): string {
   // 同源 / 相对路径（如 /api/webdav/stream、/api/server-files/raw）：
   // 直接请求，仅需补 token（HTTP 环境下无 auth cookie）。
   if (isLocalUrl(url) || isRelativeUrl(url)) return appendAuthToken(url)
+  // 挂载直链模式：保持源站直传语义。前置校验与 direct/hls 引擎一致
+  // （HTTPS 页面下的 http 直链必然失败，发请求前给出可操作指引）。
+  if (source.noProxyFallback === true) {
+    return url
+  }
   // 跨域：走后端代理，由后端注入防盗链头并透传 Range。
   return buildProxyUrl(url)
+}
+
+/**
+ * 关键帧索引 URL 级复用缓存（内存 LRU + TTL）。
+ *
+ * MKV 管线的索引构建需经 Range 请求读 Cues，大文件 + 慢源可达数秒；
+ * 重载按钮、recovery 回退重解析、切回同一影片等场景 URL 不变，索引
+ * 完全可复用。来源：attach 成功后从 worker 回传的
+ * `engine.builtKeyframeIndex`（本地补丁）读取；下次同 URL attach 经
+ * `loadUrl(url, { keyframeIndex })` 传入，worker 跳过构建直接用。
+ *
+ * 失效策略：内存缓存（页面刷新即清）+ TTL 10 分钟 + 容量 4（LRU）。
+ * 同 URL 文件被替换的窗口期会拿到过期索引（seek 定位偏移），窗口受
+ * TTL 约束可接受；探测失败（null）不缓存，允许下次重试。
+ */
+interface CachedKeyframeIndex {
+  index: KeyframeIndex
+  cachedAt: number
+}
+
+const KEYFRAME_INDEX_CACHE_MAX = 4
+const KEYFRAME_INDEX_TTL_MS = 10 * 60_000
+const keyframeIndexCache = new Map<string, CachedKeyframeIndex>()
+
+function peekCachedKeyframeIndex(url: string): KeyframeIndex | null {
+  const entry = keyframeIndexCache.get(url)
+  if (!entry) return null
+  if (Date.now() - entry.cachedAt > KEYFRAME_INDEX_TTL_MS) {
+    keyframeIndexCache.delete(url)
+    return null
+  }
+  return entry.index
+}
+
+function putCachedKeyframeIndex(url: string, index: KeyframeIndex): void {
+  // Map 保持插入序：删后重插实现 LRU 触顶淘汰最旧
+  keyframeIndexCache.delete(url)
+  keyframeIndexCache.set(url, { index, cachedAt: Date.now() })
+  while (keyframeIndexCache.size > KEYFRAME_INDEX_CACHE_MAX) {
+    const oldest = keyframeIndexCache.keys().next().value
+    if (oldest === undefined) break
+    keyframeIndexCache.delete(oldest)
+  }
 }
 
 /**
@@ -162,7 +225,15 @@ class PlaysVideoController implements PlayerController {
   private subtitleGen = 0
   /** 已处理过的 <track> 元素，避免重复提取（addtrack 可能重发） */
   private handledTrackEls = new WeakSet<HTMLTrackElement>()
-  /** 本会话已发布字幕轨数量，用于推算轨道序号 */
+  /**
+   * 轨道序号：**挂载时同步分配**（MutationObserver 回调），而非提取完成时
+   * 按完成序推算。playsvideo 按 subtitleTracks 顺序 appendChild，挂载序即
+   * 轨道序；各轨道的 fetch + 解析是异步并发的，完成序与挂载序无关——按
+   * 完成序分配会让 index 与 subtitleTracks 的 label/language/codec 元数据
+   * 错位（内容大的轨道后完成即被挤到后面的序号）。
+   */
+  private subtitleOrdinals = new WeakMap<HTMLTrackElement, number>()
+  /** 已分配的轨道序号计数（配合 subtitleOrdinals 使用） */
   private publishedSubtitleCount = 0
   /** 撤销 addtrack 监听（cleanup 时调用） */
   private unbindSubtitles: (() => void) | null = null
@@ -217,8 +288,16 @@ class PlaysVideoController implements PlayerController {
     this.bindSubtitleBridge()
 
     try {
-      engine.loadUrl(url)
-      await this.waitReady(engine)
+      // 关键帧索引复用：同 URL 的重载/切回直接传入缓存索引，worker 跳过
+      // Range 探测（大文件 + 慢源可省数秒起播时间）。缓存 key 用 source.url
+      // （原始地址，不含 token）——token 每次刷新都会变，用最终请求 URL
+      // 做 key 会让 token 刷新后的重载全部 miss。
+      const cachedIndex = peekCachedKeyframeIndex(this.source.url)
+      engine.loadUrl(
+        url,
+        cachedIndex ? { keyframeIndex: cachedIndex } : undefined
+      )
+      await this.waitReady(engine, this.source.onAttachProgress)
     } catch (err) {
       // 起播失败（容器不支持 / 探测超时 / 取流不可达）：
       // 必须终结本世代并释放 worker，否则旧管线残留会与回退引擎竞争 video。
@@ -226,12 +305,38 @@ class PlaysVideoController implements PlayerController {
         this.destroyEngine()
         this.generation++
       }
+      // 直链模式：不回退服务器中转，错误透出并补充可操作指引。
+      // mediabunny 的 CORS / 网络失败报「Failed to fetch」等泛化文案，
+      // 需要指明「源站需允许跨域直连」；前置校验（assertDirectLinkReachable）
+      // 抛出的错误已带指引，直接透传避免文案嵌套。
+      if (
+        this.source.noProxyFallback === true &&
+        !this.source.headers &&
+        this.source.url &&
+        !isLocalUrl(this.source.url) &&
+        !isRelativeUrl(this.source.url) &&
+        !(err instanceof Error && err.message.startsWith('直链播放失败'))
+      ) {
+        const reason = err instanceof Error ? err.message : String(err)
+        throw new Error(
+          `直链播放失败：${reason}。浏览器转码引擎需源站允许浏览器跨域直连（CORS），` +
+            '不经服务器中转；请检查源站可达性与跨域配置，或关闭影片的挂载直链模式',
+          { cause: err }
+        )
+      }
       throw err
     }
 
     // 世代已被取代：本次 attach 的结果作废，静默让位
     if (gen !== this.generation) {
       return ''
+    }
+
+    // 回存 worker 本地构建的关键帧索引（缓存命中时 worker 直接用传入
+    // 索引、不重建不回传，不会重复缓存）
+    const builtIndex = engine.builtKeyframeIndex
+    if (builtIndex && this.source.url) {
+      putCachedKeyframeIndex(this.source.url, builtIndex)
     }
 
     // 时长兜底：HLS 模式下 video.duration 由 hls.js 填充，
@@ -242,7 +347,7 @@ class PlaysVideoController implements PlayerController {
 
     // pipeline 模式下 ready 先于 startHls 触发，此时 readyState 可能仍为 0，
     // 直接赋值 currentTime 会被浏览器丢弃（与 waitForMetadata 的注释同理）。
-    await waitForMetadata(this.video, undefined, this.source.signal)
+    await waitForMetadata(this.video)
 
     const start = startTime ?? this.source.startTime ?? 0
     if (start > 0) {
@@ -258,46 +363,121 @@ class PlaysVideoController implements PlayerController {
   }
 
   /**
-   * 等待引擎 ready / error。
+   * 等待引擎 ready / error（活动超时制）。
    *
-   * 同时监听 error 事件与超时——只触发 error 不触发 ready 的失败若
-   * 不 reject，Promise 永不 settle，会卡死 attach 串行队列（播放器假死）。
+   * - 活动超时：progress 心跳（probe/index/ffmpeg/seg0）与 decision /
+   *   workerstate / segmentstate / subtitle 事件任一到达即重置计时器；
+   * - 绝对兜底：整体超过 ABSOLUTE_TIMEOUT_MS 强制失败。
+   *
+   * 同时把进展经 onProgress 透出（stage + 可选 detail），供上层在
+   * 解析/重载 loading 态展示进度。
    *
    * 世代校验不在这里做：监听器注册时 gen 必然等于当前世代，判断无意义；
    * 真正的作废检查在 attach 的 await 之后进行。
    */
-  private waitReady(engine: PlaysVideoEngine): Promise<void> {
+  private waitReady(
+    engine: PlaysVideoEngine,
+    onProgress?: (stage: string, detail?: string) => void
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
+      let activityTimer: ReturnType<typeof setTimeout> | null = null
+      let lastSegmentsDetail: string | null = null
+      let workersReported = false
       const cleanup = () => {
-        engine.removeEventListener('ready', onReady)
-        engine.removeEventListener('error', onError)
-        clearTimeout(timer)
+        engine.removeEventListener('ready', onReady as EventListener)
+        engine.removeEventListener('error', onError as EventListener)
+        engine.removeEventListener('progress', onProgressEvent as EventListener)
+        engine.removeEventListener('playbackdecision', onDecision as EventListener)
+        engine.removeEventListener('workerstatechange', onWorkerActivity as EventListener)
+        engine.removeEventListener('segmentstatechange', onSegmentActivity as EventListener)
+        engine.removeEventListener('subtitle-status', onActivity as EventListener)
+        clearTimeout(activityTimer ?? undefined)
+        clearTimeout(absoluteTimer)
         if (this.pendingReadyReject === onRejectExternal) {
           this.pendingReadyReject = null
         }
+      }
+      const fail = (err: Error) => {
+        cleanup()
+        reject(err)
+      }
+      const resetActivity = () => {
+        if (activityTimer) clearTimeout(activityTimer)
+        activityTimer = setTimeout(() => {
+          fail(
+            new Error(
+              `浏览器转码引擎 ${Math.round(ACTIVITY_TIMEOUT_MS / 1000)}s 无进展（源站无响应或处理停滞），可尝试重载影片`
+            )
+          )
+        }, ACTIVITY_TIMEOUT_MS)
       }
       const onReady = () => {
         cleanup()
         resolve()
       }
-      const onError = (e: Event) => {
+      const onError = (e: CustomEvent<{ message?: string }>) => {
         cleanup()
-        const detail = (e as CustomEvent<{ message?: string }>).detail
-        reject(new Error(detail?.message || 'playsvideo 引擎启动失败'))
+        reject(new Error(e.detail?.message || 'playsvideo 引擎启动失败'))
       }
       // destroyEngine 触发的外部唤醒（cleanup / 新世代接管 / 卸载）
       const onRejectExternal = (err: Error) => {
         cleanup()
         reject(err)
       }
-      const timer = setTimeout(() => {
-        cleanup()
-        reject(new Error('playsvideo 引擎准备超时（60s）'))
-      }, READY_TIMEOUT_MS)
+      const onActivity = () => resetActivity()
+      const onProgressEvent = (e: CustomEvent<{ stage?: string }>) => {
+        resetActivity()
+        if (e.detail?.stage) onProgress?.(e.detail.stage)
+      }
+      const onDecision = (
+        e: CustomEvent<{
+          evaluation?: { recommended?: { option?: { mode?: string } } }
+        }>
+      ) => {
+        resetActivity()
+        const mode = e.detail?.evaluation?.recommended?.option?.mode
+        onProgress?.('decision', typeof mode === 'string' ? mode : undefined)
+      }
+      const onWorkerActivity = () => {
+        resetActivity()
+        // worker 状态事件高频（每个 job 更新一次），仅首次透出启动信号
+        if (!workersReported) {
+          workersReported = true
+          onProgress?.('workers')
+        }
+      }
+      const onSegmentActivity = (
+        e: CustomEvent<{ segments?: { phase: string }[] }>
+      ) => {
+        resetActivity()
+        const segs = e.detail?.segments
+        if (!segs?.length) return
+        const done = segs.filter((s) =>
+          ['ready', 'delivered', 'cache-hit'].includes(s.phase)
+        ).length
+        const detail = `${done}/${segs.length}`
+        if (detail !== lastSegmentsDetail) {
+          lastSegmentsDetail = detail
+          onProgress?.('segments', detail)
+        }
+      }
+      const absoluteTimer = setTimeout(() => {
+        fail(
+          new Error(
+            `浏览器转码引擎准备超时（${Math.round(ABSOLUTE_TIMEOUT_MS / 60_000)} 分钟），可尝试重载影片`
+          )
+        )
+      }, ABSOLUTE_TIMEOUT_MS)
 
+      resetActivity()
       this.pendingReadyReject = onRejectExternal
-      engine.addEventListener('ready', onReady)
-      engine.addEventListener('error', onError)
+      engine.addEventListener('ready', onReady as EventListener)
+      engine.addEventListener('error', onError as EventListener)
+      engine.addEventListener('progress', onProgressEvent as EventListener)
+      engine.addEventListener('playbackdecision', onDecision as EventListener)
+      engine.addEventListener('workerstatechange', onWorkerActivity as EventListener)
+      engine.addEventListener('segmentstatechange', onSegmentActivity as EventListener)
+      engine.addEventListener('subtitle-status', onActivity as EventListener)
     })
   }
 
@@ -346,6 +526,9 @@ class PlaysVideoController implements PlayerController {
       for (const mutation of mutations) {
         for (const node of mutation.addedNodes) {
           if (node instanceof HTMLTrackElement) {
+            // 挂载时同步分配序号（见 subtitleOrdinals 注释）
+            const ordinal = this.publishedSubtitleCount++
+            this.subtitleOrdinals.set(node, ordinal)
             void this.extractSubtitleTrack(node, gen)
           }
         }
@@ -379,8 +562,10 @@ class PlaysVideoController implements PlayerController {
     )
     if (cues.length === 0) return
 
-    // 轨道序号按挂载顺序推算：playsvideo 依 subtitleTracks 顺序依次 append
-    const ordinal = this.publishedSubtitleCount++
+    // 轨道序号在挂载时已分配（observer 同步写入 subtitleOrdinals）；
+    // 兜底扫描路径（绑定前已存在的轨道）没有分配记录，按完成序补分配
+    const ordinal =
+      this.subtitleOrdinals.get(element) ?? this.publishedSubtitleCount++
     const info = this.engine?.subtitleTracks?.[ordinal]
 
     publishPlaysVideoSubtitle(gen, {
@@ -432,21 +617,16 @@ export const playsVideoEngine: PlayerEngine = {
     video: HTMLVideoElement,
     source: PlayerSource
   ): Promise<EngineAttachResult> {
-    source.signal?.throwIfAborted()
     const controller = new PlaysVideoController(video, source)
-    const cancel = () => controller.cleanup()
-    source.signal?.addEventListener('abort', cancel, { once: true })
     try {
       await controller.attach(source.startTime ?? 0)
-      source.signal?.throwIfAborted()
     } catch (err) {
       // attach 半途失败：终结半挂载实例，避免残留 worker 与回退引擎竞争
-      source.signal?.removeEventListener('abort', cancel)
       controller.cleanup()
       throw err
     }
     return {
-      cleanup: () => { source.signal?.removeEventListener('abort', cancel); controller.cleanup() },
+      cleanup: () => controller.cleanup(),
       player: controller,
     }
   },

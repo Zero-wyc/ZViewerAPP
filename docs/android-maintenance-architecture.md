@@ -4,15 +4,26 @@
 
 ## 当前状态与范围
 
-- Android 当前发行源码与安装包为 **2.0.0 / versionCode 200**，目标服务端以已集成的 v4.5.3 协议为基线。版本以 `package.json` 和 `ZV-Android/app/build.gradle` 为准。
+- Android 本地交付版本为 **2.1.0 / versionCode 210**，对齐服务端 v4.5.9；公开发行仍为 2.0.0。版本以根 package.json 与对应原生工程为准。
 - 客户端修改、Git 提交均在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。`ZViewer-source code` 是本地服务端目录，不在其中改客户端。
 - Android 与 HarmonyOS 共用根目录 React/Vite 界面，但原生宿主不同；iOS 是 `ZV-iOS` 中独立的 Expo/React Native 工程。三端实现和验收不能互相替代。
 
 ## 代码入口
 
-### 2026-10-18 服务端 v4.5.9 对齐计划（尚未实施）
+### 2.1.0 / 210：服务端 v4.5.9 对齐与本地交付（2026-10-18）
 
-本地服务端源码已更新至 `main/e86fe409faaf99dfb8b3d7adf6e88e836de12108`，业务代码与 v4.5.9 一致；Android 客户端仍为 2.0.0 / 200，尚未完成新协议适配。见 [双端更新指南](安卓鸿蒙对齐服务端v4.5.9更新指南-2026-10-18.md)，包含服务器权威同步、媒体路由/FTP 票据、CMS、鉴权恢复、播放器依赖及双端验收顺序。本次仅更新源码参考与文档，没有构建或安装新 APK，历史验收不代表新版通过。
+目标服务端固定为 main/e86fe409faaf99dfb8b3d7adf6e88e836de12108，业务代码对应 v4.5.9。2.1.0 是本地签名包交付版本，尚未推送/发布 GitHub Release；公开旧版本信息留在历史章节。完整范围、验收层级及未覆盖项见 [2.1.0 验证记录](client-2.1.0-validation.md)，实施依据见 [双端更新指南](安卓鸿蒙对齐服务端v4.5.9更新指南-2026-10-18.md)。
+
+- 同步入口：sync-playback/hooks/useHostBroadcast.ts、useHostHeartbeat.ts、useViewerStateSync.ts 与 playback-memory/hooks/useServerHeartbeat.ts。房主上行携带 clientTs；新服服务器心跳独占常规进度校正，旧服保留 host fallback。10 秒自检由 ackGuard.ts 提供 5 秒超时和身份失效保护；强制全量 state 仍执行统一 MSE seek，包含进度 0。roomStore.hostOffline 统一界面权限与同步状态，离线事件的 6 秒保护避免服务端 5 秒在线缓存回拉暂停；新的 sharer-ready/host 存活证据可提前恢复。
+- 音乐入口：music/hooks/useListenTogether.ts 保留本机音频、队列归属、FM、音量和后台修复；新增 server heartbeat 与 check-status，服务器 positionSec 不二次外推。7 秒无服务器心跳只开启房主兼容路径，不直接判离线；检查应答再次验证房间、trackKey 和加载代次。
+- 媒体入口：roomStore DTO/add/update、MoviePushPanel.tsx、movie-source-resolver.ts、player/services/url-proxy.ts 及各引擎。directLinkProxy/serverProxy 为明确中转决定，sourceMountId 锚定挂载；关闭中转时 direct/HLS/FLV/DASH/playsvideo 不自动代理。设备到已选服务器的连接通道独立保留，原生运行时不套用普通网页的混合内容预判。
+- CMS 入口：modules/cms/ 的 API、类型和 CmsSelector，复用 AnimeSourceBrowser。聚合结果仍路由真实站点；sourceMeta 保留 vodId、playFromIndex、episodeIndex，播放/恢复重新解析。Kazumi 新增影片也保存 episode 元数据；旧无元数据影片保留原 URL 兼容。FTP 挂载影片按 movieId 生成各成员当前服务器鉴权的 stream，不广播个人 ticket。
+- 鉴权入口：sync-playback/hooks/useVideoSource.ts 处理当前服务器媒体播放期错误，单次刷新后恢复快照；切服/切房/换片使返回结果作废。mobile/serverUrl.ts 重建服务器媒体 token，第三方 CDN 不接收客户端 token。第三方 403、B站解析错误和解码错误各走原链路。
+- 播放器依赖：vendor/playsvideo 取代 npm patch；vendor/local-patches.mjs --check 核对 DTS/FLAC，保留 MKV cue/AAC/字幕行为。playsvideo-engine.ts 采用 45 秒无活动超时及 5 分钟绝对上限，缓存关键帧并向界面透出阶段；字幕 worker 按请求编号分派，并在异常/15 秒无响应时回退主线程。
+- 鸿蒙冷启动：Index.ets 安全区注入必须等待页面就绪，页面销毁后拒绝旧窗口回调，并捕获控制器未绑定的同步异常；迟到原生桥响应也安全丢弃，避免冷启动/退出期间的 17100001 崩溃。
+- 共享/P2P：mobile/screenShareSession.ts 上报固定安全文案，WebrtcWatchPage 回收失败等待；modules/p2p 加入 ICE 排队与断开宽限。双端独立原生采集、账号隔离、画质和 PiP 差异继续有效。
+
+本轮通过 166 项适配、4 项媒体、10 组 CMS、16 组搜索、12 组下一部和 4 组队列回归；原生结果以验证记录为准。最终 APK/HAP 新构建并正式签名，包内网页资源与生成目录一致；仅在最终构建完成时计算每包一次 SHA-256。iOS 没有改动或启动构建。
 
 ### 2.0.0 / 200：搜索入口与下一部（2026-10-15）
 

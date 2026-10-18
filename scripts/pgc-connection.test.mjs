@@ -97,6 +97,9 @@ function resolverHarness(){
   '../../../../platform/runtime':{getRuntimePlatform:()=> 'android'},
   '@/modules/bilibili/nativeQualityPolicy':{getNativeQualityPolicy:()=>({mode:'autoMax'}),getWebViewCapabilities:async()=>[],nativeQualityCacheKey:()=> 'auto',recordNativeQuality(){}},
   '@/modules/anisubs':{},
+  '@/modules/cms/api':{},
+  '@/modules/kazumi':{},
+  '@/modules/player/services/url-proxy':{},
  }
  return {movie,fail,setReady(){status={...status,ready:true,loggedIn:true}},counts:()=>({serverCalls,localCalls}),...loadTs('src/upstream/modules/room/watch-together/movie-source-resolver.ts',modules)}
 }

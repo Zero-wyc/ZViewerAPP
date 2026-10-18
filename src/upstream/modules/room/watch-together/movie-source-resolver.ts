@@ -1,3 +1,6 @@
+import { resolveCmsEpisode, buildCmsProxyUrl } from '@/modules/cms/api'
+import { resolveKazumiEpisode, buildKazumiProxyUrl } from '@/modules/kazumi'
+import { buildProxyUrl } from '@/modules/player/services/url-proxy'
 /**
  * 影片播放源解析器（从 useWatchTogether.loadMovie 抽取）。
  *
@@ -396,7 +399,7 @@ subscribeEmbeddedProxy(() => bilibiliResolveCache.clear())
 export async function resolveAnimeOnline(
   movie: Movie
 ): Promise<ResolvedMovieSource> {
-  if (!movie.sourceMeta) {
+  if (!movie.sourceMeta || !('episode' in movie.sourceMeta)) {
     throw new Error('番剧源元数据缺失，请重新添加该番剧')
   }
 
@@ -404,8 +407,8 @@ export async function resolveAnimeOnline(
   const resolved = await resolveAniSubsEpisode(sourceId, episode)
 
   // 防盗链处理：若返回 headers，走后端代理 URL
-  const finalUrl = needsAniSubsProxy(resolved.url, resolved.headers)
-    ? buildAniSubsProxyUrl(resolved.url, resolved.headers)
+  const finalUrl = movie.serverProxy === true
+    ? buildAniSubsProxyUrl(resolved.url, resolved.headers, true)
     : resolved.url
 
   return {
@@ -417,6 +420,7 @@ export async function resolveAnimeOnline(
     duration: movie.duration ?? 0,
     headers: undefined,
     reusedRecoveryUrl: false,
+    noProxyFallback: movie.serverProxy !== true,
   }
 }
 
@@ -468,6 +472,24 @@ export async function resolveMovieSource({
     return resolveBilibiliOnline(movie, onProgress)
   }
 
+  if (sourceType === 'cms' || (sourceType === 'kazumi' && movie.sourceMeta)) {
+    const meta = movie.sourceMeta
+    if (!meta) throw new Error('数据源元数据缺失，请重新添加影片')
+    const resolved = sourceType === 'cms' && 'vodId' in meta
+      ? await resolveCmsEpisode(meta.sourceId, { vodId: meta.vodId, playFromIndex: meta.playFromIndex, episodeIndex: meta.episodeIndex })
+      : sourceType === 'kazumi' && 'episode' in meta ? await resolveKazumiEpisode(meta.sourceId, meta.episode)
+      : null
+    if (!resolved) throw new Error('数据源元数据不匹配，请重新添加影片')
+    const proxy = sourceType === 'cms' ? buildCmsProxyUrl : buildKazumiProxyUrl
+    return { sourceUrl: movie.serverProxy === true ? proxy(resolved.url, resolved.headers, true) : resolved.url,
+      format: resolved.format as MediaFormat, duration: movie.duration ?? 0, reusedRecoveryUrl: false,
+      noProxyFallback: movie.serverProxy !== true, playsvideoEnabled: movie.playsvideoEnabled !== false }
+  }
+  // Room members stream FTP through their own authentication; never reuse an owner's ticket.
+  if (sourceType === 'ftp' && movie.path && movie.serverUrl) {
+    return { sourceUrl: '/api/ftp/stream?movieId=' + movie.id, format: movie.format || detectMediaFormat(movie.path),
+      duration: movie.duration ?? 0, reusedRecoveryUrl: false, playsvideoEnabled: movie.playsvideoEnabled !== false }
+  }
   if (sourceType === 'anime') {
     // ani-subs 番剧源：URL 短期有效，每次播放都通过 sourceMeta 重新解析
     // recovery 场景下也强制重新解析，因为旧 URL 大概率已过期
@@ -524,6 +546,7 @@ export async function resolveMovieSource({
     }
   }
   const inferredFormat = movie.format || detectMediaFormat(effectiveUrl)
+  if (movie.directLink === true && movie.directLinkProxy === true) effectiveUrl = buildProxyUrl(effectiveUrl)
   return {
     sourceUrl: effectiveUrl,
     audioUrl: movie.audioUrl,
@@ -537,6 +560,6 @@ export async function resolveMovieSource({
     headers: undefined,
     reusedRecoveryUrl: false,
     playsvideoEnabled: movie.playsvideoEnabled !== false,
-    noProxyFallback: movie.directLink === true,
+    noProxyFallback: movie.directLink === true && movie.directLinkProxy !== true,
   }
 }

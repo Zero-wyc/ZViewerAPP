@@ -100,14 +100,15 @@ export async function resolveKazumiEpisode(
  */
 export function buildKazumiProxyUrl(
   url: string,
-  headers?: Record<string, string>
+  headers?: Record<string, string>,
+  force = false
 ): string {
-  if (!headers || Object.keys(headers).length === 0) return url
+  if (!force && (!headers || Object.keys(headers).length === 0)) return url
   const params = new URLSearchParams({ url })
-  if (headers.Referer) params.set('referer', headers.Referer)
-  if (headers['User-Agent']) params.set('userAgent', headers['User-Agent'])
-  if (headers.Origin) params.set('origin', headers.Origin)
-  if (headers.Cookie) params.set('cookie', headers.Cookie)
+  if (headers?.Referer) params.set('referer', headers.Referer)
+  if (headers?.['User-Agent']) params.set('userAgent', headers['User-Agent'])
+  if (headers?.Origin) params.set('origin', headers.Origin)
+  if (headers?.Cookie) params.set('cookie', headers.Cookie)
   return `${getBaseUrl()}/proxy?${params.toString()}`
 }
 

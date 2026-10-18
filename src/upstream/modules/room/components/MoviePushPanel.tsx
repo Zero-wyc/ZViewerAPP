@@ -1,3 +1,4 @@
+import { CmsSelector } from '@/modules/cms/CmsSelector'
 import { enumerateSeriesPages } from '@/modules/emby/seriesPages'
 import { logicalConnectionUrl } from '../../../../platform/connectionTransport'
 import { BiliSearchModal } from './BiliSearchModal'
@@ -115,6 +116,7 @@ type SourceType =
   | 'jellyfin'
   | 'anime'
   | 'kazumi'
+  | 'cms'
   | 'server-files'
 
 const ALL_SOURCE_OPTIONS: {
@@ -131,6 +133,7 @@ const ALL_SOURCE_OPTIONS: {
   { value: 'jellyfin', label: 'Jellyfin' },
   { value: 'anime', label: 'ani-subs 番剧源' },
   { value: 'kazumi', label: 'Kazumi 番剧源' },
+  { value: 'cms', label: 'TVBox 采集源' },
   { value: 'server-files', label: '服务器文件', rootOnly: true },
 ]
 
@@ -181,6 +184,9 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
   // 影片级浏览器播放引擎（playsvideo）开关：默认关闭——强制原生直连播放
   // （不兼容编码将无声），需要 MKV/DTS 等非常规格式重封装/转码时手动开启。
   // 与系统级开关两级门控。
+  const [serverProxy, setServerProxy] = useState(false)
+  const [cmsOpen, setCmsOpen] = useState(false)
+  const selectedMountRef = useRef<number | null>(null)
   const [playsvideoEnabled, setPlaysvideoEnabled] = useState(false)
   // 包装 store 的 addMovie：为本面板全部添加路径统一注入 playsvideoEnabled，
   // 调用点无需逐个传参。roomId 已在闭包内固定，保持原调用签名不变。
@@ -193,10 +199,14 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
     ) =>
       addMovieStore(_roomId, {
         ...payload,
+        sourceMountId: ['webdav', 'ftp', 'openlist', 'emby', 'jellyfin'].includes(payload.source ?? '') ? (payload.sourceMountId ?? selectedMountRef.current) : undefined,
+        directLink: payload.source === 'mp4' ? true : payload.directLink,
+        directLinkProxy: serverProxy,
+        serverProxy,
         playsvideoEnabled:
           payload.source === 'bilibili' ? true : playsvideoEnabled,
       }),
-    [addMovieStore, playsvideoEnabled]
+    [addMovieStore, playsvideoEnabled, serverProxy]
   )
   const [resolvedMovie, setResolvedMovie] = useState<ResolvedSource | null>(
     null
@@ -242,6 +252,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
   // 已保存挂载
   const [mounts, setMounts] = useState<UnionMount[]>([])
   const [selectedMountId, setSelectedMountId] = useState<string>('')
+  selectedMountRef.current = Number(selectedMountId) || null
   const [browsingMount, setBrowsingMount] = useState<UnionMount | null>(null)
 
   const [bilibiliLoggedIn, setBilibiliLoggedIn] = useState(false)
@@ -392,7 +403,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
 
   const handleSelectAnimeEpisodes = useCallback(
     async (
-      kind: 'anime' | 'kazumi',
+      kind: 'anime' | 'kazumi' | 'cms',
       items: { sourceId: string; episode: AniSubsEpisode; title: string }[]
     ): Promise<string[]> => {
       if (!isHost || !roomId) {
@@ -419,21 +430,18 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
                   originalTitle: item.title,
                 },
               })
-            } else {
-              const resolved = await resolveKazumiEpisode(
-                item.sourceId,
-                item.episode
-              )
-              if (!current()) break
-              const url = needsKazumiProxy(resolved.url, resolved.headers)
-                ? buildKazumiProxyUrl(resolved.url, resolved.headers)
-                : resolved.url
+            } else if (kind === 'cms') {
+              const params = item.episode.playbackParams
               await addMovie(roomId, {
-                url,
-                title: item.title,
-                source: 'kazumi',
-                format: resolved.format,
+                url: 'cms://' + item.sourceId + '/' + params.vodId,
+                title: item.title, source: 'cms',
+                sourceMeta: { sourceId: item.sourceId, vodId: String(params.vodId), vodTitle: item.title,
+                  playFromIndex: Number(params.playFromIndex), episodeIndex: Number(params.episodeIndex), episodeTitle: item.episode.title },
               })
+            } else {
+              await addMovie(roomId, { url: 'kazumi://' + item.sourceId + '/' + item.episode.id,
+                title: item.title, source: 'kazumi',
+                sourceMeta: { sourceId: item.sourceId, episode: item.episode, originalTitle: item.title } })
             }
             added.push(item.episode.id)
           } catch (err) {
@@ -734,6 +742,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
         duration: first.duration,
         serverUrl: mount?.serverUrl ?? undefined,
         path: episodes[0].path,
+        sourceMountId: seriesMountId,
         directLink,
         multiVersion: first.multiVersion,
         pages: episodes,
@@ -841,6 +850,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
                 url: movieUrl,
                 title,
                 source: sourceType,
+                sourceMountId: mountId,
                 serverUrl,
                 path: normalizedPath,
                 directLink: true,
@@ -872,7 +882,8 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
               title,
               source: 'ftp',
               format: resolved.format,
-              serverUrl: ftp.serverUrl.trim(),
+              sourceMountId: mountId,
+          serverUrl: ftp.serverUrl.trim(),
               path: normalizedPath,
               username: ftp.username || undefined,
               password: ftp.password || undefined,
@@ -894,6 +905,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
               source: 'emby',
               format: resolved.format,
               duration: resolved.duration,
+              sourceMountId: mountId,
               serverUrl: mount?.serverUrl ?? undefined,
               path: normalizedPath,
               directLink: embyDirectLink,
@@ -1473,6 +1485,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
           source: sourceType,
           format,
           duration,
+          sourceMountId: mountId,
           serverUrl: mountServerUrl,
           path: mountPath,
           directLink: isDirect,
@@ -1631,6 +1644,8 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
         </Button>
       )
     }
+
+    if (sourceType === 'cms') return <Button variant="primary" block disabled={!isHost} onClick={() => setCmsOpen(true)}>搜索影片</Button>
 
     if (sourceType === 'kazumi') {
       return (
@@ -1885,6 +1900,8 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
         </Space>
       )
     }
+
+    if (sourceType === 'cms') return <p className="text-sm">搜索已配置的 TVBox JSON 采集站，选择播放组及集数加入片单。</p>
 
     if (sourceType === 'anime') {
       return (
@@ -2222,6 +2239,10 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
             </div>
           )}
 
+          {['mp4','webdav','openlist','emby','jellyfin','anime','kazumi','cms'].includes(sourceType) && <label className="flex items-center justify-between gap-3 rounded-xl border border-[var(--md-sys-color-outline)] p-3 text-sm">
+            <span>服务器中转<span className="block text-xs opacity-75">关闭时媒体直连源站；开启后始终由服务器转发</span></span>
+            <input type="checkbox" checked={serverProxy} onChange={e => setServerProxy(e.target.checked)} disabled={!isHost} aria-label="服务器中转" />
+          </label>}
           {resolveProgress && (
             <div
               className="flex items-center gap-2 rounded-[var(--md-sys-shape-corner)] px-3 py-2 text-xs"
@@ -2375,6 +2396,9 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
         </div>
       </div>
 
+      {sourceType === 'cms' && <CmsSelector open={cmsOpen} onOpenChange={setCmsOpen}
+        onSelectEpisode={(sourceId, episode, title) => { void handleSelectAnimeEpisodes('cms', [{sourceId, episode, title}]) }}
+        onSelectEpisodes={items => handleSelectAnimeEpisodes('cms', items)} disabled={!isHost || loading} />}
       {sourceType === 'anime' && (
         <AniSubsSelector
           open={animeOpen}

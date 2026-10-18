@@ -1,3 +1,4 @@
+import { isNativeRuntime } from '../../../../platform/runtime'
 /**
  * 直链加载链路共享模块(链接获取层)。
  *
@@ -125,7 +126,7 @@ function assertDirectLinkReachable(
   targetUrl: string,
   noProxyFallback: boolean
 ): void {
-  if (!noProxyFallback) return
+  if (!noProxyFallback || isNativeRuntime()) return
   if (window.location.protocol !== 'https:') return
   let u: URL
   try {

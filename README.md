@@ -10,6 +10,10 @@
 
 [下载安卓/鸿蒙 2.0.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.0.0) · [下载 iOS 1.9.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md)
 
+## 2.1.0 本地交付状态
+
+当前源码为 Android/HarmonyOS **2.1.0 / 210**，已完成服务端 v4.5.9 的共享层适配和双端正式签名包构建，尚未推送或发布新版 GitHub Release。CMS、服务器同步/自检、明确媒体中转及播放期鉴权恢复等变更见 [2.1.0 说明](docs/releases/client-2.1.0.md)；已验证范围和真机/公网剩余项见 [交付验证](docs/client-2.1.0-validation.md)。以下下载链接继续指向已公开版本。
+
 ## 最新公开发行与三端状态
 
 | 平台 | 版本 | 交付和目前状态 |

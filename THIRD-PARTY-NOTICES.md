@@ -6,6 +6,14 @@ The adapted modules in `src/upstream` and the inherited public assets originate
 from Zero-wyc/ZViewer 4.1.7. Preserve the original copyright notice and MIT terms
 in [UPSTREAM-LICENSE](UPSTREAM-LICENSE).
 
+## Playsvideo
+
+The MIT-licensed playsvideo 0.4.7 fork is distributed in vendor/playsvideo,
+including the original LICENSE. It retains the local MKV cue, AAC timing,
+subtitle and audio fixes and adds worker progress and reusable keyframe indexes
+ported from ZViewer v4.5.9. Its runtime dependency points to the adjacent
+vendored mediabunny. Development-only tools are omitted from its package metadata.
+
 ## Mediabunny
 
 The local fork in `vendor/mediabunny` identifies itself as version 1.38.1, based

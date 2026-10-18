@@ -1,3 +1,4 @@
+import { createAckGuard } from '@/modules/sync-playback/ackGuard'
 import { getEmbeddedProxyStatus, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useSystemSettingsStore } from '@/store/systemSettingsStore'
@@ -55,6 +56,8 @@ const MUSIC_EVENT = {
   SYNC_ACK: 'music:sync-ack',
   /** 加入房间时查询当前队列 + 最新同步状态（ack 返回） */
   GET_STATE: 'music:get-state',
+  SERVER_HEARTBEAT: 'music:sync-heartbeat',
+  CHECK_STATUS: 'music:check-status',
 } as const
 
 /**
@@ -62,6 +65,8 @@ const MUSIC_EVENT = {
  * syncState 为服务端缓存的房主最新同步状态（房间从未播放时为 null）。
  */
 interface GetStateResponse {
+  serverTs?: number
+  hostOnline?: boolean
   success: boolean
   message?: string
   queue?: MusicQueueItem[]
@@ -520,6 +525,9 @@ export function useListenTogether({
   const shufflePosRef = useRef(-1)
   /** 观众最近一次收到房主心跳的时间戳（0 表示尚未开始计时，由离线判定 effect 初始化） */
   const lastHeartbeatAtRef = useRef(0)
+  const lastServerHeartbeatRef = useRef(0)
+  const serverAuthorityRef = useRef(false)
+  const hostDisconnectUntilRef = useRef(0)
   /** 房主端待审批的观众申请 */
   const pendingControlRef = useRef<MusicControlRequest | null>(null)
   /** 本地音量镜像（getAudio 创建元素时读取，避免依赖 state） */
@@ -588,6 +596,7 @@ export function useListenTogether({
       positionSec: audio ? audio.currentTime : 0,
       playMode: store.playMode,
       updatedAt: Date.now(),
+      clientTs: Date.now(),
     }
   }, [])
 
@@ -1725,7 +1734,7 @@ export function useListenTogether({
    * - playMode → 同步到 store
    */
   const applyViewerSync = useCallback(
-    (payload: MusicSyncState) => {
+    (payload: MusicSyncState, server = false) => {
       const store = useMusicStore.getState()
       const audio = getAudio()
       // 权威曲目 key：trackKey 优先（B站 曲目也同步），回退 trackSongId
@@ -1747,7 +1756,7 @@ export function useListenTogether({
         )
       if (viewerSyncBlocked) return
       // 传输延迟补偿后的目标进度（暂停态/时钟异常时即原值）
-      const targetPositionSec = compensatePositionSec(payload)
+      const targetPositionSec = server ? Math.max(0, payload.positionSec) : compensatePositionSec(payload)
 
       // 1. 曲目变化 → 换源加载（按 key 从队列匹配条目）
       if (trackKey !== store.currentKey) {
@@ -1983,8 +1992,11 @@ export function useListenTogether({
     if (!socket || !roomId || isHost) return
     // 加入时重置计时，给予首个心跳的宽限期
     lastHeartbeatAtRef.current = Date.now()
+    lastServerHeartbeatRef.current = 0
+    serverAuthorityRef.current = false
+    hostDisconnectUntilRef.current = 0
     const timer = setInterval(() => {
-      if (document.visibilityState !== 'visible') return
+      if (document.visibilityState !== 'visible' || serverAuthorityRef.current) return
       if (
         Date.now() - lastHeartbeatAtRef.current > HOST_OFFLINE_TIMEOUT_MS &&
         !useMusicStore.getState().hostOffline
@@ -1996,6 +2008,23 @@ export function useListenTogether({
       clearInterval(timer)
     }
   }, [socket, roomId, isHost])
+
+  useEffect(() => {
+    if (!socket || !roomId || isHost) return
+    const identity = () => roomIdRef.current + '|' + useMusicStore.getState().currentKey + '|' + loadRequestRef.current
+    const guard = createAckGuard(identity)
+    const timer = setInterval(() => {
+      const store = useMusicStore.getState()
+      const audio = getAudio()
+      if (store.hostOffline || !audio.currentSrc || audio.readyState < 1 || audio.seeking) return
+      if (store.biliItem && store.currentKey === musicItemKey(store.biliItem)) return
+      const ack = guard.begin<{success: boolean; data?: { needsSync: boolean; state?: MusicSyncState }}>(res => {
+        if (res?.success && res.data?.needsSync && res.data.state && !useMusicStore.getState().hostOffline) applyViewerSync(res.data.state, true)
+      })
+      if (ack) socket.emit(MUSIC_EVENT.CHECK_STATUS, { roomId, positionSec: audio.currentTime, isPlaying: !audio.paused, clientTs: Date.now() }, ack)
+    }, 10000)
+    return () => { guard.dispose(); clearInterval(timer) }
+  }, [socket, roomId, isHost, getAudio, applyViewerSync])
 
   // 加入房间时查询初始状态：队列 + 服务端缓存的最新同步状态。
   // 观众据此立即对齐当前播放；房主断线重连后据此恢复自己的播放进度
@@ -2009,6 +2038,8 @@ export function useListenTogether({
     let disposed = false
     let retryTimer: ReturnType<typeof setTimeout> | null = null
     let retryDelay = 500
+    let serial = 0
+    let ackTimeout: ReturnType<typeof setTimeout> | undefined
     const clearRetry = () => {
       if (retryTimer) {
         clearTimeout(retryTimer)
@@ -2016,11 +2047,17 @@ export function useListenTogether({
       }
     }
     const requestGetState = () => {
+      if (disposed) return
+      clearTimeout(ackTimeout)
+      const request = ++serial
+      const load = loadRequestRef.current
+      ackTimeout = setTimeout(() => { if (!disposed && request === serial) requestGetState() }, 5000)
       socket.emit(
         MUSIC_EVENT.GET_STATE,
         { roomId },
         (res: GetStateResponse) => {
-          if (disposed) return
+          if (disposed || request !== serial) return
+          clearTimeout(ackTimeout)
           if (!res?.success) {
             // 未加入房间/服务端瞬时错误：退避重试直到加入完成拉取成功
             clearRetry()
@@ -2037,9 +2074,13 @@ export function useListenTogether({
             // 队列变化使洗牌序列失效：标记待重建
             shuffleListRef.current = null
           }
-          if (res.syncState) {
+          if (typeof res.hostOnline === 'boolean' && (!res.hostOnline || Date.now() >= hostDisconnectUntilRef.current)) {
+            serverAuthorityRef.current = true
+            useMusicStore.getState().setHostOffline(!res.hostOnline)
+          }
+          if (res.syncState && load === loadRequestRef.current) {
             // 按同步状态恢复本地播放（换曲加载/播放状态/进度/播放模式）
-            applyViewerSync(res.syncState)
+            applyViewerSync(res.syncState, typeof res.serverTs === 'number')
           }
         }
       )
@@ -2056,6 +2097,8 @@ export function useListenTogether({
     return () => {
       disposed = true
       clearRetry()
+      serial++
+      clearTimeout(ackTimeout)
       socket.off('connect', handleConnect)
     }
   }, [socket, roomId, applyViewerSync])
@@ -2079,6 +2122,8 @@ export function useListenTogether({
       if (!payload || isHostRef.current) return
       if (payload.roomId && payload.roomId !== roomIdRef.current) return
       lastHeartbeatAtRef.current = Date.now()
+      hostDisconnectUntilRef.current = 0
+      if (serverAuthorityRef.current && Date.now() - lastServerHeartbeatRef.current < 7000) return
       const store = useMusicStore.getState()
       if (store.hostOffline) {
         store.setHostOffline(false)
@@ -2086,6 +2131,16 @@ export function useListenTogether({
       applyViewerSync(payload)
     }
 
+    const handleServerHeartbeat = (payload: { roomId?: string; source: string; state: MusicSyncState; hostOnline?: boolean }) => {
+      if (!payload || payload.source !== 'server' || isHostRef.current) return
+      if (payload.roomId && payload.roomId !== roomIdRef.current) return
+      serverAuthorityRef.current = true
+      lastServerHeartbeatRef.current = Date.now()
+      if (typeof payload.hostOnline === 'boolean' && (!payload.hostOnline || Date.now() >= hostDisconnectUntilRef.current)) useMusicStore.getState().setHostOffline(!payload.hostOnline)
+      if (!useMusicStore.getState().hostOffline && payload.state) applyViewerSync(payload.state, true)
+    }
+    const handleHostOffline = () => { hostDisconnectUntilRef.current = Date.now() + 6000; if (!isHostRef.current) useMusicStore.getState().setHostOffline(true) }
+    const handleHostReady = () => { hostDisconnectUntilRef.current = 0; useMusicStore.getState().setHostOffline(false) }
     // 全员：队列变更（后端广播完整队列）
     const handleQueueChanged = (payload: {
       items?: MusicQueueItem[]
@@ -2307,6 +2362,9 @@ export function useListenTogether({
       useMusicStore.getState().pushSyncAck(payload.username || '观众')
     }
 
+    socket.on(MUSIC_EVENT.SERVER_HEARTBEAT, handleServerHeartbeat)
+    socket.on('host-disconnected', handleHostOffline)
+    socket.on('sharer-ready', handleHostReady)
     socket.on(MUSIC_EVENT.SYNC_STATE, handleSyncState)
     socket.on(MUSIC_EVENT.HOST_HEARTBEAT, handleHostHeartbeat)
     socket.on(MUSIC_EVENT.QUEUE_CHANGED, handleQueueChanged)
@@ -2315,6 +2373,9 @@ export function useListenTogether({
     socket.on(MUSIC_EVENT.SYNC_ACK, handleSyncAck)
 
     return () => {
+      socket.off(MUSIC_EVENT.SERVER_HEARTBEAT, handleServerHeartbeat)
+      socket.off('host-disconnected', handleHostOffline)
+      socket.off('sharer-ready', handleHostReady)
       socket.off(MUSIC_EVENT.SYNC_STATE, handleSyncState)
       socket.off(MUSIC_EVENT.HOST_HEARTBEAT, handleHostHeartbeat)
       socket.off(MUSIC_EVENT.QUEUE_CHANGED, handleQueueChanged)

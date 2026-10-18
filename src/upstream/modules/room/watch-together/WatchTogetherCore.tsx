@@ -112,6 +112,7 @@ export function WatchTogetherCore({
     (s) => s.triggerViewerSourceReload
   )
   const setMode = useRoomStore((state) => state.setMode)
+  const mediaAttachProgress = useRoomStore(s => s.mediaAttachProgress)
   const isReloading = useRoomStore((state) => state.isReloading)
   // 缓冲模式下载进度（房主/观众共享，由 useWatchTogether/useViewerStateSync 写入）
   const bufferProgress = useRoomStore((state) => state.bufferProgress)
@@ -407,7 +408,8 @@ export function WatchTogetherCore({
   // ── 房主离线状态 ──────────────────────────────────────
   // 房主离开后观众进入自主控制模式，可直接 play/pause/seek，无需向房主申请。
   // 房主重连后恢复申请模式。
-  const [hostOffline, setHostOffline] = useState(false)
+  const hostOffline = useRoomStore(s => s.hostOffline)
+  const setHostOffline = useRoomStore(s => s.setHostOffline)
 
   const autoApproveRequests = useRoomStore((state) => state.autoApproveRequests)
   const autoApproveRef = useRef(autoApproveRequests)
@@ -1795,7 +1797,7 @@ export function WatchTogetherCore({
       {(isResolving || isReloading) &&
         createPortal(
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <Spinner size={36} />
+            <div className="flex flex-col items-center gap-3 text-center"><Spinner size={36} />{mediaAttachProgress && <span className="text-sm text-white">{mediaAttachProgress}</span>}</div>
           </div>,
           slots.panelRoot
         )}

@@ -281,8 +281,8 @@ export const videojs10DashEngine: PlayerEngine = {
       mediaBlobUrls.push(videoBaseUrl, audioBaseUrl)
       allocatedUrls.push(...mediaBlobUrls)
     } else {
-      videoBaseUrl = resolveProxyUrl(source.url, undefined, 'dash')
-      audioBaseUrl = resolveProxyUrl(audioUrl, undefined, 'dash')
+      videoBaseUrl = resolveProxyUrl(source.url, undefined, 'dash', { noProxyFallback: source.noProxyFallback })
+      audioBaseUrl = resolveProxyUrl(audioUrl, undefined, 'dash', { noProxyFallback: source.noProxyFallback })
     }
 
     // ⚠️ dash.js 5.2.0 关键兼容修复：MPD 内 BaseURL 必须是绝对 URL。

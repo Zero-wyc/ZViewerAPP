@@ -555,16 +555,16 @@ export const soundSampleDescription = (compressionType, trackData) => {
     let version = 0;
     let contents;
     let sampleSizeInBits = 16;
-    // Local patch: FLAC's AudioSampleEntry must match dfLa STREAMINFO, not assume 16 bits.
-    if (trackData.track.source._codec === 'flac') {
-        const description = trackData.info.decoderConfig.description;
-        assert(description);
-        const streamInfo = new Bitstream(toUint8Array(description));
-        // fLaC marker + metadata header + block/frame sizes + sample rate + channels.
-        streamInfo.skipBits(167);
-        sampleSizeInBits = streamInfo.readBits(5) + 1;
-    }
     const isPcmCodec = PCM_AUDIO_CODECS.includes(trackData.track.source._codec);
+    if (trackData.track.source._codec === 'flac' &&
+        trackData.info.decoderConfig.description) {
+        // FLAC's STREAMINFO stores the actual sample depth in a 5-bit field.
+        // Keeping the old 16-bit fallback makes Chromium reject 24-bit FLAC
+        // when the generated FLACSpecificBox declares 24 bits.
+        const descriptionBitstream = new Bitstream(toUint8Array(trackData.info.decoderConfig.description));
+        descriptionBitstream.skipBits(103 + 64);
+        sampleSizeInBits = descriptionBitstream.readBits(5) + 1;
+    }
     if (isPcmCodec) {
         const codec = trackData.track.source._codec;
         const { sampleSize } = parsePcmCodec(codec);

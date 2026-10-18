@@ -31,7 +31,7 @@ export function authenticatedMediaUrl(server: string, value: string, token: stri
     const url = new URL(absolute)
     const apiPrefix = base.pathname.replace(/\/+$/, '') + '/api/'
     if (url.origin !== base.origin || !url.pathname.startsWith(apiPrefix)) return absolute
-    if (token && !url.searchParams.has('token')) url.searchParams.set('token', token)
+    if (token) url.searchParams.set('token', token)
     return connectionUrl(url.toString())
   } catch {
     return connectionUrl(absolute)

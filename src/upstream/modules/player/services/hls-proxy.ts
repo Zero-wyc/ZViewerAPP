@@ -8,7 +8,7 @@ export interface HlsProxySource {
 export function readHlsProxySource(raw: string, apiBase: string): HlsProxySource | null {
   try {
     const proxy = new URL(raw, apiBase)
-    if (!/\/api\/stream\/(?:kazumi\/|anisubs\/)?proxy$/.test(proxy.pathname)) return null
+    if (!/\/api\/stream\/(?:kazumi\/|anisubs\/|cms\/)?proxy$/.test(proxy.pathname)) return null
     const target = proxy.searchParams.get('url')
     if (!target || !/^https?:$/.test(new URL(target).protocol)) return null
     const parameters: Record<string, string> = {}

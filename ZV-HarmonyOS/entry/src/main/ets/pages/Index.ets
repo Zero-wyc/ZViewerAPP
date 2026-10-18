@@ -157,8 +157,12 @@ class HarmonyHost {
   }
 
   private respond(id: number, error: string | null, result: string | null): void {
-    this.controller.runJavaScript(`window.__zvHarmonyResponse?.(${id}, ${JSON.stringify(error)}, ${JSON.stringify(result)})`)
-      .catch(() => console.error('Unable to deliver native response'));
+    try {
+      this.controller.runJavaScript(`window.__zvHarmonyResponse?.(${id}, ${JSON.stringify(error)}, ${JSON.stringify(result)})`)
+        .catch(() => console.error('Unable to deliver native response'));
+    } catch {
+      // An asynchronous native action may finish after its Web component was destroyed.
+    }
   }
 
   dispose(): void { screenShareCapturePolicy.end(); void this.media.destroy(); }
@@ -171,10 +175,13 @@ struct Index {
   private host: HarmonyHost = new HarmonyHost(getContext(this) as common.UIAbilityContext, this.controller);
   private mainWindow: window.Window | null = null;
   private pendingFileSelection: FileSelectorResult | null = null;
+  private alive: boolean = false;
+  private pageReady: boolean = false;
   private areaChanged = (): void => { this.syncSafeArea(); };
 
   private syncSafeArea(): void {
-    if (this.mainWindow === null) return;
+    if (!this.alive || !this.pageReady || this.mainWindow === null) return;
+    try {
     const types = [window.AvoidAreaType.TYPE_SYSTEM, window.AvoidAreaType.TYPE_CUTOUT,
       window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR];
     let top = 0; let bottom = 0; let left = 0; let right = 0;
@@ -183,16 +190,22 @@ struct Index {
       top = Math.max(top, area.topRect.height); bottom = Math.max(bottom, area.bottomRect.height);
       left = Math.max(left, area.leftRect.width); right = Math.max(right, area.rightRect.width);
     }
-    this.controller.runJavaScript(`(() => {const d=window.devicePixelRatio||1;const s=document.documentElement.style;
+    this.controller.runJavaScript(`(() => {const root=document.documentElement;if(!root)return;const d=window.devicePixelRatio||1;const s=root.style;
       s.setProperty('--native-safe-top', '${top}'/d+'px');s.setProperty('--native-safe-bottom', '${bottom}'/d+'px');
       s.setProperty('--native-safe-left', '${left}'/d+'px');s.setProperty('--native-safe-right', '${right}'/d+'px');})()`)
       .catch(() => {});
+    } catch {
+      // Window events can race Web attachment/destruction. onPageEnd retries the latest insets.
+    }
   }
 
   aboutToAppear(): void {
+    this.alive = true;
+    this.pageReady = false;
     // Inspect the packaged ArkWeb app during development; release builds disable it.
     webview.WebviewController.setWebDebuggingAccess(DEBUG);
     window.getLastWindow(getContext(this) as common.UIAbilityContext).then((mainWindow: window.Window) => {
+      if (!this.alive) return;
       this.mainWindow = mainWindow;
       mainWindow.on('avoidAreaChange', this.areaChanged);
       mainWindow.on('windowSizeChange', this.areaChanged);
@@ -200,6 +213,8 @@ struct Index {
   }
 
   aboutToDisappear(): void {
+    this.alive = false;
+    this.pageReady = false;
     this.pendingFileSelection?.handleFileList([]);
     this.pendingFileSelection = null;
     this.host.dispose();
@@ -299,7 +314,10 @@ struct Index {
           }
           request.grant(resources);
         })
+        .onPageBegin(() => { this.pageReady = false; })
         .onPageEnd(() => {
+          if (!this.alive) return;
+          this.pageReady = true;
           this.syncSafeArea();
           this.controller.runJavaScript("window.zviewerNative?.platform || 'missing'")
             .then((platform: string) => console.info(`ZViewer bridge platform: ${platform}`))

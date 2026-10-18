@@ -101,6 +101,7 @@ export function createScreenShareSession(options: {
     if (!sessionId || value.sessionId !== sessionId) return
     if (value.type === 'capture-ended' || value.type === 'error') {
       const error = errors[value.code || 'capture-ended'] || errors['capture-start-failed']
+      if (value.type === 'error') socket.emit('sharer-error', { roomId: options.roomId, message: error })
       void stop().then(() => { if (!sessionId) publish({ error }) })
     } else if (value.type === 'ice' && value.peerId && peers.has(value.peerId) && value.candidate && socket.connected) {
       socket.emit('signal-ice-candidate', { to: value.peerId, data: value.candidate })
@@ -136,6 +137,7 @@ export function createScreenShareSession(options: {
     })().catch(async error => {
       if (!active(id)) return
       const code = typeof error?.code === 'string' ? error.code : 'capture-start-failed'
+      socket.emit('sharer-error', { roomId: options.roomId, message: errors[code] || errors['capture-start-failed'] })
       await stop()
       if (!sessionId) publish({ state: 'error', error: errors[code] || errors['capture-start-failed'] })
     }).finally(() => { pendingStart = undefined })

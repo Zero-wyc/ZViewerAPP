@@ -57,6 +57,7 @@ export function useHostHeartbeat({
         // 让观众端能重置"房主离线"计时器，避免误报离线。
         // 观众端收到 suppressed 标记时不会同步状态，仅更新离线计时。
         const alivePayload: HeartbeatPayload = {
+          clientTs: Date.now(),
           currentTime: built.currentTime,
           isPlaying: built.isPlaying,
           playbackRate: built.playbackRate,
@@ -69,7 +70,8 @@ export function useHostHeartbeat({
         return
       }
       const payload: HeartbeatPayload = {
-        currentTime: built.currentTime,
+        clientTs: Date.now(),
+          currentTime: built.currentTime,
         isPlaying: built.isPlaying,
         playbackRate: built.playbackRate,
       }

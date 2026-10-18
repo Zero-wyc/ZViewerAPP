@@ -1,273 +1,145 @@
-/**
- * useServerHeartbeat Hook
- *
- * 订阅服务器心跳事件（server-heartbeat）。
- *
- * 旧架构：房主每 2s 广播 host-heartbeat，房主断开后观众 6s 超时暂停。
- * 新架构：服务器每 2s 广播 server-heartbeat（仅房主离线时），观众端继续播放。
- *
- * 行为：
- * - 收到 server-heartbeat 时，更新本地状态（基于服务器推算的进度）
- * - 不再因房主离线而暂停播放
- * - 监听 host-disconnected 仅显示提示，不暂停
- * - 检测 URL 过期后暂停并提示
- */
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef } from 'react'
 import type { RefObject, MutableRefObject } from 'react'
 import { useSocket } from '@/hooks/useSocket'
+import { useRoomStore } from '@/store/roomStore'
 import { message } from '@/components/ui/message'
-import type { WatchTogetherState } from '@/modules/sync-playback/types'
-import { SOCKET_EVENT } from '@/modules/sync-playback/constants'
-import type { SyncHeartbeatPayload } from '@/modules/sync-playback/types'
+import { SOCKET_EVENT, CHECK_STATUS_INTERVAL_MS } from '@/modules/sync-playback/constants'
+import type { WatchTogetherState, SyncHeartbeatPayload } from '@/modules/sync-playback/types'
+import { executeSeek, getAdaptiveSeekThreshold, shouldSoftSync } from '@/modules/sync-playback/services'
+import type { SeekToResult } from '@/modules/sync-playback/services'
 import { safePlay } from '@/modules/sync-playback/safePlay'
-import { shouldSeekToHost } from '@/modules/sync-playback/services'
-import type { ServerHeartbeatPayload } from '../types'
-import {
-  isBilibiliUrlExpired,
-  isVideoSourceExpired,
-} from '../services/url-expiry'
+import { createAckGuard } from '@/modules/sync-playback/ackGuard'
+import { isBilibiliUrlExpired } from '../services/url-expiry'
+import type { CheckStatusAckData } from '../types'
 
 export interface UseServerHeartbeatOptions {
+  roomId: string
   isHostRef: MutableRefObject<boolean>
   videoRef: RefObject<HTMLVideoElement>
   suppressEventsRef: MutableRefObject<boolean>
   setWatchTogether: (state: WatchTogetherState) => void
-  /** 当前播放状态（用于 URL 过期检测） */
   watchTogether: WatchTogetherState
+  seekTo: (video: HTMLVideoElement, time: number) => Promise<SeekToResult>
+  reloadVideo: (video: HTMLVideoElement) => Promise<void>
 }
-
 export type UseServerHeartbeatReturn = void
 
-export function useServerHeartbeat({
-  isHostRef,
-  videoRef,
-  suppressEventsRef,
-  setWatchTogether,
-  watchTogether,
-}: UseServerHeartbeatOptions): UseServerHeartbeatReturn {
+/** A single correction path: v4.5.9 server authority, bounded v4.5.3 host fallback. */
+export function useServerHeartbeat(options: UseServerHeartbeatOptions): void {
   const { socket } = useSocket()
-  // 防止重复提示"房主已离开"
-  const hostLeftNotifiedRef = useRef(false)
-  // 房主离线标记：房主离开后观众进入自主控制模式，不再应用服务器心跳
-  const hostOfflineRef = useRef(false)
-  // 房主重连过渡标记：重连后首次心跳判断是否需平滑同步（P3-Opt#15）
-  const reconnectTransitionRef = useRef(false)
-  // 重连后延迟 seek 的定时器 ref
-  const reconnectSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
-  )
-  // URL 过期状态标记
-  const urlExpiredRef = useRef(false)
-  // 已处理的 video error 签名，避免同一个 error 重复触发过期提示
-  const lastErrorSignatureRef = useRef<string | null>(null)
-  // 缓存最新的 watchTogether 供 callback 读取
-  const watchTogetherRef = useRef(watchTogether)
-  useEffect(() => {
-    watchTogetherRef.current = watchTogether
-  }, [watchTogether])
-
-  // 处理服务器心跳：更新本地状态
-  const handleServerHeartbeat = useCallback(
-    (payload: ServerHeartbeatPayload) => {
-      // 缓冲下载期间跳过：useViewerStateSync/usePlaybackStateRequest 在下载时
-      // 设置 suppressEventsRef=true，若此处提前释放会破坏下载期间的抑制标记，
-      // 导致旧源触发的 video 事件回环。下载完成后下一帧心跳会自然应用最新状态。
-      if (suppressEventsRef.current) return
-
-      // 房主离线后观众进入自主控制模式：不再应用服务器推算的播放状态，
-      // 避免 isPlaying/currentTime 强制覆盖观众的 play/pause/seek 操作。
-      // URL 过期检测由 video error 事件兜底。
-      if (hostOfflineRef.current) return
-
-      const state = payload.state
-      const video = videoRef.current
-
-      // P3-Opt#15：房主重连过渡——对比差异决定是否平滑同步
-      if (reconnectTransitionRef.current) {
-        reconnectTransitionRef.current = false
-        if (video && !Number.isNaN(video.currentTime) && video.currentSrc) {
-          const diff = Math.abs(video.currentTime - state.currentTime)
-          if (diff > 10) {
-            // 大幅差异：显示提示并延迟 2s 后 seek，避免突兀跳转
-            message.info('房主已重连，即将同步进度，2 秒后自动同步')
-            if (reconnectSyncTimerRef.current) {
-              clearTimeout(reconnectSyncTimerRef.current)
-            }
-            reconnectSyncTimerRef.current = setTimeout(() => {
-              try {
-                video.currentTime = state.currentTime
-              } catch {
-                // ignore
-              }
-            }, 2000)
-            // 放行其他状态同步（play/pause/rate），但跳过 currentTime seek
-            suppressEventsRef.current = true
-            setWatchTogether(state)
-            if (state.isPlaying && video.paused) {
-              void safePlay(video)
-            } else if (!state.isPlaying && !video.paused) {
-              video.pause()
-            }
-            if (video.playbackRate !== state.playbackRate) {
-              video.playbackRate = state.playbackRate
-            }
-            suppressEventsRef.current = false
-            return
-          }
-          // 小幅差异（≤10s）：走软同步逻辑，让余下代码自然处理
-        }
-      }
-
-      suppressEventsRef.current = true
-      setWatchTogether(state)
-
-      if (!video) {
-        suppressEventsRef.current = false
-        return
-      }
-
-      // URL 过期后不再应用状态（等待房主重连）
-      if (urlExpiredRef.current) {
-        suppressEventsRef.current = false
-        return
-      }
-
-      // 缓冲模式下视频从 blob URL 播放，state.sourceUrl（B站 CDN URL）的 deadline
-      // 过期不影响实际播放，忽略 deadline 检测。
-      // 此处仅通过 URL deadline 做严格过期判断；video.error 的兜底检测在 error
-      // 事件监听中处理，避免 MSE/DASH 切换或 transient error 导致误报。
-      const isBufferMode = state.bufferMode === true
-      if (!isBufferMode && isBilibiliUrlExpired(state.sourceUrl)) {
-        urlExpiredRef.current = true
-        if (!video.paused) video.pause()
-        message.warning('视频源已过期，等待房主重连')
-        suppressEventsRef.current = false
-        return
-      }
-
-      // 自适应 seek 跟随
-      if (
-        shouldSeekToHost(
-          video.currentTime,
-          state.currentTime,
-          state.playbackRate
-        )
-      ) {
-        try {
-          video.currentTime = state.currentTime
-        } catch {
-          // ignore
-        }
-      }
-
-      // 同步播放/暂停状态
-      if (state.isPlaying && video.paused) {
-        void safePlay(video)
-      } else if (!state.isPlaying && !video.paused) {
-        video.pause()
-      }
-
-      // 同步倍速
-      if (video.playbackRate !== state.playbackRate) {
-        video.playbackRate = state.playbackRate
-      }
-
-      suppressEventsRef.current = false
-    },
-    [videoRef, suppressEventsRef, setWatchTogether]
-  )
-
-  // 订阅服务器心跳
+  const latest = useRef(options)
+  latest.current = options
+  const { roomId, isHostRef, watchTogether } = options
   useEffect(() => {
     if (!socket || isHostRef.current) return
-
-    // 统一心跳协议（#14）：只监听 sync-heartbeat（source='server'）。
-    // 后端双发 server-heartbeat 与 sync-heartbeat，两者都绑定会导致
-    // 每条心跳被处理两遍（setWatchTogether 双倍 notify → 渲染翻倍），故不绑旧事件。
-    const handleSyncHeartbeat = (payload: SyncHeartbeatPayload) => {
+    let disposed = false
+    let serverAuthority = false
+    let disconnectedUntil = 0
+    let catchUp = false
+    const lock = { current: false }
+    let baseRate = 1
+    const identity = () => `${useRoomStore.getState().currentMovieId}|${useRoomStore.getState().watchTogether.sourceUrl}`
+    let media = identity()
+    let stall = { time: -1, advancedAt: Date.now(), reloadedAt: 0 }
+    const guard = createAckGuard(identity)
+    const online = (value?: boolean) => {
+      if (typeof value !== 'boolean') return
+      // v4.5.9 caches hostOnline for 5s. A fresh disconnect outranks that cached true.
+      if (value && Date.now() < disconnectedUntil) return
+      const store = useRoomStore.getState()
+      if (store.hostOffline === value && !value) message.info('房主已离开，您可以自主控制播放')
+      store.setHostOffline(!value)
+      if (!value) {
+        guard.cancel()
+        const video = latest.current.videoRef.current
+        if (catchUp && video) video.playbackRate = baseRate
+        catchUp = false
+      }
+    }
+    const apply = (state: WatchTogetherState) => {
+      const o = latest.current
+      const video = o.videoRef.current
+      const store = useRoomStore.getState()
+      if (disposed || isHostRef.current || store.hostOffline || o.suppressEventsRef.current || !video || !video.currentSrc) return
+      // Source attachment belongs to the state channel; never resurrect a delayed old source.
+      if (state.sourceUrl !== store.watchTogether.sourceUrl) return
+      if (!Number.isFinite(state.currentTime) || state.currentTime < 0) return
+      if (media !== identity()) {
+        media = identity(); guard.cancel(); catchUp = false
+        stall = { time: -1, advancedAt: Date.now(), reloadedAt: 0 }
+      }
+      if (!state.bufferMode && isBilibiliUrlExpired(state.sourceUrl)) return
+      baseRate = state.playbackRate > 0 ? state.playbackRate : 1
+      o.suppressEventsRef.current = true
+      try {
+        if (state.isPlaying && video.paused) void safePlay(video)
+        else if (!state.isPlaying && !video.paused) video.pause()
+        const delta = state.currentTime - video.currentTime
+        if (Math.abs(delta) <= getAdaptiveSeekThreshold(baseRate)) {
+          catchUp = false; video.playbackRate = baseRate
+        } else if (state.isPlaying && shouldSoftSync(video.currentTime, state.currentTime, baseRate)) {
+          catchUp = true
+          // Ahead viewers slow down; behind viewers speed up.
+          video.playbackRate = Math.max(0.1, baseRate * (delta > 0 ? 1.05 : 0.95))
+        } else if (!lock.current && !video.seeking) {
+          catchUp = false; video.playbackRate = baseRate
+          const session = identity()
+          void executeSeek({ video, targetTime: state.currentTime, state,
+            seekTo: (v, t) => !disposed && identity() === session ? latest.current.seekTo(v, t) : Promise.resolve({ success: false }),
+            suppressEventsRef: o.suppressEventsRef, isReloadingRef: lock,
+            onSeekFailed: async v => { if (!disposed && identity() === session) await latest.current.reloadVideo(v) },
+          }).then(done => {
+            if (!done && !disposed && session === identity() && video === latest.current.videoRef.current) video.currentTime = state.currentTime
+          }).catch(() => {})
+        }
+      } finally { o.suppressEventsRef.current = false }
+      const now = Date.now()
+      if (!state.isPlaying || video.seeking || lock.current || Math.abs(video.currentTime - stall.time) > 0.05) {
+        stall.time = video.currentTime; stall.advancedAt = now
+      } else if (now - stall.advancedAt > 15000 && now - stall.reloadedAt > 30000) {
+        stall.advancedAt = now; stall.reloadedAt = now
+        void o.reloadVideo(video).catch(() => {})
+      }
+    }
+    const heartbeat = (payload: SyncHeartbeatPayload) => {
+      if (payload.roomId && payload.roomId !== roomId) return
       if (payload.source === 'server' && payload.state) {
-        handleServerHeartbeat({ roomId: '', state: payload.state })
+        if (typeof payload.hostOnline === 'boolean') serverAuthority = true
+        // Apply online status before any suppression or autonomous-mode early return.
+        online(payload.hostOnline)
+        apply(payload.state)
+      } else if (payload.source === 'host') {
+        disconnectedUntil = 0
+        online(true)
+        if (serverAuthority || payload.suppressed) return
+        apply({ ...useRoomStore.getState().watchTogether, currentTime: payload.currentTime ?? 0,
+          isPlaying: !!payload.isPlaying, playbackRate: payload.playbackRate ?? 1 })
       }
     }
-    socket.on(SOCKET_EVENT.SYNC_HEARTBEAT, handleSyncHeartbeat)
-
+    const offline = () => { disconnectedUntil = Date.now() + 6000; online(false) }
+    const ready = () => { disconnectedUntil = 0; online(true) }
+    const reconnect = () => { serverAuthority = false; guard.cancel() }
+    socket.on(SOCKET_EVENT.SYNC_HEARTBEAT, heartbeat)
+    socket.on(SOCKET_EVENT.HOST_DISCONNECTED, offline)
+    socket.on('sharer-ready', ready)
+    socket.on('connect', reconnect)
+    const timer = setInterval(() => {
+      const { videoRef, suppressEventsRef } = latest.current
+      const video = videoRef.current
+      if (!video?.currentSrc || video.readyState < 1 || video.seeking || lock.current || suppressEventsRef.current || useRoomStore.getState().hostOffline) return
+      const ack = guard.begin<{success: boolean; data?: CheckStatusAckData}>(res => {
+        if (res?.success && res.data?.needsSync && res.data.state) apply(res.data.state)
+      })
+      if (ack) socket.emit(SOCKET_EVENT.CHECK_STATUS, { roomId, currentTime: video.currentTime,
+        isPlaying: !video.paused, playbackRate: baseRate, clientTs: Date.now() }, ack)
+    }, CHECK_STATUS_INTERVAL_MS)
     return () => {
-      socket.off(SOCKET_EVENT.SYNC_HEARTBEAT, handleSyncHeartbeat)
+      disposed = true; guard.dispose(); clearInterval(timer)
+      socket.off(SOCKET_EVENT.SYNC_HEARTBEAT, heartbeat)
+      socket.off(SOCKET_EVENT.HOST_DISCONNECTED, offline)
+      socket.off('sharer-ready', ready); socket.off('connect', reconnect)
+      const video = latest.current.videoRef.current
+      if (catchUp && video) video.playbackRate = baseRate
     }
-  }, [socket, isHostRef, handleServerHeartbeat])
-
-  // 监听 host-disconnected：仅提示，不暂停播放
-  useEffect(() => {
-    if (!socket || isHostRef.current) return
-
-    const handleHostDisconnected = () => {
-      hostOfflineRef.current = true
-      if (hostLeftNotifiedRef.current) return
-      hostLeftNotifiedRef.current = true
-      // 仅提示，不暂停播放（观众进入自主控制模式）
-      message.info('房主已离开，您可以自主控制播放')
-    }
-
-    // 房主重连时重置标记（通过 sharer-ready 事件判断）
-    const handleHostReconnect = () => {
-      hostOfflineRef.current = false
-      hostLeftNotifiedRef.current = false
-      urlExpiredRef.current = false
-      // P3-Opt#15：设置重连过渡标记，下次心跳判断是否需平滑同步
-      reconnectTransitionRef.current = true
-    }
-
-    socket.on(SOCKET_EVENT.HOST_DISCONNECTED, handleHostDisconnected)
-    socket.on('sharer-ready', handleHostReconnect)
-
-    return () => {
-      socket.off(SOCKET_EVENT.HOST_DISCONNECTED, handleHostDisconnected)
-      socket.off('sharer-ready', handleHostReconnect)
-      // 清理重连延迟定时器
-      if (reconnectSyncTimerRef.current) {
-        clearTimeout(reconnectSyncTimerRef.current)
-      }
-    }
-  }, [socket, isHostRef])
-
-  // 切换视频源后重置过期标记与 error 签名，避免房主添加新视频或观众进入房间时
-  // 被旧状态误拦截。
-  useEffect(() => {
-    urlExpiredRef.current = false
-    lastErrorSignatureRef.current = null
-  }, [watchTogether.sourceUrl])
-
-  // 监听 video error 事件（URL 过期兜底检测）
-  useEffect(() => {
-    const video = videoRef.current
-    if (!video) return
-
-    const handleError = () => {
-      if (urlExpiredRef.current) return
-      // attach / reload / seek 等操作期间 suppressEventsRef 为 true，此时产生的
-      // transient error（如 resetVideoElement、切换 DASH/MP4 引擎）不应被判定为
-      // URL 过期，避免误报。
-      if (suppressEventsRef.current) return
-
-      const error = video.error
-      if (!error) return
-
-      // 同一个 error 不重复处理（MSE/DASH 切换或重试时可能触发相同 error）
-      const signature = `${error.code}-${error.message ?? ''}-${video.currentSrc}`
-      if (lastErrorSignatureRef.current === signature) return
-      lastErrorSignatureRef.current = signature
-
-      const currentState = watchTogetherRef.current
-      if (isVideoSourceExpired(currentState.sourceUrl, error, video)) {
-        urlExpiredRef.current = true
-        if (!video.paused) video.pause()
-        message.warning('视频源已过期，等待房主重连')
-      }
-    }
-
-    video.addEventListener('error', handleError)
-    return () => {
-      video.removeEventListener('error', handleError)
-    }
-  }, [videoRef, suppressEventsRef])
+  }, [socket, roomId, isHostRef, watchTogether.sourceUrl])
 }

@@ -70,7 +70,13 @@ export function usePlaybackStateRequest({
     if (requestedRef.current) return
     requestedRef.current = true
 
+    let disposed = false
+    let requestSerial = 0
     const requestState = () => {
+      if (disposed || isHostRef.current) return
+      const serial = ++requestSerial
+      const movieId = useRoomStore.getState().currentMovieId
+      retryTimerRef.current = setTimeout(() => { if (serial === requestSerial && retryCountRef.current++ < 10) requestState() }, 5000)
       // emit 请求状态，ack 回调直接返回推算后的状态
       socket.emit(
         SOCKET_EVENT.REQUEST_STATE,
@@ -80,6 +86,9 @@ export function usePlaybackStateRequest({
           data?: RequestStateAckData | null
           message?: string
         }) => {
+          if (disposed || serial !== requestSerial || movieId !== useRoomStore.getState().currentMovieId || isHostRef.current) return
+          clearTimeout(retryTimerRef.current ?? undefined)
+          if (typeof response.data?.hostOnline === 'boolean') useRoomStore.getState().setHostOffline(!response.data.hostOnline)
           if (!response.success || !response.data?.state) {
             // 服务器无播放状态：短间隔重试，避免观众加入后一直黑屏等待
             if (retryCountRef.current < 10) {
@@ -154,6 +163,7 @@ export function usePlaybackStateRequest({
 
           void (async () => {
             const blobs = await fetchBlobsIfNeeded()
+            if (disposed || movieId !== useRoomStore.getState().currentMovieId) { suppressEventsRef.current = false; return }
             if (blobs === null) {
               // 缓冲失败：不应用源，回滚 sourceUrl 标记，等待房主重新广播
               lastAppliedSourceUrlRef.current = previousAppliedUrl
@@ -171,7 +181,7 @@ export function usePlaybackStateRequest({
               blobs ?? undefined
             )
             const currentVideo = videoRef.current
-            if (!currentVideo) return
+            if (!currentVideo || disposed || movieId !== useRoomStore.getState().currentMovieId) { suppressEventsRef.current = false; return }
 
             // sourceUrl 已在 attach 前标记，此处无需重复写入
 
@@ -209,8 +219,14 @@ export function usePlaybackStateRequest({
     }
 
     requestState()
+    socket.on('connect', requestState)
 
     return () => {
+      disposed = true
+      requestedRef.current = false
+      retryCountRef.current = 0
+      socket.off('connect', requestState)
+      requestSerial++
       if (retryTimerRef.current) {
         clearTimeout(retryTimerRef.current)
         retryTimerRef.current = null

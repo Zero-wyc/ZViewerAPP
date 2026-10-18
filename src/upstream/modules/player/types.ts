@@ -88,6 +88,7 @@ export interface FlvRuntimeEvents {
 }
 
 export interface PlayerSource {
+  onAttachProgress?: (stage: string, detail?: string) => void
   /** Cancel in-flight attachment when the source/session is replaced. */
   signal?: AbortSignal
   /** 视频流 URL（MSE 引擎下为视频 m4s 片段 URL；其他引擎为完整媒体 URL） */

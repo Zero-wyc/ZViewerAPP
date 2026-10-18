@@ -68,6 +68,7 @@ export type PlayMode = 'sequence' | 'order' | 'repeat-one' | 'shuffle'
 
 /** 房间音乐同步状态（房主广播与心跳共用的状态快照） */
 export interface MusicSyncState {
+  clientTs?: number
   /** 当前曲目 songId（null 表示未在播放；B站 曲目恒为 null） */
   trackSongId: number | null
   /**

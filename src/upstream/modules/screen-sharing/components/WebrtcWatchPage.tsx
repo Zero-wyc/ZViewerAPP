@@ -171,6 +171,19 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
     onSignalIceCandidate: handleSignalIceCandidate,
   })
 
+  useEffect(() => {
+    if (!socket) return
+    const failed = (data: { roomId: string }) => {
+      if (data.roomId !== roomId) return
+      cleanupPc()
+      setFrameReady(false)
+      // Remote error text can contain private details; show a fixed actionable message.
+      message.error('房主屏幕共享未成功，请等待房主重新开始')
+    }
+    socket.on('sharer-error', failed)
+    return () => { socket.off('sharer-error', failed) }
+  }, [socket, roomId, cleanupPc])
+
   // P2P 直连隧道（观众为 receiver，remotePeerId 由 offer 自动填充）
   const [p2pFallbackNotice, setP2pFallbackNotice] = useState(false)
   const { enableP2P, disableP2P, p2pEnabled, p2pPC, p2pStatus } = useP2PTunnel({
