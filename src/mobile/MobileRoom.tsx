@@ -8,6 +8,7 @@ import { canRoomViewerPerform, useSystemSettingsStore } from '@/store/systemSett
 import { WatchTogetherPanel } from '@/modules/room/watch-together/WatchTogetherPanel'
 import { usePlayerRemountKey } from '@/modules/room/watch-together/usePlayerRemountKey'
 import { MovieListPanel } from '@/modules/room/components/MovieListPanel'
+import { AutoContinueToggle } from '@/modules/room/components/AutoContinueToggle'
 import { MoviePushPanel } from '@/modules/room/components/MoviePushPanel'
 import { RoomInfoPanel } from '@/modules/room/components/RoomInfoPanel'
 import { useRoomModeSwitch } from '@/modules/room/components/useRoomModeSwitch'
@@ -217,7 +218,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
             </nav>
             <div className="mobile-tab-panel" hidden={tab !== 'chat'}><CommentPanel socket={socket} roomId={roomId} commentsOnly={mode === 'screen-share'} /></div>
             {mode === 'watch-together' && <div className="mobile-tab-panel" hidden={tab !== 'movies'}>
-              {canAdd && <div className="mobile-panel-actions"><button className="mobile-text-button" onClick={() => setAddOpen(true)}><Plus size={18} />添加影片</button></div>}
+              {(canAdd || room.isHost) && <div className="mobile-panel-actions"><AutoContinueToggle isHost={room.isHost} />{canAdd && <button className="mobile-text-button ml-auto" onClick={() => setAddOpen(true)}><Plus size={18} />添加影片</button>}</div>}
               <MovieListPanel isHost={room.isHost} canManage={canManage} />
             </div>}
           </section>

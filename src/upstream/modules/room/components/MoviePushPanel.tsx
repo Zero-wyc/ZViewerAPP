@@ -2,6 +2,7 @@ import { CmsSelector } from '@/modules/cms/CmsSelector'
 import { enumerateSeriesPages } from '@/modules/emby/seriesPages'
 import { logicalConnectionUrl } from '../../../../platform/connectionTransport'
 import { BiliSearchModal } from './BiliSearchModal'
+import { PlaybackOptionToggle } from './PlaybackOptionToggle'
 import { isEmbeddedBilibiliHost } from '../../../../platform/bilibiliProxy'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
@@ -2200,49 +2201,13 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
 
           {/* 浏览器转码引擎开关：仅挂载/文件类源显示。B站 源解析出的
               MP4/DASH 浏览器必定原生可播，无转码需求，隐藏开关避免困惑。 */}
-          {sourceType !== 'bilibili' && (
-            <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-[var(--md-sys-shape-corner)] bg-[var(--md-sys-color-surface-container-high)]">
-              <div className="min-w-0">
-                <Text className="block text-xs font-medium">
-                  浏览器转码引擎
-                </Text>
-                <Text
-                  type="secondary"
-                  className="block text-[11px] leading-snug mt-0.5"
-                >
-                  开启：MKV/DTS
-                  等非常规格式由浏览器端重封装/转码播放。关闭：强制原生直连，不兼容编码将无声。
-                </Text>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={playsvideoEnabled}
-                disabled={!isHost}
-                onClick={() => setPlaysvideoEnabled((prev) => !prev)}
-                className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                style={{
-                  backgroundColor: playsvideoEnabled
-                    ? 'var(--md-sys-color-primary)'
-                    : 'var(--md-sys-color-outline)',
-                }}
-              >
-                <span
-                  className="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
-                  style={{
-                    transform: playsvideoEnabled
-                      ? 'translateX(18px)'
-                      : 'translateX(2px)',
-                  }}
-                />
-              </button>
-            </div>
-          )}
+          {sourceType !== 'bilibili' && <PlaybackOptionToggle label="浏览器转码引擎"
+            description="开启：MKV/DTS 等非常规格式由浏览器端重封装/转码播放。关闭：强制原生直连，不兼容编码将无声。"
+            checked={playsvideoEnabled} disabled={!isHost} onChange={setPlaysvideoEnabled} />}
 
-          {['mp4','webdav','openlist','emby','jellyfin','anime','kazumi','cms'].includes(sourceType) && <label className="flex items-center justify-between gap-3 rounded-xl border border-[var(--md-sys-color-outline)] p-3 text-sm">
-            <span>服务器中转<span className="block text-xs opacity-75">关闭时媒体直连源站；开启后始终由服务器转发</span></span>
-            <input type="checkbox" checked={serverProxy} onChange={e => setServerProxy(e.target.checked)} disabled={!isHost} aria-label="服务器中转" />
-          </label>}
+          {['mp4','webdav','openlist','emby','jellyfin','anime','kazumi','cms'].includes(sourceType) && <PlaybackOptionToggle label="服务器中转"
+            description="关闭时媒体直连源站；开启后始终由服务器转发"
+            checked={serverProxy} disabled={!isHost} onChange={setServerProxy} />}
           {resolveProgress && (
             <div
               className="flex items-center gap-2 rounded-[var(--md-sys-shape-corner)] px-3 py-2 text-xs"

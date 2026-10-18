@@ -4,11 +4,19 @@
 
 ## 当前状态与范围
 
-- HarmonyOS 本地交付版本为 **2.1.0 / versionCode 210**，对齐服务端 v4.5.9；公开发行仍为 2.0.0。版本以根 package.json 与对应原生工程为准。
+- HarmonyOS 本地交付版本为 **2.1.1 / versionCode 211**，对齐服务端 v4.5.9；公开发行仍为 2.0.0。版本以根 package.json 与对应原生工程为准。
 - 客户端源码和 Git 操作均在 `E:/Codex-bulid/ZViewer/ZViewer-client`；共享 React/Vite 前端与 Android 相同，原生部分使用 HarmonyOS ArkTS 与 ArkWeb。
 - B站 Cookie、服务端凭据和本机代理状态只保存在原生侧。不能进入 React 状态持久化、网页日志、Socket 房间广播或公开源码。
 
 ## 代码入口
+
+### 2.1.1 / 211：进房黑屏、评论徽章与自动连播（2026-10-18）
+
+- 共享 `sync-playback/playbackIdentity.ts` 统一初始播放身份校验：首次从 null 收到 current-movie 和片单不是换片，服务器影片 ID / B站 CID 可锚定同一影片；真实换房、换片、切 P、预览及迟到结果继续丢弃。`usePlaybackStateRequest.ts` 与 `useVideoSource.ts` 共用该判定，避免已经标记已应用却没有挂载播放器。默认弹幕轨道的权限拒绝在 Promise 链中处理。
+- `PlayerMobileToolbarRow.tsx` 数量徽章以 `--lt-tone-inverse` 与工具栏色调配对，窄屏使用 10px 字号及至少 16px 高胶囊。`PlaybackOptionToggle.tsx` 统一转码引擎和服务器中转的滑块样式，保留独立媒体策略。
+- `MobileRoom.tsx` 的自动连播开关与“添加影片”同高并置于左侧。上游开关没有服务端同步协议，按用户补充要求仅房主显示；连播读取完整片单并由 play-movie ack / current-movie 确认切片，末尾停止。离房、转交和切模式沿用原失效规则。
+
+170 项适配、4 项媒体和 10 组真实组件布局回归通过。NAS B站及连播的 Android 原生结果与本轮 HarmonyOS 原生结果分别记录在 [2.1.1 验证记录](client-2.1.1-validation.md)，不能互相替代；最低 SDK 保持 6.1.0(23)。重新生成 ArkWeb 资源并正式签名构建，本地提交后交付，不推送/发布 GitHub，不构建 iOS。
 
 ### 2.1.0 / 210：服务端 v4.5.9 对齐与本地交付（2026-10-18）
 

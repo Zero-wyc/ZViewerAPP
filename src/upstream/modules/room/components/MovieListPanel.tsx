@@ -42,6 +42,7 @@ import { useCliAgentStore } from '@/store/cliAgentStore'
 import { cn } from '@/lib/utils'
 import { isEmbeddedBilibiliHost, getEmbeddedProxyStatus } from '../../../../platform/bilibiliProxy'
 import { NativeQualitySelect } from '@/modules/bilibili/NativeQualitySelect'
+import { AutoContinueToggle } from './AutoContinueToggle'
 import { getNativeQualityPolicy } from '@/modules/bilibili/nativeQualityPolicy'
 
 interface MovieListPanelProps {
@@ -112,8 +113,6 @@ export function MovieListPanel({
   const [search, setSearch] = useState('')
   const user = useAuthStore(state => state.user)
   const [owner, setOwner] = useState<{ roomId: string; userId: string; ownerId: number | null } | null>(null)
-  const autoContinueEnabled = useRoomStore(state => state.autoContinueEnabled)
-  const setAutoContinueEnabled = useRoomStore(state => state.setAutoContinueEnabled)
   const [sorting, setSorting] = useState(false)
   const sortingRef = useRef(false)
   const [orderOpen, setOrderOpen] = useState(false)
@@ -633,7 +632,7 @@ export function MovieListPanel({
       )}
 
       {expanded && <div className="flex flex-wrap items-center gap-2 px-2.5">
-        {isHost && !isScreenShare && <label className="flex min-h-9 items-center gap-2 text-sm"><input type="checkbox" checked={autoContinueEnabled} onChange={event => setAutoContinueEnabled(event.target.checked)} />自动连播</label>}
+        <AutoContinueToggle isHost={isHost} />
         {!isScreenShare && <Button size="sm" variant={orderOpen ? 'primary' : 'secondary'} disabled={!canSort || !!search.trim() || sorting} title="仅 root 或创建房间的管理员可排序；搜索时不可排序" onClick={() => setOrderOpen(value => !value)}>{orderOpen ? '完成排序' : '调整顺序'}</Button>}
         {!canSort && !isScreenShare && <Text type="secondary" className="text-xs">排序仅限 root 或房间创建管理员</Text>}
       </div>}

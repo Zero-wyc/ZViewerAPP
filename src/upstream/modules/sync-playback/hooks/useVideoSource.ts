@@ -1,6 +1,7 @@
 import { resolveMovieSource } from '@/modules/room/watch-together/movie-source-resolver'
 import { getApiUrl, refreshAccessToken } from '@/lib/api'
 import { isAccessTokenExpired } from '@/lib/authTransport'
+import { isPlaybackSessionCurrent } from '../playbackIdentity'
 import { resolveProxyUrl } from '@/modules/player/services/url-proxy'
 import { isServerApiUrl } from '@/modules/player/services/hls-proxy'
 import { logicalConnectionUrl } from '../../../../platform/connectionTransport'
@@ -502,7 +503,7 @@ export function useVideoSource({
 
       const context = useRoomStore.getState()
       const effectiveState = await resolveViewerEffectiveState(state)
-      if (context.roomSessionRevision !== useRoomStore.getState().roomSessionRevision || context.currentMovieId !== useRoomStore.getState().currentMovieId) return
+      if (!isPlaybackSessionCurrent(context, useRoomStore.getState(), state)) return
       if (!video.isConnected) return
       if (useRoomStore.getState().viewerCliRequiredMovieId != null) {
         cleanupMedia()

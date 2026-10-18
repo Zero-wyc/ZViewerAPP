@@ -165,7 +165,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid #65d59b; outline-
 .mobile-tab-panel[hidden] { display: none !important; }
 .mobile-tab-panel > .glass { border: 0; background: transparent; box-shadow: none; }
 .mobile-tab-panel > .glass > div:first-child { padding-inline: 0; }
-.mobile-panel-actions { display: flex; justify-content: flex-end; }
+.mobile-panel-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .mobile-room-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #343d41; margin-top: 16px; padding-top: 12px; color: #a8b3b6; font-size: 12px; }
 .mobile-text-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 12px; color: #65d59b; font-size: 14px; }
 .mobile-mode-switch { display: flex; gap: 8px; padding-bottom: 16px; }

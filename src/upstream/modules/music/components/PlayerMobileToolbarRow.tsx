@@ -251,10 +251,10 @@ export function PlayerMobileToolbarRow({
           <MessageCircle className="h-5 w-5" />
           {commentBadge !== '0' && (
             <span
-              className="absolute right-0.5 top-0.5 min-w-[14px] rounded-full px-0.5 text-center text-[9px] font-bold leading-[14px]"
+              className="absolute -right-1 -top-0.5 min-w-[16px] whitespace-nowrap rounded-full px-1 text-center text-[10px] font-bold leading-4"
               style={{
                 backgroundColor: 'var(--md-sys-color-on-surface)',
-                color: 'var(--md-sys-color-surface)',
+                color: 'var(--lt-tone-inverse, var(--md-sys-color-surface))',
               }}
             >
               {commentBadge}

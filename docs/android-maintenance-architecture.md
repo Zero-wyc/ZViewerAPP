@@ -4,11 +4,20 @@
 
 ## 当前状态与范围
 
-- Android 本地交付版本为 **2.1.0 / versionCode 210**，对齐服务端 v4.5.9；公开发行仍为 2.0.0。版本以根 package.json 与对应原生工程为准。
+- Android 本地交付版本为 **2.1.1 / versionCode 211**，对齐服务端 v4.5.9；公开发行仍为 2.0.0。版本以根 package.json 与对应原生工程为准。
 - 客户端修改、Git 提交均在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。`ZViewer-source code` 是本地服务端目录，不在其中改客户端。
 - Android 与 HarmonyOS 共用根目录 React/Vite 界面，但原生宿主不同；iOS 是 `ZV-iOS` 中独立的 Expo/React Native 工程。三端实现和验收不能互相替代。
 
 ## 代码入口
+
+### 2.1.1 / 211：进房黑屏、评论徽章与自动连播（2026-10-18）
+
+- `sync-playback/playbackIdentity.ts` 统一播放初始化的身份校验，供 `usePlaybackStateRequest.ts` 与 `useVideoSource.ts` 使用。进房时播放状态、current-movie 和片单独立到达，首次由 null 补齐影片 ID 不再误判为换片；优先核对服务器影片 ID，旧广播用 B站 CID 锚定。换房、换片、切 P、预览与旧页面应答仍失效。Test1 的本机 B站账号已登录，修复后真实 APK 能挂载并解码视频。自动写入默认弹幕轨道的权限拒绝由异步链处理，不再产生未处理拒绝。
+- `PlayerMobileToolbarRow.tsx` 评论数量使用 `--lt-tone-inverse`，与工具栏自身色调配对；窄屏采用 10px 字号及至少 16px 高胶囊，避免白底白字。徽章原数据来源和缓存不变。
+- `MobileRoom.tsx` 将 `AutoContinueToggle.tsx` 放到“添加影片”左侧同一行。当前服务端没有开关同步协议，按用户补充要求仅房主显示；本机开启后从完整片单选下一部，等待服务端 play-movie 确认及 current-movie 广播，不乐观切片。离房、转交房主、切模式和清空片单保留原有失效规则。
+- `PlaybackOptionToggle.tsx` 让“浏览器转码引擎”和“服务器中转”复用相同的 Switch、容器、字体、间距；不改变两个选项的独立媒体策略。
+
+170 项适配和 4 项媒体回归通过；实际 MobileRoom、添加面板和评论工具栏的 10 组布局验收通过。Android 模拟器连接用户 NAS 的 Test1 和独立带密码验收房间，实际 B站 4K 视频帧/音频解码数据推进、自然结束后服务端确认连播及末尾停止通过；临时房间已关闭，Test1 片单及设置未改。详细层级见 [2.1.1 验证记录](client-2.1.1-validation.md)。本地构建、签名、提交后交付，不推送/发布 GitHub，不构建 iOS。
 
 ### 2.1.0 / 210：服务端 v4.5.9 对齐与本地交付（2026-10-18）
 

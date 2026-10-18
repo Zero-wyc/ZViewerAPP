@@ -22,7 +22,7 @@ try {
       await page.evaluate(dark => window.__alignment.theme(dark), dark)
       await page.getByRole('button',{name:'哔哩哔哩',exact:true}).click()
       await page.getByText('TVBox 采集源',{exact:true}).click()
-      if (dark) await page.getByRole('checkbox',{name:'服务器中转',exact:true}).check()
+      if (dark) await page.getByRole('switch',{name:'服务器中转',exact:true}).locator('..').click()
       await page.getByRole('button',{name:'搜索影片',exact:true}).click()
       await page.getByRole('button',{name:'全部站点（聚合搜索）',exact:true}).waitFor()
       await page.getByPlaceholder('输入影片名称搜索').fill('本地')

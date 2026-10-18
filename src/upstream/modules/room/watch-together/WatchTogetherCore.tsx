@@ -681,7 +681,7 @@ export function WatchTogetherCore({
     const cid = watchTogether.cid
     if (!cid || watchTogether.sourceType !== 'bilibili') {
       danmakuItemsRef.current = []
-      setDefaultTrack([])
+      void setDefaultTrack([]).catch(err => console.warn('[WatchTogether] clear default danmaku track failed:', err))
       danmakuLayerRef.current?.loadDanmakuTrack('default', [])
       danmakuLayerRef.current?.clear()
       return
@@ -693,9 +693,9 @@ export function WatchTogetherCore({
     fetchBilibiliDanmakuByCid(cid)
       .then((items) => {
         danmakuItemsRef.current = items
-        setDefaultTrack(items)
         danmakuLayerRef.current?.loadDanmakuTrack('default', items, 0)
         danmakuLayerRef.current?.seek(videoRef.current?.currentTime ?? 0)
+        return setDefaultTrack(items)
       })
       .catch((err) => {
         console.error('[WatchTogether] load danmaku error:', err)
