@@ -4,7 +4,7 @@
 
 ## 当前状态与范围
 
-- HarmonyOS 本地交付版本为 **2.1.1 / versionCode 211**，对齐服务端 v4.5.9；公开发行仍为 2.0.0。版本以根 package.json 与对应原生工程为准。
+- HarmonyOS 当前发行版本为 **2.1.1 / versionCode 211**，对齐服务端 v4.5.9。版本以根 package.json 与对应原生工程为准。
 - 客户端源码和 Git 操作均在 `E:/Codex-bulid/ZViewer/ZViewer-client`；共享 React/Vite 前端与 Android 相同，原生部分使用 HarmonyOS ArkTS 与 ArkWeb。
 - B站 Cookie、服务端凭据和本机代理状态只保存在原生侧。不能进入 React 状态持久化、网页日志、Socket 房间广播或公开源码。
 
@@ -16,11 +16,11 @@
 - `PlayerMobileToolbarRow.tsx` 数量徽章以 `--lt-tone-inverse` 与工具栏色调配对，窄屏使用 10px 字号及至少 16px 高胶囊。`PlaybackOptionToggle.tsx` 统一转码引擎和服务器中转的滑块样式，保留独立媒体策略。
 - `MobileRoom.tsx` 的自动连播开关与“添加影片”同高并置于左侧。上游开关没有服务端同步协议，按用户补充要求仅房主显示；连播读取完整片单并由 play-movie ack / current-movie 确认切片，末尾停止。离房、转交和切模式沿用原失效规则。
 
-170 项适配、4 项媒体和 10 组真实组件布局回归通过。NAS B站及连播的 Android 原生结果与本轮 HarmonyOS 原生结果分别记录在 [2.1.1 验证记录](client-2.1.1-validation.md)，不能互相替代；最低 SDK 保持 6.1.0(23)。重新生成 ArkWeb 资源并正式签名构建，本地提交后交付，不推送/发布 GitHub，不构建 iOS。
+170 项适配、4 项媒体和 10 组真实组件布局回归通过。NAS B站及连播的 Android 原生结果与本轮 HarmonyOS 原生结果分别记录在 [2.1.1 验证记录](client-2.1.1-validation.md)，不能互相替代；最低 SDK 保持 6.1.0(23)。重新生成 ArkWeb 资源并正式签名构建，按用户确认发布至 [client-v2.1.1](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.1)，源码同步 main；保留房主本地自动连播逻辑，不构建 iOS。
 
 ### 2.1.0 / 210：服务端 v4.5.9 对齐与本地交付（2026-10-18）
 
-目标服务端固定为 main/e86fe409faaf99dfb8b3d7adf6e88e836de12108，业务代码对应 v4.5.9。2.1.0 是本地签名包交付版本，尚未推送/发布 GitHub Release；公开旧版本信息留在历史章节。完整范围、验收层级及未覆盖项见 [2.1.0 验证记录](client-2.1.0-validation.md)，实施依据见 [双端更新指南](安卓鸿蒙对齐服务端v4.5.9更新指南-2026-10-18.md)。
+目标服务端固定为 main/e86fe409faaf99dfb8b3d7adf6e88e836de12108，业务代码对应 v4.5.9。2.1.0 当时仅本地交付，全部更新已随 2.1.1 公开发行。完整范围、验收层级及未覆盖项见 [2.1.0 验证记录](client-2.1.0-validation.md)，实施依据见 [双端更新指南](安卓鸿蒙对齐服务端v4.5.9更新指南-2026-10-18.md)。
 
 - 同步入口：sync-playback/hooks/useHostBroadcast.ts、useHostHeartbeat.ts、useViewerStateSync.ts 与 playback-memory/hooks/useServerHeartbeat.ts。房主上行携带 clientTs；新服服务器心跳独占常规进度校正，旧服保留 host fallback。10 秒自检由 ackGuard.ts 提供 5 秒超时和身份失效保护；强制全量 state 仍执行统一 MSE seek，包含进度 0。roomStore.hostOffline 统一界面权限与同步状态，离线事件的 6 秒保护避免服务端 5 秒在线缓存回拉暂停；新的 sharer-ready/host 存活证据可提前恢复。
 - 音乐入口：music/hooks/useListenTogether.ts 保留本机音频、队列归属、FM、音量和后台修复；新增 server heartbeat 与 check-status，服务器 positionSec 不二次外推。7 秒无服务器心跳只开启房主兼容路径，不直接判离线；检查应答再次验证房间、trackKey 和加载代次。

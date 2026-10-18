@@ -4,7 +4,7 @@
 
 ## 当前状态与范围
 
-- Android 本地交付版本为 **2.1.1 / versionCode 211**，对齐服务端 v4.5.9；公开发行仍为 2.0.0。版本以根 package.json 与对应原生工程为准。
+- Android 当前发行版本为 **2.1.1 / versionCode 211**，对齐服务端 v4.5.9。版本以根 package.json 与对应原生工程为准。
 - 客户端修改、Git 提交均在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。`ZViewer-source code` 是本地服务端目录，不在其中改客户端。
 - Android 与 HarmonyOS 共用根目录 React/Vite 界面，但原生宿主不同；iOS 是 `ZV-iOS` 中独立的 Expo/React Native 工程。三端实现和验收不能互相替代。
 
@@ -17,11 +17,11 @@
 - `MobileRoom.tsx` 将 `AutoContinueToggle.tsx` 放到“添加影片”左侧同一行。当前服务端没有开关同步协议，按用户补充要求仅房主显示；本机开启后从完整片单选下一部，等待服务端 play-movie 确认及 current-movie 广播，不乐观切片。离房、转交房主、切模式和清空片单保留原有失效规则。
 - `PlaybackOptionToggle.tsx` 让“浏览器转码引擎”和“服务器中转”复用相同的 Switch、容器、字体、间距；不改变两个选项的独立媒体策略。
 
-170 项适配和 4 项媒体回归通过；实际 MobileRoom、添加面板和评论工具栏的 10 组布局验收通过。Android 模拟器连接用户 NAS 的 Test1 和独立带密码验收房间，实际 B站 4K 视频帧/音频解码数据推进、自然结束后服务端确认连播及末尾停止通过；临时房间已关闭，Test1 片单及设置未改。详细层级见 [2.1.1 验证记录](client-2.1.1-validation.md)。本地构建、签名、提交后交付，不推送/发布 GitHub，不构建 iOS。
+170 项适配和 4 项媒体回归通过；实际 MobileRoom、添加面板和评论工具栏的 10 组布局验收通过。Android 模拟器连接用户 NAS 的 Test1 和独立带密码验收房间，实际 B站 4K 视频帧/音频解码数据推进、自然结束后服务端确认连播及末尾停止通过；临时房间已关闭，Test1 片单及设置未改。详细层级见 [2.1.1 验证记录](client-2.1.1-validation.md)。正式签名包按用户确认发布至 [client-v2.1.1](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.1)，源码同步 main；保留房主本地自动连播逻辑，不构建 iOS。
 
 ### 2.1.0 / 210：服务端 v4.5.9 对齐与本地交付（2026-10-18）
 
-目标服务端固定为 main/e86fe409faaf99dfb8b3d7adf6e88e836de12108，业务代码对应 v4.5.9。2.1.0 是本地签名包交付版本，尚未推送/发布 GitHub Release；公开旧版本信息留在历史章节。完整范围、验收层级及未覆盖项见 [2.1.0 验证记录](client-2.1.0-validation.md)，实施依据见 [双端更新指南](安卓鸿蒙对齐服务端v4.5.9更新指南-2026-10-18.md)。
+目标服务端固定为 main/e86fe409faaf99dfb8b3d7adf6e88e836de12108，业务代码对应 v4.5.9。2.1.0 当时仅本地交付，全部更新已随 2.1.1 公开发行。完整范围、验收层级及未覆盖项见 [2.1.0 验证记录](client-2.1.0-validation.md)，实施依据见 [双端更新指南](安卓鸿蒙对齐服务端v4.5.9更新指南-2026-10-18.md)。
 
 - 同步入口：sync-playback/hooks/useHostBroadcast.ts、useHostHeartbeat.ts、useViewerStateSync.ts 与 playback-memory/hooks/useServerHeartbeat.ts。房主上行携带 clientTs；新服服务器心跳独占常规进度校正，旧服保留 host fallback。10 秒自检由 ackGuard.ts 提供 5 秒超时和身份失效保护；强制全量 state 仍执行统一 MSE seek，包含进度 0。roomStore.hostOffline 统一界面权限与同步状态，离线事件的 6 秒保护避免服务端 5 秒在线缓存回拉暂停；新的 sharer-ready/host 存活证据可提前恢复。
 - 音乐入口：music/hooks/useListenTogether.ts 保留本机音频、队列归属、FM、音量和后台修复；新增 server heartbeat 与 check-status，服务器 positionSec 不二次外推。7 秒无服务器心跳只开启房主兼容路径，不直接判离线；检查应答再次验证房间、trackKey 和加载代次。
