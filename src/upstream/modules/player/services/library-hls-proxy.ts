@@ -1,37 +1,37 @@
-import type { HlsProxySource } from './hls-proxy'
-
-/** Only the selected server's room-movie stream can request private playback metadata. */
-export async function resolveLibraryHlsProxySource(
-  raw: string,
-  apiBase: string,
-  resolve: (api: 'emby' | 'jellyfin', movieId: number, version?: string) => Promise<{ directUrl?: string; mediaSourceId: string }>
-): Promise<HlsProxySource | null> {
-  const base = new URL(apiBase)
-  const stream = new URL(raw, apiBase)
+/** Only dedicated resources on the selected server may retain member credentials. */
+export function readLibraryHlsRoute(raw: string, apiBase: string): URL | null {
+  const base = new URL(apiBase), url = new URL(raw, apiBase)
   const prefix = base.pathname.replace(/\/$/, '')
-  if (stream.origin !== base.origin) return null
-  const match = stream.pathname.slice(prefix.length).match(/^\/api\/(emby|jellyfin)\/stream$/)
-  if (!stream.pathname.startsWith(prefix + '/') || !match) return null
-  const movieId = Number(stream.searchParams.get('movieId'))
-  if (!Number.isSafeInteger(movieId) || movieId <= 0) return null
-  const result = await resolve(match[1] as 'emby' | 'jellyfin', movieId, stream.searchParams.get('ms') || undefined)
-  if (!result.directUrl) throw new Error('媒体库转码缺少清单地址，请重新解析影片')
-  const upstream = new URL(result.directUrl)
-  if (!['http:', 'https:'].includes(upstream.protocol)) throw new Error('无效的媒体库转码地址')
-  // The stream route translates ms; an upstream Emby URI uses MediaSourceId.
-  upstream.searchParams.delete('ms')
-  if (result.mediaSourceId) upstream.searchParams.set('MediaSourceId', result.mediaSourceId)
-  return { url: upstream.href, endpoint: base.origin + prefix + '/api/stream/proxy', parameters: {} }
+  return url.origin === base.origin && url.pathname.startsWith(prefix + '/') &&
+    /^\/api\/(emby|jellyfin)\/(stream|proxy)$/.test(url.pathname.slice(prefix.length)) ? url : null
 }
 
-/** Relative segments/keys may omit the media token. Never send it to another origin. */
-export function inheritLibraryHlsQuery(raw: string, manifest: string): string {
-  const url = new URL(raw, manifest), base = new URL(manifest)
-  if (url.origin === base.origin) {
-    for (const key of ['api_key', 'MediaSourceId']) {
-      const value = base.searchParams.get(key)
+/** v4.6.4 rewrites every child URI; retain the selected server's deployment prefix. */
+export function normalizeLibraryHlsManifest(text: string, manifest: string, apiBase: string): string {
+  const parent = readLibraryHlsRoute(manifest, apiBase)
+  if (!parent) throw new Error('无效的媒体库清单地址')
+  const base = new URL(apiBase), prefix = base.pathname.replace(/\/$/, '')
+  let resources = 0, rewritten = 0
+  const normalize = (uri: string) => {
+    resources++
+    const url = new URL(uri, parent)
+    // The server emits root-relative /api/ even behind a deployment prefix.
+    if (url.origin === base.origin && /^\/api\/(emby|jellyfin)\/(stream|proxy)$/.test(url.pathname)) url.pathname = prefix + url.pathname
+    if (!readLibraryHlsRoute(url.href, apiBase) || !url.searchParams.has('resource') || url.pathname !== parent.pathname) return uri
+    const identity = parent.searchParams.has('movieId') ? ['movieId'] : ['mountId', 'path']
+    if (identity.some(key => url.searchParams.get(key) !== parent.searchParams.get(key))) return uri
+    for (const key of ['ms', 'at']) {
+      const value = parent.searchParams.get(key)
       if (value && !url.searchParams.has(key)) url.searchParams.set(key, value)
     }
+    rewritten++
+    return url.href
   }
-  return url.href
+  const normalized = text.split(/\r?\n/).map(line => {
+    if (!line.trim()) return line
+    if (!line.startsWith('#')) return normalize(line.trim())
+    return line.replace(/\bURI="([^"]+)"/g, (_, uri: string) => `URI="${normalize(uri)}"`)
+  }).join('\n')
+  if (rewritten !== resources) throw new Error('媒体库 HLS 资源未由服务端重写，请升级服务端至 v4.6.4 或更新版本')
+  return normalized
 }

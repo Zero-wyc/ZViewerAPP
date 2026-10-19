@@ -1,14 +1,26 @@
 # Android 客户端维护文档
 
-更新日期：2026-10-18。本文与同目录的 HarmonyOS、iOS 维护文档采用统一命名 `平台-maintenance-architecture.md`。
+更新日期：2026-10-20。本文与同目录的 HarmonyOS、iOS 维护文档采用统一命名 `平台-maintenance-architecture.md`。
 
 ## 当前状态与范围
 
-- Android 当前发行版本为 **2.1.1 / versionCode 211**，对齐服务端 v4.5.9。版本以根 package.json 与对应原生工程为准。
+- Android 当前本地版本为 **2.1.2 / versionCode 212**，对齐服务端 v4.6.4 后 main 快照 `cbdd6cc6`；本轮未发布 Release。2.1.1 为此前发行版本。版本以根 package.json 与对应原生工程为准。
 - 客户端修改、Git 提交均在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。`ZViewer-source code` 是本地服务端目录，不在其中改客户端。
 - Android 与 HarmonyOS 共用根目录 React/Vite 界面，但原生宿主不同；iOS 是 `ZV-iOS` 中独立的 Expo/React Native 工程。三端实现和验收不能互相替代。
 
 ## 代码入口
+
+### 2.1.2 / 212：服务端 v4.6.4 对齐（2026-10-20，本地交付）
+
+实施依据为 [检查报告](安卓鸿蒙对齐服务端v4.6.4检查报告-2026-10-20.md)，目标源码为 `cbdd6cc6e16cc661de092627405c9e191d296c45`。本轮本地构建，不推送或发布；完整验证和设备限制见 [2.1.2 验证记录](client-2.1.2-validation.md)。
+
+- HLS：`player/services/library-hls-proxy.ts` 与 `engines/hls-engine.ts` 直接消费服务端 `/api/emby|jellyfin/stream|proxy` 重写清单。清单基址保留逻辑服务端，子清单、分片、AES KEY 和 fMP4 MAP 统一保留反代前缀及 `movieId` 或 `mountId/path`，补齐 `ms/at`，每次请求重建当前成员 token，再经 `connectionTransport` 转为原生传输地址。禁止把媒体库专用端点套通用代理、恢复上游 NAS 基址或调用 movie-source 获取私有凭据。按用户要求删除此处旧服未重写清单的兼容；无效清单直接报告升级/路由错误。
+- Socket：`hooks/socketRecovery.ts` 与 `useSocket.ts` 对 `io server disconnect` 和认证握手错误共享一次刷新任务，成功后重新连接，由 `useMobileRoom` 走既有 register-host/request-join。网络失败保留身份并显示“重试连接”；明确拒绝清 token、回收媒体并返回登录。每个恢复周期只刷新一次，30 秒内最多三次连续恢复；用户主动重试可重新开始。离房、注销、切服使旧任务失效，`lib/api.ts` 的刷新代次阻止迟到响应写回旧 token 或重发旧请求。
+- 准入：REST 默认只对 401 刷新，403 保留业务含义；已就绪房间遇到“请先通过房间准入验证”时先撤下媒体，再针对当前房间最多自动重新准入一次，失败显示重试。播放器的服务器媒体 403 不再走 token 刷新。断线、待批、错误和终态均撤下语音入口；被踢/关房后 reconnect 或迟到批准不能复活播放，进房 ack 有代次保护。
+- 路由：Movie DTO、增改类型、映射、添加入口和 resolver 移除 `directLinkProxy`。视频直链/挂载直链的 `noProxyFallback` 由 `directLink` 独立决定；挂载管理继续以实际 `directLink` 控制直连或服务端转发，内网挂载强制转发。添加面板仅 anime（含 ani-subs）、Kazumi、CMS 显示并提交 `serverProxy`；不改变本机回环代理、证书例外通道或 B站凭据边界。
+- 权限：`roomStore.roomOwnerUserId` 仅来自服务端验证通过的 register-host 应答（确认当前正数 userId 是持久化 owner）及 host-transferred 的 `newOwnerUserId`，断线清除，重新注册后恢复。公开房间列表不返回 owner，不调用 `/api/admin/rooms`，也不以本地 isHost 标志赋予 REST 权限。`playlistOrder.ts` 统一 root/普通或管理员 owner 的排序、清空、删除、改名入口；`manageMovie` 继续只控制其原有 Socket 管理行为。该版本服务端的显式房主转交会更新数据库 owner，按权威转交字段同步。
+
+复查命令：`npm run test:adaptation`（181 项）、`npm run test:media`（4 项）、`node vendor/local-patches.mjs --check`（6 项）；网页资源仅由 `npm run android:sync`、`npm run harmony:web` 生成。原生工程未增加协议实现，保留 Android PiP 与鸿蒙 WebRTC PiP 禁用策略。每个最终 APK/HAP 仅在构建后计算一次 SHA-256，后续交付复用保存摘要。iOS 不修改、不构建。
 
 ### 2.1.1 / 211：进房黑屏、评论徽章与自动连播（2026-10-18）
 

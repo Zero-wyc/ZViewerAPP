@@ -3,6 +3,8 @@ import type { Socket } from 'socket.io-client'
 import { useRoomStore, type RoomMode } from '@/store/roomStore'
 import { useDanmakuStore } from '@/store/danmakuStore'
 import { dispatchRoomMediaTeardown } from '@/lib/mediaTeardown'
+import { useAuthStore } from '@/store/authStore'
+import { getApiUrl } from '@/lib/api'
 import type { WatchTogetherPanel } from '@/modules/room/watch-together/WatchTogetherPanel'
 
 type Playback = ComponentProps<typeof WatchTogetherPanel>['initialPlayback']
@@ -52,6 +54,9 @@ export function useMobileRoom(socket: Socket | null, roomId: string, options: { 
     if (!socket) return
     let disposed = false
     let retries = 0
+    let stopped = false
+    let admissionRecoveryUsed = false
+    let admitted = false
     let retryTimer: ReturnType<typeof setTimeout> | undefined
     const apply = (data: RoomData = {}) => {
       const store = useRoomStore.getState()
@@ -65,6 +70,7 @@ export function useMobileRoom(socket: Socket | null, roomId: string, options: { 
       apply(data)
       setError('')
       setPhase('ready')
+      admitted = true
       window.dispatchEvent(new CustomEvent('zviewer:room-ready', { detail: { roomId } }))
       retries = 0
       const danmaku = useDanmakuStore.getState()
@@ -72,7 +78,9 @@ export function useMobileRoom(socket: Socket | null, roomId: string, options: { 
       void danmaku.loadMeta(roomId)
     }
     const join = (asHost: boolean) => {
-      if (!socket.connected || disposed) { setPhase('connecting'); return }
+      if (stopped || disposed) return
+      if (!socket.connected) { setPhase('connecting'); return }
+      admitted = false
       const version = ++generation.current
       setError('')
       setPhase('joining')
@@ -97,6 +105,10 @@ export function useMobileRoom(socket: Socket | null, roomId: string, options: { 
             return
           }
           if (asHost) {
+            // register-host validates persistent ownership on this server. A
+            // local asHost flag or playback role alone never grants REST rights.
+            const user = useAuthStore.getState().user
+            useRoomStore.getState().setRoomOwnerUserId(user?.role !== 'guest' && Number(user?.id) > 0 ? Number(user?.id) : null)
             host.current = true
             setIsHost(true)
             setPlayback(ack.data?.playback ?? null)
@@ -110,28 +122,36 @@ export function useMobileRoom(socket: Socket | null, roomId: string, options: { 
     }
     request.current = join
     const connect = () => {
+      if (stopped) return
+      admissionRecoveryUsed = false
       if (attempted.current) join(host.current)
       else setPhase('password')
     }
     const disconnect = () => {
+      admitted = false
+      useRoomStore.getState().setRoomOwnerUserId(null)
       generation.current++
       clearTimeout(retryTimer)
       dispatchRoomMediaTeardown(false)
-      setPhase('connecting')
+      if (!stopped) setPhase('connecting')
     }
     const approved = (data: RoomData) => {
-      if (data.roomId !== roomId || host.current) return
+      if (stopped || !attempted.current || data.roomId !== roomId || host.current || !socket.connected) return
       ready(data)
     }
     const rejected = (data: RoomData) => {
       if (data.roomId !== roomId) return
       generation.current++
+      admitted = false
+      attempted.current = false
       setError('房主拒绝了加入申请')
       setPhase('error')
     }
     const closed = (data: RoomData) => {
       if (data.roomId !== roomId) return
       generation.current++
+      stopped = true
+      admitted = false
       clearTimeout(retryTimer)
       dispatchRoomMediaTeardown(true)
       setPhase('closed')
@@ -143,12 +163,15 @@ export function useMobileRoom(socket: Socket | null, roomId: string, options: { 
     }
     const kicked = (data: { reason?: string }) => {
       generation.current++
+      stopped = true
+      admitted = false
       clearTimeout(retryTimer)
       dispatchRoomMediaTeardown(true)
       setError(data.reason || '您已被移出房间')
       setPhase('closed')
     }
-    const transferred = (data: { newHostSocketId: string; oldHostSocketId: string }) => {
+    const transferred = (data: { newHostSocketId: string; oldHostSocketId: string; newOwnerUserId?: number | null }) => {
+      useRoomStore.getState().setRoomOwnerUserId(data.newOwnerUserId ?? null)
       if (data.newHostSocketId === socket.id || data.oldHostSocketId === socket.id) {
         host.current = data.newHostSocketId === socket.id
         setIsHost(host.current)
@@ -156,6 +179,25 @@ export function useMobileRoom(socket: Socket | null, roomId: string, options: { 
         join(host.current)
       }
     }
+    const accessDenied = (event: Event) => {
+      const detail = (event as CustomEvent<{ server: string; url: string }>).detail
+      if (!detail || detail.server !== getApiUrl() || !admitted || stopped || disposed) return
+      const url = new URL(detail.url)
+      const state = useRoomStore.getState()
+      const relevant = url.pathname.includes(`/rooms/${encodeURIComponent(roomId)}/`) || state.movies.some(movie => String(movie.id) === url.searchParams.get('movieId'))
+      if (!relevant) return
+      admitted = false
+      generation.current++
+      dispatchRoomMediaTeardown(false)
+      if (admissionRecoveryUsed) {
+        setError('房间准入已失效，请重试加入房间')
+        setPhase('error')
+        return
+      }
+      admissionRecoveryUsed = true
+      join(host.current)
+    }
+    window.addEventListener('zviewer:room-access-denied', accessDenied)
     socket.on('connect', connect)
     socket.on('disconnect', disconnect)
     socket.on('join-approved', approved)
@@ -179,6 +221,7 @@ export function useMobileRoom(socket: Socket | null, roomId: string, options: { 
       disposed = true
       generation.current++
       clearTimeout(retryTimer)
+      window.removeEventListener('zviewer:room-access-denied', accessDenied)
       socket.off('connect', connect)
       socket.off('disconnect', disconnect)
       socket.off('join-approved', approved)

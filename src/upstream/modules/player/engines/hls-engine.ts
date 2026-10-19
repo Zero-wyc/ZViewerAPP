@@ -9,12 +9,10 @@
  * 已有代理及防盗链来源的清单、分片与密钥继续使用对应代理。
  */
 import Hls from 'hls.js'
-import { getApiUrl } from '@/lib/api'
+import { getApiUrl, notifyRoomAccessDenied } from '@/lib/api'
 import { readHlsProxySource, buildHlsProxyRequest, isServerApiUrl } from '../services/hls-proxy'
 import { connectionUrl, logicalConnectionUrl } from '../../../../platform/connectionTransport'
-import { getEmbyApiMovieSource } from '@/modules/emby/embyApi'
-import { resolveLibraryHlsProxySource, inheritLibraryHlsQuery } from '../services/library-hls-proxy'
-import type { HlsProxySource } from '../services/hls-proxy'
+import { readLibraryHlsRoute, normalizeLibraryHlsManifest } from '../services/library-hls-proxy'
 import type { PlayerEngine, PlayerSource, EngineAttachResult } from '../types'
 import { resetVideoElement, waitForMetadata } from '../utils'
 import {
@@ -41,18 +39,19 @@ function canPlayNativeHls(video: HTMLVideoElement): boolean {
  * 关键：加载完成后需恢复 context.url 与 response.url 为原始 URL，
  * 否则 hls.js 会基于代理 URL 解析 m3u8 中的相对路径 ts 分片，导致拼接错误。
  */
-function createProxyLoader(sourceUrl: string, headers?: Record<string, string>, libraryProxy?: HlsProxySource | null,
+function createProxyLoader(sourceUrl: string, headers?: Record<string, string>,
   options: { noProxyFallback?: boolean; directTimeoutMs?: number } = {}) {
   const BaseLoader = Hls.DefaultConfig.loader
   const logicalUrl = logicalConnectionUrl
   const transportUrl = connectionUrl
   const apiBase = logicalUrl(getApiUrl())
-  const proxySource = libraryProxy || readHlsProxySource(logicalUrl(sourceUrl), apiBase)
+  const initialProxySource = readHlsProxySource(logicalUrl(sourceUrl), apiBase)
   let proxyFallback = false
 
   return class ProxyLoader extends BaseLoader {
     private fallbackLoader: InstanceType<typeof BaseLoader> | null = null
     private hlsConfig: any
+    private cancelled = false
 
     constructor(hlsConfig: any) {
       super(hlsConfig)
@@ -60,11 +59,13 @@ function createProxyLoader(sourceUrl: string, headers?: Record<string, string>, 
     }
 
     abort(): void {
+      this.cancelled = true
       if (this.fallbackLoader) this.fallbackLoader.abort()
       else super.abort()
     }
 
     destroy(): void {
+      this.cancelled = true
       super.destroy()
       this.fallbackLoader?.destroy()
       this.fallbackLoader = null
@@ -82,10 +83,9 @@ function createProxyLoader(sourceUrl: string, headers?: Record<string, string>, 
     load(context: any, config: any, callbacks: any): void {
       const originalUrl = context.url
       const logical = logicalUrl(originalUrl)
+      const proxySource = initialProxySource
       const proxyRequest = readHlsProxySource(logical, apiBase)
-      const manifestBaseUrl = libraryProxy && logical === logicalUrl(sourceUrl)
-        ? libraryProxy.url
-        : libraryProxy ? inheritLibraryHlsQuery(proxyRequest?.url ?? logical, libraryProxy.url) : proxyRequest?.url ?? logical
+      const manifestBaseUrl = proxyRequest?.url ?? logical
       let allowFallback = false
       if (isServerApiUrl(logical, apiBase) || isLocalUrl(logical) || isRelativeUrl(logical)) {
         // Includes Kazumi/AniSubs proxies: never proxy our own authenticated API.
@@ -136,13 +136,38 @@ function createProxyLoader(sourceUrl: string, headers?: Record<string, string>, 
           onSuccess: (response: any, stats: any, ctx: any, networkDetails: any) => {
             // Proxy URLs must not become relative playlist bases. Direct loads
             // retain response.url so HTTP redirects resolve resources correctly.
-            if (restoreBase) {
-              if (response) response.url = manifestBaseUrl
-              if (ctx) ctx.url = manifestBaseUrl
+            const complete = () => {
+              if (this.cancelled) return
+              if (restoreBase || readLibraryHlsRoute(logical, apiBase)) {
+                if (response) response.url = manifestBaseUrl
+                if (ctx) ctx.url = manifestBaseUrl
+              }
+              callbacks.onSuccess(response, stats, ctx, networkDetails)
             }
-            callbacks.onSuccess(response, stats, ctx, networkDetails)
+            const data = response?.data
+            if (readLibraryHlsRoute(logical, apiBase) && typeof data === 'string' && data.trimStart().startsWith('#EXTM3U')) {
+              try {
+                const normalized = normalizeLibraryHlsManifest(data, logical, apiBase)
+                response.data = normalized
+                complete()
+              } catch (error) {
+                callbacks.onError?.({ code: 0, text: error instanceof Error ? error.message : '媒体库 HLS 资源路由无效' }, ctx, networkDetails, stats)
+              }
+            } else complete()
           },
-          onError: (...args: any[]) => { if (!retry()) callbacks.onError?.(...args) },
+          onError: (response: any, ...args: any[]) => {
+            if (retry()) return
+            if (!this.cancelled && response?.code === 403 && isServerApiUrl(logical, apiBase)) {
+              try {
+                const network = args[1]
+                const raw = network?.response
+                let text = typeof raw === 'string' ? raw : raw?.byteLength != null ? new TextDecoder().decode(raw) : ''
+                if (!text) text = network?.responseText || response.text
+                notifyRoomAccessDenied(logical, JSON.parse(text).message)
+              } catch { /* Other 403 errors retain their own business meaning. */ }
+            }
+            callbacks.onError?.(response, ...args)
+          },
           onTimeout: (...args: any[]) => { if (!retry()) callbacks.onTimeout?.(...args) },
           // Internal route changes must not look like a user cancellation.
           onAbort: (...args: any[]) => { if (!changingRoute) callbacks.onAbort?.(...args) },
@@ -172,7 +197,7 @@ function waitForHlsReady(hls: Hls, timeoutMs = 15000, signal?: AbortSignal): Pro
 
     const onError = (
       _event: string,
-      data: { type: string; details: string; fatal: boolean; url?: string; response?: { code?: number } }
+      data: { type: string; details: string; fatal: boolean; url?: string; response?: { code?: number; text?: string } }
     ) => {
       if (settled) return
       // 非致命错误不reject，让hls.js自行恢复
@@ -181,7 +206,9 @@ function waitForHlsReady(hls: Hls, timeoutMs = 15000, signal?: AbortSignal): Pro
       cleanup()
       reject(
         new Error(
-          `HLS加载失败: type=${data.type} details=${data.details} status=${data.response?.code ?? 'unknown'} url=${data.url?.slice(0, 80)}`
+          data.response?.text && /^(媒体库 HLS|无效的媒体库)/.test(data.response.text)
+            ? data.response.text
+            : `HLS加载失败: type=${data.type} details=${data.details} status=${data.response?.code ?? 'unknown'}`
         )
       )
     }
@@ -237,17 +264,13 @@ export const hlsEngine: PlayerEngine = {
     // 可利用 ProxyLoader 拦截跨域请求。仅当 hls.js 不支持时（如 iOS Safari
     // 不支持 MSE）才回退到原生 HLS。
     if (Hls.isSupported()) {
-      // Resolve by room movie ID for both host and viewers; upstream credentials
-      // stay inside this loader and never enter room state or Movie.url.
-      const libraryProxy = await resolveLibraryHlsProxySource(
-        logicalConnectionUrl(targetUrl), logicalConnectionUrl(getApiUrl()),
-        (api, movieId, version) => getEmbyApiMovieSource(api, movieId, version, source.signal)
-      )
+      // v4.6.4 owns the manifest and every child resource. Never resolve private
+      // upstream metadata or wrap the dedicated library route in a generic proxy.
       source.signal?.throwIfAborted()
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        loader: createProxyLoader(targetUrl, source.headers, libraryProxy, {
+        loader: createProxyLoader(targetUrl, source.headers, {
           noProxyFallback: source.noProxyFallback === true,
           directTimeoutMs: Math.max(1, Math.min(6000, (source.attachTimeoutMs ?? 15000) / 2)),
         }),

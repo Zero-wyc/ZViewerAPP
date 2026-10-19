@@ -202,8 +202,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
         ...payload,
         sourceMountId: ['webdav', 'ftp', 'openlist', 'emby', 'jellyfin'].includes(payload.source ?? '') ? (payload.sourceMountId ?? selectedMountRef.current) : undefined,
         directLink: payload.source === 'mp4' ? true : payload.directLink,
-        directLinkProxy: serverProxy,
-        serverProxy,
+        serverProxy: ['anime', 'kazumi', 'cms'].includes(payload.source || '') ? serverProxy : undefined,
         playsvideoEnabled:
           payload.source === 'bilibili' ? true : playsvideoEnabled,
       }),
@@ -2205,7 +2204,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
             description="开启：MKV/DTS 等非常规格式由浏览器端重封装/转码播放。关闭：强制原生直连，不兼容编码将无声。"
             checked={playsvideoEnabled} disabled={!isHost} onChange={setPlaysvideoEnabled} />}
 
-          {['mp4','webdav','openlist','emby','jellyfin','anime','kazumi','cms'].includes(sourceType) && <PlaybackOptionToggle label="服务器中转"
+          {['anime','kazumi','cms'].includes(sourceType) && <PlaybackOptionToggle label="服务器中转"
             description="关闭时媒体直连源站；开启后始终由服务器转发"
             checked={serverProxy} disabled={!isHost} onChange={setServerProxy} />}
           {resolveProgress && (

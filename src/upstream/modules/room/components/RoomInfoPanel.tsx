@@ -33,6 +33,7 @@ import {
 } from '@/store/systemSettingsStore'
 import { cn } from '@/lib/utils'
 import { getApiUrl } from '@/lib/api'
+import { canReorderPlaylist } from './playlistOrder'
 
 interface RoomInfoPanelProps {
   roomId: string
@@ -95,6 +96,8 @@ export function RoomInfoPanel({
   )
   const currentUserId = useAuthStore((state) => state.user?.id)
   const role = useAuthStore((state) => state.user?.role)
+  const ownerUserId = useRoomStore(state => state.roomOwnerUserId)
+  const canRename = canReorderPlaylist(role, currentUserId, ownerUserId)
   const matrix = useSystemSettingsStore((state) => state.roomPermissionMatrix)
 
   const [showUsers, setShowUsers] = useState(false)
@@ -269,6 +272,7 @@ export function RoomInfoPanel({
   }
 
   const handleSaveName = async () => {
+    if (!canRename) return
     const trimmed = editingNameValue.trim()
     if (!trimmed) {
       message.warning('房间名称不能为空')
@@ -720,7 +724,7 @@ export function RoomInfoPanel({
                   >
                     {roomName || '未命名房间'}
                   </span>
-                  {isHost && (
+                  {canRename && (
                     <button
                       onClick={() => setIsEditingName(true)}
                       className="flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors hover:bg-[var(--md-sys-color-surface-container-high)]"

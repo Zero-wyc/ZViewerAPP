@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs'
 import {stripTypeScriptTypes} from 'node:module'
 import {runInNewContext} from 'node:vm'
 import {fileURLToPath} from 'node:url'
+import {loadTs} from './test-ts-module.mjs'
 
 const root=fileURLToPath(new URL('../src/upstream/',import.meta.url))
 const read=path=>readFileSync(root+path,'utf8')
@@ -29,7 +30,7 @@ function loaderHarness(kind='kazumi', channel=false) {
  const start=code.indexOf('function createProxyLoader('),end=code.indexOf('/** 等待 hls.js',start)
  const exports={}
  runInNewContext(stripTypeScriptTypes(code.slice(start,end))+';exports.createProxyLoader=createProxyLoader',{
-  ...helpers,exports,URL,URLSearchParams,Hls:{DefaultConfig:{loader:BaseLoader}},getApiUrl:()=>base,
+  ...helpers,...loadTs(root+'modules/player/services/library-hls-proxy.ts',{}, {URL,URLSearchParams}),exports,URL,URLSearchParams,Hls:{DefaultConfig:{loader:BaseLoader}},getApiUrl:()=>base,
   logicalConnectionUrl,connectionUrl,isLocalUrl:()=>false,isRelativeUrl:url=>url.startsWith('/'),
   resolveProxyUrl:()=>{throw Error('Unexpected generic proxy')},buildProxyUrl:()=>{throw Error('Unexpected generic proxy')},
   appendAuthToken:url=>{const u=new URL(logicalConnectionUrl(url));u.searchParams.set('token','viewer-token');return connectionUrl(u.href)}

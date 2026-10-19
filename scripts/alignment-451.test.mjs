@@ -115,22 +115,6 @@ test('old-server search 404 has an actionable message and never pretends to retu
   await assert.rejects(old.searchEmbyMount(1, 'title'), /请升级服务端/)
 })
 
-test('library HLS resolves by room movie ID and restores the upstream base without changing shared URLs', async () => {
-  const helper = loadTs(new URL('modules/player/services/library-hls-proxy.ts', root), {}, { URL })
-  for (const kind of ['emby', 'jellyfin']) {
-    const calls = [], source = `https://server.example/base/api/${kind}/stream?movieId=7&ms=medium`
-    const proxy = await helper.resolveLibraryHlsProxySource(source, 'https://server.example/base', async (...args) => { calls.push(args); return { directUrl: 'http://media.example/Videos/ep/main.m3u8?api_key=media-secret&ms=medium', mediaSourceId: 'medium' } })
-    assert.deepEqual(Array.from(calls[0]), [kind, 7, 'medium']); assert.equal(proxy.endpoint, 'https://server.example/base/api/stream/proxy')
-    assert.equal(new URL(proxy.url).searchParams.get('MediaSourceId'), 'medium')
-    const child = new URL(helper.inheritLibraryHlsQuery('hls/1.ts', proxy.url)); assert.equal(child.pathname, '/Videos/ep/hls/1.ts'); assert.equal(child.searchParams.get('api_key'), 'media-secret')
-    const external = new URL(helper.inheritLibraryHlsQuery('https://cdn.example/1.ts', proxy.url)); assert.equal(external.searchParams.has('api_key'), false)
-    assert.equal(source.includes('media-secret'), false)
-  }
-  for (const source of ['https://other.example/api/emby/stream?movieId=7', 'https://server.example/base/api/emby/stream?movieId=0', 'https://server.example/base/api/emby/mounts/1/browse']) {
-    assert.equal(await helper.resolveLibraryHlsProxySource(source, 'https://server.example/base', async () => { throw Error('must not resolve unrelated URLs') }), null)
-  }
-})
-
 test('direct versions use the exact MediaSourceId and preserve signed source parameters', () => {
   const module = loadTs(new URL('modules/emby/mediaLibraryUrl.ts', root), {}, { URL })
   const url = new URL(module.normalizeMediaLibraryDirectUrl('https://media.example/stream?api_key=private&ms=medium%2Fid'))

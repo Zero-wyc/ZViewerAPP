@@ -1,6 +1,6 @@
 # ZViewer Mobile Client
 
-**Android / HarmonyOS 2.1.1 / 211**：对齐服务端 v4.5.9 的权威进度、自检和媒体路由，新增 CMS 采集源；修复进房 B站黑屏、窄屏评论数量及鸿蒙冷启动问题。片单增加房主自动连播，转码与服务器中转统一使用滑块。发行范围见 [2.1.1 说明](docs/releases/client-2.1.1.md)，原生验收和限制见 [验证记录](docs/client-2.1.1-validation.md)。
+**Android / HarmonyOS 本地 2.1.2 / 212**：对齐服务端 v4.6.4 的媒体库 HLS、Socket 恢复、直链路由、普通房主权限和准入 403。媒体库转码要求服务端 v4.6.4 或更新版本。验证范围见 [2.1.2 记录](docs/client-2.1.2-validation.md)，本轮尚未发布 Release；下列下载入口保留此前公开版本。
 
 **iOS 1.9.0 / build 26**：播放器、弹幕设置、房间语音、投屏、房间设置、方向控制和音乐菜单完成独立更新；设备 Release IPA 未签名，需自行签名后侧载。维护入口见 [iOS 维护文档](docs/ios-maintenance-architecture.md)，发布包见 [iOS 1.9.0 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0)。
 
@@ -12,7 +12,7 @@
 
 ## 2.1.1 发行状态
 
-当前源码与 Android/HarmonyOS 发行版本均为 **2.1.1 / 211**，包含此前本地 2.1.0 的全部服务端对齐更新。自动连播开关由房主本机控制，仅房主显示；执行操作留在房主端，切片结果由服务端确认并同步。发行说明见 [2.1.1](docs/releases/client-2.1.1.md)，原生验收与限制见 [交付验证](docs/client-2.1.1-validation.md)。
+当前源码为本地 **2.1.2 / 212**，此前 Android/HarmonyOS 发行版本为 **2.1.1 / 211**，包含此前本地 2.1.0 的全部服务端对齐更新。自动连播开关由房主本机控制，仅房主显示；执行操作留在房主端，切片结果由服务端确认并同步。发行说明见 [2.1.1](docs/releases/client-2.1.1.md)，原生验收与限制见 [交付验证](docs/client-2.1.1-validation.md)。
 
 ## 最新公开发行与三端状态
 

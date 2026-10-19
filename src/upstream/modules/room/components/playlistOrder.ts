@@ -1,5 +1,5 @@
 export function canReorderPlaylist(role: string | undefined, userId: string | undefined, ownerId: number | null | undefined) {
-  return role === 'root' || (role === 'admin' && userId != null && ownerId != null && String(ownerId) === String(userId))
+  return role === 'root' || ((role === 'user' || role === 'admin') && Number(userId) > 0 && Number(ownerId) > 0 && String(ownerId) === String(userId))
 }
 
 /** Always builds a complete permutation; filtered lists and missing/edge items cannot submit. */

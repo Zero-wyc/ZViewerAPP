@@ -69,7 +69,6 @@ export interface Movie {
   serverUrl?: string | null
   path?: string | null
   username?: string | null
-  directLinkProxy?: boolean
   serverProxy?: boolean
   sourceMountId?: number | null
   directLink?: boolean
@@ -136,7 +135,6 @@ export interface MovieDto {
   serverUrl: string | null
   path: string | null
   username: string | null
-  directLinkProxy?: boolean
   serverProxy?: boolean
   sourceMountId?: number | null
   directLink: boolean
@@ -166,7 +164,6 @@ export function mapDtoToMovie(dto: MovieDto): Movie {
     path: dto.path,
     username: dto.username,
     directLink: dto.directLink,
-    directLinkProxy: dto.directLinkProxy === true,
     serverProxy: dto.serverProxy === true,
     sourceMountId: dto.sourceMountId ?? null,
     playsvideoEnabled: dto.playsvideoEnabled !== false,
@@ -217,6 +214,9 @@ export interface PreviewPlayRequest {
 }
 
 interface RoomState {
+  /** Verified by register-host, or the server's explicit ownership transfer. */
+  roomOwnerUserId: number | null
+  setRoomOwnerUserId: (id: number | null) => void
   mediaAttachProgress: string
   setMediaAttachProgress: (text: string) => void
   hostOffline: boolean
@@ -396,7 +396,6 @@ interface RoomState {
       path?: string
       username?: string
       password?: string
-      directLinkProxy?: boolean
   serverProxy?: boolean
   sourceMountId?: number | null
   directLink?: boolean
@@ -443,7 +442,6 @@ interface RoomState {
       path?: string
       username?: string
       password?: string
-      directLinkProxy?: boolean
   serverProxy?: boolean
   sourceMountId?: number | null
   directLink?: boolean
@@ -463,6 +461,7 @@ interface RoomState {
 }
 
 const defaultState = {
+  roomOwnerUserId: null as number | null,
   hostOffline: false,
   mediaAttachProgress: '',
   roomSessionRevision: 0,
@@ -517,6 +516,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   setMediaAttachProgress: mediaAttachProgress => set({ mediaAttachProgress }),
   setHostOffline: hostOffline => set({ hostOffline }),
   ...defaultState,
+  setRoomOwnerUserId: (roomOwnerUserId) => set({ roomOwnerUserId }),
   setAutoContinueEnabled: (enabled) => set(state => ({ autoContinueEnabled: enabled, autoContinueRevision: state.autoContinueRevision + 1 })),
   setRoomId: (id) => set({ roomId: id, roomSessionRevision: get().roomSessionRevision + 1, ...(id !== get().roomId ? { autoContinueEnabled: false } : {}) }),
   setRoomName: (name) => set({ roomName: name }),

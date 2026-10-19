@@ -546,7 +546,6 @@ export async function resolveMovieSource({
     }
   }
   const inferredFormat = movie.format || detectMediaFormat(effectiveUrl)
-  if (movie.directLink === true && movie.directLinkProxy === true) effectiveUrl = buildProxyUrl(effectiveUrl)
   return {
     sourceUrl: effectiveUrl,
     audioUrl: movie.audioUrl,
@@ -560,6 +559,6 @@ export async function resolveMovieSource({
     headers: undefined,
     reusedRecoveryUrl: false,
     playsvideoEnabled: movie.playsvideoEnabled !== false,
-    noProxyFallback: movie.directLink === true && movie.directLinkProxy !== true,
+    noProxyFallback: movie.directLink === true,
   }
 }

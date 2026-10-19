@@ -4,7 +4,6 @@ import { resolveJellyfin } from '@/modules/jellyfin/jellyfinApi'
 import type { EmbyVersionInfo } from '@/modules/emby/types'
 import { logicalConnectionUrl } from '../../../../platform/connectionTransport'
 import { canReorderPlaylist, movePlaylistItem } from './playlistOrder'
-import { apiFetch } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { Play, Trash2, Film, Monitor, ListVideo, Maximize, ArrowUp, ArrowDown } from 'lucide-react'
@@ -112,11 +111,11 @@ export function MovieListPanel({
   const [clearingAll, setClearingAll] = useState(false)
   const [search, setSearch] = useState('')
   const user = useAuthStore(state => state.user)
-  const [owner, setOwner] = useState<{ roomId: string; userId: string; ownerId: number | null } | null>(null)
+  const ownerId = useRoomStore(state => state.roomOwnerUserId)
   const [sorting, setSorting] = useState(false)
   const sortingRef = useRef(false)
   const [orderOpen, setOrderOpen] = useState(false)
-  const canSort = canReorderPlaylist(user?.role, user?.id, owner?.roomId === roomId && owner.userId === user?.id ? owner.ownerId : null)
+  const canSort = canReorderPlaylist(user?.role, user?.id, ownerId)
   const [removingId, setRemovingId] = useState<number | null>(null)
   const [switchingId, setSwitchingId] = useState<number | null>(null)
   const [qualityLoadingId, setQualityLoadingId] = useState<number | null>(null)
@@ -127,15 +126,6 @@ export function MovieListPanel({
   // 弹窗显示完整影片列表
   const [showListModal, setShowListModal] = useState(false)
 
-  useEffect(() => {
-    if (!roomId || user?.role !== 'admin') return
-    let cancelled = false
-    void apiFetch('/api/admin/rooms').then(async response => {
-      const data = await response.json() as { success?: boolean; rooms?: { roomId: string; ownerUserId: number | null }[] }
-      if (!cancelled && response.ok && data.success) setOwner({ roomId, userId: user.id, ownerId: data.rooms?.find(room => room.roomId === roomId)?.ownerUserId ?? null })
-    }).catch(() => { if (!cancelled) setOwner(null) })
-    return () => { cancelled = true }
-  }, [showListModal, roomId, user?.id, user?.role])
   useEffect(() => { setOrderOpen(false); setSearch(''); setClearConfirming(false); ++operationSeq.current; return () => { ++operationSeq.current; clearTimeout(confirmTimer.current) } }, [roomId])
 
   const moveMovie = async (movieId: number, direction: -1 | 1) => {
@@ -148,7 +138,7 @@ export function MovieListPanel({
     try { await state.reorderMovies(roomId, ids) }
     catch (error) {
       if (useRoomStore.getState().roomId === roomId) {
-        message.error(error instanceof Error ? error.message + '；排序仅允许 root 或创建房间的管理员' : '排序失败，请重试')
+        message.error(error instanceof Error ? error.message : '排序失败，请重试')
         try { await state.fetchMovies(roomId) } catch { /* keep the last server broadcast; no optimistic order */ }
       }
     } finally { sortingRef.current = false; setSorting(false) }
@@ -228,8 +218,8 @@ export function MovieListPanel({
   }
 
   const handleRemove = async (movieId: number) => {
-    if (!isHost && !canManage) {
-      message.info('只有房主或房管可以删除影片')
+    if (!canSort) {
+      message.info('仅 root 或房间所有者可以删除影片')
       return
     }
     if (!roomId) {
@@ -262,7 +252,7 @@ export function MovieListPanel({
     )
       return
     if (!canSort) {
-      message.info('仅 root 或创建房间的管理员可以清空全部影片')
+      message.info('仅 root 或房间所有者可以清空全部影片')
       return
     }
     if (!roomId) {
@@ -633,8 +623,8 @@ export function MovieListPanel({
 
       {expanded && <div className="flex flex-wrap items-center gap-2 px-2.5">
         <AutoContinueToggle isHost={isHost} />
-        {!isScreenShare && <Button size="sm" variant={orderOpen ? 'primary' : 'secondary'} disabled={!canSort || !!search.trim() || sorting} title="仅 root 或创建房间的管理员可排序；搜索时不可排序" onClick={() => setOrderOpen(value => !value)}>{orderOpen ? '完成排序' : '调整顺序'}</Button>}
-        {!canSort && !isScreenShare && <Text type="secondary" className="text-xs">排序仅限 root 或房间创建管理员</Text>}
+        {!isScreenShare && <Button size="sm" variant={orderOpen ? 'primary' : 'secondary'} disabled={!canSort || !!search.trim() || sorting} title="仅 root 或房间所有者可排序；搜索时不可排序" onClick={() => setOrderOpen(value => !value)}>{orderOpen ? '完成排序' : '调整顺序'}</Button>}
+        {!canSort && !isScreenShare && <Text type="secondary" className="text-xs">排序仅限 root 或房间所有者</Text>}
       </div>}
       {expanded && <Input
         size="sm"
@@ -819,7 +809,7 @@ export function MovieListPanel({
                       }
                     />
                   )}
-                  {(isHost || canManage) && (
+                  {canSort && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -827,11 +817,11 @@ export function MovieListPanel({
                       icon={<Trash2 className="h-3.5 w-3.5" />}
                       onClick={() => handleRemove(movie.id)}
                       loading={removingId === movie.id}
-                      disabled={(!isHost && !canManage) || isScreenShare}
+                      disabled={!canSort || isScreenShare}
                       title={
                         isScreenShare
                           ? '远程共享模式下不可删除'
-                          : isHost || canManage
+                          : canSort
                             ? '删除'
                             : '没有影片删除权限'
                       }

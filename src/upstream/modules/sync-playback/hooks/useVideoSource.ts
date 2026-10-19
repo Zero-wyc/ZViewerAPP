@@ -365,7 +365,9 @@ export function useVideoSource({
     const server = getApiUrl()
     const routed = resolveProxyUrl(state.sourceUrl, state.headers, state.format, { noProxyFallback: state.noProxyFallback })
     if (!isServerApiUrl(logicalConnectionUrl(routed), logicalConnectionUrl(server))) return false
-    if (!/\b(401|403)\b/.test(error.message) && !isAccessTokenExpired()) return false
+    // A room/media 403 is a business denial, even when a local JWT hint is old.
+    if (/\b403\b/.test(error.message)) return false
+    if (!/\b401\b/.test(error.message) && !isAccessTokenExpired()) return false
     if (authRecoveryRunning.current) return authRecoveryRunning.current
     const key = server + '|' + store.roomSessionRevision + '|' + store.currentMovieId + '|' + state.sourceUrl
     if (authRecoveryAttempt.current === key) return false
@@ -376,7 +378,7 @@ export function useVideoSource({
     const task = (async () => {
       const refreshed = await refreshAccessToken()
       if (!current()) return true
-      if (!refreshed) throw new Error('登录已失效，请重新登录')
+      if (!refreshed) throw new Error('登录验证失败，请检查网络或重新登录')
       const source = toPlayerSource({ ...state, isPlaying: snapshot.playing }, snapshot.time)
       await forceReload(video, source)
       if (!current()) return true

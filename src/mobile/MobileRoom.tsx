@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ArrowLeft, Cast, Check, Film, Headphones, MessageCircle, MonitorPlay, Music2, Palette, Plus, RefreshCw, UsersRound, WifiOff, X } from 'lucide-react'
-import { useSocket } from '@/hooks/useSocket'
+import { useSocket, reconnectSocket } from '@/hooks/useSocket'
 import { useRoomStore } from '@/store/roomStore'
 import { useAuthStore } from '@/store/authStore'
 import { canRoomViewerPerform, useSystemSettingsStore } from '@/store/systemSettingsStore'
@@ -36,7 +36,7 @@ import { useScreenShareCapabilities } from './useScreenShareCapabilities'
 type Tab = 'chat' | 'movies'
 
 export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeave: () => void }) {
-  const { socket, connected } = useSocket()
+  const { socket, connected, recoveryError } = useSocket()
   const screenShareCapability = useScreenShareCapabilities()
   const location = useLocation()
   useViewerList()
@@ -94,7 +94,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
   useEffect(() => { setTab('chat'); setFullscreen(false); setAddOpen(false) }, [mode])
   useEffect(() => {
     if (room.phase === 'ready') setVoiceAvailable(true)
-    else if (room.phase === 'closed' || room.phase === 'error' || room.phase === 'password') {
+    else {
       setVoiceAvailable(false)
       setVoiceOpen(false)
       setVoiceJoined(false)
@@ -169,7 +169,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
         {ready && <button className={`icon-button mobile-voice-trigger ${voiceJoined ? 'is-connected' : ''}`} title={voiceJoined ? '语音已连接' : '语音聊天'} aria-label="语音聊天" aria-expanded={voiceOpen} onClick={() => setVoiceOpen(value => !value)}><Headphones size={20} /></button>}
         <button className="icon-button" title="房间设置" aria-label="房间设置" onClick={() => setSettingsOpen(true)}><UsersRound size={20} /></button>
       </header>
-      {!connected && <div className="mobile-status" role="status"><WifiOff size={15} />连接已断开，正在重连</div>}
+      {!connected && <div className="mobile-status" role="status"><WifiOff size={15} />{recoveryError || '连接已断开，正在重连'}{recoveryError && <button onClick={reconnectSocket}>重试连接</button>}</div>}
       {!ready ? (
         <section className="mobile-join">
           {(room.phase === 'joining' || room.phase === 'connecting' || room.phase === 'waiting') ? <RefreshCw className="spin" size={28} /> : <MonitorPlay size={36} />}

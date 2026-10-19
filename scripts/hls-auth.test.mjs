@@ -29,6 +29,7 @@ function harness(origin, server, tunnel, LoaderBase) {
     '@/lib/api': api, '../../../../mobile/serverUrl': urls,
   }, globals)
   const helpers = loadTs('src/upstream/modules/player/services/hls-proxy.ts', {}, globals)
+  const library = loadTs('src/upstream/modules/player/services/library-hls-proxy.ts', {}, globals)
   const requests = []
   class BaseLoader {
     stats = { loading: { start: 0 } }
@@ -48,7 +49,8 @@ function harness(origin, server, tunnel, LoaderBase) {
   const exports = {}
   runInNewContext(stripTypeScriptTypes(code.slice(code.indexOf('function createProxyLoader('),
     code.indexOf('/** 等待 hls.js'))) + ';exports.loader=createProxyLoader;', {
-    ...globals, ...transport, ...proxy, ...helpers, ...api,
+    ...globals, ...transport, ...proxy, ...helpers, ...library, ...api,
+    TextDecoder, notifyRoomAccessDenied: (url, message) => { requests.push({ denied: {url, message} }) },
     Hls: { DefaultConfig: { loader: LoaderBase ?? BaseLoader } }, exports,
   })
   return { auth, proxy, transport, loader: exports.loader, requests, get request() { return requests.at(-1) } }
@@ -85,6 +87,67 @@ test('HLS keeps authentication and playlist bases on both mobile origins and cer
         }
       }
     }
+  }
+})
+
+test('v4.6.4 library playlists, keys, maps and fragments keep the logical server prefix and current member token', () => {
+  for (const origin of ['https://localhost', 'https://zviewer.local']) {
+    for (const prefix of ['', '/base']) for (const tunnel of [false, true]) for (const api of ['emby', 'jellyfin']) for (const route of ['stream', 'proxy']) {
+      const server = 'https://server.example' + prefix
+      const h = harness(origin, server, tunnel)
+      const identity = route === 'stream' ? 'movieId=7' : 'mountId=2&path=item'
+      const source = `${server}/api/${api}/${route}?${identity}&ms=version-2&at=10`
+      const resource = name => `/api/${api}/${route}?${identity}&resource=${encodeURIComponent('/Videos/item/' + name)}`
+      const manifest = '#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="'+resource('key')+'"\n#EXT-X-MAP:URI="'+resource('init.mp4')+'"\n'+resource('child.m3u8')+'\n'+resource('0.ts')+'\n'
+      const Loader = h.loader(source)
+      let response
+      new Loader().load({url: h.transport.connectionUrl(source)}, {}, {onSuccess: r => {response = r}})
+      h.request.callbacks.onSuccess({url: h.request.context.url, data: manifest}, {}, h.request.context, {})
+      assert.equal(response.url, source)
+      const children = [...response.data.matchAll(/URI="([^"]+)"|^(https?:[^\n]+)/gm)].map(m => m[1] || m[2])
+      assert.equal(children.length, 4)
+      for (const child of children) {
+        const parsed = new URL(child)
+        assert.equal(parsed.origin, 'https://server.example')
+        assert.equal(parsed.pathname, `${prefix}/api/${api}/${route}`)
+        assert.equal(parsed.searchParams.get('ms'), 'version-2')
+        assert.equal(parsed.searchParams.get('at'), '10')
+        h.auth.saveAuthTokens('rotated-member')
+        new Loader().load({url: child}, {}, {onSuccess() {}})
+        const request = new URL(h.transport.logicalConnectionUrl(h.request.context.url))
+        assert.equal(request.searchParams.get('token'), 'rotated-member')
+        assert.equal(request.searchParams.has('url'), false, 'no generic proxy')
+        assert.equal(request.searchParams.has('api_key'), false)
+      }
+    }
+  }
+})
+
+test('unrewritten or cross-movie library HLS fails without querying or proxying the upstream library', () => {
+  const h = harness('https://zviewer.local', 'https://server.example/base', false)
+  const source = 'https://server.example/base/api/jellyfin/stream?movieId=7'
+  for (const child of ['0.ts', 'https://library.example/Videos/item/key?api_key=private', '/api/jellyfin/stream?movieId=8&resource=segment']) {
+    let success = false, error
+    new (h.loader(source))().load({url: source}, {}, {onSuccess() {success = true}, onError(e) {error = e}})
+    h.request.callbacks.onSuccess({data: '#EXTM3U\n'+child}, {}, h.request.context, {})
+    assert.equal(success, false)
+    assert.ok(error)
+  }
+  assert.equal(h.requests.length, 3)
+})
+
+test('authenticated HLS admission 403 signals rejoin; unrelated or cancelled errors do not', () => {
+  for (const cancelled of [false, true]) {
+    const h = harness('https://zviewer.local', 'https://server.example/base', false)
+    const source = 'https://server.example/base/api/jellyfin/stream?movieId=7'
+    const loader = new (h.loader(source))()
+    let errors = 0
+    loader.load({url: source}, {}, {onError() {errors++}})
+    const request = h.request
+    if (cancelled) loader.abort()
+    request.callbacks.onError({code:403}, request.context, {response: new TextEncoder().encode(JSON.stringify({message:'请先通过房间准入验证'})).buffer})
+    assert.equal(errors, 1)
+    assert.equal(h.requests.filter(r=>r.denied).length, cancelled ? 0 : 1)
   }
 })
 
@@ -174,7 +237,7 @@ test('plain HLS preserves direct redirects, then falls back once and authenticat
 test('noProxyFallback keeps HLS resources direct and cancellation does not start a proxy request', () => {
   const h = harness('https://zviewer.local', 'https://server.example', false)
   const source = 'https://cdn.example/index.m3u8'
-  const Loader = h.loader(source, undefined, null, { noProxyFallback: true })
+  const Loader = h.loader(source, undefined, { noProxyFallback: true })
   for (const resource of [source, 'https://other.example/enc.key', 'http://segments.example/a.ts']) {
     let errors = 0, aborted = 0
     const loader = new Loader()

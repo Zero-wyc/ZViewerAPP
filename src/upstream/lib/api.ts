@@ -233,6 +233,14 @@ type RequestOptions = Omit<RequestInit, 'headers'> & {
   refreshAuth?: 'default' | 'unauthorized' | 'never'
 }
 
+/** Media loaders use the same business-denial signal as REST, scoped to this server. */
+export function notifyRoomAccessDenied(raw: string, message: string): void {
+  if (message !== '请先通过房间准入验证') return
+  const server = getApiUrl(), base = new URL(server), url = new URL(connectionUrl(raw), server)
+  if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname.replace(/\/$/, '') + '/api/')) return
+  window.dispatchEvent(new CustomEvent('zviewer:room-access-denied', { detail: { server, url: url.href } }))
+}
+
 /**
  * 并发安全的 refresh token。
  * 多个请求同时遇到 401 时，只发起一次 /api/auth/refresh，其他请求复用结果。
@@ -246,9 +254,17 @@ type RequestOptions = Omit<RequestInit, 'headers'> & {
  */
 let inflightRefresh: Promise<boolean> | null = null
 let sessionExpired = false
+let authGeneration = 0
+
+/** Logout/server changes also invalidate late refresh responses from the same URL. */
+export function cancelAuthRefresh(): void {
+  authGeneration++
+  inflightRefresh = null
+}
 
 /** 重置 session 过期状态（登录成功后调用） */
 export function resetSessionExpired(): void {
+  cancelAuthRefresh()
   sessionExpired = false
 }
 
@@ -261,7 +277,8 @@ export async function refreshAccessToken(): Promise<boolean> {
   if (sessionExpired) return false
   if (inflightRefresh) return inflightRefresh
 
-  inflightRefresh = (async () => {
+  const generation = authGeneration
+  const task = (async () => {
     try {
       const refreshToken = getRefreshToken()
       const server = getApiUrl()
@@ -284,7 +301,7 @@ export async function refreshAccessToken(): Promise<boolean> {
         }
         if (data.success) {
           // 保存返回的 access token（跨站 HTTP fallback 用）
-          if (getApiUrl() !== server) return false
+          if (getApiUrl() !== server || generation !== authGeneration) return false
           if (data.accessToken) saveAuthTokens(data.accessToken, data.refreshToken)
           return true
         }
@@ -292,17 +309,18 @@ export async function refreshAccessToken(): Promise<boolean> {
 
       // refresh 接口明确拒绝（401/403）→ refresh token 也过期
       // 标记 session 已过期，阻止后续请求反复尝试 refresh
-      if (getApiUrl() === server && (res.status === 401 || res.status === 403)) sessionExpired = true
+      if (generation === authGeneration && getApiUrl() === server && (res.status === 401 || res.status === 403)) sessionExpired = true
       return false
     } catch {
       // 网络错误（服务器重启中）→ 不登出，让上层重试
       return false
     } finally {
-      inflightRefresh = null
+      if (generation === authGeneration) inflightRefresh = null
     }
   })()
 
-  return inflightRefresh
+  inflightRefresh = task
+  return task
 }
 
 /**
@@ -313,7 +331,8 @@ export async function apiFetch(
   input: string | URL,
   options: RequestOptions = {}
 ): Promise<Response> {
-  const { _retried, headers, refreshAuth = 'default', ...rest } = options
+  const { _retried, headers, refreshAuth = 'unauthorized', ...rest } = options
+  const generation = authGeneration
 
   // 拼接完整 URL（如果 input 是相对路径如 /api/xxx）
   // 每次实时从 localStorage 读取，确保自定义后端地址立即生效
@@ -334,16 +353,20 @@ export async function apiFetch(
     },
   })
 
-  // 401/403：access token 过期或无效 → 尝试 refresh，成功后重试一次
-  if (refreshAuth !== 'never' && (res.status === 401 || (refreshAuth === 'default' && res.status === 403)) && !_retried) {
+  // 401 refreshes once; 403 is a business denial unless explicitly opted in.
+  if (generation === authGeneration && currentApiUrl === getApiUrl() && !rest.signal?.aborted && refreshAuth !== 'never' && (res.status === 401 || (refreshAuth === 'default' && res.status === 403)) && !_retried) {
     const ok = await refreshAccessToken()
-    if (ok) {
+    if (ok && generation === authGeneration && currentApiUrl === getApiUrl() && !rest.signal?.aborted) {
       // 重试原请求，标记 _retried 避免再次进入 refresh 分支
       return apiFetch(input, { ...options, _retried: true })
     }
     // refresh 失败 → 直接返回原 401/403 响应，让业务层处理
   }
 
+  if (res.status === 403 && generation === authGeneration && currentApiUrl === getApiUrl() && !rest.signal?.aborted) {
+    const data = await res.clone().json().catch(() => null)
+    notifyRoomAccessDenied(url, data?.message)
+  }
   return res
 }
 
