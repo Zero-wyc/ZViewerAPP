@@ -4,6 +4,7 @@ import { microphoneCapture } from './microphoneCapture'
 import type { MicrophoneLease } from './microphoneCapture'
 import { screenShareVideoConstraints, screenShareVideoOptions } from './screenShareQuality'
 import { createScreenShareFrameMeter } from './screenShareFrameMeter'
+import { createScreenShareResizer } from './screenShareResize'
 
 /** ArkWeb's native ScreenCaptureHandler supplies the actual display stream; no frame injection. */
 export function createHarmonyScreenShare(): ScreenShareNativePort {
@@ -24,6 +25,7 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
   let paused = false
   let targetFrameRate = 30
   let frameMeter: ReturnType<typeof createScreenShareFrameMeter>
+  let stopResize: (() => void) | undefined
   let audioQueue = Promise.resolve()
   const peers = new Map<string, { pc: RTCPeerConnection; ice: RTCIceCandidateInit[] }>()
   const emit = (event: ScreenShareEvent) => window.dispatchEvent(new CustomEvent('zviewer:screen-share', { detail: event }))
@@ -57,6 +59,7 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
     cancelStart?.(); cancelStart = undefined
     abort?.abort(); abort = undefined
     clearInterval(timer)
+    stopResize?.(); stopResize = undefined
     frameMeter?.stop(); frameMeter = undefined
     microphoneInput?.disconnect(); microphoneInput = undefined
     microphone?.release(); microphone = undefined
@@ -144,6 +147,30 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
         stream = value
         const video = value.getVideoTracks()[0]
         if (!video || video.readyState !== 'live') throw new Error('屏幕采集未启动')
+        const resizer = createScreenShareResizer({ track: video, quality,
+          current: () => id === sessionId && stream === value,
+          applied: () => emit({ sessionId: id, type: 'stats', settings: settings() }),
+          failed: () => console.warn('屏幕共享采集尺寸更新失败'),
+        })
+        let nativeDisplaySize = false
+        const nativeResize = (event: Event) => {
+          const detail = (event as CustomEvent<{ sessionId: string; width: number; height: number }>).detail
+          if (!detail || detail.sessionId !== id || !Number.isFinite(detail.width) || !Number.isFinite(detail.height) || detail.width <= 0 || detail.height <= 0) return
+          nativeDisplaySize = true
+          void resizer.update(detail.width, detail.height)
+        }
+        const windowResize = () => {
+          // Once native display observation is active it remains authoritative
+          // while another app is foreground; this WebView can keep its old size.
+          if (!nativeDisplaySize) void resizer.update(Math.round(screen.width * ratio), Math.round(screen.height * ratio))
+        }
+        window.addEventListener('zviewer:screen-capture-resize', nativeResize)
+        window.addEventListener('resize', windowResize)
+        stopResize = () => {
+          resizer.stop()
+          window.removeEventListener('zviewer:screen-capture-resize', nativeResize)
+          window.removeEventListener('resize', windowResize)
+        }
         frameMeter = createScreenShareFrameMeter(video)
         video.addEventListener('ended', () => {
           if (id !== sessionId) return

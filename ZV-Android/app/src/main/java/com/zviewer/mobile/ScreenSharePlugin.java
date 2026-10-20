@@ -10,6 +10,7 @@ import android.media.projection.MediaProjectionManager;
 import android.os.*;
 import android.graphics.Rect;
 import android.view.Surface;
+import android.view.Display;
 import android.view.WindowManager;
 import androidx.activity.result.ActivityResult;
 import androidx.core.content.ContextCompat;
@@ -34,6 +35,9 @@ public final class ScreenSharePlugin extends Plugin {
     private MediaProjection projection;
     private MediaProjection.Callback projectionCallback;
     private VirtualDisplay display;
+    private DisplayManager captureDisplays;
+    private DisplayManager.DisplayListener captureDisplayListener;
+    private Runnable displayResize;
     private Surface surface;
     private SurfaceTextureHelper textures;
     private EglBase egl;
@@ -185,13 +189,7 @@ public final class ScreenSharePlugin extends Plugin {
             projectionCallback = new MediaProjection.Callback() {
                 @Override public void onStop() { worker.post(() -> endFromSystem(id)); }
                 @Override public void onCapturedContentResize(int w, int h) {
-                    worker.post(() -> {
-                        if (!id.equals(session) || display == null) return;
-                        setSize(w, h);
-                        source.adaptOutputFormat(width, height, targetFrameRate);
-                        textures.setTextureSize(width, height);
-                        display.resize(width, height, getContext().getResources().getConfiguration().densityDpi);
-                    });
+                    worker.post(() -> resizeCapture(id, w, h));
                 }
             };
             projection.registerCallback(projectionCallback, main);
@@ -207,6 +205,30 @@ public final class ScreenSharePlugin extends Plugin {
             });
             display = projection.createVirtualDisplay("ZViewer screen sharing", width, height,
                 getContext().getResources().getConfiguration().densityDpi, DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, surface, null, worker);
+            // onCapturedContentResize only exists from API 34. Older systems
+            // capture the full display and need an explicit display observer,
+            // including while another app owns the foreground window.
+            if (Build.VERSION.SDK_INT < 34) {
+                // An Activity's Display is adjusted by that Activity's window
+                // configuration, which can remain portrait while it is in the
+                // background. Observe the application display configuration.
+                captureDisplays = (DisplayManager) getContext().getApplicationContext().getSystemService(Context.DISPLAY_SERVICE);
+                captureDisplayListener = new DisplayManager.DisplayListener() {
+                    public void onDisplayAdded(int displayId) {}
+                    public void onDisplayRemoved(int displayId) {}
+                    public void onDisplayChanged(int displayId) {
+                        if (displayId != Display.DEFAULT_DISPLAY || !id.equals(session)) return;
+                        // DisplayInfo can still contain the previous geometry
+                        // while the window's rotation transaction is committing.
+                        if (displayResize != null) worker.removeCallbacks(displayResize);
+                        displayResize = () -> resizeFromDisplay(id);
+                        worker.postDelayed(displayResize, 150);
+                    }
+                };
+                captureDisplays.registerDisplayListener(captureDisplayListener, worker);
+                // Also cover a rotation that raced the permission dialog/start.
+                resizeFromDisplay(id);
+            }
             PluginCall call = starting; starting = null;
             if (call != null) call.resolve(settings());
             sample(id);
@@ -216,6 +238,31 @@ public final class ScreenSharePlugin extends Plugin {
         if (w <= 0 || h <= 0) return;
         double scale = maxLongSide == 0 ? 1.0 : Math.min(1.0, Math.min((double) maxLongSide / Math.max(w, h), (double) maxShortSide / Math.min(w, h)));
         width = Math.max(2, (int)(w * scale) / 2 * 2); height = Math.max(2, (int)(h * scale) / 2 * 2);
+    }
+    @SuppressWarnings("deprecation")
+    private void resizeFromDisplay(String id) {
+        if (captureDisplays == null || !id.equals(session)) return;
+        Display deviceDisplay = captureDisplays.getDisplay(Display.DEFAULT_DISPLAY);
+        if (deviceDisplay == null) return;
+        android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
+        deviceDisplay.getRealMetrics(metrics);
+        resizeCapture(id, metrics.widthPixels, metrics.heightPixels);
+    }
+    private void resizeCapture(String id, int w, int h) {
+        if (!id.equals(session) || display == null || textures == null || source == null || w <= 0 || h <= 0) return;
+        int oldWidth = width, oldHeight = height;
+        setSize(w, h);
+        if (oldWidth == width && oldHeight == height) return;
+        try {
+            // Reuse the same projection, Surface and video track. Detaching the
+            // surface while resizing prevents a frame using mismatched bounds.
+            display.setSurface(null);
+            textures.setTextureSize(width, height);
+            source.adaptOutputFormat(width, height, targetFrameRate);
+            display.resize(width, height, getContext().getResources().getConfiguration().densityDpi);
+            display.setSurface(surface);
+            emitSettings();
+        } catch (RuntimeException ignored) { endFromSystem(id); }
     }
     private JSObject settings() {
         JSObject value = new JSObject(); value.put("width", width); value.put("height", height); value.put("frameRate", measuredFps);
@@ -231,6 +278,9 @@ public final class ScreenSharePlugin extends Plugin {
     private void sample(String id) {
         worker.postDelayed(() -> {
             if (!id.equals(session) || video == null) return;
+            // Recheck after display/configuration transactions have settled;
+            // rotation events can coalesce while capture runs in background.
+            if (Build.VERSION.SDK_INT < 34) resizeFromDisplay(id);
             long now = System.nanoTime(), current = frames;
             measuredFps = Math.round((current - lastFrames) * 1e10 / (now - lastSample)) / 10.0;
             lastSample = now; lastFrames = current;
@@ -408,6 +458,10 @@ public final class ScreenSharePlugin extends Plugin {
     private void cleanup() {
         PluginCall call = starting; starting = null;
         if (call != null) call.reject("共享已取消", "cancelled");
+        if (displayResize != null) worker.removeCallbacks(displayResize);
+        displayResize = null;
+        if (captureDisplays != null && captureDisplayListener != null) release(() -> captureDisplays.unregisterDisplayListener(captureDisplayListener));
+        captureDisplayListener = null; captureDisplays = null;
         if (textures != null) release(() -> textures.stopListening());
         if (video != null) release(() -> video.setEnabled(false));
         if (audioCapture != null) { release(() -> audioCapture.close()); audioCapture = null; }

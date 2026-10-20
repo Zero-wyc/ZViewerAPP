@@ -10,15 +10,16 @@ function deferred() { let resolve; const promise = new Promise(r => { resolve = 
 function setup(debug = true, backgroundTasks) {
   let dialog, now = 1000
   const delivered = [], tasks = []
+  const displayListeners = new Map(), screen = { width: 1080, height: 2400, orientation: 0 }
   const backgroundMediaTasks = backgroundTasks ?? { set: async (_context, owner, mode) => { tasks.push(['set', owner, mode]) }, release: async owner => { tasks.push(['release', owner]) } }
   const controller = { activations: 0, onActive() { this.activations++ }, runJavaScript: async value => { delivered.push(value) } }
   const { screenShareCapturePolicy: policy } = loadTs('ZV-HarmonyOS/entry/src/main/ets/services/ScreenShareCapturePolicy.ets', {
-    '@kit.ArkWeb': {}, '@kit.AbilityKit': {}, BuildProfile: { DEBUG: debug }, './BackgroundMediaTasks': { backgroundMediaTasks },
+    '@kit.ArkWeb': {}, '@kit.AbilityKit': {}, '@kit.ArkUI': { display: { Orientation: {LANDSCAPE:1,LANDSCAPE_INVERTED:3}, getDefaultDisplaySync: () => screen, on: (event, listener) => displayListeners.set(event, listener), off: event => displayListeners.delete(event) } }, BuildProfile: { DEBUG: debug }, './BackgroundMediaTasks': { backgroundMediaTasks },
   }, { Date: { now: () => now }, AlertDialog: { show: value => { dialog = value } }, WebCaptureMode: { HOME_SCREEN: 0 } })
   const handler = (origin = 'https://zviewer.local') => ({ grants: 0, denials: 0, getOrigin: () => origin,
     grant() { this.grants++ }, deny() { this.denials++ } })
   const consent = id => { policy.arm(id, controller); const value = handler(); policy.request(value); dialog.secondaryButton.action(); return value }
-  return { policy, controller, handler, delivered, tasks, backgroundMediaTasks, consent, dialog: () => dialog, time: value => { now = value } }
+  return { policy, controller, handler, delivered, tasks, backgroundMediaTasks, consent, displayListeners, screen, dialog: () => dialog, time: value => { now = value } }
 }
 
 test('Harmony Release requires explicit consent and foreign origins never receive capture authorization', () => {
@@ -33,6 +34,18 @@ test('Harmony Release requires explicit consent and foreign origins never receiv
   for (const origin of ['https://zviewer.local.evil', 'http://zviewer.local', 'https://foreign.example']) {
     const h = t.handler(origin); t.policy.request(h); assert.equal(h.denials, 1); assert.equal(h.grants, 0)
   }
+})
+
+test('native display observation publishes physical size for the active session and detaches on stop', async () => {
+  const t=setup();t.consent('rotate');await t.policy.started('rotate',{})
+  assert.equal(t.displayListeners.size,1)
+  const detail=code=>{const events=[];runInNewContext(code,{CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail}},window:{dispatchEvent:event=>events.push(event)}});return events[0].detail}
+  assert.equal(detail(t.delivered.at(-1)).width,1080)
+  // Some display providers retain natural width/height; orientation is authoritative.
+  t.screen.orientation=1;t.displayListeners.get('change')(0)
+  const event=detail(t.delivered.at(-1));assert.equal(event.sessionId,'rotate');assert.equal(event.width,2400);assert.equal(event.height,1080)
+  const late=t.displayListeners.get('change');await t.policy.cancel('rotate');assert.equal(t.displayListeners.size,0)
+  const count=t.delivered.length;late(0);assert.equal(t.delivered.length,count)
 })
 
 test('Harmony requires an armed session and explicit consent; old dialog actions cannot grant a new session', () => {
@@ -63,7 +76,7 @@ test('a granted live capture stays active in background, while cancellation rele
   await t.policy.started('capture', {})
   assert.equal(t.controller.activations, 1)
   t.policy.background(); t.policy.background()
-  assert.equal(t.controller.activations, 3); assert.equal(t.delivered.length, 0)
+  assert.equal(t.controller.activations, 3); assert.equal(t.delivered.filter(code => code.includes('zviewer:screen-capture-stop')).length, 0)
   assert.deepEqual(t.tasks, [['set', 'capture:capture', 'audioRecording']])
   await t.policy.cancel('stale-session'); assert.deepEqual(t.tasks.at(-1), ['release', 'capture:stale-session'])
   assert.equal(t.tasks.some(([kind, owner]) => kind === 'release' && owner === 'capture:capture'), false)

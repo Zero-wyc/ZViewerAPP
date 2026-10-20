@@ -4,11 +4,19 @@
 
 ## 当前状态与范围
 
-- HarmonyOS 当前本地版本为 **2.1.2 / versionCode 212**，对齐服务端 v4.6.4 后 main 快照 `cbdd6cc6`；本轮未发布 Release。2.1.1 为此前发行版本。版本以根 package.json 与对应原生工程为准。
+- HarmonyOS 当前本地版本为 **2.1.3 / versionCode 213**，对齐服务端 v4.6.4 后 main 快照 `cbdd6cc6`；本轮未发布 Release。2.1.1 为此前发行版本。版本以根 package.json 与对应原生工程为准。
 - 客户端源码和 Git 操作均在 `E:/Codex-bulid/ZViewer/ZViewer-client`；共享 React/Vite 前端与 Android 相同，原生部分使用 HarmonyOS ArkTS 与 ArkWeb。
 - B站 Cookie、服务端凭据和本机代理状态只保存在原生侧。不能进入 React 状态持久化、网页日志、Socket 房间广播或公开源码。
 
 ## 代码入口
+
+### 2.1.3 / 213：投屏期间动态切换横竖屏（2026-10-20，本地交付）
+
+修复“观众画面一直保持开始投屏时方向”。Android 的 `ScreenSharePlugin.java` 为 API 33 及以下增加应用级 DisplayManager 监听，使用物理显示尺寸而非后台 Activity 的旧窗口配置；150ms 合并旋转事件，并在既有 2 秒采样周期复核，处理显示事务滞后。API 34+ 保留 MediaProjection 的实际采集区域回调，支持全屏与单应用共享各自尺寸。统一 resizeCapture 更新原 VirtualDisplay、SurfaceTexture、WebRTC 输出适配，再绑定原 Surface；停止时注销监听、移除排队任务，旧 session 不得复活。
+
+HarmonyOS 的 `ScreenShareCapturePolicy.ets` 在实际开始的授权会话中监听原生 display.change，用物理宽高和 Orientation 发送带 sessionId 的 `zviewer:screen-capture-resize`，后台不依赖 WebView 窗口 resize。`harmonyScreenShare.ts → screenShareResize.ts` 对原视频轨道重新 applyConstraints，宽高上限随方向交换，保留原画质与帧率；队列只执行最新方向，停止后取消迟到更新。保留同一采集授权、轨道、音频、PeerConnection，不通过停止重开或重新进房实现旋转。
+
+观众 `WebrtcWatchPage.tsx` 已有 video.resize/loadedmetadata 与实际尺寸采样，本轮不改房间信令或强制观众旋转。184 项适配、4 项媒体测试通过；覆盖暂停时旋转、原连接保持、排队合并、旧 session 和监听释放。Android API 33 已实际复现旧包固定 576×1280；修复后同一会话在其他应用前台时，实际物理屏幕与观众视频均正确往返横竖屏。其余运行时、真机边界和构建证据以 [2.1.3 验证记录](client-2.1.3-validation.md) 为准；鸿蒙 API 23 真机采集需独立复测，不能以模拟器或轨道夹具代替。
 
 ### 2.1.2 / 212：服务端 v4.6.4 对齐（2026-10-20，本地交付）
 

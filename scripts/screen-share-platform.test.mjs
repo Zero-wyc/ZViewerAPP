@@ -2,11 +2,14 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { loadTs } from './test-ts-module.mjs'
 const quality = loadTs('src/platform/screenShareQuality.ts')
+const resize = loadTs('src/platform/screenShareResize.ts', { './screenShareQuality': quality })
 const frameMeter = loadTs('src/platform/screenShareFrameMeter.ts')
 
 const flush = async () => { for (let n = 0; n < 8; n++) await Promise.resolve() }
 function deferred() { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b }); return { promise, resolve, reject } }
 class Track extends EventTarget {
+  constraints = []
+  async applyConstraints(value) { this.constraints.push(value) }
   constructor(kind, level = 0) { super(); Object.assign(this, { kind, level, readyState: 'live', enabled: true, stops: 0 }) }
   getSettings() { return this.kind === 'video' ? { width: 576, height: 1280, frameRate: 30 } : { sampleRate: 48000, channelCount: 1 } }
   sample() { return this.readyState === 'live' && this.enabled ? typeof this.level === 'function' ? this.level() : this.level : 0 }
@@ -46,7 +49,7 @@ function harness() {
     async addIceCandidate(value) { this.candidates.push(value) }
   }
   const peers = []
-  const { createHarmonyScreenShare } = loadTs('src/platform/harmonyScreenShare.ts', { './runtime': { getHarmonyBridge: () => bridge }, './microphoneCapture': { microphoneCapture }, './screenShareQuality': quality, './screenShareFrameMeter': frameMeter }, {
+  const { createHarmonyScreenShare } = loadTs('src/platform/harmonyScreenShare.ts', { './runtime': { getHarmonyBridge: () => bridge }, './microphoneCapture': { microphoneCapture }, './screenShareQuality': quality, './screenShareFrameMeter': frameMeter, './screenShareResize': resize }, {
     window, CustomEvent, MediaStream: Stream, navigator: { mediaDevices: { getDisplayMedia: options => { displayOptions.push(options); return captures[captureIndex++].promise } } },
     AudioContext: class {
       closed = 0; resumed = 0; gains = []; sources = []
@@ -77,6 +80,35 @@ test('Harmony capture requires native host support; configured FPS is never pres
   const settings = await start
   assert.equal(settings.width, 576); assert.equal(settings.frameRate, 0); assert.equal(settings.audio, false)
   await t.api.stop({ sessionId: 'capture' }); assert.equal(t.track.stops, 1)
+})
+
+test('Harmony updates the same capture track on native screen rotation, including background and pause', async () => {
+  const t = harness(), start = t.api.start({ sessionId: 'rotation', iceServers: [], resolution: '720p', frameRate: 30 })
+  t.capture.resolve(t.stream); await start
+  await t.api.createOffer({sessionId:'rotation',peerId:'viewer'})
+  const pc=t.peers[0]
+  const rotate=(id,width,height)=>t.window.dispatchEvent(new CustomEvent('zviewer:screen-capture-resize',{detail:{sessionId:id,width,height}}))
+  rotate('old-session',2400,1080);await flush();assert.equal(t.track.constraints.length,0)
+  rotate('rotation',1080,2400);await flush();assert.equal(t.track.constraints.at(-1).width.max,720)
+  rotate('rotation',2400,1080);await flush();assert.equal(t.track.constraints.at(-1).width.max,1280);assert.equal(t.track.constraints.at(-1).height.max,720)
+  await t.api.pause({sessionId:'rotation'})
+  rotate('rotation',1080,2400);await flush();assert.equal(t.track.constraints.at(-1).width.max,720)
+  assert.equal(t.track.enabled,false);assert.equal(t.track.stops,0);assert.equal(pc.closed,false)
+  await t.api.resume({sessionId:'rotation'});assert.equal(t.track.enabled,true)
+  assert.equal(t.calls.filter(([name])=>name==='arm').length,1,'no repeated authorization')
+  await t.api.stop({sessionId:'rotation'})
+  const count=t.track.constraints.length;rotate('rotation',2400,1080);await flush();assert.equal(t.track.constraints.length,count)
+})
+
+test('screen resize requests serialize and discard queued old orientations and stopped captures', async () => {
+  const first=deferred(),calls=[],applied=[]
+  const track={readyState:'live',applyConstraints:async value=>{calls.push(value);if(calls.length===1)await first.promise}}
+  const r=resize.createScreenShareResizer({track,quality:{resolution:'1080p',frameRate:60},current:()=>true,applied:()=>applied.push(true),failed:()=>assert.fail('Unexpected resize failure')})
+  const a=r.update(1080,2400);await flush();r.update(2400,1080);const c=r.update(1200,2600);first.resolve();await c
+  assert.equal(calls.length,2);assert.equal(calls[1].width.max,1080);assert.equal(applied.length,1)
+  const count=calls.length;await r.update(NaN,0);assert.equal(calls.length,count)
+  const next=r.update(2600,1200);r.stop();await next;assert.equal(calls.length,count)
+  await a
 })
 
 test('quality reaches native capture, while the documented Harmony system ceiling bounds 90 FPS requests', async () => {

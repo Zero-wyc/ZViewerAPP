@@ -1,6 +1,7 @@
 import { webview } from '@kit.ArkWeb';
 import { common } from '@kit.AbilityKit';
 import { backgroundMediaTasks } from './BackgroundMediaTasks';
+import { display } from '@kit.ArkUI';
 
 /** ArkWeb controls the native capture stream. This policy gates explicit user consent. */
 class ScreenShareCapturePolicy {
@@ -9,6 +10,20 @@ class ScreenShareCapturePolicy {
   private pending: ScreenCaptureHandler | null = null;
   private controller: webview.WebviewController | null = null;
   private active: boolean = false;
+  private watchingDisplay: boolean = false;
+  private displayChanged = (_displayId: number): void => { this.publishDisplaySize(); };
+
+  private publishDisplaySize(): void {
+    if (!this.active || !this.sessionId || this.controller === null) return;
+    try {
+      const current = display.getDefaultDisplaySync();
+      if (current.width <= 0 || current.height <= 0) return;
+      const landscape = current.orientation === display.Orientation.LANDSCAPE || current.orientation === display.Orientation.LANDSCAPE_INVERTED;
+      const longSide = Math.max(current.width, current.height), shortSide = Math.min(current.width, current.height);
+      const detail = JSON.stringify({ sessionId: this.sessionId, width: landscape ? longSide : shortSide, height: landscape ? shortSide : longSide });
+      this.controller.runJavaScript(`window.dispatchEvent(new CustomEvent('zviewer:screen-capture-resize',{detail:${detail}}))`).catch(() => {});
+    } catch (_) { /* Display/window callbacks can race host destruction. */ }
+  }
 
   async started(sessionId: string, context: common.UIAbilityContext): Promise<void> {
     if (!sessionId || sessionId !== this.sessionId || this.pending !== null) throw new Error('cancelled');
@@ -19,6 +34,11 @@ class ScreenShareCapturePolicy {
     }
     this.active = true;
     this.controller?.onActive();
+    if (!this.watchingDisplay) {
+      display.on('change', this.displayChanged);
+      this.watchingDisplay = true;
+    }
+    this.publishDisplaySize();
   }
 
   background(): void {
@@ -62,6 +82,10 @@ class ScreenShareCapturePolicy {
     this.pending?.deny(); this.pending = null;
     this.sessionId = ''; this.armedUntil = 0;
     this.active = false;
+    if (this.watchingDisplay) {
+      this.watchingDisplay = false;
+      try { display.off('change', this.displayChanged); } catch (_) {}
+    }
     return backgroundMediaTasks.release(`capture:${sessionId}`);
   }
   end(): void {
