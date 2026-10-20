@@ -1,6 +1,6 @@
 # ZViewer-Client V2.1.4
 
-Android / HarmonyOS 2.1.4 / 214，本地交付，尚未发布 Release。真机证据和最终包安装边界见 [验证记录](../client-2.1.4-validation.md)。
+Android / HarmonyOS 2.1.4 / 214，本地交付，尚未发布 Release。最终 HAP 的鸿蒙投屏横竖屏修复已于 2026-10-20 获用户真机验收通过；真机证据和验收范围见 [验证记录](../client-2.1.4-validation.md)。
 
 ## 🚀 新特性 / Features
 

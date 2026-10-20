@@ -1,6 +1,6 @@
 # ZViewer Mobile Client
 
-**Android / HarmonyOS 本地 2.1.4 / 214**：修正鸿蒙 ArkWeb 固定采集画布导致横屏仍缩在竖屏中的问题；真机连续旋转已由电脑接收端核对实际尺寸与解码帧。保留 Android 2.1.3 的原生旋转修复和服务端 v4.6.4 对齐更新。验证范围与安装包边界见 [2.1.4 记录](docs/client-2.1.4-validation.md)，本轮尚未发布 Release；下列下载入口保留此前公开版本。
+**Android / HarmonyOS 本地 2.1.4 / 214**：修正鸿蒙 ArkWeb 固定采集画布导致横屏仍缩在竖屏中的问题；真机连续旋转已由电脑接收端核对实际尺寸与解码帧，最终 HAP 的鸿蒙投屏横竖屏修复已获用户真机验收通过。保留 Android 2.1.3 的原生旋转修复和服务端 v4.6.4 对齐更新。验证范围见 [2.1.4 记录](docs/client-2.1.4-validation.md)，本轮尚未发布 Release；下列下载入口保留此前公开版本。
 
 **iOS 1.9.0 / build 26**：播放器、弹幕设置、房间语音、投屏、房间设置、方向控制和音乐菜单完成独立更新；设备 Release IPA 未签名，需自行签名后侧载。维护入口见 [iOS 维护文档](docs/ios-maintenance-architecture.md)，发布包见 [iOS 1.9.0 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0)。
 
