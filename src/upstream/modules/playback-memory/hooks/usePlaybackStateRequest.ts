@@ -18,6 +18,7 @@ import { useRoomStore } from '@/store/roomStore'
 import type { WatchTogetherState } from '@/modules/sync-playback/types'
 import { SOCKET_EVENT } from '@/modules/sync-playback/constants'
 import { safePlay } from '@/modules/sync-playback/safePlay'
+import { restoreStateSnapshot } from '@/modules/sync-playback/services/state-merge'
 import { isPlaybackSessionCurrent } from '@/modules/sync-playback/playbackIdentity'
 import type { RequestStateAckData } from '../types'
 import {
@@ -101,7 +102,10 @@ export function usePlaybackStateRequest({
 
           retryCountRef.current = 10 // 拿到状态后停止重试
 
-          const state = response.data.state
+          const state = restoreStateSnapshot(
+            useRoomStore.getState().watchTogether,
+            response.data.state
+          )
           // 重试等待期间可能已通过房主广播（useViewerStateSync）应用过该源，
           // 此时不再重复 attach，避免重复解析 / 覆盖已就绪的播放器
           if (lastAppliedSourceUrlRef.current === state.sourceUrl) {

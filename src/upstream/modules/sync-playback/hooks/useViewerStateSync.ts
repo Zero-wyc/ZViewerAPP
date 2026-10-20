@@ -13,7 +13,7 @@ import { SOCKET_EVENT } from '../constants'
 import { safePlay } from '../safePlay'
 import {
   executeSeek,
-  mergeStateDiff,
+  restoreStateSnapshot,
   shouldSoftSync,
   getCatchUpRate,
   getAdaptiveSeekThreshold,
@@ -268,7 +268,7 @@ export function useViewerStateSync({
 
     const handleState = (payload: StatePayload) => {
       // 跳号检测：seq > lastSeq + 1 说明错失了中间广播（socket 重连窗口等），
-      // diff 合并基线已错位 → 强制丢弃 diff 用全量 state，并请求全量状态自愈。
+      // 当前消息按完整 state 应用，同时请求最新状态以恢复中断期间的进度。
       if (typeof payload.seq === 'number' && payload.seq > 0) {
         const lastSeq = lastSeqRef.current
         if (lastSeq > 0 && payload.seq > lastSeq + 1) {
@@ -278,13 +278,12 @@ export function useViewerStateSync({
         lastSeqRef.current = payload.seq
       }
 
-      // P1-Opt#7：增量状态合并——优先使用 diff 合并到现有 state，避免全量替换
-      const state = payload.diff
-        ? mergeStateDiff(
-            useRoomStore.getState().watchTogether,
-            payload.diff as Partial<WatchTogetherState>
-          )
-        : payload.state
+      // JSON 会省略 undefined；不能靠 diff 清空上一影片的 audioUrl/cid。
+      // 完整 state 为权威快照，diff 缺省仍保留原来的强制同步语义。
+      const state = restoreStateSnapshot(
+        useRoomStore.getState().watchTogether,
+        payload.state
+      )
 
       // 判断是否为 sourceUrl 变化
       const isSourceChange = lastAppliedSourceUrlRef.current !== state.sourceUrl

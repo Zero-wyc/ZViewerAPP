@@ -8,6 +8,40 @@ import {loadTs} from './test-ts-module.mjs'
 
 const root=fileURLToPath(new URL('../src/upstream/',import.meta.url))
 const read=path=>readFileSync(root+path,'utf8')
+const syncState=loadTs(root+'modules/sync-playback/services/state-merge.ts')
+const biliState={sourceUrl:'https://media.example/video.m4s',sourceType:'bilibili',audioUrl:'https://media.example/audio.m4s',format:'dash',cid:123,videoCodec:'avc1.640028',audioCodec:'mp4a.40.2',currentQn:80,acceptQuality:[{id:80,label:'1080P'}],currentTime:10,duration:91,isPlaying:true,playbackRate:1,bufferMode:true,hostCliEnabled:true}
+const hlsState={sourceUrl:'https://media.example/episode.m3u8',sourceType:'kazumi',format:'hls',audioUrl:undefined,cid:undefined,videoCodec:undefined,audioCodec:undefined,currentQn:undefined,acceptQuality:undefined,duration:undefined,currentTime:0,isPlaying:true,playbackRate:1,headers:{Referer:'https://source.example/'}}
+const wire=value=>JSON.parse(JSON.stringify(value))
+
+test('Bilibili to Kazumi clears JSON-omitted audio and metadata before the store shallow merge',()=>{
+ const payload=wire({state:hlsState,diff:syncState.computeStateDiff(biliState,hlsState)})
+ assert.equal(Object.hasOwn(payload.diff,'audioUrl'),false)
+ assert.equal(syncState.mergeStateDiff(biliState,payload.diff).audioUrl,biliState.audioUrl)
+ const restored={...biliState,...syncState.restoreStateSnapshot(biliState,payload.state)}
+ for(const key of ['audioUrl','cid','videoCodec','audioCodec','currentQn','acceptQuality','bufferMode','hostCliEnabled'])assert.equal(restored[key],undefined,key)
+ assert.equal(restored.format,'hls');assert.equal(restored.duration,0)
+ assert.equal(restored.headers.Referer,hlsState.headers.Referer)
+ assert.equal(biliState.cid,123)
+})
+test('complete snapshots recover after a missed diff and clear HLS headers when switching back to Bilibili',()=>{
+ const payload=wire({state:biliState,diff:{currentTime:10},seq:9})
+ const restored=syncState.restoreStateSnapshot(hlsState,payload.state)
+ assert.equal(restored.audioUrl,biliState.audioUrl);assert.equal(restored.format,'dash')
+ assert.equal(restored.headers,undefined)
+})
+test('request-state snapshots clear optional source fields even if the video URL is unchanged',()=>{
+ const restored=syncState.restoreStateSnapshot(biliState,wire({...hlsState,sourceUrl:biliState.sourceUrl,format:'mp4'}))
+ assert.equal(restored.audioUrl,undefined);assert.equal(restored.cid,undefined);assert.equal(restored.format,'mp4')
+})
+test('legacy same-source snapshots preserve playback policies without leaking them into another film',()=>{
+ const current={...hlsState,playsvideoEnabled:false,noProxyFallback:true}
+ const restored=syncState.restoreStateSnapshot(current,wire(hlsState))
+ assert.equal(restored.playsvideoEnabled,false);assert.equal(restored.noProxyFallback,true)
+ const changed=syncState.restoreStateSnapshot(current,wire(biliState))
+ assert.equal(changed.playsvideoEnabled,undefined);assert.equal(changed.noProxyFallback,undefined)
+ const emitted=wire(syncState.buildStateFromVideo(null,current))
+ assert.equal(emitted.playsvideoEnabled,false);assert.equal(emitted.noProxyFallback,true)
+})
 test('remounted player cannot reuse the original room recovery snapshot',()=>{
  const mobile=readFileSync(new URL('../src/mobile/MobileRoom.tsx',import.meta.url),'utf8')
  const expression=mobile.match(/initialPlayback=\{([^}]+)\}/)[1]

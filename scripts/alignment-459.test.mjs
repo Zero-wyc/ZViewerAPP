@@ -134,7 +134,7 @@ test('full-state sync seeks to zero, and a delayed control seek cannot affect a 
     '@/store/roomStore': {useRoomStore: {getState: () => ({watchTogether: state, currentMovieId: movieId, roomSessionRevision: 1})}},
     '../constants': {SOCKET_EVENT: {STATE: 'state', CONTROL: 'control'}},
     '../safePlay': {safePlay() {}},
-    '../services': {executeSeek: async p => {seeks.push(p.targetTime); return hold ? new Promise(resolve => { finish = resolve }) : false}},
+    '../services': {...loadTs('src/upstream/modules/sync-playback/services/state-merge.ts'), executeSeek: async p => {seeks.push(p.targetTime); return hold ? new Promise(resolve => { finish = resolve }) : false}},
     '@/modules/player/services/buffer-mode': {},
   })
   useViewerStateSync({roomId: 'room', isHostRef: {current: false}, videoRef: {current: video},

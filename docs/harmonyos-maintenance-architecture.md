@@ -4,11 +4,17 @@
 
 ## 当前状态与范围
 
-- HarmonyOS 当前本地版本为 **2.1.4 / versionCode 214**，对齐服务端 v4.6.4 后 main 快照 `cbdd6cc6`；本轮未发布 Release。2.1.1 为此前发行版本。版本以根 package.json 与对应原生工程为准。
+- HarmonyOS 当前发行版本为 **2.1.4 / versionCode 214**，对齐服务端 v4.6.4 后 main 快照 `cbdd6cc6`，包含跨来源观众播放与此前本地固定采集画布修正。版本以根 package.json 与对应原生工程为准。
 - 客户端源码和 Git 操作均在 `E:/Codex-bulid/ZViewer/ZViewer-client`；共享 React/Vite 前端与 Android 相同，原生部分使用 HarmonyOS ArkTS 与 ArkWeb。
 - B站 Cookie、服务端凭据和本机代理状态只保存在原生侧。不能进入 React 状态持久化、网页日志、Socket 房间广播或公开源码。
 
 ## 代码入口
+
+### 2.1.4 / 214：跨来源观众播放快照（2026-10-20）
+
+与 Android 共用 `src/upstream/modules/sync-playback/services/state-merge.ts` 的 `restoreStateSnapshot`，在房主广播和首次进房恢复时按完整 state 清空旧影片字段。JSON 会省略 undefined，旧版 diff 浅合并因此可能残留 B站 audioUrl、CID 和编解码信息，导致 Kazumi HLS 被错误选为 DASH。接收端改为完整快照，心跳仍只校正同一媒体的进度；ArkTS 原生解析和媒体桥不改。
+
+仅在相同 sourceUrl、sourceType 内保留旧版发送端省略的转码/直链策略，跨影片不继承；完整广播补齐策略字段。保持房间会话保护、串行切片和强制同步语义。192 项适配、4 项媒体通过，实际模拟器与包体证据见 [2.1.4 验证](client-2.1.4-validation.md)。网页观众还需部署服务端 [PR #22](https://github.com/Zero-wyc/ZViewer/pull/22)；客户端修复不能改变旧网页中的选源逻辑。
 
 ### 2.1.4 / 214：鸿蒙固定采集画布的真机修正（2026-10-20，本地交付）
 

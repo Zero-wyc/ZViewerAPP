@@ -11,6 +11,7 @@ export {
   isStateEqual,
   computeStateDiff,
   mergeStateDiff,
+  restoreStateSnapshot,
 } from './state-merge'
 
 export {

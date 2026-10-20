@@ -8,6 +8,29 @@
  */
 import type { WatchTogetherState } from '../types'
 
+/** Complete wire snapshots must clear fields that JSON omitted as undefined. */
+export function restoreStateSnapshot(
+  current: WatchTogetherState,
+  snapshot: WatchTogetherState
+): WatchTogetherState {
+  // roomStore also accepts partial progress updates, so explicitly clear keys
+  // before its shallow merge can retain the previous film's audio/codec data.
+  const cleared = Object.fromEntries(
+    Object.keys(current).map((key) => [key, undefined])
+  )
+  const sameSource = current.sourceUrl === snapshot.sourceUrl &&
+    current.sourceType === snapshot.sourceType
+  return {
+    ...cleared,
+    ...snapshot,
+    duration: snapshot.duration ?? 0,
+    // Legacy hosts omit these policies in progress/force-sync snapshots.
+    // Preserve them only within one source, never across different films.
+    playsvideoEnabled: snapshot.playsvideoEnabled ?? (sameSource ? current.playsvideoEnabled : undefined),
+    noProxyFallback: snapshot.noProxyFallback ?? (sameSource ? current.noProxyFallback : undefined),
+  }
+}
+
 /**
  * 从 video 元素与 store 状态构建完整的 WatchTogetherState。
  *
@@ -57,6 +80,8 @@ export function buildStateFromVideo(
     // 透传缓冲模式标记：房主 forceSync / 响应观众 REQUEST_STATE 时必须保留，
     // 否则观众端收到无 bufferMode 的 state 会回退到 URL 播放，破坏缓冲模式一致性
     bufferMode: storeState.bufferMode,
+    playsvideoEnabled: storeState.playsvideoEnabled,
+    noProxyFallback: storeState.noProxyFallback,
   }
 }
 

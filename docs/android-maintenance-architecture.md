@@ -4,11 +4,17 @@
 
 ## 当前状态与范围
 
-- Android 当前本地版本为 **2.1.4 / versionCode 214**，对齐服务端 v4.6.4 后 main 快照 `cbdd6cc6`；本轮未发布 Release。2.1.1 为此前发行版本。版本以根 package.json 与对应原生工程为准。
+- Android 当前发行版本为 **2.1.4 / versionCode 214**，对齐服务端 v4.6.4 后 main 快照 `cbdd6cc6`，包含跨来源观众播放与此前本地投屏旋转修复。版本以根 package.json 与对应原生工程为准。
 - 客户端修改、Git 提交均在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。`ZViewer-source code` 是本地服务端目录，不在其中改客户端。
 - Android 与 HarmonyOS 共用根目录 React/Vite 界面，但原生宿主不同；iOS 是 `ZV-iOS` 中独立的 Expo/React Native 工程。三端实现和验收不能互相替代。
 
 ## 代码入口
+
+### 2.1.4 / 214：跨来源观众播放快照（2026-10-20）
+
+双端共用 `src/upstream/modules/sync-playback/services/state-merge.ts` 的 `restoreStateSnapshot`。房主消息中的完整 state 为权威快照；显式清空旧状态中已不存在的音轨、CID、格式、编解码与清晰度字段，避免 JSON 省略 undefined 后由 diff 浅合并保留 B站音轨，令 Kazumi HLS 误入 DASH。`useViewerStateSync` 与 `usePlaybackStateRequest` 使用该恢复函数；心跳仍只校正同一媒体的播放进度，不恢复迟到旧源。
+
+旧版房主若省略转码/直链策略，仅在相同 sourceUrl、sourceType 内保留既有策略；跨影片清除。`buildStateFromVideo` 补齐策略字段。保留 ACK/会话保护、串行切片及 diff 缺省代表强制同步的语义。192 项适配、4 项媒体通过，实际模拟器与包体证据见 [2.1.4 验证](client-2.1.4-validation.md)。网页观众的对应修复见服务端 [PR #22](https://github.com/Zero-wyc/ZViewer/pull/22)；App 更新不能替代服务端网页资源更新。
 
 ### 2.1.4 / 214：鸿蒙固定采集画布的真机修正（2026-10-20，本地交付）
 

@@ -100,7 +100,7 @@ export interface ControlPayload {
 /** `watch-together-state` 事件 payload */
 export interface StatePayload {
   state: WatchTogetherState
-  /** 增量字段（P1-Opt#7）：存在时观众端合并到现有 state，不存在时用 state 全量覆盖 */
+  /** 兼容旧接收端的增量字段；新版按完整 state 恢复，缺省 diff 仍表示强制同步。 */
   diff?: Partial<WatchTogetherState>
   /** 房主侧递增序号：观众检测跳号即请求全量状态自愈（避免 diff 基线错位） */
   seq?: number

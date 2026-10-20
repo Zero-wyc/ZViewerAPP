@@ -28,10 +28,11 @@ test('initial request still attaches when the first current-movie event overtake
   const {usePlaybackStateRequest} = loadTs('src/upstream/modules/playback-memory/hooks/usePlaybackStateRequest.ts', {
     react:{useEffect:fn=>fn(),useRef:current=>({current})},
     '@/hooks/useSocket':{useSocket:()=>({socket})},
-    '@/store/roomStore':{useRoomStore:{getState:()=>current}},
+    '@/store/roomStore':{useRoomStore:{getState:()=>({...current,watchTogether:source})}},
     '@/components/ui/message':{message:{error(){}}},
     '@/modules/sync-playback/constants':{SOCKET_EVENT:{REQUEST_STATE:'request'}},
     '@/modules/sync-playback/safePlay':{},
+    '@/modules/sync-playback/services/state-merge':loadTs('src/upstream/modules/sync-playback/services/state-merge.ts'),
     '@/modules/sync-playback/playbackIdentity':{isPlaybackSessionCurrent},
     '@/modules/player/services/buffer-mode':{},
   },{setTimeout:()=>1,clearTimeout(){}})
