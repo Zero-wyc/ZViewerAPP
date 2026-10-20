@@ -4,13 +4,25 @@
 
 ## 当前状态与范围
 
-- HarmonyOS 当前本地版本为 **2.1.3 / versionCode 213**，对齐服务端 v4.6.4 后 main 快照 `cbdd6cc6`；本轮未发布 Release。2.1.1 为此前发行版本。版本以根 package.json 与对应原生工程为准。
+- HarmonyOS 当前本地版本为 **2.1.4 / versionCode 214**，对齐服务端 v4.6.4 后 main 快照 `cbdd6cc6`；本轮未发布 Release。2.1.1 为此前发行版本。版本以根 package.json 与对应原生工程为准。
 - 客户端源码和 Git 操作均在 `E:/Codex-bulid/ZViewer/ZViewer-client`；共享 React/Vite 前端与 Android 相同，原生部分使用 HarmonyOS ArkTS 与 ArkWeb。
 - B站 Cookie、服务端凭据和本机代理状态只保存在原生侧。不能进入 React 状态持久化、网页日志、Socket 房间广播或公开源码。
 
 ## 代码入口
 
+### 2.1.4 / 214：鸿蒙固定采集画布的真机修正（2026-10-20，本地交付）
+
+用户真机仍失败，不能沿用 2.1.3 自动化通过结论。实际日志显示 display.change 已报告 2720×1260，而原视频帧仍是竖屏；交换 applyConstraints 上限后反而从 592×1280 缩成 334×720。ArkWeb 的原生采集画布保持初始方向，原生方向监听本身有效。
+
+`harmonyScreenShare.ts → screenShareVideoTransform.ts` 对同一次 getDisplayMedia 采集的私有克隆创建 MediaStreamTrackProcessor，经 VideoFrame.visibleRect 去除与物理屏幕比例不符的系统画布补边，由 MediaStreamTrackGenerator 输出同一发送轨道；保留应用/视频自身的补边。原始采集请求不设置随初始方向固定的宽高，发送帧再按所选画质限幅，始终不放大。整个链路不读像素、不做 Canvas 定时绘制、不额外采集或创建另一套编码器，旋转无需重新授权或重建 PeerConnection。停止同时取消 reader、writer 与私有轨道，防止等待中的读写阻碍清理；所有输入/转换帧在 finally 释放。运行时先检查所需帧接口，缺少时明确报告不可用，最低 SDK 仍为 6.1.0(23)。
+
+`screenShareFrameMeter.ts` 从实际送达帧读取 displayWidth/displayHeight；宽高与实测帧率不再依赖可能缺失或无限大的生成轨道 getSettings。系统音频/麦克风仍走原混音图，暂停同时控制原视频与发送视频；已停止或旧 session 的方向事件不得影响新会话。
+
+API 26 实体手机通过 USB 调试，真实采集 B站与客户端画面，电脑 Chrome WebRTC 接收端持续解码。用户连续横竖屏与五轮受控旋转均在同一会话中切换 592×1280 / 1260×582；本轮原生媒体证据为向已安装 Debug HAP 临时加载本次源码模块，不能自动替代最终签名 HAP 的安装与 NAS 房间验收。188 项适配、4 项媒体测试通过。详细记录和包体检查见 [2.1.4 验证](client-2.1.4-validation.md)。Android 原生实现沿用 2.1.3，本轮不修改 iOS。
+
 ### 2.1.3 / 213：投屏期间动态切换横竖屏（2026-10-20，本地交付）
+
+鸿蒙该版的 applyConstraints 方案经用户真机反馈确认未解决问题，已由上方 2.1.4 实现替换；下文保留当时实现和验证范围。
 
 修复“观众画面一直保持开始投屏时方向”。Android 的 `ScreenSharePlugin.java` 为 API 33 及以下增加应用级 DisplayManager 监听，使用物理显示尺寸而非后台 Activity 的旧窗口配置；150ms 合并旋转事件，并在既有 2 秒采样周期复核，处理显示事务滞后。API 34+ 保留 MediaProjection 的实际采集区域回调，支持全屏与单应用共享各自尺寸。统一 resizeCapture 更新原 VirtualDisplay、SurfaceTexture、WebRTC 输出适配，再绑定原 Surface；停止时注销监听、移除排队任务，旧 session 不得复活。
 

@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { loadTs } from './test-ts-module.mjs'
 const quality = loadTs('src/platform/screenShareQuality.ts')
-const resize = loadTs('src/platform/screenShareResize.ts', { './screenShareQuality': quality })
+const geometry = loadTs('src/platform/screenShareVideoTransform.ts')
 const frameMeter = loadTs('src/platform/screenShareFrameMeter.ts')
 
 const flush = async () => { for (let n = 0; n < 8; n++) await Promise.resolve() }
@@ -30,7 +30,7 @@ class AudioNode {
 }
 function harness() {
   const capture = deferred(), window = new EventTarget(), timeouts = new Map(), intervals = new Map(), captures = [capture]
-  const calls = [], events = [], contexts = [], microphones = [], displayOptions = []
+  const calls = [], events = [], contexts = [], microphones = [], displayOptions = [], transforms = []
   let captureIndex = 0
   const media = { microphone: async () => { const track = new Track('audio', .2); microphones.push(track); return new Stream([track]) } }
   const { createMicrophoneCapture } = loadTs('src/platform/microphoneCapture.ts', {
@@ -49,7 +49,12 @@ function harness() {
     async addIceCandidate(value) { this.candidates.push(value) }
   }
   const peers = []
-  const { createHarmonyScreenShare } = loadTs('src/platform/harmonyScreenShare.ts', { './runtime': { getHarmonyBridge: () => bridge }, './microphoneCapture': { microphoneCapture }, './screenShareQuality': quality, './screenShareFrameMeter': frameMeter, './screenShareResize': resize }, {
+  const videoTransform = { screenShareVideoTransformSupported: () => true, createScreenShareVideoTransform: (source, options) => {
+    const track = new Track('video'), entry = { source, options, track, sizes: [], stopped: false }
+    transforms.push(entry)
+    return { track, resize(w, h) { if (!entry.stopped && options.current()) entry.sizes.push([w, h]) }, stop() { entry.stopped = true; track.stop() } }
+  } }
+  const { createHarmonyScreenShare } = loadTs('src/platform/harmonyScreenShare.ts', { './runtime': { getHarmonyBridge: () => bridge }, './microphoneCapture': { microphoneCapture }, './screenShareQuality': quality, './screenShareFrameMeter': frameMeter, './screenShareVideoTransform': videoTransform }, {
     window, CustomEvent, MediaStream: Stream, navigator: { mediaDevices: { getDisplayMedia: options => { displayOptions.push(options); return captures[captureIndex++].promise } } },
     AudioContext: class {
       closed = 0; resumed = 0; gains = []; sources = []
@@ -67,7 +72,7 @@ function harness() {
   })
   const track = new Track('video'), systemTrack = new Track('audio', .4), stream = new Stream([track, systemTrack])
   const nextCapture = () => { const next = deferred(); captures.push(next); return next }
-  return { api: createHarmonyScreenShare(), capture, nextCapture, window, bridge, calls, events, peers, track, systemTrack, stream, timeouts, intervals, contexts, microphoneCapture, microphones, media, displayOptions }
+  return { api: createHarmonyScreenShare(), capture, nextCapture, window, bridge, calls, events, peers, track, systemTrack, stream, timeouts, intervals, contexts, microphoneCapture, microphones, media, displayOptions, transforms }
 }
 
 test('Harmony capture requires native host support; configured FPS is never presented as measured FPS', async () => {
@@ -82,45 +87,55 @@ test('Harmony capture requires native host support; configured FPS is never pres
   await t.api.stop({ sessionId: 'capture' }); assert.equal(t.track.stops, 1)
 })
 
-test('Harmony updates the same capture track on native screen rotation, including background and pause', async () => {
+test('a generated track with an unavailable or infinite configured rate cannot publish nonfinite statistics', async () => {
+  const t=harness(),start=t.api.start({sessionId:'rate',iceServers:[]});t.capture.resolve(t.stream);await start
+  t.transforms[0].track.getSettings=()=>({width:592,height:1280,frameRate:Infinity})
+  for(const sample of t.intervals.values())sample()
+  assert.equal(t.events.at(-1).settings.configuredFrameRate,0)
+  assert.equal(t.events.at(-1).settings.frameRate,0)
+  await t.api.stop({sessionId:'rate'})
+})
+
+test('Harmony updates one outgoing frame transform on rotation without resizing the fixed native canvas', async () => {
   const t = harness(), start = t.api.start({ sessionId: 'rotation', iceServers: [], resolution: '720p', frameRate: 30 })
   t.capture.resolve(t.stream); await start
   await t.api.createOffer({sessionId:'rotation',peerId:'viewer'})
   const pc=t.peers[0]
   const rotate=(id,width,height)=>t.window.dispatchEvent(new CustomEvent('zviewer:screen-capture-resize',{detail:{sessionId:id,width,height}}))
-  rotate('old-session',2400,1080);await flush();assert.equal(t.track.constraints.length,0)
-  rotate('rotation',1080,2400);await flush();assert.equal(t.track.constraints.at(-1).width.max,720)
-  rotate('rotation',2400,1080);await flush();assert.equal(t.track.constraints.at(-1).width.max,1280);assert.equal(t.track.constraints.at(-1).height.max,720)
+  const transform=t.transforms[0]
+  assert.equal(pc.tracks[0],transform.track)
+  rotate('old-session',2400,1080);await flush();assert.equal(transform.sizes.length,0)
+  rotate('rotation',1080,2400);await flush();assert.deepEqual(transform.sizes.at(-1),[1080,2400])
+  rotate('rotation',2400,1080);await flush();assert.deepEqual(transform.sizes.at(-1),[2400,1080])
   await t.api.pause({sessionId:'rotation'})
-  rotate('rotation',1080,2400);await flush();assert.equal(t.track.constraints.at(-1).width.max,720)
+  rotate('rotation',1080,2400);await flush();assert.deepEqual(transform.sizes.at(-1),[1080,2400])
   assert.equal(t.track.enabled,false);assert.equal(t.track.stops,0);assert.equal(pc.closed,false)
+  assert.equal(transform.track.enabled,false);assert.equal(t.track.constraints.length,0)
   await t.api.resume({sessionId:'rotation'});assert.equal(t.track.enabled,true)
   assert.equal(t.calls.filter(([name])=>name==='arm').length,1,'no repeated authorization')
   await t.api.stop({sessionId:'rotation'})
-  const count=t.track.constraints.length;rotate('rotation',2400,1080);await flush();assert.equal(t.track.constraints.length,count)
+  const count=transform.sizes.length;rotate('rotation',2400,1080);await flush();assert.equal(transform.sizes.length,count);assert.equal(transform.stopped,true)
 })
 
-test('screen resize requests serialize and discard queued old orientations and stopped captures', async () => {
-  const first=deferred(),calls=[],applied=[]
-  const track={readyState:'live',applyConstraints:async value=>{calls.push(value);if(calls.length===1)await first.promise}}
-  const r=resize.createScreenShareResizer({track,quality:{resolution:'1080p',frameRate:60},current:()=>true,applied:()=>applied.push(true),failed:()=>assert.fail('Unexpected resize failure')})
-  const a=r.update(1080,2400);await flush();r.update(2400,1080);const c=r.update(1200,2600);first.resolve();await c
-  assert.equal(calls.length,2);assert.equal(calls[1].width.max,1080);assert.equal(applied.length,1)
-  const count=calls.length;await r.update(NaN,0);assert.equal(calls.length,count)
-  const next=r.update(2600,1200);r.stop();await next;assert.equal(calls.length,count)
-  await a
+test('fixed portrait and landscape canvases remove only physical-screen padding and never upscale', () => {
+  const q={resolution:'720p',frameRate:30},g=geometry.screenShareFrameGeometry
+  const portrait=g(1260,2720,1260,2720,q);assert.equal(portrait.x,0);assert.equal(portrait.y,0);assert.equal(portrait.width,592);assert.equal(portrait.height,1280)
+  const landscape=g(1260,2720,2720,1260,q);assert.equal(landscape.x,0);assert.equal(landscape.y,1068);assert.equal(landscape.width,1260);assert.equal(landscape.height,582)
+  const back=g(2720,1260,1260,2720,q);assert.equal(back.x,1068);assert.equal(back.y,0);assert.equal(back.width,582);assert.equal(back.height,1260)
+  const alreadyRotated=g(2720,1260,2720,1260,q);assert.equal(alreadyRotated.x,0);assert.equal(alreadyRotated.y,0);assert.equal(alreadyRotated.width,1280)
+  const small=g(334,720,2720,1260,q);assert.equal(small.width,334);assert.equal(small.height,154)
 })
 
-test('quality reaches native capture, while the documented Harmony system ceiling bounds 90 FPS requests', async () => {
-  for (const [resolution, width, height] of [['720p', 1280, 720], ['1080p', 1920, 1080], ['1440p', 2560, 1440], ['2160p', 3840, 2160], ['native', 2880, 1920]]) {
+test('quality bounds sending frames while native capture retains pixels and caps 90 FPS requests at 60', async () => {
+  for (const resolution of ['720p', '1080p', '1440p', '2160p', 'native']) {
     const t = harness(), start = t.api.start({ sessionId: 'capture', iceServers: [], resolution, frameRate: 90 })
     t.capture.resolve(t.stream)
     const settings = await start, video = t.displayOptions[0].video
-    assert.equal(video.width.ideal, width); assert.equal(video.height.ideal, height)
+    assert.equal(video.width, undefined); assert.equal(video.height, undefined);assert.equal(video.resizeMode,'none')
+    assert.equal(t.transforms[0].options.quality.resolution,resolution)
     assert.equal(video.frameRate.max, 60)
     assert.equal(settings.targetFrameRate, 60); assert.equal(settings.configuredFrameRate, 30); assert.equal(settings.frameRate, 0)
     assert.equal((await t.api.getCapabilities()).maxFrameRate, 60)
-    if (resolution === 'native') assert.equal(video.width.max, undefined)
     await t.api.stop({ sessionId: 'capture' })
   }
   const portrait = quality.screenShareVideoConstraints({ resolution: '1080p', frameRate: 60 }, 1080, 2400)
@@ -137,12 +152,14 @@ test('frame meter counts delivered frames, closes every VideoFrame, and cancels 
   })
   const meter = createScreenShareFrameMeter(original)
   assert.equal(meter.sample(), undefined)
-  for (let n = 0; n < 60; n++) { controller.enqueue({ close() { closedFrames++ } }); await flush() }
+  for (let n = 0; n < 60; n++) { controller.enqueue({ displayWidth: 640, displayHeight: 360, close() { closedFrames++ } }); await flush() }
   now = 1000; assert.equal(meter.sample(), 60)
   assert.equal(closedFrames, 60)
+  assert.equal(meter.dimensions().width, 640); assert.equal(meter.dimensions().height, 360)
   meter.stop(); meter.stop(); await flush()
   assert.equal(cloneStops, 1); assert.equal(originalStops, 0); assert.equal(cancelled, 1)
   assert.equal(meter.sample(), undefined)
+  assert.equal(meter.dimensions(), undefined)
 })
 
 test('unsupported or failed native frame measurement never opens a second capture or reports a target as measured FPS', () => {

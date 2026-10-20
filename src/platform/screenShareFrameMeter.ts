@@ -1,14 +1,15 @@
-interface FrameProcessor { readable: ReadableStream<{ close(): void }> }
+interface FrameProcessor { readable: ReadableStream<{ close(): void; displayWidth?: number; displayHeight?: number }> }
 
 /** Count native VideoFrames without reading pixels, encoding another stream, or touching the sending track. */
 export function createScreenShareFrameMeter(track: MediaStreamTrack) {
   const Processor = (globalThis as unknown as { MediaStreamTrackProcessor?: new (options: { track: MediaStreamTrack }) => FrameProcessor }).MediaStreamTrackProcessor
   if (!Processor) return undefined
   const clone = track.clone()
-  let reader: ReadableStreamDefaultReader<{ close(): void }>
+  let reader: ReadableStreamDefaultReader<{ close(): void; displayWidth?: number; displayHeight?: number }>
   try { reader = new Processor({ track: clone }).readable.getReader() }
   catch { clone.stop(); return undefined }
   let active = true, frames = 0, lastFrames = 0, sampled = false, rate = 0, lastTime = performance.now()
+  let dimensions: { width: number; height: number } | undefined
   const stop = () => {
     if (!active) return
     active = false
@@ -20,7 +21,13 @@ export function createScreenShareFrameMeter(track: MediaStreamTrack) {
       while (active) {
         const result = await reader.read()
         if (result.done) break
-        try { if (active) frames++ } finally { result.value.close() }
+        try {
+          if (active) {
+            frames++
+            const { displayWidth: width, displayHeight: height } = result.value
+            if (width && height) dimensions = { width, height }
+          }
+        } finally { result.value.close() }
       }
     } catch { /* An unavailable meter never interrupts capture. */ }
     finally { stop() }
@@ -33,5 +40,6 @@ export function createScreenShareFrameMeter(track: MediaStreamTrack) {
       return sampled ? rate : undefined
     },
     stop,
+    dimensions: () => active ? dimensions : undefined,
   }
 }

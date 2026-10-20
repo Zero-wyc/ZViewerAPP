@@ -1,0 +1,48 @@
+# 2.1.4 / 214：鸿蒙投屏固定画布的真机修正
+
+日期：2026-10-20（Asia/Shanghai）。起点 `f809ecc`（2.1.3 / 213），修改与 Git 操作仅在指定客户端仓库。本轮本地构建、提交，不发布 Release；不修改服务端、NAS 或 iOS。
+
+## 用户失败与真机复现
+
+用户安装 2.1.3 HAP 后反馈仍无法横屏，截图中接收分辨率为 584×1260，横向视频缩在中间。该反馈优先于此前通过的约束/事件夹具测试。
+
+用户连接实体 ALN-AL10 手机，设备报告 OpenHarmony-7.0.0.105 / API 26。HDC 安装 Debug HAP 被设备拒绝（9568322，不受信任来源），用户通过 HoKit 完成覆盖安装后开放 USB 调试。日志、设备标识、账户和页面内容仅保存在忽略目录，未进入源码。
+
+在实际客户端开始投屏，用户将 B站切至横屏。原生 display.change 正确从 1260×2720 变为 2720×1260；宿主 WebView 仍是竖屏 388×837。2.1.3 确实执行了宽 1280 / 高 720 的 applyConstraints，原视频帧却从 592×1280 缩成 334×720；capabilities 仍保留初始方向上限。直接读取原生 VideoFrame 也为竖屏，中间是横向内容、上下为系统采集画布补边。
+
+结论：方向通知有效，失败在 ArkWeb 的原始采集画布方向保持初始值。applyConstraints 改变输出缩放，没有修改原生画布方向。公开实现也可见 [ArkWeb screen_capture_adapter_impl.cpp](https://github.com/openharmony/web_webview/blob/master/ohos_adapter/screen_capture_adapter/src/screen_capture_adapter_impl.cpp) 启动时启用 CanvasRotation；不将方向纠正与动态宽高调整混为同一个能力。
+
+## 修正实现
+
+- 原生屏幕方向事件与 sessionId 保护沿用 2.1.3。getDisplayMedia 保留帧率上限，移除按开始方向固定的宽高请求，取得原始像素；只申请一次系统采集。
+- `screenShareVideoTransform.ts` 用私有原轨道克隆、MediaStreamTrackProcessor、VideoFrame.visibleRect 和 MediaStreamTrackGenerator 形成一个发送轨道。按物理屏幕比例移除系统采集画布补边，再按画质预算缩小，不放大。屏幕内属于 B站/视频本身的补边保留，不能把整部视频强行拉满。
+- 旋转只改变后续帧的可见区域与显示尺寸，同一视频发送轨道、授权、PeerConnection 和音频图继续运行；不使用 Canvas 定时器、像素读取或第二套视频编码器。基础契约参考 [WebCodecs](https://w3c.github.io/webcodecs/#videoframe-interface) 与 [媒体轨道帧处理草案](https://w3c.github.io/mediacapture-transform/)。运行时检查所需帧接口；最低 SDK 保持 6.1.0(23)。
+- 输入和转换帧逐个释放，reader 仅保留最新帧；停止并行发起取消 reader/writer、停止私有与发送轨道，再由原适配器回收系统采集。旧 session、停止后的事件、迟到写入不得复活共享。暂停同时关闭原视频和发送视频，音频仍由既有策略控制。
+- `screenShareFrameMeter.ts` 从实际收到的发送帧读取宽高与帧数。生成轨道 getSettings 缺失宽高或配置帧率为 Infinity 时，仍只使用实际帧尺寸和计数；配置帧率不可用则返回 0，不把目标值当作实测。
+
+## 实体手机与电脑接收端
+
+向用户安装的 2.1.3 Debug HAP 临时加载由本次实际源码生成的鸿蒙适配模块，复用真实原生授权与采集策略。输入为手机实际界面和 B站视频，输出为独立电脑 Chrome 接收端的真实 WebRTC 视频；信令由本机调试脚本转交，没有修改 NAS/房间配置或伪造采集帧。
+
+首轮强制本机鉴权 TURN 的测试曾进入 failed，仅作为失败记录，不计入稳定性通过。改为允许正常候选选择后，确认双方选择 host/UDP；同一会话持续 connected。用户手动连续旋转时，电脑接收尺寸和解码帧依次为：
+
+| 方向 | 接收视频 | 累计解码帧 |
+| --- | --- | --- |
+| 竖屏 | 592×1280 | 14 |
+| 横屏 | 1260×582 | 51 |
+| 竖屏 | 592×1280 | 69 |
+| 横屏 | 1260×582 | 105 |
+| 竖屏 | 592×1280 | 124 |
+
+随后通过原生方向接口进行五轮受控切换，同一会话与发送轨道继续保持，五轮均收到方向正确的新解码帧，累计解码帧 161 → 177 → 185 → 238 → 259；暂停/恢复调用完成。输入原生画布一直为 1260×2720，证明修复处理了实际固定画布，而非依赖原生自行交换宽高。
+
+可用像素受原始采集画布限制：720P 档横屏实际为 1260×582，竖屏为 592×1280，均保持物理屏幕比例且不放大；不能把界面档位或请求尺寸当作观众实测值。
+
+## 自动化、构建与交付
+
+- 188 项适配、4 项媒体测试通过，包含固定横/竖画布、已自动旋转的帧、低分辨率不放大、同一发送轨道、旧事件、暂停/恢复、失败回收、停止时悬挂写入、逐帧释放及真实帧尺寸计数。
+- 双端版本同步为 2.1.4 / 214；Android MediaProjection/VirtualDisplay 逻辑沿用 2.1.3，本轮不新增 Android 实体设备验收。此前 API 33、37 模拟器结果见 [2.1.3 记录](client-2.1.3-validation.md)。
+- 前端类型检查、网页资源生成、Gradle Debug/Release 与 Hvigor Debug/Release 构建通过。网页资源仅经 android:sync / harmony:web 生成，正式签名 APK/HAP 输出到 `release/client-v2.1.4/`。
+- APK 76,754,761 字节，apksigner v2 验证通过；HAP 14,284,243 字节，hap-sign-tool verify-app 通过，包内 2.1.4 / 214、debug=false。包内 33 / 31 个网页文件分别与最终生成目录逐字节一致。每个最终包仅在构建后计算一次 SHA-256，摘要和元数据随包保存；本机签名配置已还原。
+
+最终签名 HAP 尚待用户通过 HoKit 覆盖安装并在原 NAS 房间复测。当前真机运行的是 Debug HAP 临时加载源码，不把它表述为最终 Release 包已安装通过；不覆盖 API 23 实体设备、长时间热/功耗、全部画质或系统音频真机验收。本轮关闭测试采集、接收端、端口转发和本地 TURN，移除页面调试层并解除临时方向锁定；停止检查确认原生视频/音频轨道均 ended，持续任务数为 0。

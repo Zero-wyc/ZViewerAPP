@@ -2,14 +2,15 @@ import type { ScreenShareAudioOptions, ScreenShareEvent, ScreenShareNativePort, 
 import { getHarmonyBridge } from './runtime'
 import { microphoneCapture } from './microphoneCapture'
 import type { MicrophoneLease } from './microphoneCapture'
-import { screenShareVideoConstraints, screenShareVideoOptions } from './screenShareQuality'
+import { screenShareVideoOptions } from './screenShareQuality'
 import { createScreenShareFrameMeter } from './screenShareFrameMeter'
-import { createScreenShareResizer } from './screenShareResize'
+import { createScreenShareVideoTransform, screenShareVideoTransformSupported } from './screenShareVideoTransform'
 
 /** ArkWeb's native ScreenCaptureHandler supplies the actual display stream; no frame injection. */
 export function createHarmonyScreenShare(): ScreenShareNativePort {
   let sessionId: string | undefined
   let stream: MediaStream | undefined
+  let sendingVideo: MediaStreamTrack | undefined
   let config: RTCConfiguration = {}
   let timer: ReturnType<typeof setInterval> | undefined
   let cancelStart: (() => void) | undefined
@@ -30,13 +31,15 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
   const peers = new Map<string, { pc: RTCPeerConnection; ice: RTCIceCandidateInit[] }>()
   const emit = (event: ScreenShareEvent) => window.dispatchEvent(new CustomEvent('zviewer:screen-share', { detail: event }))
   const settings = (): ScreenShareSettings => {
-    const value = stream?.getVideoTracks()[0]?.getSettings()
+    const value = sendingVideo?.getSettings()
     const measuredRate = frameMeter?.sample()
+    const measuredSize = frameMeter?.dimensions()
+    const configuredFrameRate = Number.isFinite(value?.frameRate) ? Math.max(0, value!.frameRate!) : 0
     // getSettings.frameRate is the configured track rate, not a measured frame rate.
     const systemAudio = !paused && audioOptions.systemAudio && !!stream?.getAudioTracks().some(t => t.readyState === 'live')
     const microphoneSuppressed = audioOptions.microphone && !microphoneCapture.getSnapshot().shareMicrophoneAllowed
     const mic = !paused && audioOptions.microphone && !!microphone?.stream.getAudioTracks().some(t => t.readyState === 'live') && !microphoneSuppressed
-    return { width: value?.width || 0, height: value?.height || 0, frameRate: measuredRate ?? 0, frameRateMeasured: measuredRate !== undefined, targetFrameRate, configuredFrameRate: value?.frameRate || 0, audio: systemAudio || mic, systemAudio, microphone: mic, microphoneSuppressed,
+    return { width: measuredSize?.width || value?.width || 0, height: measuredSize?.height || value?.height || 0, frameRate: measuredRate ?? 0, frameRateMeasured: measuredRate !== undefined, targetFrameRate, configuredFrameRate, audio: systemAudio || mic, systemAudio, microphone: mic, microphoneSuppressed,
       ...(microphoneSuppressed ? { microphoneSuppressionReason: microphoneCapture.getSnapshot().adminMuted ? 'admin-muted' as const : 'voice' as const } : {}) }
   }
   const applyAudio = () => {
@@ -60,6 +63,7 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
     abort?.abort(); abort = undefined
     clearInterval(timer)
     stopResize?.(); stopResize = undefined
+    sendingVideo = undefined
     frameMeter?.stop(); frameMeter = undefined
     microphoneInput?.disconnect(); microphoneInput = undefined
     microphone?.release(); microphone = undefined
@@ -117,7 +121,7 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
   })
   return {
     async getCapabilities() {
-      const supported = (await getHarmonyBridge()?.getScreenShareCaptureSupport?.())?.supported === true && typeof navigator.mediaDevices?.getDisplayMedia === 'function'
+      const supported = (await getHarmonyBridge()?.getScreenShareCaptureSupport?.())?.supported === true && typeof navigator.mediaDevices?.getDisplayMedia === 'function' && screenShareVideoTransformSupported()
       return { video: supported, microphone: supported, systemAudio: supported, background: supported, maxFrameRate: 60, experimental: false, reason: supported ? undefined : '此安装包或系统未开放原生屏幕共享' }
     },
     async start(options) {
@@ -136,7 +140,10 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
         targetFrameRate = quality.frameRate
         const display = typeof screen === 'undefined' ? { width: 0, height: 0 } : screen
         const ratio = typeof devicePixelRatio === 'number' && devicePixelRatio > 0 ? devicePixelRatio : 1
-        const acquiring = navigator.mediaDevices.getDisplayMedia({ video: screenShareVideoConstraints(quality, Math.round(display.width * ratio), Math.round(display.height * ratio)), audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
+        // Size constraints only scale ArkWeb's fixed initial capture canvas.
+        // Keep native pixels for both orientations; bound the outgoing frames below.
+        const captureVideo: MediaTrackConstraints & { resizeMode: 'none' } = { frameRate: { ideal: targetFrameRate, max: targetFrameRate }, resizeMode: 'none' }
+        const acquiring = navigator.mediaDevices.getDisplayMedia({ video: captureVideo, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
         void acquiring.then(value => { if (sessionId !== id) releaseStream(value) }, () => {})
         const cancelled = new Promise<never>((_, reject) => {
           cancelStart = () => reject(Object.assign(new Error('共享已取消'), { code: 'cancelled' }))
@@ -147,31 +154,34 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
         stream = value
         const video = value.getVideoTracks()[0]
         if (!video || video.readyState !== 'live') throw new Error('屏幕采集未启动')
-        const resizer = createScreenShareResizer({ track: video, quality,
+        const transformed = createScreenShareVideoTransform(video, { quality, width: Math.round(display.width * ratio), height: Math.round(display.height * ratio),
           current: () => id === sessionId && stream === value,
           applied: () => emit({ sessionId: id, type: 'stats', settings: settings() }),
-          failed: () => console.warn('屏幕共享采集尺寸更新失败'),
+          failed: () => {
+            if (id === sessionId) void stop({ sessionId: id }).finally(() => emit({ sessionId: id, type: 'capture-ended', code: 'capture-ended' }))
+          },
         })
+        sendingVideo = transformed.track
         let nativeDisplaySize = false
         const nativeResize = (event: Event) => {
           const detail = (event as CustomEvent<{ sessionId: string; width: number; height: number }>).detail
           if (!detail || detail.sessionId !== id || !Number.isFinite(detail.width) || !Number.isFinite(detail.height) || detail.width <= 0 || detail.height <= 0) return
           nativeDisplaySize = true
-          void resizer.update(detail.width, detail.height)
+          transformed.resize(detail.width, detail.height)
         }
         const windowResize = () => {
           // Once native display observation is active it remains authoritative
           // while another app is foreground; this WebView can keep its old size.
-          if (!nativeDisplaySize) void resizer.update(Math.round(screen.width * ratio), Math.round(screen.height * ratio))
+          if (!nativeDisplaySize) transformed.resize(Math.round(screen.width * ratio), Math.round(screen.height * ratio))
         }
         window.addEventListener('zviewer:screen-capture-resize', nativeResize)
         window.addEventListener('resize', windowResize)
         stopResize = () => {
-          resizer.stop()
+          transformed.stop()
           window.removeEventListener('zviewer:screen-capture-resize', nativeResize)
           window.removeEventListener('resize', windowResize)
         }
-        frameMeter = createScreenShareFrameMeter(video)
+        frameMeter = createScreenShareFrameMeter(sendingVideo)
         video.addEventListener('ended', () => {
           if (id !== sessionId) return
           void stop({ sessionId: id }).finally(() => emit({ sessionId: id, type: 'capture-ended', code: 'capture-ended' }))
@@ -201,14 +211,14 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
     },
     stop,
     setAudioOptions,
-    async pause({ sessionId: id }) { check(id); paused = true; stream!.getVideoTracks().forEach(track => { track.enabled = false }); applyAudio() },
-    async resume({ sessionId: id }) { check(id); paused = false; stream!.getVideoTracks().forEach(track => { track.enabled = true }); applyAudio(); await audioContext?.resume() },
+    async pause({ sessionId: id }) { check(id); paused = true; if (sendingVideo) sendingVideo.enabled = false; stream!.getVideoTracks().forEach(track => { track.enabled = false }); applyAudio() },
+    async resume({ sessionId: id }) { check(id); paused = false; if (sendingVideo) sendingVideo.enabled = true; stream!.getVideoTracks().forEach(track => { track.enabled = true }); applyAudio(); await audioContext?.resume() },
     async createOffer({ sessionId: id, peerId }) {
       check(id)
       peers.get(peerId)?.pc.close()
       const pc = new RTCPeerConnection(config), peer = { pc, ice: [] as RTCIceCandidateInit[] }
       peers.set(peerId, peer)
-      const outgoing = new MediaStream([...stream!.getVideoTracks(), ...(audioOutput?.stream.getAudioTracks() ?? [])])
+      const outgoing = new MediaStream([sendingVideo!, ...(audioOutput?.stream.getAudioTracks() ?? [])])
       for (const track of outgoing.getTracks()) pc.addTrack(track, outgoing)
       const codecs = typeof RTCRtpSender !== 'undefined' ? RTCRtpSender.getCapabilities?.('video')?.codecs : undefined
       if (codecs) {

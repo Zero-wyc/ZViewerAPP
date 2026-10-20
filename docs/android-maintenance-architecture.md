@@ -4,13 +4,21 @@
 
 ## 当前状态与范围
 
-- Android 当前本地版本为 **2.1.3 / versionCode 213**，对齐服务端 v4.6.4 后 main 快照 `cbdd6cc6`；本轮未发布 Release。2.1.1 为此前发行版本。版本以根 package.json 与对应原生工程为准。
+- Android 当前本地版本为 **2.1.4 / versionCode 214**，对齐服务端 v4.6.4 后 main 快照 `cbdd6cc6`；本轮未发布 Release。2.1.1 为此前发行版本。版本以根 package.json 与对应原生工程为准。
 - 客户端修改、Git 提交均在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。`ZViewer-source code` 是本地服务端目录，不在其中改客户端。
 - Android 与 HarmonyOS 共用根目录 React/Vite 界面，但原生宿主不同；iOS 是 `ZV-iOS` 中独立的 Expo/React Native 工程。三端实现和验收不能互相替代。
 
 ## 代码入口
 
+### 2.1.4 / 214：鸿蒙固定采集画布的真机修正（2026-10-20，本地交付）
+
+鸿蒙真机反馈推翻了 2.1.3 仅交换 applyConstraints 宽高上限即可旋转的假设：原生物理尺寸已横屏，原始采集画布仍竖屏，画面被再次缩小。现在 `harmonyScreenShare.ts → screenShareVideoTransform.ts` 使用同一次原生采集的 VideoFrame，按物理屏幕比例去掉系统画布补边，再对发送帧执行画质上限。生成的视频轨道和 PeerConnection 在旋转中保持不变，逐帧释放输入与输出，停止注销事件并回收私有 reader/writer/轨道；不读像素、不用 Canvas 定时绘制，也不重新申请采集。实际宽高与帧率由 `screenShareFrameMeter.ts` 读取送达帧，生成轨道的非有限配置帧率按不可用处理。
+
+Android 的 MediaProjection/VirtualDisplay 旋转实现保持 2.1.3，2.1.4 仅同步版本与网页资源；本轮未新增实体 Android 设备证据。鸿蒙 API 26 真机与电脑真实接收端通过用户连续旋转及五轮受控旋转，接收视频在 592×1280 / 1260×582 间切换，连接和发送轨道保持。188 项适配、4 项媒体测试通过。详细复现、源码调试方式与最终 HAP 安装边界见 [2.1.4 记录](client-2.1.4-validation.md)。
+
 ### 2.1.3 / 213：投屏期间动态切换横竖屏（2026-10-20，本地交付）
+
+鸿蒙该版的 applyConstraints 方案经用户真机反馈确认未解决问题，已由上方 2.1.4 实现替换；下文保留当时实现和验证范围。
 
 修复“观众画面一直保持开始投屏时方向”。Android 的 `ScreenSharePlugin.java` 为 API 33 及以下增加应用级 DisplayManager 监听，使用物理显示尺寸而非后台 Activity 的旧窗口配置；150ms 合并旋转事件，并在既有 2 秒采样周期复核，处理显示事务滞后。API 34+ 保留 MediaProjection 的实际采集区域回调，支持全屏与单应用共享各自尺寸。统一 resizeCapture 更新原 VirtualDisplay、SurfaceTexture、WebRTC 输出适配，再绑定原 Surface；停止时注销监听、移除排队任务，旧 session 不得复活。
 
