@@ -12,6 +12,7 @@ export interface ModalProps {
   open: boolean
   onClose: () => void
   title?: React.ReactNode
+  headerActions?: React.ReactNode
   children: React.ReactNode
   footer?: React.ReactNode
   className?: string
@@ -24,6 +25,7 @@ export function Modal({
   open,
   onClose,
   title,
+  headerActions,
   children,
   footer,
   className,
@@ -122,15 +124,16 @@ export function Modal({
             '0 8px 24px -8px color-mix(in srgb, var(--md-sys-color-primary) 25%, transparent)',
         }}
       >
-        <div className="flex shrink-0 items-start justify-between gap-2">
+        <div className="flex shrink-0 flex-wrap items-start justify-between gap-2">
           {title ? (
-            <h3 className="text-lg font-semibold text-[var(--md-sys-color-on-surface)]">
+            <h3 className="min-w-0 max-w-full flex-[0_1_auto] break-words text-lg font-semibold text-[var(--md-sys-color-on-surface)]">
               {title}
             </h3>
           ) : (
             <span />
           )}
-          <div className="ml-auto flex shrink-0 items-center gap-2">
+          <div className="ml-auto flex max-w-full shrink-0 flex-wrap items-center gap-2">
+          {headerActions}
           {expandable && <button type="button" aria-label={expanded ? '退出面板全屏' : '面板全屏'} onClick={() => setExpanded(value => !value)} className="rounded p-2 text-[var(--md-sys-color-on-surface-variant)]">{expanded ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}</button>}
           <button
             aria-label="关闭面板"

@@ -24,6 +24,8 @@ export interface SelectProps {
   size?: 'sm' | 'md'
   /** 展开菜单按选项内容增宽，并限制在视口内；默认与触发器等宽。 */
   menuWidth?: 'trigger' | 'content'
+  /** Opt in for episode names; ordinary menus retain their compact layout. */
+  wrapLabels?: boolean
   className?: string
   /** 透传到 trigger 按钮上的 ARIA 属性 */
   'aria-label'?: string
@@ -54,6 +56,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
       disabled = false,
       size = 'md',
       menuWidth = 'trigger',
+      wrapLabels = false,
       className,
       ...rest
     },
@@ -302,7 +305,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
             aria-haspopup="listbox"
             aria-expanded={open}
           >
-            <span className="truncate">{selectedLabel}</span>
+            <span className={cn('min-w-0 flex-1 text-left', wrapLabels ? 'whitespace-normal [overflow-wrap:anywhere]' : 'truncate')}>{selectedLabel}</span>
             <ChevronDown
               className={cn(
                 'shrink-0 text-[var(--md-sys-color-on-surface-variant)] transition-transform duration-200',
@@ -350,7 +353,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                     )}
                     style={{ '--item-delay': '0ms' } as React.CSSProperties}
                   >
-                    <span className={menuWidth === 'content' ? 'shrink-0 whitespace-nowrap' : 'truncate'}>{opt.label}</span>
+                    <span className={cn('min-w-0 flex-1', wrapLabels ? 'whitespace-normal [overflow-wrap:anywhere]' : menuWidth === 'content' ? 'shrink-0 whitespace-nowrap' : 'truncate')}>{opt.label}</span>
                     {active && <Check className="h-3.5 w-3.5 shrink-0" />}
                   </button>
                 )

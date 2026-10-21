@@ -23,6 +23,10 @@ import {
   ListPlus,
 } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
+import { FullMediaNameToggle } from '@/components/FullMediaNameToggle'
+import { useFullMediaNames, mediaNameClass } from '@/hooks/useFullMediaNames'
+import { EpisodeViewToggle } from '@/components/EpisodeViewToggle'
+import { episodeGridColumns, useEpisodeViewMode } from '@/hooks/useEpisodeViewMode'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { Input } from '@/components/ui/Input'
@@ -128,6 +132,8 @@ export default function EmbyBrowser({
   renderPoster,
   disabled = false,
 }: MediaLibraryBrowserProps) {
+  const { showFullNames } = useFullMediaNames()
+  const { episodeViewMode } = useEpisodeViewMode()
   /** 面包屑历史栈：不含根（根 = 媒体库） */
   const [crumbs, setCrumbs] = useState<Crumb[]>([])
   /** 右列：当前目录条目 */
@@ -161,7 +167,9 @@ export default function EmbyBrowser({
 
   const currentPath =
     crumbs.length > 0 ? crumbs[crumbs.length - 1].path : undefined
-  const compactEpisodes = episodeGrid && !!currentPath && !searchActive
+  const compactEpisodes = !!currentPath && !searchActive && (
+    episodeGrid || (entries.length > 0 && entries.every(entry => entry.type === 'file' && entry.embyType === 'Episode'))
+  )
 
   const load = useCallback(
     async (nextCrumbs: Crumb[]) => {
@@ -483,6 +491,9 @@ export default function EmbyBrowser({
     const isSelected = selectedPaths.has(entry.path)
     const isDirectory = entry.type === 'directory'
     const showCheckbox = multiSelectMode && side === 'right' && !isDirectory
+    const tiledEpisode = compactEpisodes && episodeViewMode === 'grid'
+    const badge = compactEpisodes ? null : entryBadge(entry)
+    const showActions = !!badge || !!entry.childCount || (side === 'right' && canQuickAdd(entry)) || (!isDirectory && (showCheckbox || isSelected))
     const folderIcon = (entry.embyType
       ? FOLDER_ICONS[entry.embyType]
       : undefined) ?? (
@@ -495,7 +506,9 @@ export default function EmbyBrowser({
         role="button" tabIndex={0} data-media-entry={entry.path} aria-pressed={!isDirectory ? isSelected : undefined} aria-label={`${isDirectory ? '进入' : '选择'} ${entry.name}`}
         onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.currentTarget.click() } }}
         className={cn(
-          'group flex cursor-pointer items-center gap-3 rounded-lg p-2.5 transition-all',
+          'group cursor-pointer rounded-lg p-2.5 transition-all',
+          tiledEpisode ? 'grid grid-cols-[1fr_auto] items-start gap-2' : 'flex items-center gap-3',
+          showFullNames && canQuickAdd(entry) && 'flex-wrap',
           isSelected
             ? 'bg-[var(--md-sys-color-primary-container)] shadow-sm'
             : 'hover:bg-[var(--md-sys-color-surface-container-high)] hover:translate-x-0.5'
@@ -520,15 +533,17 @@ export default function EmbyBrowser({
         )}
 
         <span
-          className="min-w-0 flex-1 truncate text-[15px] font-medium"
+          className={cn('min-w-0 flex-1 text-[15px] font-medium leading-snug', tiledEpisode && 'col-span-2 row-start-2', mediaNameClass(showFullNames))}
+          data-media-name
           title={entryDisplayName(entry)}
         >
           {entryDisplayName(entry)}
         </span>
 
-        {(() => {
-          const badge = compactEpisodes ? null : entryBadge(entry)
-          return badge ? (
+        {showActions && <div className={cn('flex shrink-0 items-center gap-2',
+          tiledEpisode && 'col-start-2 row-start-1',
+          showFullNames && canQuickAdd(entry) && 'ml-8 w-[calc(100%-2rem)] justify-end')}>
+        {badge ? (
             <span
               className={cn(
                 'shrink-0 rounded px-1.5 py-0.5 text-[10px] leading-none text-white',
@@ -537,8 +552,7 @@ export default function EmbyBrowser({
             >
               {badge.text}
             </span>
-          ) : null
-        })()}
+          ) : null}
 
         {entry.childCount !== undefined && entry.childCount > 0 && (
           <span className="shrink-0 text-[13px] text-[var(--md-sys-color-on-surface-variant)]">
@@ -569,6 +583,7 @@ export default function EmbyBrowser({
             )}
           </span>
         )}
+        </div>}
       </div>
     )
   }
@@ -665,7 +680,8 @@ export default function EmbyBrowser({
         </div>
         <div className="p-1.5">
           <Text
-            className="block line-clamp-2 min-h-10 break-words text-sm font-medium leading-5"
+            className={cn('block min-w-0 min-h-10 text-sm font-medium leading-5', mediaNameClass(showFullNames, 'card'))}
+            data-media-name
             title={entryDisplayName(entry)}
           >
             {entryDisplayName(entry)}
@@ -730,6 +746,7 @@ export default function EmbyBrowser({
         if (!busy) onClose()
       }}
       title={title}
+      headerActions={<FullMediaNameToggle />}
       className="h-[min(740px,90dvh)] max-w-4xl"
       expandable
       footer={
@@ -852,15 +869,16 @@ export default function EmbyBrowser({
               </div>
             )}
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1.5 text-sm text-[var(--md-sys-color-on-surface-variant)]">
+              <nav aria-label="媒体目录" className="flex w-full min-w-0 items-center gap-1.5 overflow-x-auto text-sm text-[var(--md-sys-color-on-surface-variant)]">
                 {(searchActive
                   ? [{ name: '搜索结果', path: undefined }]
                   : breadcrumb
                 ).map((item, index) => (
-                  <span key={item.path ?? 'root'} className="flex min-w-0 max-w-full items-center">
-                    {index > 0 && <ChevronRight className="mx-1 h-4 w-4" />}
+                  <span key={item.path ?? 'root'} className="contents">
+                    {index > 0 && <ChevronRight className="h-4 w-4 shrink-0" />}
                     <button
-                      className="min-w-0 max-w-[180px] truncate rounded-lg px-2 py-1 hover:bg-[var(--md-sys-color-surface-container-high)] hover:text-[var(--md-sys-color-on-surface)]"
+                      className="min-w-0 flex-1 truncate rounded-lg px-2 py-1 text-left hover:bg-[var(--md-sys-color-surface-container-high)] hover:text-[var(--md-sys-color-on-surface)]"
+                      title={item.name}
                       onClick={() => {
                         if (item.path === undefined) {
                           goRoot()
@@ -873,10 +891,10 @@ export default function EmbyBrowser({
                     </button>
                   </span>
                 ))}
-              </div>
+              </nav>
 
               {/* 视图切换：列表 / 海报墙 */}
-              {!compactEpisodes && (
+              {compactEpisodes ? <EpisodeViewToggle /> : (
                 <div
                   className="inline-flex rounded-[var(--md-sys-shape-corner)] border p-0.5"
                   style={{
@@ -936,7 +954,7 @@ export default function EmbyBrowser({
                   集数（{entries.length}）
                 </div>
                 <div data-media-directory className="zen-scroll min-h-0 flex-1 overflow-y-auto p-2">
-                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
+                  <div data-media-grid={episodeViewMode} className="grid items-start gap-1.5" style={{ gridTemplateColumns: episodeGridColumns(episodeViewMode) }}>
                     {entries.map((entry) => renderEntry(entry, 'right'))}
                   </div>
                   {entries.length === 0 && (

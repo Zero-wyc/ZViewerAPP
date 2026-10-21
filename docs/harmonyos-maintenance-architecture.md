@@ -4,11 +4,21 @@
 
 ## 当前状态与范围
 
-- HarmonyOS 当前发行版本为 **2.1.5 / versionCode 215**，对齐服务端 v4.7.1 后 main 快照 `fe55dde`，包含跨来源观众播放与此前本地固定采集画布修正。版本以根 package.json 与对应原生工程为准。
+- HarmonyOS 当前版本为 **2.1.6 / versionCode 216**，新增剧集完整名称与选集列表/网格显示偏好；前一公开发行为 **2.1.5 / 215**。上版对齐服务端 v4.7.1 后 main 快照 `fe55dde`，包含跨来源观众播放与此前本地固定采集画布修正。版本以根 package.json 与对应原生工程为准。
 - 客户端源码和 Git 操作均在 `E:/Codex-bulid/ZViewer/ZViewer-client`；共享 React/Vite 前端与 Android 相同，原生部分使用 HarmonyOS ArkTS 与 ArkWeb。
 - B站 Cookie、服务端凭据和本机代理状态只保存在原生侧。不能进入 React 状态持久化、网页日志、Socket 房间广播或公开源码。
 
 ## 代码入口
+
+### 2.1.6 / 216：完整名称与选集显示方式（2026-10-21）
+
+ArkWeb 与 Android 共用 `src/upstream/hooks/useFullMediaNames.ts` 和 `components/FullMediaNameToggle.tsx`。标题区的“完整显示”滑动开关默认打开，偏好以 `zviewer-show-full-media-names` 保存在当前设备的 localStorage，并即时同步同一应用中的浏览器和选集入口；存储不可用时保留本次运行的内存偏好。开启时列表与海报卡片的影片、剧集和分集名称按可用宽度自动换行，无行数截断，连续英文或文件名也可断行；关闭后恢复列表单行省略、海报标题两行省略。标题与操作按自然宽度优先同排，空间不足才换行；目录导航独立保持单行，各级名称以相同宽度分配空间，超长省略，不受完整显示开关影响。剧集整部添加按钮单独留出操作行，多选和批量添加沿用原逻辑。
+
+实际番剧入口为 `AnimeSourceBrowser.tsx → EmbyBrowser.tsx`，覆盖 Kazumi、ani-subs 与 CMS 的搜索结果和进入后的选集；Emby/Jellyfin 媒体库复用同一浏览器。B站搜索入口 `BiliSearchModal.tsx` 的搜索卡片、详情标题和分 P 名称，以及 `MoviePushPanel.tsx` 解析影片后的“选择分集”弹窗，都读取相同完整名称偏好。已添加影片的实际切集入口位于 `MovieListPanel.tsx`，仅为该处 `Select` 启用 `wrapLabels={showFullNames}`，使选中项与展开选项均可换行；普通来源、画质等下拉框保持原来的紧凑规则。`AnimeEpisodePicker.tsx` 当前未作为实际选集组件挂载。
+
+共享 `hooks/useEpisodeViewMode.ts` 与 `components/EpisodeViewToggle.tsx` 提供显式“列表 / 网格”按钮，默认列表，按 `zviewer-episode-view-mode` 保存本机偏好并在各实际选集入口间共享。列表固定每集一行；网格通过共享 episodeGridColumns 按选集区域实际宽度自动计算列数，以 120px 为卡片宽度下限参考，极窄容器允许缩小至容器宽度，无四列上限；手机、平板、横屏、分屏和展开后的面板使用相同规则。番剧浏览器、Emby/Jellyfin 季内纯分集目录、B站搜索后的分 P 页面和解析后的“选择分集”均提供切换，名称仍服从完整名称开关，编号和选择控件保留独立宽度。媒体库网格卡片的图标与选择控件在上行，名称占下行全宽。选集显示方式与搜索结果的列表/海报墙偏好相互独立，不因切换搜索海报墙改变选集布局。
+
+本轮仅调整共享界面、显示偏好与版本元数据，不修改播放协议、房间同步、HarmonyOS ArkTS 原生媒体/解析桥或 Android 原生逻辑；iOS 不修改、不构建。浏览器布局、双端原生运行时、构建与安装包检查已完成，分层结果见 [2.1.6 验证记录](client-2.1.6-validation.md) 为准；历史 2.1.5 的通过记录不作为本轮验收结果。最低系统版本与原生能力边界保持既有配置。
 
 ### 2.1.5 / 215：服务端 v4.7.1 媒体策略对齐（2026-10-21）
 

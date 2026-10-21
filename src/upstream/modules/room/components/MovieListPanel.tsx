@@ -15,6 +15,7 @@ import { Select } from '@/components/ui/Select'
 import { Modal } from '@/components/ui/Modal'
 import { message } from '@/components/ui/message'
 import { useSocket } from '@/hooks/useSocket'
+import { useFullMediaNames } from '@/hooks/useFullMediaNames'
 import { useRoomStore, type Movie } from '@/store/roomStore'
 import {
   resolveBilibiliWithOptions,
@@ -84,6 +85,7 @@ export function MovieListPanel({
   isHost,
   canManage = false,
 }: MovieListPanelProps) {
+  const { showFullNames } = useFullMediaNames()
   const operationSeq = useRef(0)
   const { socket } = useSocket()
   const movies = useRoomStore((state) => state.movies)
@@ -761,6 +763,8 @@ export function MovieListPanel({
                         <Select
                           className="mt-1.5"
                           size="sm"
+                          wrapLabels={showFullNames}
+                          aria-label={`选择分集 ${movie.title}`}
                           value={String(movie.currentPage ?? 1)}
                           options={movie.pages.map((p) => ({
                             label:

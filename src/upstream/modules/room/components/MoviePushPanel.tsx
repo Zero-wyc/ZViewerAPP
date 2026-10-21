@@ -3,6 +3,10 @@ import { enumerateSeriesPages } from '@/modules/emby/seriesPages'
 import { logicalConnectionUrl } from '../../../../platform/connectionTransport'
 import { BiliSearchModal } from './BiliSearchModal'
 import { PlaybackOptionToggle } from './PlaybackOptionToggle'
+import { FullMediaNameToggle } from '@/components/FullMediaNameToggle'
+import { EpisodeViewToggle } from '@/components/EpisodeViewToggle'
+import { mediaNameClass, useFullMediaNames } from '@/hooks/useFullMediaNames'
+import { episodeGridColumns, useEpisodeViewMode } from '@/hooks/useEpisodeViewMode'
 import { isEmbeddedBilibiliHost } from '../../../../platform/bilibiliProxy'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
@@ -158,6 +162,8 @@ interface MoviePushPanelProps {
 }
 
 export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
+  const { showFullNames } = useFullMediaNames()
+  const { episodeViewMode } = useEpisodeViewMode()
   const userRole = useAuthStore((state) => state.user?.role)
   const { betaFeaturesEnabled, fetchSettings } = useSystemSettingsStore()
   const addMovieStore = useRoomStore((state) => state.addMovie)
@@ -2330,6 +2336,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
         <Modal
           open={showPageSelector}
           onClose={() => setShowPageSelector(false)}
+          className="max-w-4xl"
           title={
             <div className="flex items-center gap-2.5">
               <div
@@ -2368,14 +2375,22 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
             </Button>
           }
         >
-          <div className="flex max-h-[400px] flex-col gap-1.5 overflow-y-auto">
+          <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
+            <FullMediaNameToggle />
+            <EpisodeViewToggle />
+          </div>
+          <div
+            className="grid max-h-[400px] min-w-0 gap-1.5 overflow-y-auto"
+            style={{ gridTemplateColumns: episodeGridColumns(episodeViewMode) }}
+            data-episode-view={episodeViewMode}
+          >
             {resolvedMovie.pages.map((page) => {
               const isSelected = page.page === (resolvedMovie.currentPage ?? 1)
               return (
                 <div
                   key={page.page}
                   className={cn(
-                    'flex cursor-pointer items-center gap-3 rounded-[var(--md-sys-shape-corner)] border p-3 transition-all hover:-translate-y-0.5 hover:shadow-md',
+                    'flex min-w-0 cursor-pointer items-center gap-3 rounded-[var(--md-sys-shape-corner)] border p-3 transition-all hover:-translate-y-0.5 hover:shadow-md',
                     isSelected
                       ? 'border-[var(--md-sys-color-primary)] bg-[var(--md-sys-color-primary-container)]'
                       : 'glass border-transparent hover:border-[var(--md-sys-color-outline-variant)]'
@@ -2398,7 +2413,8 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
                   <div className="min-w-0 flex-1">
                     <Paragraph
                       className={cn(
-                        'm-0 truncate text-sm font-medium',
+                        'm-0 text-sm font-medium',
+                        mediaNameClass(showFullNames),
                         isSelected &&
                           'text-[var(--md-sys-color-on-primary-container)]'
                       )}

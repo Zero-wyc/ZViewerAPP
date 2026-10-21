@@ -19,6 +19,10 @@ import { FullscreenOverlay } from '@/components/ui/FullscreenOverlay'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Text, Paragraph } from '@/components/ui/Typography'
+import { FullMediaNameToggle } from '@/components/FullMediaNameToggle'
+import { EpisodeViewToggle } from '@/components/EpisodeViewToggle'
+import { mediaNameClass, useFullMediaNames } from '@/hooks/useFullMediaNames'
+import { episodeGridColumns, useEpisodeViewMode } from '@/hooks/useEpisodeViewMode'
 import { message } from '@/components/ui/message'
 import {
   searchBilibiliVideos,
@@ -64,6 +68,8 @@ export function BiliSearchModal({
   onClose,
   onSelect,
 }: BiliSearchModalProps) {
+  const { showFullNames } = useFullMediaNames()
+  const { episodeViewMode } = useEpisodeViewMode()
   const [keyword, setKeyword] = useState('')
   const [items, setItems] = useState<BilibiliVideoItem[]>([])
   const [total, setTotal] = useState<number | null>(null)
@@ -183,10 +189,11 @@ export function BiliSearchModal({
       onClose={onClose}
       className="max-w-4xl h-[624px]"
       title="搜索 B站 视频"
+      headerActions={<FullMediaNameToggle />}
     >
-      <div className="flex h-full flex-col">
+      <div className="flex h-full min-h-0 min-w-0 flex-col">
         {/* 搜索区：回车触发 */}
-        <div className="mb-4 flex gap-3">
+        <div className="mb-4 flex shrink-0 gap-3">
           <Input
             size="md"
             value={keyword}
@@ -215,21 +222,25 @@ export function BiliSearchModal({
         {detailItem ? (
           /* 分 P 选择页：返回 + 标题 + 分 P 列表 */
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="mb-3 flex items-center gap-2">
+            <div className="mb-3 flex min-w-0 shrink-0 items-start gap-2">
               <Button
                 variant="secondary"
                 size="sm"
                 icon={<ArrowLeft className="h-4 w-4" />}
+                className="shrink-0"
                 onClick={() => { ++detailRequest.current; setDetailItem(null) }}
               >
                 返回
               </Button>
               <Text
-                className="truncate text-sm font-semibold"
+                className={`min-w-0 flex-1 text-sm font-semibold ${mediaNameClass(showFullNames)}`}
                 title={detailTitle}
               >
                 {detailTitle}
               </Text>
+            </div>
+            <div className="mb-3 flex shrink-0 justify-end">
+              <EpisodeViewToggle />
             </div>
             <div className="zen-scroll min-h-0 flex-1 overflow-y-auto pr-0.5">
               {detailLoading ? (
@@ -240,7 +251,11 @@ export function BiliSearchModal({
                   />
                 </div>
               ) : (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,230px),1fr))] gap-2">
+                <div
+                  className="grid min-w-0 gap-2"
+                  style={{ gridTemplateColumns: episodeGridColumns(episodeViewMode) }}
+                  data-episode-view={episodeViewMode}
+                >
                   {detailPages.map((p) => (
                     <button
                       key={p.page}
@@ -264,7 +279,7 @@ export function BiliSearchModal({
                         P{p.page}
                       </span>
                       <Text
-                        className="min-w-0 flex-1 truncate text-xs"
+                        className={`min-w-0 flex-1 text-xs ${mediaNameClass(showFullNames)}`}
                         title={p.part}
                       >
                         {p.part || `P${p.page}`}
@@ -324,7 +339,7 @@ export function BiliSearchModal({
                     {/* 标题 + 元信息 */}
                     <div className="flex flex-col gap-1 p-2.5">
                       <Text
-                        className="line-clamp-2 break-all text-xs font-medium leading-snug"
+                        className={`min-w-0 text-xs font-medium leading-snug ${mediaNameClass(showFullNames, 'card')}`}
                         title={stripEm(v.title)}
                       >
                         {stripEm(v.title)}
