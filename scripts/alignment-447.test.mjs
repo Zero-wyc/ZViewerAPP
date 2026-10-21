@@ -10,7 +10,7 @@ const auto = loadTs(new URL('modules/room/watch-together/autoContinue.ts', root)
 const order = loadTs(new URL('modules/room/components/playlistOrder.ts', root))
 const read = path => readFileSync(new URL(path, root), 'utf8')
 const biliInput = loadTs(new URL('modules/bilibili/input.ts', root), {}, { URL })
-test('selected Bili URL is parsed immediately; permission and missing native proxy block resolution', async () => {
+test('selected Bili URL is parsed immediately; ordinary native inputs can use the server without local login', async () => {
   const code = read('modules/room/components/MoviePushPanel.tsx')
   const start = code.indexOf('  const handleResolve = async'), end = code.indexOf('  const handleQualityChange', start)
   const calls = [], errors = []
@@ -18,7 +18,7 @@ test('selected Bili URL is parsed immediately; permission and missing native pro
     message: { info: msg => errors.push(msg), warning: msg => errors.push(msg), error: msg => errors.push(msg) },
     setLoading: () => {}, setResolveProgress: () => {}, setResolvedMovie: () => {}, setShowPageSelector: () => {},
     extractBvid: url => { calls.push(['bvid', url]); return 'BVselected' }, extractBangumiId: url => { calls.push(['pgc', url]); return null },
-    ...biliInput, getActiveCliProxyUrl: () => null, isEmbeddedBilibiliHost: () => false,
+    ...biliInput, getBilibiliInputResolvePolicy: () => ({proxyUrl:null,cliOnly:false}), isEmbeddedBilibiliHost: () => false,
     resolveBilibili: async url => { calls.push(['resolve', url]); return { duration: 10 } }, resolvedViaCliRef: { current: false },
     console: { error: () => {}, warn: () => {} },
   }
@@ -28,7 +28,7 @@ test('selected Bili URL is parsed immediately; permission and missing native pro
   assert.deepEqual(calls, [['bvid', selected], ['pgc', selected], ['resolve', selected]])
   calls.length = 0; sandbox.isHost = false; await sandbox.exports.resolve(selected); assert.equal(calls.length, 0)
   sandbox.isHost = true; sandbox.isEmbeddedBilibiliHost = () => true; await sandbox.exports.resolve(selected)
-  assert.equal(calls.some(([kind]) => kind === 'resolve'), false); assert.ok(errors.some(msg => msg.includes('本机 B 站代理不可用')))
+  assert.equal(calls.some(([kind]) => kind === 'resolve'), true); assert.equal(errors.length, 1)
 })
 test('player remount preserves auto continue; a real host role change invalidates it', () => {
   const code = read('modules/room/watch-together/useWatchTogether.ts')

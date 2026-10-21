@@ -953,7 +953,7 @@ function BilibiliQualitySelect({
   const canChangeQuality =
     isHost || (parsePrefs.cliEnabled && cliAgentAvailable)
 
-  if (isEmbeddedBilibiliHost()) return <NativeQualitySelect movieId={movie.id} isHost={isHost} disabled={isScreenShare || qualityLoadingId === movie.id || effectivePreferMp4} />
+  if (isEmbeddedBilibiliHost() && getActiveCliProxyUrl() && parsePrefs.cliEnabled) return <NativeQualitySelect movieId={movie.id} isHost={isHost} disabled={isScreenShare || qualityLoadingId === movie.id || effectivePreferMp4} />
 
   return (
     <Select

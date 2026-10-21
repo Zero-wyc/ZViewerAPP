@@ -12,7 +12,7 @@
 
 | 检查 | 结果 |
 | --- | --- |
-| npm run test:adaptation | 212 / 212 通过 |
+| npm run test:adaptation | 215 / 215 通过 |
 | npm run test:media | 4 / 4 通过 |
 | go test ./...（native/bilicore） | core、mobile 全部通过 |
 | node vendor/local-patches.mjs --check | 6 / 6 通过 |
@@ -38,10 +38,20 @@ Android：Medium_Phone x86_64，API 37，原生 WebView。HarmonyOS：Pura 90 Pr
 
 先前夹具的通配 CORS 不兼容 dash.js 携带凭证请求，另有隐藏目录 sendFile 规则导致横屏夹具 404；修正测试服务的 CORS，并改用已验证的本地 HLS 横屏样本后重跑。此处为测试夹具问题，未据此修改客户端网络策略。最终结果见忽略目录 `.ui-validation/bili-portrait-20261021/native-results.json` 与两端截图。
 
+## 仅登录服务端的添加与播放
+
+经用户确认后，补修普通 B站视频添加入口强制本机登录的缺陷；该修复已包含在本地 2.1.7 候选包。两端本机代理均需 ready 且 loggedIn 才作为已登录账号路径，未登录时普通内容走服务端，PGC CLI-only 仍提前阻断，已登录本机解析错误不切换账号。账号面板分别显示两处状态；服务端 DASH 的房主画质保留共享选择器。
+
+使用独立回环服务和真实上游鉴权、房间、Socket.IO、影片 REST，仅 B站登录状态、用户资料和 NDJSON 解析接口返回夹具；不使用线上账号。Android 在停止 Debug 进程后临时重命名原有加密 Cookie 文件，测试后原位恢复，不读取明文。HarmonyOS Debug 测试包只将 AssetStore 凭据别名改为专用空命名空间，保留原账号资产；测试后安装普通 Debug 包恢复原命名空间。此隔离差异仅用于 Debug，正式 Release 源码与包仍用原别名。
+
+两端分别验证本机按钮 data-logged-in=false、服务端账号卡片已登录，再通过真实界面短链解析、切 720P、选 P2 和点击添加。真实数据库片单分别从 0→1、1→2，服务端捕获对应 qn/page 请求。随后由真实房主信令播放新增影片，客户端向服务端重新解析，video 实际解码帧数和进度增长。测试服务的初版心跳固定暂停导致影片被暂停，改为与房主播放状态一致后重跑；没有因此修改客户端播放策略。
+
+CLI-only 未登录阻断、未就绪阻断、本机权限失败不得服务器兜底、普通播放锚定 movieId 等由新增回归覆盖。上述服务端账号状态及解析结果是接口夹具，不能扩展为线上 B站登录、NAS 配置或真机验收。证据位于 `.ui-validation/bili-server-login-20261021/`。
+
 ## 安装包
 
-- Android Release APK：76,756,325 字节，2.1.7 / 217，apksigner 验证通过。
-- HarmonyOS Release HAP：14,287,747 字节，2.1.7 / 217，debug=false，hap-sign-tool verify-app 通过。
+- Android Release APK：76,756,565 字节，2.1.7 / 217，apksigner 验证通过。
+- HarmonyOS Release HAP：14,287,748 字节，2.1.7 / 217，debug=false，hap-sign-tool verify-app 通过。
 - APK 33 个、HAP 31 个网页资源逐字节匹配最终同步目录；源码生成资源仍由 android:sync / harmony:web 维护。
 - 最终包仅各计算一次 SHA-256，保存在 `release/client-v2.1.7/SHA256SUMS.txt`，后续发布直接复用。包位于同目录 `ZViewer-Android-2.1.7-release.apk`、`ZViewer-HarmonyOS-2.1.7-release.hap`。
 
@@ -49,6 +59,6 @@ Android：Medium_Phone x86_64，API 37，原生 WebView。HarmonyOS：Pura 90 Pr
 
 运行时证据来自模拟器 Debug 宿主；签名 Release 包完成版本、资源、签名检查，不扩大为正式包实体设备安装验收。未覆盖 API 23 鸿蒙真机、设备全部硬件解码器、扫码账号的一体化添加与 NAS 线上配置。iOS 不修改、不构建。
 
-新增“仅登录服务端，未登录本机代理时无法添加”按用户要求只诊断，结果见 [账号路由核查](bilibili-server-login-diagnosis-20261021.md)：添加面板显示服务端登录状态，而 Android 添加入口强制要求本机代理，拦截发生在服务端请求之前。本项尚未改动，不能把前三项修复或上述实播称为解决了它。
+新增“仅登录服务端，未登录本机代理时无法添加”已按用户后续授权修复，原因、行为与测试见 [账号路由核查与修复](bilibili-server-login-diagnosis-20261021.md) 及上方独立验证范围。
 
 本地测试服务、设备调试转发和模拟器在验证后停止，恢复测试前本机存储。临时会话、原始媒体 URL、签名材料、服务配置和 AGENTS 文件不进入提交。

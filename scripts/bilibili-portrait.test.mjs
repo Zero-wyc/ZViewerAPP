@@ -73,7 +73,7 @@ test('adding a short link then changing quality and part stays on the local reso
     message:{info(){},warning(){},error:e=>errors.push(e)},setLoading(){},setResolveProgress(){},setShowPageSelector(){},setQualityLoading(){},setPageSelectLoading(){},
     resolvedViaCliRef:{current:false},resolvedMovie:null,setResolvedMovie:r=>{state.resolvedMovie=r},
     extractBvid:url=>url.match(/BV[0-9A-Za-z]{10}/)?.[0],extractBangumiId:()=>null,
-    getActiveCliProxyUrl:()=> 'http://local.test',isEmbeddedBilibiliHost:()=>true,
+    getBilibiliInputResolvePolicy:()=> ({proxyUrl:'http://local.test',cliOnly:false}),isEmbeddedBilibiliHost:()=>true,
     async resolveBilibiliViaCli(...args){calls.push(args);return {resolvedUrl:canonical,cid:1,currentQn:args[3]||80,pages:[{page:1,cid:1},{page:2,cid:2}]}},
     async resolveBilibili(){throw Error('unexpected server fallback')},async resolveBilibiliWithOptions(){throw Error('unexpected server fallback')},console,
   }

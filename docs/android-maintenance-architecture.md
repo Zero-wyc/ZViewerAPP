@@ -18,7 +18,9 @@
 
 `PlayerControlBar.tsx → PlayerDisplayControls.tsx → playerDisplay.ts` 读取当前 videoWidth/videoHeight，竖屏全屏请求 portrait，横屏和未知尺寸沿用 landscape。监听 loadedmetadata/resize 处理迟到元数据与全屏换源；相同比例的尺寸事件不反复覆盖手动解锁。方向请求保留串行代次保护，退出、卸载、离房解除锁定并退出沉浸模式。投屏与其他播放器沿用已有方向规则。
 
-212 项适配、4 项媒体及 Go core/mobile 回归通过；双端实际 DASH 解码、全屏与包体检查见 [2.1.7 验证记录](client-2.1.7-validation.md)。新增“仅登录服务端无法添加”的反馈本轮仅诊断，见 [账号路由核查](bilibili-server-login-diagnosis-20261021.md)；不能把本机账号与服务端账号状态等同，CLI-only 边界保持不变。iOS 不修改、不构建。
+后续根据用户确认修复“仅登录服务端无法添加”：`getActiveCliProxyUrl` 在两端均要求 ready 且 loggedIn，普通内容无本机登录时进入服务端解析；`getBilibiliInputResolvePolicy` 为添加、切画质与分 P 统一检查 PGC CLI-only 条件。已登录本机的解析失败继续抛出，不静默切账号；CLI-only 不能走服务端。服务端 DASH 使用共享画质选择器，本机登录并启用 CLI 时保留 NativeQualitySelect。账号卡片分别显示服务端与本机状态，试看提示引用“当前解析账号”。
+
+215 项适配、4 项媒体及 Go core/mobile 回归通过；双端实际 DASH 解码、全屏、服务端账号添加与包体检查见 [2.1.7 验证记录](client-2.1.7-validation.md)，详细原因见 [账号路由核查与修复](bilibili-server-login-diagnosis-20261021.md)。iOS 不修改、不构建。
 
 ### 2.1.6 / 216：完整名称与选集显示方式（2026-10-21）
 

@@ -25,7 +25,6 @@ import type { QualityOption } from './resolveSource'
 import { buildServerFileProxyUrl } from '@/modules/server-files/serverFilesApi'
 import { resolveMovieDirectUrl } from '@/modules/direct-link/directLinkApi'
 import { getEmbeddedProxyStatus, isEmbeddedBilibiliHost, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
-import { getRuntimePlatform } from '../../../../platform/runtime'
 import { getNativeQualityPolicy, getWebViewCapabilities, nativeQualityCacheKey, recordNativeQuality } from '@/modules/bilibili/nativeQualityPolicy'
 import {
   resolveAniSubsEpisode,
@@ -127,11 +126,19 @@ function normalizeLocalCliProxyUrl(proxyUrl: string): string {
 export function getActiveCliProxyUrl(): string | null {
   if (isEmbeddedBilibiliHost()) {
     const local = getEmbeddedProxyStatus()
-    return local.ready && (local.loggedIn || getRuntimePlatform() === 'harmony') ? local.proxyUrl : null
+    return local.ready && local.loggedIn ? local.proxyUrl : null
   }
   const { agents } = useCliAgentStore.getState()
   if (agents.length === 0) return null
   return normalizeLocalCliProxyUrl(agents[0].proxyUrl)
+}
+
+/** Adding/previewing content follows the same account boundary as playback. */
+export function getBilibiliInputResolvePolicy(input: string): { proxyUrl: string | null; cliOnly: boolean } {
+  const cliOnly = !!extractBangumiId(input) && useSystemSettingsStore.getState().bilibiliPgcDefaultMode === 'cliOnly'
+  const proxyUrl = getActiveCliProxyUrl()
+  if (cliOnly && !proxyUrl) throw new Error('该内容仅允许本机代理，请先登录本机 B站账号后重试')
+  return { proxyUrl, cliOnly }
 }
 
 /**

@@ -7,7 +7,7 @@ import { FullMediaNameToggle } from '@/components/FullMediaNameToggle'
 import { EpisodeViewToggle } from '@/components/EpisodeViewToggle'
 import { mediaNameClass, useFullMediaNames } from '@/hooks/useFullMediaNames'
 import { episodeGridColumns, useEpisodeViewMode } from '@/hooks/useEpisodeViewMode'
-import { isEmbeddedBilibiliHost } from '../../../../platform/bilibiliProxy'
+import { isEmbeddedBilibiliHost, useEmbeddedProxyStatus } from '../../../../platform/bilibiliProxy'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Link2,
@@ -63,7 +63,7 @@ import {
   CliResolveError,
 } from '@/modules/bilibili/cliApi'
 import {
-  getActiveCliProxyUrl,
+  getBilibiliInputResolvePolicy,
   isBilibiliPgcMovie,
 } from '@/modules/room/watch-together/movie-source-resolver'
 import {
@@ -163,6 +163,7 @@ interface MoviePushPanelProps {
 }
 
 export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
+  const localBilibiliProxy = useEmbeddedProxyStatus()
   const { showFullNames } = useFullMediaNames()
   const { episodeViewMode } = useEpisodeViewMode()
   const userRole = useAuthStore((state) => state.user?.role)
@@ -920,7 +921,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
 
       let resolved: ResolvedSource | undefined
       // CLI 已连接时优先使用本地 CLI 代理解析（使用用户自己的 B站 Cookie，可获取高画质）
-      const cliProxyUrl = getActiveCliProxyUrl()
+      const { proxyUrl: cliProxyUrl, cliOnly } = getBilibiliInputResolvePolicy(inputUrl)
       if (cliProxyUrl && bangumiId) {
         try {
           setResolveProgress('正在通过 CLI 代理解析番剧...')
@@ -935,7 +936,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
           )
           resolvedViaCliRef.current = true
         } catch (cliErr) {
-          if (isEmbeddedBilibiliHost()) throw cliErr
+          if (isEmbeddedBilibiliHost() || cliOnly) throw cliErr
           resolvedViaCliRef.current = false
           if (cliErr instanceof CliConnectionError) {
             console.warn(
@@ -958,7 +959,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
           )
           resolvedViaCliRef.current = true
         } catch (cliErr) {
-          if (isEmbeddedBilibiliHost()) throw cliErr
+          if (isEmbeddedBilibiliHost() || cliOnly) throw cliErr
           // CLI 代理解析失败：连接失败或后端返回错误，自动回退到服务器端解析
           resolvedViaCliRef.current = false
           if (cliErr instanceof CliConnectionError) {
@@ -973,7 +974,6 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
       }
 
       if (!resolved) {
-        if (isEmbeddedBilibiliHost()) throw new Error('本机 B 站代理不可用，请登录 B 站或重启内置代理后重试')
         setResolveProgress('正在通过服务器解析...')
         resolvedViaCliRef.current = false
         resolved = await resolveBilibili(inputUrl, undefined, (_step, msg) =>
@@ -985,7 +985,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
       // PGC 试看提示：会员专享集 + 非大会员账号时后端只返回试看片段
       if (resolved.preview) {
         message.info(
-          `当前返回试看片段（约 ${Math.round((resolved.duration || 0) / 60)} 分钟）；完整播放取决于本机账号的内容授权`
+          `当前返回试看片段（约 ${Math.round((resolved.duration || 0) / 60)} 分钟）；完整播放取决于当前解析账号的内容授权`
         )
       }
       // 自动检测多 P 视频：若有多 P，弹出分集选择界面
@@ -1015,7 +1015,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
 
       let resolved: ResolvedSource | undefined
       // CLI 已连接时通过本地 CLI 代理切换清晰度（使用用户自己的 B站 Cookie）
-      const cliProxyUrl = getActiveCliProxyUrl()
+      const { proxyUrl: cliProxyUrl, cliOnly } = getBilibiliInputResolvePolicy(inputUrl)
       if (cliProxyUrl && bangumiId) {
         try {
           setResolveProgress('正在通过 CLI 代理切换清晰度...')
@@ -1030,7 +1030,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
           )
           resolvedViaCliRef.current = true
         } catch (cliErr) {
-          if (isEmbeddedBilibiliHost()) throw cliErr
+          if (isEmbeddedBilibiliHost() || cliOnly) throw cliErr
           resolvedViaCliRef.current = false
           if (cliErr instanceof CliConnectionError) {
             console.warn(
@@ -1053,7 +1053,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
           )
           resolvedViaCliRef.current = true
         } catch (cliErr) {
-          if (isEmbeddedBilibiliHost()) throw cliErr
+          if (isEmbeddedBilibiliHost() || cliOnly) throw cliErr
           resolvedViaCliRef.current = false
           if (cliErr instanceof CliConnectionError) {
             console.warn(
@@ -1099,7 +1099,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
       setResolveProgress(`正在解析第 ${page} 集 ${targetPage.part}...`)
       try {
         let resolved: ResolvedSource | undefined
-        const cliProxyUrl = getActiveCliProxyUrl()
+        const { proxyUrl: cliProxyUrl, cliOnly } = getBilibiliInputResolvePolicy(epUrl)
         if (cliProxyUrl) {
           try {
             setResolveProgress(`正在通过 CLI 代理解析第 ${page} 集...`)
@@ -1113,7 +1113,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
             )
             resolvedViaCliRef.current = true
           } catch (cliErr) {
-            if (isEmbeddedBilibiliHost()) throw cliErr
+            if (isEmbeddedBilibiliHost() || cliOnly) throw cliErr
             resolvedViaCliRef.current = false
             if (cliErr instanceof CliConnectionError) {
               console.warn(
@@ -1136,7 +1136,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
         setResolvedMovie(resolved)
         if (resolved.preview) {
           message.info(
-            `当前返回试看片段（约 ${Math.round((resolved.duration || 0) / 60)} 分钟）；完整播放取决于本机账号的内容授权`
+            `当前返回试看片段（约 ${Math.round((resolved.duration || 0) / 60)} 分钟）；完整播放取决于当前解析账号的内容授权`
           )
         }
       } catch (err) {
@@ -1156,7 +1156,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
 
       let resolved: ResolvedSource | undefined
       // CLI 已连接时通过本地 CLI 代理切换分P（使用用户自己的 B站 Cookie）
-      const cliProxyUrl = getActiveCliProxyUrl()
+      const { proxyUrl: cliProxyUrl, cliOnly } = getBilibiliInputResolvePolicy(inputUrl)
       if (cliProxyUrl && (bvid || isBilibiliShortLink(inputUrl))) {
         try {
           setResolveProgress(`正在通过 CLI 代理解析 P${page}...`)
@@ -1170,7 +1170,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
           )
           resolvedViaCliRef.current = true
         } catch (cliErr) {
-          if (isEmbeddedBilibiliHost()) throw cliErr
+          if (isEmbeddedBilibiliHost() || cliOnly) throw cliErr
           resolvedViaCliRef.current = false
           if (cliErr instanceof CliConnectionError) {
             console.warn(
@@ -2142,7 +2142,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
                   type="secondary"
                   className="text-[10px] uppercase tracking-wide"
                 >
-                  B站 登录状态
+                  服务端 B站账号
                 </Text>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2 rounded-[var(--md-sys-shape-corner)] p-1">
@@ -2187,28 +2187,28 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 px-2 text-xs"
+                      className="h-8 shrink-0 whitespace-nowrap px-2 text-xs"
                       icon={<LogOut className="h-3 w-3" />}
                       onClick={(e) => {
                         e.stopPropagation()
                         handleLogoutBilibili()
                       }}
                     >
-                      退出
+                      退出服务端账号
                     </Button>
                   </>
                 ) : (
                   <Button
                     variant="secondary"
                     size="sm"
-                    className="h-6 px-2 text-xs"
+                    className="h-8 shrink-0 whitespace-nowrap px-2 text-xs"
                     icon={<QrCode className="h-3 w-3" />}
                     onClick={(e) => {
                       e.stopPropagation()
                       handleOpenQrModal()
                     }}
                   >
-                    扫码登录 B站
+                    登录服务端 B站账号
                   </Button>
                 )}
               </div>
@@ -2216,9 +2216,15 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
                 {bilibiliLoggedIn
                   ? bilibiliUser?.vipStatus === 1
                     ? '大会员账号，可解析 4K / 1080P 高码率等专属画质'
-                    : '已登录，可解析高画质视频'
-                  : '未登录时只能解析低画质或试看片段'}
+                    : '已登录服务端账号，画质取决于账号权限与源站返回'
+                  : '服务端未登录时可能只能解析低画质或试看片段'}
               </Paragraph>
+              {isEmbeddedBilibiliHost() && <Paragraph type="secondary" className="m-0 mt-1.5 text-[11px]">
+                本机 B站账号：{localBilibiliProxy.loggedIn ? '已登录' : '未登录'}
+                {localBilibiliProxy.ready && localBilibiliProxy.loggedIn
+                  ? ' · 当前优先使用本机账号解析'
+                  : ' · 普通视频使用服务端账号解析；仅本机代理内容需先登录本机账号'}
+              </Paragraph>}
             </div>
           )}
         </div>

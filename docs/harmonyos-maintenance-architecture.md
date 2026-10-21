@@ -18,7 +18,9 @@
 
 一起看控制栏传入实际 videoRef，由 `PlayerDisplayControls.tsx` 根据解码宽高决定 portrait/landscape，并在 loadedmetadata/resize 后复核。`playerDisplay.ts` 保留串行请求与失效代次；Index.ets 既有原生方向桥接直接执行目标方向。退出与离房解除锁定，手动解锁不会被相同比例的 resize 立即覆盖。投屏与其他播放器沿用原规则，最低 SDK 仍为 6.1.0(23)。
 
-212 项适配、4 项媒体及双端解析夹具通过；ArkWeb 实际 DASH 解码与全屏、构建和签名范围见 [2.1.7 验证记录](client-2.1.7-validation.md)。新增“仅登录服务端无法添加”本轮只做 [账号路由诊断](bilibili-server-login-diagnosis-20261021.md)，不修改登录策略或 CLI-only 约束。iOS 不修改、不构建。
+后续修复“仅登录服务端无法添加”：共享 `getActiveCliProxyUrl` 在鸿蒙也要求 ready 且 loggedIn，不再把匿名本机代理当作已登录账号路径。普通内容无本机登录时使用服务端账号；`getBilibiliInputResolvePolicy` 为添加、切画质与分 P 统一检查 CLI-only，明确要求本机账号的内容不得走服务器。已登录本机的权限错误继续直接提示。服务端 DASH 使用共享画质选择器，账号卡片分别注明两处登录状态，试看提示使用“当前解析账号”。
+
+215 项适配、4 项媒体及双端解析夹具通过；ArkWeb 实际 DASH 解码、全屏、服务端账号添加与签名范围见 [2.1.7 验证记录](client-2.1.7-validation.md)，原因与实现见 [账号路由核查与修复](bilibili-server-login-diagnosis-20261021.md)。iOS 不修改、不构建。
 
 ### 2.1.6 / 216：完整名称与选集显示方式（2026-10-21）
 
