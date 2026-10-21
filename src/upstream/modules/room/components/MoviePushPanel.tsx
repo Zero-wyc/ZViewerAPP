@@ -29,19 +29,8 @@ import { Tag } from '@/components/ui/Tag'
 import { message } from '@/components/ui/message'
 import { useRoomStore } from '@/store/roomStore'
 import { AniSubsSelector } from '@/modules/anisubs/AniSubsSelector'
-import {
-  resolveAniSubsEpisode,
-  buildAniSubsProxyUrl,
-  needsAniSubsProxy,
-  type AniSubsEpisode,
-} from '@/modules/anisubs'
+import type { AniSubsEpisode } from '@/modules/anisubs'
 import { KazumiSelector } from '@/modules/kazumi/KazumiSelector'
-import {
-  resolveKazumiEpisode,
-  buildKazumiProxyUrl,
-  needsKazumiProxy,
-  type KazumiEpisode,
-} from '@/modules/kazumi'
 import {
   resolveBilibili,
   resolveFTP,
@@ -173,9 +162,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
   const { betaFeaturesEnabled, fetchSettings } = useSystemSettingsStore()
   const addMovieStore = useRoomStore((state) => state.addMovie)
   const fetchMovies = useRoomStore((state) => state.fetchMovies)
-  const setPendingPreviewPlay = useRoomStore(
-    (state) => state.setPendingPreviewPlay
-  )
+
   const roomId = useRoomStore((state) => state.roomId)
   const [sourceType, setSourceType] = useState<SourceType>('bilibili')
   const [url, setUrl] = useState('')
@@ -470,138 +457,6 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
       return added
     },
     [isHost, roomId, addMovie, fetchMovies]
-  )
-
-  const handleSelectAnimeEpisode = useCallback(
-    async (sourceId: string, episode: AniSubsEpisode, title: string) => {
-      if (!isHost) {
-        message.info('只有房主可以播放影片')
-        return
-      }
-      if (!roomId) {
-        message.error('未连接房间')
-        return
-      }
-
-      setLoading(true)
-      try {
-        const resolved = await resolveAniSubsEpisode(sourceId, episode)
-
-        // 防盗链处理：若返回 headers（Referer/UA 等），走后端代理 URL
-        // 浏览器无法为 video.src 设置 Referer/UA，必须代理
-        const finalUrl = needsAniSubsProxy(resolved.url, resolved.headers)
-          ? buildAniSubsProxyUrl(resolved.url, resolved.headers)
-          : resolved.url
-
-        // 1. 触发实时预览播放（通过 store 解耦 useWatchTogether）
-        //    代理 URL 已包含防盗链信息，无需再传 headers
-        setPendingPreviewPlay({
-          url: finalUrl,
-          title,
-          sourceType: 'anime',
-          format: resolved.format,
-          playsvideoEnabled,
-        })
-
-        // 2. 同时异步加入影片列表（不阻塞预览播放）
-        //    ani-subs 的视频地址带 token/signature，短期有效，
-        //    因此存储 sourceMeta 元数据而非解析后的 URL。
-        //    播放时（含刷新恢复）通过 sourceMeta 重新解析获取最新地址。
-        //    url 字段存储 sourceId 作为标识，便于调试和日志追踪。
-        void addMovie(roomId, {
-          url: `anisubs://${sourceId}/${episode.id}`,
-          title,
-          source: 'anime',
-          format: resolved.format,
-          sourceMeta: {
-            sourceId,
-            episode,
-            originalTitle: title,
-          },
-        })
-          .then(() => fetchMovies(roomId))
-          .catch((err) => {
-            console.error(
-              '[MoviePushPanel] addMovie/fetchMovies after preview failed:',
-              err
-            )
-          })
-
-        message.success('已开始播放并加入列表')
-      } catch (err) {
-        console.error('[MoviePushPanel] select anime episode error:', err)
-        message.error(err instanceof Error ? err.message : '加载番剧集数失败')
-      } finally {
-        setLoading(false)
-      }
-    },
-    [
-      isHost,
-      roomId,
-      addMovie,
-      fetchMovies,
-      setPendingPreviewPlay,
-      playsvideoEnabled,
-    ]
-  )
-
-  const handleSelectKazumiEpisode = useCallback(
-    async (sourceId: string, episode: KazumiEpisode, title: string) => {
-      if (!isHost) {
-        message.info('只有房主可以播放影片')
-        return
-      }
-      if (!roomId) {
-        message.error('未连接房间')
-        return
-      }
-
-      setLoading(true)
-      try {
-        const resolved = await resolveKazumiEpisode(sourceId, episode)
-
-        const finalUrl = needsKazumiProxy(resolved.url, resolved.headers)
-          ? buildKazumiProxyUrl(resolved.url, resolved.headers)
-          : resolved.url
-
-        setPendingPreviewPlay({
-          url: finalUrl,
-          title,
-          sourceType: 'kazumi',
-          format: resolved.format,
-          playsvideoEnabled,
-        })
-
-        void addMovie(roomId, {
-          url: finalUrl,
-          title,
-          source: 'kazumi',
-          format: resolved.format,
-        })
-          .then(() => fetchMovies(roomId))
-          .catch((err) => {
-            console.error(
-              '[MoviePushPanel] addMovie/fetchMovies after kazumi preview failed:',
-              err
-            )
-          })
-
-        message.success('已开始播放并加入列表')
-      } catch (err) {
-        console.error('[MoviePushPanel] select kazumi episode error:', err)
-        message.error(err instanceof Error ? err.message : '加载番剧集数失败')
-      } finally {
-        setLoading(false)
-      }
-    },
-    [
-      isHost,
-      roomId,
-      addMovie,
-      fetchMovies,
-      setPendingPreviewPlay,
-      playsvideoEnabled,
-    ]
   )
 
   useEffect(() => {
@@ -2361,13 +2216,11 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
       </div>
 
       {sourceType === 'cms' && <CmsSelector open={cmsOpen} onOpenChange={setCmsOpen}
-        onSelectEpisode={(sourceId, episode, title) => { void handleSelectAnimeEpisodes('cms', [{sourceId, episode, title}]) }}
         onSelectEpisodes={items => handleSelectAnimeEpisodes('cms', items)} disabled={!isHost || loading} />}
       {sourceType === 'anime' && (
         <AniSubsSelector
           open={animeOpen}
           onOpenChange={setAnimeOpen}
-          onSelectEpisode={handleSelectAnimeEpisode}
           onSelectEpisodes={(items) =>
             handleSelectAnimeEpisodes('anime', items)
           }
@@ -2379,7 +2232,6 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
         <KazumiSelector
           open={kazumiOpen}
           onOpenChange={setKazumiOpen}
-          onSelectEpisode={handleSelectKazumiEpisode}
           onSelectEpisodes={(items) =>
             handleSelectAnimeEpisodes('kazumi', items)
           }

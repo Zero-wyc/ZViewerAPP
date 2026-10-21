@@ -12,6 +12,7 @@ export {
   computeStateDiff,
   mergeStateDiff,
   restoreStateSnapshot,
+  isSameMediaSource,
 } from './state-merge'
 
 export {

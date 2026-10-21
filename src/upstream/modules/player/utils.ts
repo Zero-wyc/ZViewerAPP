@@ -58,18 +58,20 @@ export function resetVideoElement(video: HTMLVideoElement): void {
  */
 export const METADATA_TIMEOUT_MS = 30_000
 
-export function waitForMetadata(video: HTMLVideoElement, timeoutMs = METADATA_TIMEOUT_MS, signal?: AbortSignal): Promise<void> {
+export function waitForMetadata(video: HTMLVideoElement, timeoutMs = METADATA_TIMEOUT_MS, signal?: AbortSignal, minimumReadyState = 1): Promise<void> {
   if (signal?.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'))
-  if (video.readyState >= 1) return Promise.resolve()
+  if (video.readyState >= minimumReadyState) return Promise.resolve()
+  const readyEvent = minimumReadyState >= 2 ? 'loadeddata' : 'loadedmetadata'
   return new Promise((resolve, reject) => {
     const cleanup = () => {
-      video.removeEventListener('loadedmetadata', onLoaded)
+      video.removeEventListener(readyEvent, onLoaded)
       video.removeEventListener('error', onError)
       clearTimeout(timer)
       signal?.removeEventListener('abort', onAbort)
     }
     const onAbort = () => { cleanup(); reject(new DOMException('Aborted', 'AbortError')) }
     const onLoaded = () => {
+      if (video.readyState < minimumReadyState) return
       cleanup()
       resolve()
     }
@@ -89,7 +91,7 @@ export function waitForMetadata(video: HTMLVideoElement, timeoutMs = METADATA_TI
     }, timeoutMs)
 
     signal?.addEventListener('abort', onAbort, { once: true })
-    video.addEventListener('loadedmetadata', onLoaded)
+    video.addEventListener(readyEvent, onLoaded)
     video.addEventListener('error', onError)
   })
 }

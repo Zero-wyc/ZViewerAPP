@@ -211,6 +211,8 @@ export interface PreviewPlayRequest {
   duration?: number
   /** 影片级浏览器播放引擎（playsvideo）开关：false 时强制原生直连播放 */
   playsvideoEnabled?: boolean
+  /** true 禁止任何服务器媒体中转回退；缺省兼容旧预览发送端。 */
+  noProxyFallback?: boolean
 }
 
 interface RoomState {

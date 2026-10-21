@@ -81,7 +81,7 @@ export interface WatchTogetherState {
    */
   playsvideoEnabled?: boolean
   /**
-   * 挂载直链模式（movie.directLink，添加影片时设置并随状态广播）。
+   * 直连策略（挂载 directLink，或数据源 serverProxy 未开启，随状态广播）。
    * true 时直连失败不回退服务器代理，直接向用户提示错误——
    * 保持"源站直传、服务器零媒体流量"的直链语义。
    */
@@ -104,6 +104,12 @@ export interface StatePayload {
   diff?: Partial<WatchTogetherState>
   /** 房主侧递增序号：观众检测跳号即请求全量状态自愈（避免 diff 基线错位） */
   seq?: number
+}
+
+/** One receiver serializes broadcasts, initial ACKs and web-host previews. */
+export interface ViewerStateReceiver {
+  revision: number
+  receive: (payload: StatePayload) => void
 }
 
 /** `host-heartbeat` 事件 payload：房主定时广播的轻量心跳信息 */

@@ -131,15 +131,18 @@ test('full-state sync seeks to zero, and a delayed control seek cannot affect a 
     react: {useEffect: f => f(), useRef: value => ({current: value})},
     '@/hooks/useSocket': {useSocket: () => ({socket})},
     '@/components/ui/message': {message: {error() {}}},
-    '@/store/roomStore': {useRoomStore: {getState: () => ({watchTogether: state, currentMovieId: movieId, roomSessionRevision: 1})}},
+    '@/store/roomStore': {useRoomStore: {getState: () => ({watchTogether: state, currentMovieId: movieId, movies: [], roomSessionRevision: 1})}},
     '../constants': {SOCKET_EVENT: {STATE: 'state', CONTROL: 'control'}},
     '../safePlay': {safePlay() {}},
+    '../playbackIdentity': loadTs('src/upstream/modules/sync-playback/playbackIdentity.ts'),
     '../services': {...loadTs('src/upstream/modules/sync-playback/services/state-merge.ts'), executeSeek: async p => {seeks.push(p.targetTime); return hold ? new Promise(resolve => { finish = resolve }) : false}},
     '@/modules/player/services/buffer-mode': {},
   })
   useViewerStateSync({roomId: 'room', isHostRef: {current: false}, videoRef: {current: video},
     suppressEventsRef: {current: false}, setWatchTogether() {}, applySourceToVideo: async () => {},
-    seekTo: async () => ({success: true}), reloadVideo: async () => {}, lastAppliedSourceUrlRef: {current: 'media'}})
+    seekTo: async () => ({success: true}), reloadVideo: async () => {}})
+  handlers.get('state')({state})
+  await new Promise(resolve => setImmediate(resolve))
   handlers.get('state')({state})
   await new Promise(resolve => setImmediate(resolve))
   assert.deepEqual(seeks,[0]); assert.equal(video.currentTime,0)

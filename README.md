@@ -1,6 +1,6 @@
 # ZViewer Mobile Client
 
-**Android / HarmonyOS 2.1.4 / 214**：修复观众从 B站 DASH 切到 Kazumi HLS 时残留旧音轨、误用 DASH 引擎的问题；同步媒体库 HLS 与房间恢复等服务端 v4.6.4 更新。包含 Android 投屏旋转修复和此前已获用户真机验收的鸿蒙固定采集画布修正。双端模拟器、既有真机证据与本次重建包的验收范围见 [2.1.4 记录](docs/client-2.1.4-validation.md)。
+**Android / HarmonyOS 2.1.5 / 215**：对齐服务端 v4.7.1，修复同一播放地址的直连/转码策略切换、底层播放器去重和旧策略覆盖；修复鸿蒙 HLS 连续重载后的 seek，校正访问统计并完善跨端预览。双端模拟器验收、包体检查和真机范围见 [2.1.5 记录](docs/client-2.1.5-validation.md)。
 
 **iOS 1.9.0 / build 26**：播放器、弹幕设置、房间语音、投屏、房间设置、方向控制和音乐菜单完成独立更新；设备 Release IPA 未签名，需自行签名后侧载。维护入口见 [iOS 维护文档](docs/ios-maintenance-architecture.md)，发布包见 [iOS 1.9.0 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0)。
 
@@ -8,21 +8,21 @@
 
 面向手机和平板的 ZViewer 客户端，支持一起看、一起听、投屏接收、房间语音、弹幕与字幕。三端均将界面与播放器打包进安装包，填写服务器地址后连接 [ZViewer 服务端](https://github.com/Zero-wyc/ZViewer)。本仓库提供 Android/HarmonyOS 共享前端、原生宿主及独立 iOS 工程源码。
 
-[下载安卓/鸿蒙 2.1.4](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.4) · [下载 iOS 1.9.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md)
+[下载安卓/鸿蒙 2.1.5](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.5) · [下载 iOS 1.9.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md)
 
-## 2.1.4 发行状态
+## 2.1.5 发行状态
 
-当前 Android/HarmonyOS 版本为 **2.1.4 / 214**，包含此前本地 2.1.2、2.1.3 的全部更新。自动连播仍由房主本机控制，切片结果由服务端确认并同步。发行说明见 [2.1.4](docs/releases/client-2.1.4.md)，原生验收与限制见 [交付验证](docs/client-2.1.4-validation.md)。
+当前 Android/HarmonyOS 版本为 **2.1.5 / 215**，保留 2.1.4 的跨来源播放与投屏旋转更新。对齐目标为服务端 v4.7.1 后的 `fe55dde`；本次不改动服务器部署。发行说明见 [2.1.5](docs/releases/client-2.1.5.md)，验收证据与范围见 [交付验证](docs/client-2.1.5-validation.md)。
 
 ## 最新公开发行与三端状态
 
 | 平台 | 版本 | 交付和目前状态 |
 | --- | --- | --- |
-| Android | **2.1.4 / 214** | 正式签名 APK；跨来源观众播放修复、v4.6.4 媒体库 HLS、房间恢复和原生投屏旋转。 |
-| HarmonyOS | **2.1.4 / 214** | 正式签名 HAP；共享上述更新，修正固定采集画布；最低 SDK 6.1.0(23)，无画中画入口。 |
+| Android | **2.1.5 / 215** | 正式签名 APK；v4.7.1 媒体策略、访问统计和预览更新；保留既有播放与投屏功能。 |
+| HarmonyOS | **2.1.5 / 215** | 正式签名 HAP；共享上述更新及 HLS 恢复时序修复；最低 SDK 6.1.0(23)，无画中画入口。 |
 | iOS | **1.9.0 / build 26** | 未签名设备 Release IPA，需个人签名后侧载；自动检查和模拟器覆盖范围、真实媒体与后台限制见 iOS 维护文档。 |
 
-[ZViewer-Client V2.1.4](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.4) 提供本次重新构建的正式签名 Android APK、HarmonyOS HAP 与双端 `SHA256SUMS.txt`；源码同步 main，使用 GitHub 自动归档。iOS 保持在 [1.9.0 / build 26](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0)，本轮不构建或重新上传 IPA。
+[ZViewer-Client V2.1.5](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.5) 提供本次重新构建的正式签名 Android APK、HarmonyOS HAP 与双端 `SHA256SUMS.txt`；源码同步 main，使用 GitHub 自动归档。iOS 保持在 [1.9.0 / build 26](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0)，本轮不构建或重新上传 IPA。
 
 Android/HarmonyOS 2.0.0 保留服务端 v4.5.3 对齐及既有 HLS 直连/代理策略。投屏观看端去掉批注，全屏隐藏连接与分辨率；一起看更多菜单优先向下展开并避开按钮。B站图标按本机登录态着色，账号弹窗仅“已登录”标粉；关于入口悬浮在外观按钮上方，创建房间时二者均被面板覆盖。维护状态与模块入口见对应的平台维护文档；完整历史版本见 [更新记录](CHANGELOG.md) 和 [GitHub Releases](https://github.com/Zero-wyc/ZViewerAPP/releases)。
 
@@ -30,8 +30,8 @@ Android/HarmonyOS 2.0.0 保留服务端 v4.5.3 对齐及既有 HLS 直连/代理
 
 | 平台 | 安装包与方法 | 系统要求 |
 | --- | --- | --- |
-| Android | 下载 `ZViewer-Android-2.1.4-release.apk`，允许安装该来源的应用后安装；相同发布签名可覆盖旧正式版。 | Android 7.0 / API 24 起；APK 含 ARM64 / x86_64，需要 64 位设备；保持 System WebView / Chrome 更新。 |
-| HarmonyOS | 下载 `ZViewer-HarmonyOS-2.1.4-release.hap`，按设备支持的开发者安装/调试流程安装；可通过 DevEco Studio 或已连接设备的 HDC 安装。此 HAP 不是应用商店分发包。 | 工程最低 SDK `6.1.0(23)`，目标 SDK 26；本机发布 Profile 和设备授权限制以安装结果为准。 |
+| Android | 下载 `ZViewer-Android-2.1.5-release.apk`，允许安装该来源的应用后安装；相同发布签名可覆盖旧正式版。 | Android 7.0 / API 24 起；APK 含 ARM64 / x86_64，需要 64 位设备；保持 System WebView / Chrome 更新。 |
+| HarmonyOS | 下载 `ZViewer-HarmonyOS-2.1.5-release.hap`，按设备支持的开发者安装/调试流程安装；可通过 DevEco Studio 或已连接设备的 HDC 安装。此 HAP 不是应用商店分发包。 | 工程最低 SDK `6.1.0(23)`，目标 SDK 26；本机发布 Profile 和设备授权限制以安装结果为准。 |
 | iOS | 下载 `ZViewer-iOS-1.9.0-release.ipa`，用自己的证书及设备授权工具重新签名后侧载；不是直接点击即可安装的商店包。内置 Release JS，无需 Expo Go、Metro 或开发电脑。 | iOS / iPadOS 16.4 起，iPhone / iPad；签名有效期与安装设备资格由自己的签名方式决定。 |
 
 三端首次启动的操作相同：

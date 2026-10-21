@@ -320,7 +320,7 @@ class PlaysVideoController implements PlayerController {
         const reason = err instanceof Error ? err.message : String(err)
         throw new Error(
           `直链播放失败：${reason}。浏览器转码引擎需源站允许浏览器跨域直连（CORS），` +
-            '不经服务器中转；请检查源站可达性与跨域配置，或关闭影片的挂载直链模式',
+            '不经服务器中转；请检查源地址可达性与跨域配置，或重新添加影片：数据源开启服务器中转，挂载源关闭直链',
           { cause: err }
         )
       }

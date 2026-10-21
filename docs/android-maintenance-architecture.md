@@ -1,14 +1,24 @@
 # Android 客户端维护文档
 
-更新日期：2026-10-20。本文与同目录的 HarmonyOS、iOS 维护文档采用统一命名 `平台-maintenance-architecture.md`。
+更新日期：2026-10-21。本文与同目录的 HarmonyOS、iOS 维护文档采用统一命名 `平台-maintenance-architecture.md`。
 
 ## 当前状态与范围
 
-- Android 当前发行版本为 **2.1.4 / versionCode 214**，对齐服务端 v4.6.4 后 main 快照 `cbdd6cc6`，包含跨来源观众播放与此前本地投屏旋转修复。版本以根 package.json 与对应原生工程为准。
+- Android 当前发行版本为 **2.1.5 / versionCode 215**，对齐服务端 v4.7.1 后 main 快照 `fe55dde`，包含跨来源观众播放与此前本地投屏旋转修复。版本以根 package.json 与对应原生工程为准。
 - 客户端修改、Git 提交均在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。`ZViewer-source code` 是本地服务端目录，不在其中改客户端。
 - Android 与 HarmonyOS 共用根目录 React/Vite 界面，但原生宿主不同；iOS 是 `ZV-iOS` 中独立的 Expo/React Native 工程。三端实现和验收不能互相替代。
 
 ## 代码入口
+
+### 2.1.5 / 215：服务端 v4.7.1 媒体策略对齐（2026-10-21）
+
+依据 [双端检查报告](安卓鸿蒙对齐服务端v4.7.1检查报告-2026-10-21.md)，对齐固定服务端源码 `fe55ddebedb91a4834d6752c5619ea75efec0bbd`。广播、请求状态 ACK 与网页房主预览统一交给 `useViewerStateSync` 串行应用，只在实际 attach 成功后记录源、转码与中转策略；同 URL 改策略也重新加载，同策略只同步播放字段。队列保留最新状态，取消旧下载，失败可重试；订阅独占队列，离房/换片/切房后的迟到任务不能写回。请求期间收到新广播时忽略旧 ACK，服务器心跳继续只校正当前媒体。
+
+`usePlayerSource` 在串行队列内按已成功加载的 PlayerSource 与 video 元素去重，比较地址、音轨、格式、编解码、headers、Blob 和两项策略；移除只按 URL 的提前返回，避免加载中策略切回被丢弃。失败清空已应用标记，不把已销毁的旧引擎记为可复用。观众重新解析 anime/Kazumi/CMS 时保留广播中的明确策略，禁止旧片单强制覆盖直连；预览不重新解析上一影片。HLS 传入恢复起点，并等待首帧数据（readyState ≥ 2）后才返回，避免 ArkWeb 连续重载后过早 seek。
+
+访问统计使用 `movie-source/media-policy.ts`：数据源取 serverProxy、挂载取 directLink，已解析的服务端媒体代理 URL 优先判为中转，预览可由 noProxyFallback 判断；显示与复制共用该结果。WebDAV/OpenList 字幕仍使用原挂载标记。删除当前选择器未使用的单集预览回调与失效属性，保留多选/批量加入片单；其他预览入口与专用事件完整透传中转/转码策略。直连错误指引覆盖数据源与挂载，保留原生 HTTP/证书通道。
+
+本次不覆盖 Android Go/HarmonyOS ArkTS 的 B站内置解析、账号边界或 CLI-only 规则；不修改 iOS、不构建 IPA。模拟器、正式签名包与未覆盖的真机范围分别见 [2.1.5 验证记录](client-2.1.5-validation.md)。
 
 ### 2.1.4 / 214：跨来源观众播放快照（2026-10-20）
 

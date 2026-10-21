@@ -1,3 +1,4 @@
+import { isDirectPlayback } from '@/modules/movie-source/media-policy'
 /**
  * WatchTogetherCore —— 一起看播放器业务核心（ArtPlayer 版）。
  *
@@ -121,15 +122,17 @@ export function WatchTogetherCore({
     (state) => state.viewerCliResolvedSource
   )
   const currentMovieId = useRoomStore((state) => state.currentMovieId)
-  // 当前影片的 directLink 标记，用于统计信息中显示"直链/服务器中转"
-  // mp4 直链视频（sourceType='mp4'）实际走浏览器直连源服务器（resolveProxyUrl 返回原 URL），
-  // 应显示为"直链"；挂载源（webdav/openlist 等）根据 directLink 字段判断。
+  // 字幕提取继续使用挂载自身的标记，独立于媒体访问统计。
   const currentMovieDirectLink = useRoomStore((state) => {
     const m = state.movies.find((mv) => mv.id === state.currentMovieId)
     if (!m) return false
     if (m.sourceType === 'mp4') return true
     return m.directLink ?? false
   })
+  const currentPlaybackDirect = useRoomStore(state => isDirectPlayback(
+    state.watchTogether,
+    state.watchTogether.isPreview ? null : state.movies.find(movie => movie.id === state.currentMovieId)
+  ))
   // 当前影片的源类型，用于判断是否支持自动搜索字幕
   const currentMovieSourceType = useRoomStore(
     (state) =>
@@ -2002,7 +2005,7 @@ export function WatchTogetherCore({
             currentQuality={override?.currentQn ?? currentQuality}
             availableQualities={override?.acceptQuality ?? availableQualities}
             format={statsFormat}
-            directLink={currentMovieDirectLink}
+            directLink={currentPlaybackDirect}
           />
         )
       })()}

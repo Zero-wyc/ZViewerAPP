@@ -21,7 +21,7 @@ test('first playlist identity may arrive after playback; actual switches and sta
   assert.equal(isPlaybackSessionCurrent(initial(),selected(),{...source,isPreview:true}),false)
 })
 
-test('initial request still attaches when the first current-movie event overtakes its ack', async () => {
+test('initial request reaches the shared receiver when the first current-movie event overtakes its ack', async () => {
   let current = initial(), ack, attached=0
   const video = {isConnected:true,currentTime:0,playbackRate:1,paused:true}
   const socket = {emit(event,payload,callback){ack=callback},on(){},off(){}}
@@ -37,7 +37,7 @@ test('initial request still attaches when the first current-movie event overtake
     '@/modules/player/services/buffer-mode':{},
   },{setTimeout:()=>1,clearTimeout(){}})
   usePlaybackStateRequest({roomId:'r',isHostRef:{current:false},videoRef:{current:video},suppressEventsRef:{current:false},
-    setWatchTogether(){},applySourceToVideo:async()=>{attached++},lastAppliedSourceUrlRef:{current:null}})
+    receiverRef:{current:{revision:0,receive({state}){attached++;video.currentTime=state.currentTime}}}})
   current=selected()
   ack({success:true,data:{state:source}})
   await new Promise(resolve=>setImmediate(resolve))

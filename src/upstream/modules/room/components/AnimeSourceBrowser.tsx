@@ -16,11 +16,6 @@ import type { AnimeEpisodeSelection } from './AnimeEpisodePicker'
 export interface AnimeSourceBrowserProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSelectEpisode: (
-    sourceId: string,
-    episode: AniSubsEpisode,
-    title: string
-  ) => void
   onSelectEpisodes: (items: AnimeEpisodeSelection[]) => Promise<string[]>
   disabled?: boolean
 }

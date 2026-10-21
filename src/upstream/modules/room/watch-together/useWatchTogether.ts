@@ -1,3 +1,4 @@
+import type { PreviewPlayRequest } from '@/store/roomStore'
 import { createAutoContinueHandler } from './autoContinue'
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { formatDuration } from '@/lib/utils'
@@ -268,7 +269,7 @@ export function useWatchTogether({
   })
 
   // 3. 观众同步编排（组合状态接收+服务器心跳，内部按 isHostRef 判断）
-  useViewerSync({
+  const viewerStateReceiverRef = useViewerSync({
     roomId,
     isHostRef,
     videoRef,
@@ -411,54 +412,32 @@ export function useWatchTogether({
     }
 
     // 观众端：接收房主广播的预览源，直接加载播放（不经过影片列表）
-    const handlePreviewSource = (payload: {
-      source: {
-        url: string
-        title?: string
-        sourceType?: string
-        format?: MediaFormat
-        audioUrl?: string
-        videoCodec?: string
-        audioCodec?: string
-        headers?: Record<string, string>
-        duration?: number
-      }
-    }) => {
+    const handlePreviewSource = (payload: { source: PreviewPlayRequest }) => {
       if (isHostRef.current) return
-      const video = videoRef.current
-      if (!video) return
-
       const { source } = payload
-      const newState: WatchTogetherState = {
-        sourceUrl: source.url,
-        sourceType: source.sourceType || 'anime',
-        audioUrl: source.audioUrl,
-        format: source.format as MediaFormat | undefined,
-        videoCodec: source.videoCodec,
-        audioCodec: source.audioCodec,
-        isPlaying: true,
-        currentTime: 0,
-        playbackRate: watchTogether.playbackRate,
-        duration: source.duration ?? 0,
-        headers: source.headers,
-        isPreview: true,
-        previewTitle: source.title,
-      }
-      setWatchTogether(newState)
-      suppressEventsRef.current = true
-      void applySourceToVideo(video, newState)
-        .then(() => {
-          video.currentTime = 0
-          if (video.paused) {
-            void safePlay(video)
-          }
-          suppressEventsRef.current = false
-        })
-        .catch((err: unknown) => {
-          console.error('[useWatchTogether] 观众端预览源加载失败:', err)
-          suppressEventsRef.current = false
-          message.error(err instanceof Error ? err.message : '预览源加载失败')
-        })
+      const previous = useRoomStore.getState().watchTogether
+      const samePreview = previous.isPreview && previous.sourceUrl === source.url
+      viewerStateReceiverRef.current?.receive({
+        state: {
+          sourceUrl: source.url,
+          sourceType: source.sourceType || 'anime',
+          audioUrl: source.audioUrl,
+          format: source.format,
+          videoCodec: source.videoCodec,
+          audioCodec: source.audioCodec,
+          isPlaying: samePreview ? previous.isPlaying : true,
+          currentTime: samePreview ? previous.currentTime : 0,
+          playbackRate: previous.playbackRate,
+          duration: source.duration ?? 0,
+          headers: source.headers,
+          playsvideoEnabled: source.playsvideoEnabled,
+          noProxyFallback: source.noProxyFallback,
+          isPreview: true,
+          previewTitle: source.title,
+        },
+        // The full-state broadcast may already have loaded this preview.
+        diff: {},
+      })
     }
 
     socket.on(SOCKET_EVENT.MOVIE_LIST, handleMovieList)
@@ -502,6 +481,7 @@ export function useWatchTogether({
     videoRef,
     watchTogether.playbackRate,
     setWatchTogether,
+    viewerStateReceiverRef,
   ])
 
   // 根据当前视频源类型计算可用清晰度列表。
@@ -1325,19 +1305,7 @@ export function useWatchTogether({
    * 用于 ani-subs / Kazumi 等番剧源选集后的实时播放。
    */
   const previewPlay = useCallback(
-    (params: {
-      url: string
-      title?: string
-      sourceType?: string
-      format?: MediaFormat
-      audioUrl?: string
-      videoCodec?: string
-      audioCodec?: string
-      headers?: Record<string, string>
-      duration?: number
-      /** 影片级浏览器播放引擎（playsvideo）开关：false 时强制原生直连播放 */
-      playsvideoEnabled?: boolean
-    }) => {
+    (params: PreviewPlayRequest) => {
       const video = videoRef.current
       if (!video) return
 
@@ -1361,6 +1329,7 @@ export function useWatchTogether({
         headers: params.headers,
         // 预览源同样遵循影片级浏览器播放引擎开关（添加面板统一传入）
         playsvideoEnabled: params.playsvideoEnabled !== false,
+        noProxyFallback: params.noProxyFallback,
         isPreview: true,
         previewTitle: params.title,
       }
@@ -1392,6 +1361,8 @@ export function useWatchTogether({
               audioCodec: params.audioCodec,
               headers: params.headers,
               duration: params.duration,
+              playsvideoEnabled: newState.playsvideoEnabled,
+              noProxyFallback: newState.noProxyFallback,
             },
           })
         })

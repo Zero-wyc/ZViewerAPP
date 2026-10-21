@@ -136,8 +136,8 @@ function assertDirectLinkReachable(
   }
   if (u.protocol !== 'http:') return
   throw new Error(
-    `直链播放失败：挂载源站为 HTTP（${u.host}），HTTPS 页面下浏览器会强制升级协议导致无法直连。` +
-      '解决方式：为源站配置 HTTPS（如反向代理）后重新保存挂载，或删除影片后改用服务器转发模式重新添加'
+    `直链播放失败：源地址为 HTTP（${u.host}），HTTPS 页面下浏览器会强制升级协议导致无法直连。` +
+      '解决方式：为源地址配置 HTTPS（如反向代理），或重新添加影片：数据源开启服务器中转，挂载源关闭直链'
   )
 }
 

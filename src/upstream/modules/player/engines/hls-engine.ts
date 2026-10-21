@@ -3,7 +3,7 @@
  *
  * - Safari（含 iOS）原生支持 HLS：直接设置 src，无需 hls.js；
  * - 其他浏览器通过 hls.js（MSE 封装）附加；
- * - MANIFEST_PARSED 后 resolve；cleanup 销毁 hls 实例。
+ * - 首帧数据可用后 resolve；cleanup 销毁 hls 实例。
  *
  * 普通直链优先直连；允许回退的源在网络失败后转服务器代理。
  * 已有代理及防盗链来源的清单、分片与密钥继续使用对应代理。
@@ -270,6 +270,9 @@ export const hlsEngine: PlayerEngine = {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
+        // Load the fragment containing the restored position before seeking the
+        // media element; ArkWeb can otherwise remain seeking at HAVE_METADATA.
+        startPosition: source.startTime ?? -1,
         loader: createProxyLoader(targetUrl, source.headers, {
           noProxyFallback: source.noProxyFallback === true,
           directTimeoutMs: Math.max(1, Math.min(6000, (source.attachTimeoutMs ?? 15000) / 2)),
@@ -311,6 +314,9 @@ export const hlsEngine: PlayerEngine = {
       try {
         // 使用事件驱动等待替代 waitForMetadata，避免永久阻塞
         await waitForHlsReady(hls, source.attachTimeoutMs ?? 15000, source.signal)
+        // HAVE_METADATA alone is not enough on ArkWeb: a second early seek
+        // during decoder startup can remain pending despite buffered data.
+        await waitForMetadata(video, source.attachTimeoutMs ?? 15000, source.signal, 2)
       } catch (err) {
         try {
           hls.destroy()

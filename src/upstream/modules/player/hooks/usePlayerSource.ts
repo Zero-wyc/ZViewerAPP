@@ -7,7 +7,7 @@ import { useRoomStore } from '@/store/roomStore'
  * 核心职责：
  * 1. 引擎选择与 attach（MSE / HLS / FLV / Direct）
  * 2. 资源清理（blobUrl / engine cleanup）
- * 3. appliedSourceUrl 跟踪：避免同一源被重复加载
+ * 3. 已成功应用的源、策略与视频元素去重
  * 4. 全量操作串行化：attach / forceReload 进入同一条 Promise 队列，
  *    天然消除并发 attach 互相 abort 的问题
  * 5. 播放期错误提示（无任何原生 ↔ playsvideo 回退链）
@@ -45,6 +45,7 @@ import type {
 } from '@/modules/player'
 import { refreshAccessToken } from '@/lib/api'
 import { formatVideoLoadError } from '@/modules/player/utils'
+import { isSamePlayerSource } from '../services/source-identity'
 
 import {
   isBrowserPlayableFormat,
@@ -163,10 +164,10 @@ export interface UsePlayerSourceReturn {
   /**
    * 将媒体源应用到 video 元素。
    *
-   * - 同一 sourceUrl 不重复加载（通过 appliedSourceUrlRef 跟踪）
+   * - 相同源、策略和 video 不重复加载；队列内比较已成功应用的源
    * - 格式预检：浏览器不支持的格式直接抛错
    * - 切换前 cleanup 旧引擎资源 + resetVideoElement
-   * - 失败时回滚 appliedSourceUrlRef，允许下次重试
+   * - 失败时清空已应用标记，允许下次重试
    *
    * @returns Promise 在 metadata 就绪后 resolve（readyState >= 1）
    */
@@ -214,6 +215,7 @@ export function usePlayerSource(
     | null
   >(null)
   const appliedSourceUrlRef = useRef<string | null>(null)
+  const appliedSourceRef = useRef<PlayerSource | null>(null)
   const playerRef = useRef<PlayerController | null>(null)
   // 播放期 error 监听器清理（新 attach 前移除旧的，防累积）
   const playbackErrorCleanupRef = useRef<(() => void) | null>(null)
@@ -293,6 +295,7 @@ export function usePlayerSource(
     // 清空"已应用源"标记：引擎销毁后同 URL 重播不应被去重快速路径跳过，
     // 否则清片/清理后再播放同一 URL 会黑屏。
     appliedSourceUrlRef.current = null
+    appliedSourceRef.current = null
     // 世代递增：进行中的 attach（await 引擎 attach 期间）据此感知自己
     // 已被取代，落地前/失败后静默退出。
     attachEpochRef.current++
@@ -423,7 +426,6 @@ export function usePlayerSource(
         useRoomStore.getState().setMediaAttachProgress((stages[stage] ?? '正在准备播放') + (stage === 'segments' && detail ? ' ' + detail : ''))
       }}
       useRoomStore.getState().setMediaAttachProgress('')
-      const previousUrl = appliedSourceUrlRef.current
       // attach 世代基准：cleanup 之后的值才是本次会话的起点（初始 -1 仅
       // 兜底 cleanup 前的异常路径，正常流程必然被 cleanup 后的赋值覆盖）
       let epoch = -1
@@ -496,13 +498,15 @@ export function usePlayerSource(
         }
 
         // attach 成功：注册播放期 error 监听（提示的统一入口）
+        appliedSourceRef.current = { ...source, headers: source.headers ? { ...source.headers } : undefined }
         registerPlaybackErrorWatch(video, source)
       } catch (err) {
         // 等待期间（回退链 / registerPlaybackErrorWatch）被新加载取代：
         // 静默退出，不回滚标记、不向上报错（调用方的错误提示会误导用户）
         if (attachEpochRef.current !== epoch) return
-        // 加载失败时回滚 appliedSourceUrlRef，允许下次重试
-        appliedSourceUrlRef.current = previousUrl
+        // cleanup already destroyed the old engine; failed loads cannot be deduplicated.
+        appliedSourceUrlRef.current = null
+        appliedSourceRef.current = null
         throw err
       }
     },
@@ -546,11 +550,6 @@ export function usePlayerSource(
         return
       }
 
-      // 同一 sourceUrl 不重复加载（快速路径，不入队）
-      if (appliedSourceUrlRef.current === source.url) {
-        return
-      }
-
       // 格式预检：浏览器 <video> 仅原生支持 mp4/webm/mov/mkv，DASH 通过 MSE 支持。
       // mkv 需 Chrome 91+ 且编码为 H.264/AAC。avi/wmv/ts 等容器直接赋值会抛 NotSupportedError。
       //
@@ -567,7 +566,7 @@ export function usePlayerSource(
 
       await enqueue(async () => {
         // 入队期间可能已被其他操作应用了同一源（如 forceReload），再次去重
-        if (appliedSourceUrlRef.current === source.url) {
+        if (engineCleanupRef.current?.video === video && isSamePlayerSource(appliedSourceRef.current, source)) {
           return
         }
         await attachInner(video, source)

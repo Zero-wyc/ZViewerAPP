@@ -8,6 +8,17 @@
  */
 import type { WatchTogetherState } from '../types'
 
+/** Loader identity excludes progress; policies and source metadata require a new attach. */
+export function isSameMediaSource(a: WatchTogetherState | null, b: WatchTogetherState): boolean {
+  if (!a) return false
+  const fields = ['sourceUrl', 'sourceType', 'audioUrl', 'format', 'videoCodec', 'audioCodec',
+    'cid', 'hostCliEnabled', 'bufferMode', 'playsvideoEnabled', 'noProxyFallback'] as const
+  if (fields.some(key => a[key] !== b[key])) return false
+  const keys = Object.keys(a.headers ?? {})
+  return keys.length === Object.keys(b.headers ?? {}).length &&
+    keys.every(key => a.headers?.[key] === b.headers?.[key])
+}
+
 /** Complete wire snapshots must clear fields that JSON omitted as undefined. */
 export function restoreStateSnapshot(
   current: WatchTogetherState,
