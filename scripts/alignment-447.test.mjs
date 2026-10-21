@@ -9,6 +9,7 @@ const root = new URL('../src/upstream/', import.meta.url)
 const auto = loadTs(new URL('modules/room/watch-together/autoContinue.ts', root))
 const order = loadTs(new URL('modules/room/components/playlistOrder.ts', root))
 const read = path => readFileSync(new URL(path, root), 'utf8')
+const biliInput = loadTs(new URL('modules/bilibili/input.ts', root), {}, { URL })
 test('selected Bili URL is parsed immediately; permission and missing native proxy block resolution', async () => {
   const code = read('modules/room/components/MoviePushPanel.tsx')
   const start = code.indexOf('  const handleResolve = async'), end = code.indexOf('  const handleQualityChange', start)
@@ -17,7 +18,7 @@ test('selected Bili URL is parsed immediately; permission and missing native pro
     message: { info: msg => errors.push(msg), warning: msg => errors.push(msg), error: msg => errors.push(msg) },
     setLoading: () => {}, setResolveProgress: () => {}, setResolvedMovie: () => {}, setShowPageSelector: () => {},
     extractBvid: url => { calls.push(['bvid', url]); return 'BVselected' }, extractBangumiId: url => { calls.push(['pgc', url]); return null },
-    getActiveCliProxyUrl: () => null, isEmbeddedBilibiliHost: () => false,
+    ...biliInput, getActiveCliProxyUrl: () => null, isEmbeddedBilibiliHost: () => false,
     resolveBilibili: async url => { calls.push(['resolve', url]); return { duration: 10 } }, resolvedViaCliRef: { current: false },
     console: { error: () => {}, warn: () => {} },
   }

@@ -1,5 +1,7 @@
 # ZViewer Mobile Client
 
+**本地修复候选 Android / HarmonyOS 2.1.7 / 217，尚未发布**：补齐 B站分享短链接的后续画质/分 P 操作，修复竖屏高清轨道筛选，并按实际视频方向锁定全屏。构建与验证范围见 [2.1.7 记录](docs/client-2.1.7-validation.md)。下方公开下载仍为 2.1.6。
+
 **Android / HarmonyOS 2.1.6 / 216**：增加默认开启的“完整显示”开关，剧名与分集名自动换行；选集支持列表/网格并记住偏好。顶部优先同排，目录导航固定等宽单行省略。保留服务端 v4.7.1 对齐更新。双端模拟器验收、包体检查和范围见 [2.1.6 记录](docs/client-2.1.6-validation.md)。
 
 **iOS 1.9.0 / build 26**：播放器、弹幕设置、房间语音、投屏、房间设置、方向控制和音乐菜单完成独立更新；设备 Release IPA 未签名，需自行签名后侧载。维护入口见 [iOS 维护文档](docs/ios-maintenance-architecture.md)，发布包见 [iOS 1.9.0 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0)。

@@ -4,11 +4,21 @@
 
 ## 当前状态与范围
 
-- HarmonyOS 当前版本为 **2.1.6 / versionCode 216**，新增剧集完整名称与选集列表/网格显示偏好；前一公开发行为 **2.1.5 / 215**。上版对齐服务端 v4.7.1 后 main 快照 `fe55dde`，包含跨来源观众播放与此前本地固定采集画布修正。版本以根 package.json 与对应原生工程为准。
+- HarmonyOS 当前本地修复候选为 **2.1.7 / versionCode 217**，公开下载保持 **2.1.6 / 216**。本次修复 B站短链后续操作、竖屏高清轨道和全屏方向，尚未推送或发布。服务端基线仍为 v4.7.1 后 main 快照 `fe55dde`。版本以根 package.json 与对应原生工程为准。
 - 客户端源码和 Git 操作均在 `E:/Codex-bulid/ZViewer/ZViewer-client`；共享 React/Vite 前端与 Android 相同，原生部分使用 HarmonyOS ArkTS 与 ArkWeb。
 - B站 Cookie、服务端凭据和本机代理状态只保存在原生侧。不能进入 React 状态持久化、网页日志、Socket 房间广播或公开源码。
 
 ## 代码入口
+
+### 2.1.7 / 217：B站短链与竖屏播放（2026-10-21，本地修复候选）
+
+共享 `modules/bilibili/input.ts` 提取分享文本，`MoviePushPanel.tsx` 在切画质/分 P 时复用 resolvedUrl；`movie-source-resolver.ts` 将历史短链交给本机解析。`BilibiliResolver.ets` 先展开受限 B站短链，再识别视频/PGC，保留 URL 的分 P；`BilibiliLocalProxy.ets` 透传显式 page，CID 优先于 page，显式 page 优先于 URL 参数。返回规范视频地址包含实际分 P，重定向不携带 Cookie。
+
+共享 `nativeQualityPolicy.ts` 增加竖屏宽高检测。ArkTS 原有固定“宽≤1920、高≤1080”会误排除 720×1280 和 1080×1920，现改为长边≤1920、短边≤1080，并同时逐轴核对真实能力上限与帧率，保留 AVC、AAC、会员与原有性能限制。检测不支持的竖屏尺寸不得仅交换宽高后强行放行。
+
+一起看控制栏传入实际 videoRef，由 `PlayerDisplayControls.tsx` 根据解码宽高决定 portrait/landscape，并在 loadedmetadata/resize 后复核。`playerDisplay.ts` 保留串行请求与失效代次；Index.ets 既有原生方向桥接直接执行目标方向。退出与离房解除锁定，手动解锁不会被相同比例的 resize 立即覆盖。投屏与其他播放器沿用原规则，最低 SDK 仍为 6.1.0(23)。
+
+212 项适配、4 项媒体及双端解析夹具通过；ArkWeb 实际 DASH 解码与全屏、构建和签名范围见 [2.1.7 验证记录](client-2.1.7-validation.md)。新增“仅登录服务端无法添加”本轮只做 [账号路由诊断](bilibili-server-login-diagnosis-20261021.md)，不修改登录策略或 CLI-only 约束。iOS 不修改、不构建。
 
 ### 2.1.6 / 216：完整名称与选集显示方式（2026-10-21）
 

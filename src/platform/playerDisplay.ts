@@ -84,7 +84,11 @@ export const playerDisplay: PlayerDisplayPort = {
 // transitions and skip superseded requests so the last requested state wins.
 let fullscreenRevision = 0
 let fullscreenQueue: Promise<void> = Promise.resolve()
-export function setPlayerFullscreen(enabled: boolean): Promise<void> {
+export function getVideoFullscreenLandscape(video?: { videoWidth: number; videoHeight: number } | null): boolean {
+  return !video || video.videoWidth <= 0 || video.videoHeight <= 0 || video.videoWidth >= video.videoHeight
+}
+
+export function setPlayerFullscreen(enabled: boolean, isLandscape = true): Promise<void> {
   const revision = ++fullscreenRevision
   const transition = fullscreenQueue.then(async () => {
     if (revision !== fullscreenRevision) return
@@ -92,7 +96,7 @@ export function setPlayerFullscreen(enabled: boolean): Promise<void> {
     const platform = getRuntimePlatform()
     if (!enabled) operations.push(playerDisplay.unlockOrientation())
     else if (platform === 'android' || platform === 'harmony') {
-      operations.push(playerDisplay.toggleOrientation(true))
+      operations.push(playerDisplay.toggleOrientation(isLandscape))
     }
     const results = await Promise.allSettled(operations)
     const failed = results.find(result => result.status === 'rejected')

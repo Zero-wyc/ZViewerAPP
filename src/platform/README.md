@@ -13,7 +13,9 @@ Android and iOS register plugins with these stable names:
 `toggleOrientation({ isLandscape: boolean })` requests the specified direction on
 Android; it must not invert the current direction when a target is supplied.
 The HarmonyOS bridge receives the same target as a boolean argument. Shared
-`setPlayerFullscreen` locks landscape on Android/HarmonyOS entry and restores
+`setPlayerFullscreen` accepts an explicit orientation. Together-video fullscreen
+uses the decoded video's dimensions (portrait videos lock portrait, other videos
+keep landscape); metadata/resize updates follow source changes. It restores
 automatic rotation on exit or teardown, serializing late native calls.
 - `AudioRouting`: `setMediaOnly` (currently Android only)
 

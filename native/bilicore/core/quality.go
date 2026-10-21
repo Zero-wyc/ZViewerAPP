@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -104,6 +105,14 @@ func ResolveMobile(ctx context.Context, opts ResolveOptions) (*ResolveResult, er
 		return nil, expandErr
 	}
 	opts.Url = expanded
+	// Match the server: explicit page/cid wins over a shared URL's ?p=N.
+	if opts.Page == 0 && opts.Cid == 0 {
+		if inputURL, parseErr := url.Parse(opts.Url); parseErr == nil {
+			if page, pageErr := strconv.Atoi(inputURL.Query().Get("p")); pageErr == nil && page > 0 {
+				opts.Page = page
+			}
+		}
+	}
 	kind, _ = pgcIdentity(opts.Url)
 	var info *BilibiliVideoInfo
 	var pgc *pgcContext
@@ -160,7 +169,7 @@ func ResolveMobile(ctx context.Context, opts ResolveOptions) (*ResolveResult, er
 	}
 	caps := opts.Capabilities
 	if caps == nil {
-		caps = []Capability{{Codec: "avc", MaxWidth: 1920, MaxHeight: 1080, MaxFrameRate: 30}}
+		caps = []Capability{{Codec: "avc", MaxWidth: 1920, MaxHeight: 1080, MaxFrameRate: 30}, {Codec: "avc", MaxWidth: 1080, MaxHeight: 1920, MaxFrameRate: 30}}
 	}
 
 	requestQn := 127
@@ -315,5 +324,9 @@ func ResolveMobile(ctx context.Context, opts ResolveOptions) (*ResolveResult, er
 	}
 	sort.Slice(available, func(i, j int) bool { return qualityRank(available[i].ID) > qualityRank(available[j].ID) })
 	videoBackups, audioBackups := collectBackupUrls(selected, audio)
-	return applyPgcMeta(&ResolveResult{Title: info.Title, ResolvedURL: "https://www.bilibili.com/video/" + bvid, Duration: getCurrentPageDuration(info, cid), Cid: cid, VideoUrl: selected.BaseUrl, AudioUrl: audio.BaseUrl, VideoCodec: selected.Codecs, AudioCodec: audio.Codecs, Format: "dash", LoggedIn: opts.Cookie != "", VipStatus: boolToInt(vip), CurrentQn: selected.ID, AcceptQuality: available, Pages: pages, CurrentPage: currentPage, VideoBackupUrls: videoBackups, AudioBackupUrls: audioBackups}, pgc, discovered), nil
+	resolvedURL := "https://www.bilibili.com/video/" + bvid
+	if currentPage > 1 {
+		resolvedURL += "?p=" + strconv.Itoa(currentPage)
+	}
+	return applyPgcMeta(&ResolveResult{Title: info.Title, ResolvedURL: resolvedURL, Duration: getCurrentPageDuration(info, cid), Cid: cid, VideoUrl: selected.BaseUrl, AudioUrl: audio.BaseUrl, VideoCodec: selected.Codecs, AudioCodec: audio.Codecs, Format: "dash", LoggedIn: opts.Cookie != "", VipStatus: boolToInt(vip), CurrentQn: selected.ID, AcceptQuality: available, Pages: pages, CurrentPage: currentPage, VideoBackupUrls: videoBackups, AudioBackupUrls: audioBackups}, pgc, discovered), nil
 }

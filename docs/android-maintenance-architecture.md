@@ -4,11 +4,21 @@
 
 ## 当前状态与范围
 
-- Android 当前版本为 **2.1.6 / versionCode 216**，新增剧集完整名称与选集列表/网格显示偏好；前一公开发行为 **2.1.5 / 215**。上版对齐服务端 v4.7.1 后 main 快照 `fe55dde`，包含跨来源观众播放与此前本地投屏旋转修复。版本以根 package.json 与对应原生工程为准。
+- Android 当前本地修复候选为 **2.1.7 / versionCode 217**，公开下载保持 **2.1.6 / 216**。本次修复 B站短链后续操作、竖屏高清轨道和全屏方向，尚未推送或发布。服务端基线仍为 v4.7.1 后 main 快照 `fe55dde`。版本以根 package.json 与对应原生工程为准。
 - 客户端修改、Git 提交均在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。`ZViewer-source code` 是本地服务端目录，不在其中改客户端。
 - Android 与 HarmonyOS 共用根目录 React/Vite 界面，但原生宿主不同；iOS 是 `ZV-iOS` 中独立的 Expo/React Native 工程。三端实现和验收不能互相替代。
 
 ## 代码入口
+
+### 2.1.7 / 217：B站短链与竖屏播放（2026-10-21，本地修复候选）
+
+`modules/bilibili/input.ts` 提取分享文本里的 B站地址，保留查询参数；`MoviePushPanel.tsx` 的首次解析、切画质与切分 P，以及 `movie-source-resolver.ts` 的历史短链恢复，统一使用展开后的逻辑地址。`native/bilicore/core/mobile_input.go` 跟随受限重定向，不发送账号凭据；规范化时保留 `?p=N`。`quality.go` 在显式 CID/分 P 缺失时从 URL 选择分 P，返回规范地址保留实际分 P。服务器已有“先展开再识别 BV/ep/ss”的实现，本次只对齐客户端，不修改或部署服务器。
+
+`nativeQualityPolicy.ts` 对横竖两组宽高分别执行 MediaCapabilities 检测，继续核对 codec、smooth、帧率及账号真实权限。Android `quality.go` 仍按实测能力逐轴筛选；无能力参数的 AVC 1080P30 保守默认补齐竖屏尺寸，不将空能力列表当成支持。实际反馈视频的 720P=720×1280、1080P=1080×1920，旧横屏能力 1920×1080 会误排除两档；480×852 则可通过。
+
+`PlayerControlBar.tsx → PlayerDisplayControls.tsx → playerDisplay.ts` 读取当前 videoWidth/videoHeight，竖屏全屏请求 portrait，横屏和未知尺寸沿用 landscape。监听 loadedmetadata/resize 处理迟到元数据与全屏换源；相同比例的尺寸事件不反复覆盖手动解锁。方向请求保留串行代次保护，退出、卸载、离房解除锁定并退出沉浸模式。投屏与其他播放器沿用已有方向规则。
+
+212 项适配、4 项媒体及 Go core/mobile 回归通过；双端实际 DASH 解码、全屏与包体检查见 [2.1.7 验证记录](client-2.1.7-validation.md)。新增“仅登录服务端无法添加”的反馈本轮仅诊断，见 [账号路由核查](bilibili-server-login-diagnosis-20261021.md)；不能把本机账号与服务端账号状态等同，CLI-only 边界保持不变。iOS 不修改、不构建。
 
 ### 2.1.6 / 216：完整名称与选集显示方式（2026-10-21）
 

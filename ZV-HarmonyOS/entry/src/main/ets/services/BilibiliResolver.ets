@@ -186,8 +186,10 @@ async function expandInput(input: string): Promise<string> {
   throw new Error('短链接重定向次数过多');
 }
 
-export async function resolveBilibili(bvid: string, requestedCid: number, requestedQn: number, mode: string, fallbackQn: number, cookie: string, vipStatus: number, preferMp4: boolean = false, capabilities: CodecCapability[] | undefined = undefined): Promise<BilibiliResolution> {
+export async function resolveBilibili(bvid: string, requestedCid: number, requestedQn: number, mode: string, fallbackQn: number, cookie: string, vipStatus: number, preferMp4: boolean = false, capabilities: CodecCapability[] | undefined = undefined, explicitPage: number = 0): Promise<BilibiliResolution> {
   bvid = await expandInput(bvid);
+  const pageMatch = bvid.match(/[?&]p=([1-9][0-9]*)(?:&|#|$)/);
+  const requestedPage = explicitPage > 0 ? explicitPage : pageMatch ? Number(pageMatch[1]) : 0;
   const identity = bvid.match(/\/bangumi\/play\/(ep|ss)([1-9][0-9]*)/i);
   if (identity) bvid = identity[1].toLowerCase() + identity[2];
   const bvMatch = bvid.match(/BV[0-9A-Za-z]{10}/);
@@ -203,7 +205,7 @@ export async function resolveBilibili(bvid: string, requestedCid: number, reques
     info = view.data;
   }
   const pages = info.pages || [];
-  const cid = requestedCid > 0 ? requestedCid : info.cid;
+  const cid = requestedCid > 0 ? requestedCid : !pgcData && requestedPage > 0 ? pages.find((item: VideoPage) => item.page === requestedPage)?.cid || info.cid : info.cid;
   const page = pages.find((item: VideoPage) => item.cid === cid) || pages[0];
   if (requestedCid > 0 && !pages.some((item: VideoPage) => item.cid === requestedCid)) throw new Error('分集不属于该视频');
   const pgc = !!pgcData;
@@ -217,13 +219,13 @@ export async function resolveBilibili(bvid: string, requestedCid: number, reques
   const fullDuration = page?.duration || info.duration;
   const playDuration = Math.round((play.timelength || 0) / 1000) || play.dash?.duration || 0;
   if (play.dash?.video?.length) {
-    const caps: CodecCapability[] = capabilities || [{ codec: 'avc', maxWidth: 1920, maxHeight: 1080, maxFrameRate: 30 }];
+    const caps: CodecCapability[] = capabilities || [{ codec: 'avc', maxWidth: 1920, maxHeight: 1080, maxFrameRate: 30 }, { codec: 'avc', maxWidth: 1080, maxHeight: 1920, maxFrameRate: 30 }];
     const supported = play.dash.video.filter((track: DashTrack) => {
       const rate = (track.frameRate || track.frame_rate || '30').split('/');
       const fps = Number(rate[0]) / Number(rate[1] || '1');
       return !!mediaUrl(track) && track.codecs.startsWith('avc1') && track.id !== 125 && track.id !== 126 &&
         (vip || ![127, 120, 116, 112].includes(track.id)) && caps.some((cap: CodecCapability) =>
-          cap.codec === 'avc' && track.width > 0 && track.height > 0 && track.width <= Math.min(1920, cap.maxWidth) && track.height <= Math.min(1080, cap.maxHeight) && fps <= cap.maxFrameRate);
+          cap.codec === 'avc' && track.width > 0 && track.height > 0 && Math.max(track.width, track.height) <= 1920 && Math.min(track.width, track.height) <= 1080 && track.width <= cap.maxWidth && track.height <= cap.maxHeight && fps <= cap.maxFrameRate);
     });
     supported.sort((a: DashTrack, b: DashTrack) => b.id - a.id || b.bandwidth - a.bandwidth);
     // The playurl response may include tracks above the requested fallback quality.
@@ -233,7 +235,7 @@ export async function resolveBilibili(bvid: string, requestedCid: number, reques
     if (!video || !mediaUrl(video)) throw new Error('设备无可播放的对应画质 B 站视频编码');
     if (!audio) throw new Error('未获取到可播放的 AAC 音轨');
     return {
-      epId: pgcData?.epId, seasonId: pgcData?.seasonId, seasonTitle: pgcData?.info.title, resolvedUrl: pgcData?.url || `https://www.bilibili.com/video/${bvid}`, preview: play.is_preview === true || play.is_preview === 1 || !!pgcData && !!playDuration && playDuration + 3 < fullDuration,
+      epId: pgcData?.epId, seasonId: pgcData?.seasonId, seasonTitle: pgcData?.info.title, resolvedUrl: pgcData?.url || `https://www.bilibili.com/video/${bvid}${page && page.page > 1 ? '?p=' + page.page : ''}`, preview: play.is_preview === true || play.is_preview === 1 || !!pgcData && !!playDuration && playDuration + 3 < fullDuration,
       success: true, title: info.title, duration: pgcData && playDuration > 0 && playDuration + 3 < fullDuration ? playDuration : fullDuration, cid,
       videoUrl: mediaUrl(video), audioUrl: audio ? mediaUrl(audio) : '',
       videoCodec: video.codecs, audioCodec: audio?.codecs || '', format: 'dash',

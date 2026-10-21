@@ -53,6 +53,7 @@ import {
   filterQualitiesByVip,
 } from '@/modules/bilibili/bilibiliApi'
 import { setBilibiliParseOptions } from '@/modules/bilibili/parseOptions'
+import { normalizeBilibiliInput, isBilibiliShortLink } from '@/modules/bilibili/input'
 import {
   extractBvid,
   extractBangumiId,
@@ -903,7 +904,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
       return
     }
     if (sourceType !== 'bilibili') return
-    const inputUrl = (selectedUrl ?? url).trim()
+    const inputUrl = normalizeBilibiliInput(selectedUrl ?? url)
     if (!inputUrl) {
       message.warning('请输入视频地址')
       return
@@ -913,7 +914,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
     setResolveProgress('正在初始化解析...')
     try {
       const bvid = extractBvid(inputUrl)
-      const shortLink = /^https?:\/\/(b23\.tv|bili2233\.cn)\//i.test(inputUrl)
+      const shortLink = isBilibiliShortLink(inputUrl)
       // PGC（番剧 ep/ss 链接）：CLI 分支按 epId 走番剧解析
       const bangumiId = extractBangumiId(inputUrl)
 
@@ -949,7 +950,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
           setResolveProgress('正在通过 CLI 代理解析...')
           resolved = await resolveBilibiliViaCli(
             cliProxyUrl,
-            bvid || inputUrl,
+            isEmbeddedBilibiliHost() ? inputUrl : bvid || inputUrl,
             undefined,
             undefined,
             false,
@@ -1008,8 +1009,9 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
     setQualityLoading(true)
     setResolveProgress('正在切换清晰度...')
     try {
-      const bvid = extractBvid(url.trim())
-      const bangumiId = extractBangumiId(url.trim())
+      const inputUrl = normalizeBilibiliInput(resolvedMovie.resolvedUrl || url)
+      const bvid = extractBvid(inputUrl)
+      const bangumiId = extractBangumiId(inputUrl)
 
       let resolved: ResolvedSource | undefined
       // CLI 已连接时通过本地 CLI 代理切换清晰度（使用用户自己的 B站 Cookie）
@@ -1038,12 +1040,12 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
             message.warning(`${cliErr.message}，已回退到服务器端解析`)
           }
         }
-      } else if (cliProxyUrl && bvid) {
+      } else if (cliProxyUrl && (bvid || isBilibiliShortLink(inputUrl))) {
         try {
           setResolveProgress('正在通过 CLI 代理切换清晰度...')
           resolved = await resolveBilibiliViaCli(
             cliProxyUrl,
-            bvid,
+            bvid || inputUrl,
             resolvedMovie.cid,
             qn,
             false,
@@ -1067,7 +1069,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
         setResolveProgress('正在通过服务器切换清晰度...')
         resolvedViaCliRef.current = false
         resolved = await resolveBilibiliWithOptions(
-          url.trim(),
+          inputUrl,
           qn,
           (_step, msg) => setResolveProgress(msg)
         )
@@ -1149,17 +1151,18 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
 
     setResolveProgress(`正在解析 P${page} ${targetPage.part}...`)
     try {
-      const bvid = extractBvid(url.trim())
+      const inputUrl = normalizeBilibiliInput(resolvedMovie.resolvedUrl || url)
+      const bvid = extractBvid(inputUrl)
 
       let resolved: ResolvedSource | undefined
       // CLI 已连接时通过本地 CLI 代理切换分P（使用用户自己的 B站 Cookie）
       const cliProxyUrl = getActiveCliProxyUrl()
-      if (cliProxyUrl && bvid) {
+      if (cliProxyUrl && (bvid || isBilibiliShortLink(inputUrl))) {
         try {
           setResolveProgress(`正在通过 CLI 代理解析 P${page}...`)
           resolved = await resolveBilibiliViaCli(
             cliProxyUrl,
-            bvid,
+            bvid || inputUrl,
             targetPage.cid,
             resolvedMovie.currentQn,
             false,
@@ -1183,7 +1186,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
         setResolveProgress(`正在通过服务器解析 P${page}...`)
         resolvedViaCliRef.current = false
         resolved = await resolveBilibiliWithOptions(
-          url.trim(),
+          inputUrl,
           resolvedMovie.currentQn,
           (_step, msg) => setResolveProgress(msg),
           { page }

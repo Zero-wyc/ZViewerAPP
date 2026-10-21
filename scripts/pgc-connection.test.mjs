@@ -89,6 +89,7 @@ function resolverHarness(){
   '@/modules/bilibili/bilibiliApi':{resolveBilibiliWithOptions:async()=>{serverCalls++;return resolved}},
   '@/modules/bilibili/cliApi':{extractBvid:()=>null,extractBangumiId:()=>({epId:102}),resolveBangumiViaCli:async()=>{localCalls++;if(fail.value)throw Error('NO_PERMISSION');return resolved}},
   '@/store/cliAgentStore':{useCliAgentStore:{getState:()=>({agents:[]})}},
+  '@/modules/bilibili/input':loadTs('src/upstream/modules/bilibili/input.ts', {}, {URL}),
   '@/modules/bilibili/parseOptions':{getBilibiliParseOptions:()=>({configured:true,cliEnabled:false,preferMp4:true})},
   '@/store/systemSettingsStore':{useSystemSettingsStore:{getState:()=>({dashDisabled:true,bilibiliDefaultParseMode:'mp4',bilibiliPgcDefaultMode:'mp4'})}},
   '@/modules/server-files/serverFilesApi':{buildServerFileProxyUrl:p=>p},

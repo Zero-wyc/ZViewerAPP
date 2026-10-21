@@ -17,6 +17,7 @@ import { useRoomStore } from '@/store/roomStore'
 import { detectMediaFormat, type MediaFormat } from '@/lib/mediaFormat'
 import { resolveBilibiliWithOptions } from '@/modules/bilibili/bilibiliApi'
 import { extractBvid, extractBangumiId, resolveBangumiViaCli, resolveBilibiliViaCli } from '@/modules/bilibili/cliApi'
+import { normalizeBilibiliInput, isBilibiliShortLink } from '@/modules/bilibili/input'
 import { useCliAgentStore } from '@/store/cliAgentStore'
 import { getBilibiliParseOptions } from '@/modules/bilibili/parseOptions'
 import { useSystemSettingsStore } from '@/store/systemSettingsStore'
@@ -331,16 +332,17 @@ export async function resolveBilibiliOnline(
       const resolved = await resolveBangumiViaCli(proxyUrl, pgc.epId ?? 0, movie.cid, requestedQn, effectivePreferMp4, forceDash, nativeOptions)
       resolvedSource = mapResolvedSourceToMovieSource(resolved, movie)
     } else {
-    const bvid = extractBvid(movie.url)
-    if (bvid && (movie.cid || isEmbeddedBilibiliHost())) {
+    const input = normalizeBilibiliInput(movie.url)
+    const bvid = extractBvid(input)
+    if ((bvid || isBilibiliShortLink(input)) && (movie.cid || isEmbeddedBilibiliHost())) {
       const resolved = await resolveBilibiliViaCli(
         proxyUrl,
-        bvid,
+        isEmbeddedBilibiliHost() ? input : bvid || input,
         movie.cid,
         qn,
         effectivePreferMp4,
         forceDash,
-        isEmbeddedBilibiliHost() ? { qualityMode: policy.mode, fallbackQn: policy.fallbackQn, timeoutMs: options?.timeoutMs } : undefined
+        isEmbeddedBilibiliHost() ? { qualityMode: policy.mode, fallbackQn: policy.fallbackQn, timeoutMs: options?.timeoutMs, page: options?.page ?? movie.currentPage } : undefined
       )
       resolvedSource = mapResolvedSourceToMovieSource(resolved, movie)
     } else {

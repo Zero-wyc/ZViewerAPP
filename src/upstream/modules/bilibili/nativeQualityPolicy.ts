@@ -61,15 +61,16 @@ async function probeCapabilities(): Promise<VideoCapability[]> {
   for (const codec of codecs) {
     const contentType = `video/mp4; codecs="${codec.mime}"`
     if (typeof MediaSource === 'undefined' || !MediaSource.isTypeSupported(contentType)) continue
-    for (const [width, height] of [[1920,1080],[3840,2160],[7680,4320]]) {
+    // Probe each orientation: landscape limits exclude 720x1280 / 1080x1920.
+    for (const [width, height] of [[1920,1080],[1080,1920],[3840,2160],[2160,3840],[7680,4320],[4320,7680]]) {
       for (const framerate of [30,60]) {
         let supported = false
         try {
           if (navigator.mediaCapabilities?.decodingInfo) {
             const info = await navigator.mediaCapabilities.decodingInfo({ type: 'media-source', video: { contentType, width, height, bitrate: width * height * 6, framerate } })
             supported = info.supported && info.smooth
-          } else supported = codec.name === 'avc' && width === 1920 && framerate === 30
-        } catch { supported = codec.name === 'avc' && width === 1920 && framerate === 30 }
+          } else supported = codec.name === 'avc' && Math.max(width, height) === 1920 && framerate === 30
+        } catch { supported = codec.name === 'avc' && Math.max(width, height) === 1920 && framerate === 30 }
         if (supported) result.push({ codec: codec.name, maxWidth: width, maxHeight: height, maxFrameRate: framerate })
       }
     }

@@ -166,7 +166,7 @@ export async function resolveBilibiliViaCli(
   qn?: number,
   preferMp4?: boolean,
   forceDash?: boolean,
-  nativeOptions?: { qualityMode?: 'autoMax' | 'manual'; fallbackQn?: number; timeoutMs?: number }
+  nativeOptions?: { qualityMode?: 'autoMax' | 'manual'; fallbackQn?: number; timeoutMs?: number; page?: number }
 ): Promise<ResolvedSource> {
   const base = proxyUrl.replace(/\/$/, '')
   const params = new URLSearchParams({
@@ -181,6 +181,7 @@ export async function resolveBilibiliViaCli(
     params.set('qualityMode', nativeOptions?.qualityMode ?? 'autoMax')
     if (nativeOptions?.fallbackQn) params.set('fallbackQn', String(nativeOptions.fallbackQn))
     if (nativeOptions?.timeoutMs) params.set('timeoutMs', String(nativeOptions.timeoutMs))
+    if (nativeOptions?.page) params.set('page', String(nativeOptions.page))
     params.set('capabilities', JSON.stringify(await getWebViewCapabilities()))
   }
   if (cid != null && Number.isFinite(cid)) {

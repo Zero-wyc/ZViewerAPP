@@ -85,3 +85,16 @@ test('ordinary browser fullscreen does not require a mobile orientation lock', a
   assert.deepEqual(api.calls, [])
   assert.equal(api.getOrientationLocked(), false)
 })
+
+for (const platform of ['android', 'harmony']) {
+  test(`${platform} locks portrait video to portrait, landscape video to landscape, and restores on exit`, async () => {
+    const api = display(platform)
+    for (const [width, height, landscape] of [[1080,1920,false],[720,1280,false],[1920,1080,true],[0,0,true],[1080,1080,true]]) {
+      assert.equal(api.getVideoFullscreenLandscape({videoWidth:width,videoHeight:height}), landscape)
+      await api.setPlayerFullscreen(true, landscape)
+      assert.deepEqual(api.calls.at(-1), ['orientation', landscape])
+      await api.restorePlayerDisplay()
+      assert.equal(api.getOrientationLocked(), false)
+    }
+  })
+}

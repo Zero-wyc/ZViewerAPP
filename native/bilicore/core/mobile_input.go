@@ -49,7 +49,11 @@ func expandMobileInput(ctx context.Context, input string) (string, error) {
 		return expanded, nil
 	}
 	if bvid, err := extractBvid(expanded); err == nil {
-		return "https://www.bilibili.com/video/" + bvid, nil
+		canonical := "https://www.bilibili.com/video/" + bvid
+		if page := response.Request.URL.Query().Get("p"); page != "" {
+			canonical += "?p=" + url.QueryEscape(page)
+		}
+		return canonical, nil
 	}
 	return "", fmt.Errorf("短链接未指向可播放的 BV / ep / ss")
 }

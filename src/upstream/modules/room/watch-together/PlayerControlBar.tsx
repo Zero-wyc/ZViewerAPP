@@ -818,7 +818,7 @@ export function PlayerControlBar({
             )}
           </div>
 
-          <PlayerDisplayControls fullscreen={isFullscreen || isWebFullscreen}
+          <PlayerDisplayControls fullscreen={isFullscreen || isWebFullscreen} videoRef={videoRef}
             onFullscreen={onToggleWebFullscreen ?? onToggleFullscreen} />
         </div>
       </div>
