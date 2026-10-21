@@ -4,13 +4,13 @@
 
 ## 当前状态与范围
 
-- HarmonyOS 当前本地修复候选为 **2.1.7 / versionCode 217**，公开下载保持 **2.1.6 / 216**。本次修复 B站短链后续操作、竖屏高清轨道和全屏方向，尚未推送或发布。服务端基线仍为 v4.7.1 后 main 快照 `fe55dde`。版本以根 package.json 与对应原生工程为准。
+- HarmonyOS 当前版本为 **2.1.7 / versionCode 217**，修复 B站短链、竖屏高清与全屏方向，以及仅登录服务端账号时的解析添加。用户于 2026-10-21 反馈“测试通过”并授权发布源码与 Release。服务端基线仍为 v4.7.1 后 main 快照 `fe55dde`。版本以根 package.json 与对应原生工程为准。
 - 客户端源码和 Git 操作均在 `E:/Codex-bulid/ZViewer/ZViewer-client`；共享 React/Vite 前端与 Android 相同，原生部分使用 HarmonyOS ArkTS 与 ArkWeb。
 - B站 Cookie、服务端凭据和本机代理状态只保存在原生侧。不能进入 React 状态持久化、网页日志、Socket 房间广播或公开源码。
 
 ## 代码入口
 
-### 2.1.7 / 217：B站短链与竖屏播放（2026-10-21，本地修复候选）
+### 2.1.7 / 217：B站短链、竖屏播放与账号路由（2026-10-21）
 
 共享 `modules/bilibili/input.ts` 提取分享文本，`MoviePushPanel.tsx` 在切画质/分 P 时复用 resolvedUrl；`movie-source-resolver.ts` 将历史短链交给本机解析。`BilibiliResolver.ets` 先展开受限 B站短链，再识别视频/PGC，保留 URL 的分 P；`BilibiliLocalProxy.ets` 透传显式 page，CID 优先于 page，显式 page 优先于 URL 参数。返回规范视频地址包含实际分 P，重定向不携带 Cookie。
 

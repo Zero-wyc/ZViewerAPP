@@ -4,13 +4,13 @@
 
 ## 当前状态与范围
 
-- Android 当前本地修复候选为 **2.1.7 / versionCode 217**，公开下载保持 **2.1.6 / 216**。本次修复 B站短链后续操作、竖屏高清轨道和全屏方向，尚未推送或发布。服务端基线仍为 v4.7.1 后 main 快照 `fe55dde`。版本以根 package.json 与对应原生工程为准。
+- Android 当前版本为 **2.1.7 / versionCode 217**，修复 B站短链、竖屏高清与全屏方向，以及仅登录服务端账号时的解析添加。用户于 2026-10-21 反馈“测试通过”并授权发布源码与 Release。服务端基线仍为 v4.7.1 后 main 快照 `fe55dde`。版本以根 package.json 与对应原生工程为准。
 - 客户端修改、Git 提交均在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。`ZViewer-source code` 是本地服务端目录，不在其中改客户端。
 - Android 与 HarmonyOS 共用根目录 React/Vite 界面，但原生宿主不同；iOS 是 `ZV-iOS` 中独立的 Expo/React Native 工程。三端实现和验收不能互相替代。
 
 ## 代码入口
 
-### 2.1.7 / 217：B站短链与竖屏播放（2026-10-21，本地修复候选）
+### 2.1.7 / 217：B站短链、竖屏播放与账号路由（2026-10-21）
 
 `modules/bilibili/input.ts` 提取分享文本里的 B站地址，保留查询参数；`MoviePushPanel.tsx` 的首次解析、切画质与切分 P，以及 `movie-source-resolver.ts` 的历史短链恢复，统一使用展开后的逻辑地址。`native/bilicore/core/mobile_input.go` 跟随受限重定向，不发送账号凭据；规范化时保留 `?p=N`。`quality.go` 在显式 CID/分 P 缺失时从 URL 选择分 P，返回规范地址保留实际分 P。服务器已有“先展开再识别 BV/ep/ss”的实现，本次只对齐客户端，不修改或部署服务器。
 
