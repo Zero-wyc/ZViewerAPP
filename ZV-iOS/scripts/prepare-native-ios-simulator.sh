@@ -26,12 +26,20 @@ case "$(uname -m)" in
   x86_64) arch=amd64; hash=8f8f52c6649542cf027bbc9b9c68d1ec042f9f34808a40413f0b8b3f66f3caa4 ;;
   *) echo 'Unsupported macOS architecture'; exit 1 ;;
 esac
-if ! test -f "$work/go.tar.gz"; then
-  curl --fail --location --retry 3 --max-time 300 "${ZVIEWER_GO_DOWNLOAD_BASE:-https://go.dev/dl}/go1.27.1.darwin-$arch.tar.gz" -o "$work/go.tar.gz"
+if [ "${ZVIEWER_USE_SYSTEM_GO:-0}" = 1 ]; then
+  # Explicit opt-in for a locally installed toolchain of the exact pinned version.
+  test "$(go version | awk '{print $3}')" = go1.27.1 || { echo 'System Go must be exactly 1.27.1.' >&2; exit 1; }
+  toolchain_root="$(go env GOROOT)"
+  echo 'Using explicitly selected local Go 1.27.1 toolchain.'
+else
+  if ! test -f "$work/go.tar.gz"; then
+    curl --fail --location --retry 3 --max-time 300 "${ZVIEWER_GO_DOWNLOAD_BASE:-https://go.dev/dl}/go1.27.1.darwin-$arch.tar.gz" -o "$work/go.tar.gz"
+  fi
+  echo "$hash  $work/go.tar.gz" | shasum -a 256 --check
+  tar -xzf "$work/go.tar.gz" -C "$work"
+  toolchain_root="$work/go"
 fi
-echo "$hash  $work/go.tar.gz" | shasum -a 256 --check
-tar -xzf "$work/go.tar.gz" -C "$work"
-export PATH="$work/go/bin:$work/bin:$PATH" GOBIN="$work/bin"
+export PATH="$toolchain_root/bin:$work/bin:$PATH" GOBIN="$work/bin"
 cd "$root/.native-staging/bilicore"
 go install golang.org/x/mobile/cmd/gomobile golang.org/x/mobile/cmd/gobind
 gomobile init
