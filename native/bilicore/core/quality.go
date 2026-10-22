@@ -186,9 +186,9 @@ func ResolveMobile(ctx context.Context, opts ResolveOptions) (*ResolveResult, er
 			return nil, err
 		}
 		if pgc != nil {
-			return getPgcPlay(ctx, pgc, cid, opts.Cookie, qn, opts.PreferMp4)
+			return getPgcPlay(ctx, pgc, cid, opts.Cookie, qn, opts.PreferMp4 && !opts.ForceDash, vip, opts.Codec)
 		}
-		return getPlayUrl(bvid, cid, opts.Cookie, &getPlayUrlOptions{Qn: qn, IsVip: vip, Fnval: 16 | 64 | 2048, Context: ctx})
+		return getPlayUrl(bvid, cid, opts.Cookie, &getPlayUrlOptions{Qn: qn, IsVip: vip, Codec: opts.Codec, Fnval: computeFnval(vip, qn, opts.Codec), Context: ctx})
 	}
 	discovered, firstErr := get(requestQn)
 	if firstErr != nil {

@@ -46,6 +46,7 @@ import type {
 import { refreshAccessToken } from '@/lib/api'
 import { formatVideoLoadError } from '@/modules/player/utils'
 import { isSamePlayerSource } from '../services/source-identity'
+import { assertVideoCodecSupported } from '../codec-capability'
 
 import {
   isBrowserPlayableFormat,
@@ -419,6 +420,8 @@ export function usePlayerSource(
       authRetried = false
     ): Promise<void> => {
       if (!mountedRef.current || !video.isConnected) return
+      // Reject known decoder failures before cleanup can stop the playing source.
+      if (source.format === 'dash' || shouldUsePlaysVideo(source)) assertVideoCodecSupported(source, true)
       const stages: Record<string, string> = {probe:'正在读取媒体轨道',index:'正在建立关键帧索引',ffmpeg:'正在加载音频组件',seg0:'正在生成首个分段',decision:'正在选择播放路径',workers:'正在启动音频处理',segments:'正在处理媒体分段'}
       const progressKey = useRoomStore.getState().roomSessionRevision + '|' + useRoomStore.getState().currentMovieId
       source = {...source, onAttachProgress: (stage, detail) => {
@@ -620,6 +623,7 @@ export function usePlayerSource(
         await enqueue(async () => {
           const latest = pendingReloadRef.current ?? source
           pendingReloadRef.current = null
+          if (latest.format === 'dash' || shouldUsePlaysVideo(latest)) assertVideoCodecSupported(latest, true)
           cleanup()
           resetVideoElement(video)
           await attachInner(video, latest)

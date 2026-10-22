@@ -125,10 +125,10 @@ func fetchPgcInfo(ctx context.Context, input, cookie string, requestedCid int64)
 	return info, &pgcContext{EpID: target.EpID, SeasonID: season.ID, Title: season.Title, URL: fmt.Sprintf("https://www.bilibili.com/bangumi/play/ep%d", target.EpID)}, nil
 }
 
-func getPgcPlay(ctx context.Context, pgc *pgcContext, cid int64, cookie string, qn int, mp4 bool) (*BilibiliPlayUrlResult, error) {
-	params := url.Values{"ep_id": {strconv.FormatInt(pgc.EpID, 10)}, "cid": {strconv.FormatInt(cid, 10)}, "qn": {strconv.Itoa(qn)}, "fnver": {"0"}, "fnval": {"2128"}, "fourk": {"1"}}
+func getPgcPlay(ctx context.Context, pgc *pgcContext, cid int64, cookie string, qn int, mp4 bool, vip bool, codec string) (*BilibiliPlayUrlResult, error) {
+	params := url.Values{"ep_id": {strconv.FormatInt(pgc.EpID, 10)}, "cid": {strconv.FormatInt(cid, 10)}, "qn": {strconv.Itoa(qn)}, "fnver": {"0"}, "fnval": {strconv.Itoa(computeFnval(vip, qn, codec))}, "fourk": {"1"}}
 	if mp4 {
-		params.Set("fnval", "1")
+		params.Set("fnval", strconv.Itoa(fnvalMP4))
 	}
 	var data map[string]any
 	if err := bilibiliFetchContext(ctx, "https://api.bilibili.com/pgc/player/web/playurl?"+params.Encode(), cookie, &data); err != nil {

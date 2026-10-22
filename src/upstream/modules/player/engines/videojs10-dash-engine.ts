@@ -27,6 +27,7 @@
  * - 控制台调试入口 window.__vjs10DashStore.$state() 可观察 v10 状态机。
  */
 import { getApiUrl } from '@/lib/api'
+import { assertVideoCodecSupported } from '../codec-capability'
 import { DashAdapter } from '@videojs/dash-video'
 import type {
   PlayerEngine,
@@ -242,6 +243,7 @@ export const videojs10DashEngine: PlayerEngine = {
     video: HTMLVideoElement,
     source: PlayerSource
   ): Promise<EngineAttachResult> {
+    assertVideoCodecSupported(source, true)
     const audioUrl = source.audioUrl || ''
 
     // DASH 源的 sourceUrl 是 m4s 片段,不能直接作为 video.src 播放,

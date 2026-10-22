@@ -49,6 +49,7 @@ export function VoiceChatPanel({
     transport,
     joined,
     mediaConnected,
+    mediaStatus,
     joining,
     micEnabled,
     members,
@@ -117,8 +118,8 @@ export function VoiceChatPanel({
           <span className="text-sm font-medium text-[var(--md-sys-color-on-surface)]">
             语音聊天
           </span>
-          <span className="text-[10px] uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
-            {joined ? mediaConnected ? `${memberCount} 人在线${transport ? ' · ' + transport.toUpperCase() : ''}` : '媒体连接中断，正在恢复' : '未连接'}
+          <span role="status" className="text-[10px] tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
+            {mediaStatus === 'timeout' ? '媒体连接超时' : mediaStatus === 'recovering' ? '媒体连接中断，正在恢复' : mediaStatus === 'connecting' ? '媒体连接中…' : joined ? mediaConnected ? `${memberCount} 人在线${transport ? ' · ' + transport.toUpperCase() : ''}` : `${memberCount} 人在线 · 媒体状态待确认` : joining ? '正在准备语音…' : '未连接'}
           </span>
         </div>
         {!embedded && (

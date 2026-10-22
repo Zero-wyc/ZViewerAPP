@@ -235,6 +235,7 @@ test('the actual player hook replaces a same-URL engine when policies change, in
     '@/modules/player/utils': { formatVideoLoadError: () => '' }, '@/lib/api': {},
     '@/lib/mediaFormat': { isBrowserPlayableFormat: () => true },
     '../services/source-identity': loadTs('src/upstream/modules/player/services/source-identity.ts'),
+    '../codec-capability': loadTs('src/upstream/modules/player/codec-capability.ts'),
   }, { URL })
   const player = usePlayerSource({ videoRef: { current: video } })
   const direct = { url: 'https://media.test/video', format: 'hls', noProxyFallback: true, playsvideoEnabled: false }
@@ -264,8 +265,9 @@ test('viewer re-resolution preserves explicit wire policies and previews cannot 
   runInNewContext(stripTypeScriptTypes(code.slice(start, end))+';exports.resolve=resolveViewerEffectiveState', {
     exports, useCallback: fn => fn, isHostRef: { current: false },
     useRoomStore: { getState: () => room },
-    resolveMovieSource: async ({ movie: selected }) => {
-      calls++; assert.equal(selected.serverProxy, false)
+    resolveViewerMovieSource: async (selected, policy) => {
+      calls++; assert.equal(selected.serverProxy, true)
+      assert.equal(policy.noProxyFallback, true)
       return { sourceUrl: 'https://fresh.test/hls', noProxyFallback: false, playsvideoEnabled: true }
     },
   })

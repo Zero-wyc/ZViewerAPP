@@ -2,7 +2,9 @@ import type { CmsSourceMeta } from '@/modules/cms/types'
 import { getEmbeddedProxyStatus } from '../../platform/bilibiliProxy'
 import { create } from 'zustand'
 import { unwrapCliProxyUrl } from '@/modules/bilibili/cliApi'
-import { apiFetch, safeJson } from '@/lib/api'
+import { reconcilePlaybackPolicies, type MovieSettingsOperation } from '@/modules/room/watch-together/runtime-settings'
+import { useAuthStore } from './authStore'
+import { apiFetch, safeJson, getApiUrl } from '@/lib/api'
 import type {
   ResolvedSource,
   QualityOption,
@@ -444,6 +446,7 @@ interface RoomState {
       path?: string
       username?: string
       password?: string
+  playsvideoEnabled?: boolean
   serverProxy?: boolean
   sourceMountId?: number | null
   directLink?: boolean
@@ -452,7 +455,10 @@ interface RoomState {
       cliOnly?: boolean
       multiVersion?: boolean
     }
-  ) => Promise<void>
+  ) => Promise<Movie | undefined>
+  movieSettingsOperations: Record<number, MovieSettingsOperation>
+  saveMoviePlaybackSettings: (movieId: number, payload: { serverProxy?: boolean; playsvideoEnabled?: boolean }) => Promise<void>
+  finishMoviePlaybackSettings: (movieId: number, token: number, error?: string) => void
   removeMovie: (roomId: string, movieId: number) => Promise<void>
   clearMovies: (roomId: string) => Promise<void>
   roomSessionRevision: number
@@ -462,7 +468,12 @@ interface RoomState {
   reorderMovies: (roomId: string, orderedIds: number[]) => Promise<void>
 }
 
+let movieSettingsToken = 0
+let movieFetchSequence = 0
+let policyRefreshPending = false
+
 const defaultState = {
+  movieSettingsOperations: {} as Record<number, MovieSettingsOperation>,
   roomOwnerUserId: null as number | null,
   hostOffline: false,
   mediaAttachProgress: '',
@@ -520,7 +531,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   ...defaultState,
   setRoomOwnerUserId: (roomOwnerUserId) => set({ roomOwnerUserId }),
   setAutoContinueEnabled: (enabled) => set(state => ({ autoContinueEnabled: enabled, autoContinueRevision: state.autoContinueRevision + 1 })),
-  setRoomId: (id) => set({ roomId: id, roomSessionRevision: get().roomSessionRevision + 1, ...(id !== get().roomId ? { autoContinueEnabled: false } : {}) }),
+  setRoomId: (id) => set({ roomId: id, movieSettingsOperations: {}, roomSessionRevision: get().roomSessionRevision + 1, ...(id !== get().roomId ? { autoContinueEnabled: false } : {}) }),
   setRoomName: (name) => set({ roomName: name }),
   setModerators: (moderators) => set({ moderators }),
   setPassword: (password) => set({ password }),
@@ -601,7 +612,15 @@ export const useRoomStore = create<RoomState>((set, get) => ({
     set((state) => ({
       watchTogether: { ...state.watchTogether, ...updates },
     })),
-  setMovies: (movies) => set({ movies }),
+  setMovies: (incoming) => {
+    const state = get()
+    const { movies, conflict } = reconcilePlaybackPolicies(incoming, state.movies, state.movieSettingsOperations)
+    set({ movies })
+    if (conflict && state.roomId && !policyRefreshPending && !Object.values(state.movieSettingsOperations).some(item => item.status === 'saving')) {
+      policyRefreshPending = true
+      void get().fetchMovies(state.roomId).catch(() => {}).finally(() => { policyRefreshPending = false })
+    }
+  },
   setCurrentMovieId: (id) => set({ currentMovieId: id, viewerCliRequiredMovieId: null }),
   setPendingQualityChange: (value) => set({ pendingQualityChange: value }),
   setViewerCliResolvedSource: (value) =>
@@ -637,7 +656,10 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   // REST API 调用：成功后由后端 socket 广播 movie-list 刷新本地 state；
   // 失败时抛出错误，调用方负责提示用户且不更新本地 state。
   fetchMovies: async (roomId) => {
+    const fetchSequence = ++movieFetchSequence
     const revision = get().roomSessionRevision
+    const server = getApiUrl()
+    const policyRevision = JSON.stringify(Object.entries(get().movieSettingsOperations).map(([id, item]) => [id, item.token, item.status === 'saving']))
     const res = await apiFetch(
       `/api/rooms/${encodeURIComponent(roomId)}/movies`
     )
@@ -649,8 +671,16 @@ export const useRoomStore = create<RoomState>((set, get) => ({
     if (!res.ok || !data.success || !Array.isArray(data.movies)) {
       throw new Error(data.message || '获取影片列表失败')
     }
-    if (get().roomId === roomId && get().roomSessionRevision === revision) {
-      set({ movies: data.movies.map(mapDtoToMovie) })
+    if (fetchSequence === movieFetchSequence && get().roomId === roomId && get().roomSessionRevision === revision && getApiUrl() === server &&
+      policyRevision === JSON.stringify(Object.entries(get().movieSettingsOperations).map(([id, item]) => [id, item.token, item.status === 'saving']))) {
+      const incoming = data.movies.map(mapDtoToMovie)
+      const operations = { ...get().movieSettingsOperations }
+      for (const movie of incoming) {
+        const operation = operations[movie.id]
+        if (operation && operation.status !== 'saving') operations[movie.id] = { ...operation,
+          confirmed: { serverProxy: movie.serverProxy, playsvideoEnabled: movie.playsvideoEnabled } }
+      }
+      set({ movies: reconcilePlaybackPolicies(incoming, get().movies, operations).movies, movieSettingsOperations: operations })
     }
   },
 
@@ -680,6 +710,8 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   },
 
   updateMovie: async (roomId, movieId, payload) => {
+    const revision = get().roomSessionRevision
+    const server = getApiUrl()
     payload = { ...payload, url: payload.url ? unwrapCliProxyUrl(payload.url) : undefined, audioUrl: payload.audioUrl ? unwrapCliProxyUrl(payload.audioUrl) : undefined }
     const res = await apiFetch(
       `/api/rooms/${encodeURIComponent(roomId)}/movies/${movieId}`,
@@ -689,13 +721,68 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         body: JSON.stringify(payload),
       }
     )
-    const data = await parseResponse<{ success: boolean; message?: string }>(
+    const data = await parseResponse<{ success: boolean; message?: string; movie?: MovieDto }>(
       res
     )
     if (!res.ok || !data.success) {
       throw new Error(data.message || '更新影片失败')
     }
-    // 不直接更新本地 state，等待后端广播 movie-list 刷新
+    if (get().roomId !== roomId || get().roomSessionRevision !== revision || getApiUrl() !== server) return undefined
+    return data.movie ? mapDtoToMovie(data.movie) : undefined
+  },
+
+  finishMoviePlaybackSettings: (movieId, token, error) => {
+    const operation = get().movieSettingsOperations[movieId]
+    if (!operation || operation.token !== token) return
+    set({ movieSettingsOperations: { ...get().movieSettingsOperations, [movieId]: {
+      ...operation, status: error ? 'error' : 'idle', error,
+    } } })
+  },
+
+  saveMoviePlaybackSettings: async (movieId, payload) => {
+    const context = get()
+    const { roomId, roomSessionRevision: revision } = context
+    const server = getApiUrl()
+    const user = useAuthStore.getState().user
+    const movie = context.movies.find(item => item.id === movieId)
+    if (!roomId || !movie || movie.sourceType === 'bilibili' || context.mode === 'screen-share') return
+    if (!user || (user.role !== 'root' && String(user.id) !== String(context.roomOwnerUserId))) throw new Error('没有影片编辑权限')
+    const previous = context.movieSettingsOperations[movieId]
+    if (previous?.status === 'saving' || previous?.status === 'applying') return
+    const token = ++movieSettingsToken
+    const current = () => get().roomId === roomId && get().roomSessionRevision === revision && getApiUrl() === server &&
+      get().movieSettingsOperations[movieId]?.token === token && get().movies.some(item => item.id === movieId)
+    set({ movieSettingsOperations: { ...context.movieSettingsOperations, [movieId]: { token, status: 'saving' } } })
+    try {
+      let confirmed = await get().updateMovie(roomId, movieId, payload)
+      if (!current()) return
+      if (!confirmed) {
+        // Old servers may omit the movie response. Confirm via REST, not Socket ordering.
+        const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/movies`)
+        const data = await parseResponse<{ success: boolean; movies?: MovieDto[]; message?: string }>(res)
+        if (!res.ok || !data.success) throw new Error(data.message || '无法确认已保存的播放设置')
+        const dto = data.movies?.find(item => item.id === movieId)
+        if (!dto) throw new Error('影片已删除')
+        confirmed = mapDtoToMovie(dto)
+      }
+      if (!current()) return
+      const latestUser = useAuthStore.getState().user
+      if (!latestUser || (latestUser.role !== 'root' && String(latestUser.id) !== String(get().roomOwnerUserId))) {
+        get().finishMoviePlaybackSettings(movieId, token, '播放权限已变更，请刷新片单')
+        return
+      }
+      set({ movies: get().movies.map(item => item.id === movieId ? confirmed! : item),
+        movieSettingsOperations: { ...get().movieSettingsOperations, [movieId]: { token,
+          status: get().currentMovieId === movieId ? 'applying' : 'idle',
+          confirmed: { serverProxy: confirmed.serverProxy, playsvideoEnabled: confirmed.playsvideoEnabled } } } })
+      void get().fetchMovies(roomId).catch(() => {})
+    } catch (error) {
+      if (!current()) return
+      get().finishMoviePlaybackSettings(movieId, token, error instanceof Error ? error.message : '保存失败')
+      // A timeout can occur after the server saved. Read the authority instead of inverse PUT.
+      await get().fetchMovies(roomId).catch(() => {})
+      throw error
+    }
   },
 
   removeMovie: async (roomId, movieId) => {

@@ -1,3 +1,6 @@
+import { moviePlaybackKey } from './runtime-settings'
+import { getApiUrl } from '@/lib/api'
+import { useAuthStore } from '@/store/authStore'
 import type { PreviewPlayRequest } from '@/store/roomStore'
 import { createAutoContinueHandler } from './autoContinue'
 import { useEffect, useRef, useCallback, useState } from 'react'
@@ -105,6 +108,7 @@ export function useWatchTogether({
     watchTogether,
     setWatchTogether,
     movies,
+    movieSettingsOperations,
     currentMovieId,
     setMovies,
     setCurrentMovieId,
@@ -121,6 +125,7 @@ export function useWatchTogether({
       watchTogether: s.watchTogether,
       setWatchTogether: s.setWatchTogether,
       movies: s.movies,
+      movieSettingsOperations: s.movieSettingsOperations,
       currentMovieId: s.currentMovieId,
       setMovies: s.setMovies,
       setCurrentMovieId: s.setCurrentMovieId,
@@ -134,6 +139,10 @@ export function useWatchTogether({
       setBufferProgress: s.setBufferProgress,
     }))
   )
+  const runtimeUser = useAuthStore(state => state.user)
+  const runtimeOwner = useRoomStore(state => state.roomOwnerUserId)
+  const runtimeSession = useRoomStore(state => state.roomSessionRevision)
+  const canEditRuntime = !!runtimeUser && (runtimeUser.role === 'root' || String(runtimeUser.id) === String(runtimeOwner))
   const isHostRef = useRef(isHost)
   // 事件抑制采用计数式实现：多个异步流程（attach/恢复/seek/缓冲下载）重叠时，
   // 任一流程完成只释放自己的一次抑制，不再误伤其他进行中的流程
@@ -142,7 +151,8 @@ export function useWatchTogether({
   // （直接调用 createSuppressRef() 会每次渲染创建全新对象，count 归零），
   // 且不在渲染期间读写 ref（react-hooks v6 refs 规则）。
   const [suppressEventsRef] = useState(createSuppressRef)
-  const lastLoadedMovieRef = useRef<{ id: number; url: string } | null>(null)
+  const lastLoadedMovieRef = useRef<{ id: number; url: string; key?: string } | null>(null)
+  const lastSuccessfulMovieRef = useRef<{ id: number; key: string; state: WatchTogetherState } | null>(null)
   // 房主刷新恢复：用于在 loadMovie 完成后应用 initialPlayback.currentTime 并暂停
   // 通过 ref 暂存，避免修改 effect 依赖导致 loadMovie 重新触发
   // 采用 latest ref pattern：每次渲染同步，确保 loadMovie 内部读到最新值
@@ -613,7 +623,6 @@ export function useWatchTogether({
             resolved.format === 'dash' &&
             getBilibiliParseOptions(movie.id).bufferMode === true,
         }
-        setWatchTogether(newState)
 
         // 缓冲模式：重新解析后 cacheKey 变化（cid/qn 可能不同），需要重新下载 blobs
         let blobs: { videoBlob: Blob; audioBlob: Blob } | undefined
@@ -634,6 +643,7 @@ export function useWatchTogether({
         // 从头加载到目标位置才播放（用户看到的"加载跳转之前的部分"现象）。
         await applySourceToVideo(video, newState, preserveTime, blobs)
         if (loadSeqRef.current !== seq || !video.isConnected) return
+        setWatchTogether(newState)
         video.currentTime = preserveTime
         if (shouldPlay && !wasUserPaused(video)) {
           void safePlay(video)
@@ -858,6 +868,31 @@ export function useWatchTogether({
     videoRef,
   ])
 
+  useEffect(() => {
+    return () => {
+      ++loadSeqRef.current
+      downloadAbortRef.current?.abort()
+      lastLoadedMovieRef.current = null
+      lastSuccessfulMovieRef.current = null
+    }
+  }, [roomId, isHost, runtimeSession])
+
+  useEffect(() => {
+    for (const [id, operation] of Object.entries(movieSettingsOperations)) {
+      if (operation.status !== 'applying') continue
+      if (Number(id) === currentMovieId && isHost && canEditRuntime) continue
+      useRoomStore.getState().finishMoviePlaybackSettings(Number(id), operation.token,
+        Number(id) === currentMovieId && !canEditRuntime ? '播放权限已变更' : undefined)
+      if (Number(id) === currentMovieId) {
+        ++loadSeqRef.current
+        downloadAbortRef.current?.abort()
+        cleanupMedia()
+        resetSuppression(suppressEventsRef)
+        failedLoadMovieIdsRef.current.add(Number(id))
+      }
+    }
+  }, [movieSettingsOperations, currentMovieId, isHost, canEditRuntime, cleanupMedia, suppressEventsRef])
+
   // currentMovieId 变化时自动加载对应影片到 video 元素
   // 仅房主执行加载逻辑：房主解析视频源并广播给观众。
   // 观众端完全依赖 handleState 接收房主广播的 sourceUrl/audioUrl 进行 MSE attach，
@@ -868,16 +903,20 @@ export function useWatchTogether({
     const movie = movies.find((m) => m.id === currentMovieId)
     if (!movie) return
 
-    // 避免 movies 列表刷新时重复加载同一部影片
-    if (
-      lastLoadedMovieRef.current?.id === movie.id &&
-      lastLoadedMovieRef.current?.url === movie.url
-    ) {
+    const operation = movieSettingsOperations[movie.id]
+    if (operation?.status === 'saving') return
+    const key = `${moviePlaybackKey(movie)}:${retryToken}`
+    const runtimeToken = operation?.status === 'applying' ? operation.token : undefined
+    if (runtimeToken !== undefined && !canEditRuntime) return
+    if (lastLoadedMovieRef.current?.id === movie.id && lastLoadedMovieRef.current.key === key &&
+      lastSuccessfulMovieRef.current?.id === movie.id && lastSuccessfulMovieRef.current.key === key) {
+      if (runtimeToken !== undefined) useRoomStore.getState().finishMoviePlaybackSettings(movie.id, runtimeToken)
       return
     }
-
-    // 该影片此前已加载失败：等待用户手动重试，不自动循环重试
-    if (failedLoadMovieIdsRef.current.has(movie.id)) return
+    if (lastLoadedMovieRef.current?.id === movie.id && (lastLoadedMovieRef.current.key === key ||
+      (movie.sourceType === 'bilibili' && !lastLoadedMovieRef.current.key && lastLoadedMovieRef.current.url === movie.url))) return
+    if (failedLoadMovieIdsRef.current.has(movie.id) && runtimeToken === undefined) return
+    if (runtimeToken !== undefined) failedLoadMovieIdsRef.current.delete(movie.id)
 
     const video = videoRef.current
     if (!video) return
@@ -887,6 +926,21 @@ export function useWatchTogether({
 
     // 加载代际：本次 loadMovie 使之前所有进行中的加载流程过期
     const seq = ++loadSeqRef.current
+    const sessionRevision = useRoomStore.getState().roomSessionRevision
+    const server = getApiUrl()
+    const previous = lastSuccessfulMovieRef.current
+    const runtimeReload = sourceType !== 'bilibili' && previous?.id === movie.id
+    const resumeTime = runtimeReload ? video.currentTime : 0
+    const resumeRate = runtimeReload ? video.playbackRate : watchTogether.playbackRate
+    const resumePlaying = runtimeReload ? !video.paused && !wasUserPaused(video) : true
+    const isCurrent = () => {
+      const state = useRoomStore.getState()
+      const user = useAuthStore.getState().user
+      return loadSeqRef.current === seq && isHostRef.current && state.roomId === roomId &&
+        state.roomSessionRevision === sessionRevision && getApiUrl() === server && state.currentMovieId === movie.id &&
+        state.movies.some(item => item.id === movie.id) && (runtimeToken === undefined ||
+          (!!user && (user.role === 'root' || String(user.id) === String(state.roomOwnerUserId))))
+    }
     // 新影片开始加载：重置自动重载治理状态与上一次的失败提示
     autoReloadCountRef.current = 0
     autoReloadNotifiedRef.current = false
@@ -896,7 +950,7 @@ export function useWatchTogether({
     resetSuppression(suppressEventsRef)
 
     suppressEventsRef.current = true
-    lastLoadedMovieRef.current = { id: movie.id, url: movie.url }
+    lastLoadedMovieRef.current = { id: movie.id, url: movie.url, key }
 
     /** 带解析进度 UI 的在线解析（B站），读取 localStorage 中该影片的播放模式偏好 */
     const resolveOnline = async (
@@ -924,13 +978,24 @@ export function useWatchTogether({
         !!recovery &&
         typeof recovery.currentMovieId === 'number' &&
         recovery.currentMovieId === movie.id
-      const recoveryTime = isRecovery ? recovery!.currentTime : 0
+      const recoveryTime = isRecovery ? recovery!.currentTime : resumeTime
       if (isRecovery) {
         appliedPlaybackRef.current = true
       }
 
       // 重置加载失败标记的辅助：允许用户手动重试；errMsg 非空时记录失败原因供 UI 展示
       const resetForRetry = (errMsg?: string) => {
+        if (!isCurrent()) return
+        if (runtimeReload) {
+          video.pause()
+          cleanupMedia()
+          const paused = { ...previous!.state, currentTime: resumeTime, playbackRate: resumeRate, isPlaying: false }
+          setWatchTogether(paused)
+          broadcastState(paused)
+          sendControl('pause')
+        }
+        if (runtimeToken !== undefined) useRoomStore.getState().finishMoviePlaybackSettings(movie.id, runtimeToken,
+          `设置已保存，播放应用失败：${errMsg || '请重试'}`)
         suppressEventsRef.current = false
         lastLoadedMovieRef.current = null
         // 记入失败集合：本 effect 不会再自动重试该影片（防请求风暴），
@@ -971,14 +1036,14 @@ export function useWatchTogether({
         }
       } catch (err) {
         // 已被更新的加载取代（切影片等）：静默放弃，不提示也不重置（新流程自管理状态）
-        if (loadSeqRef.current !== seq) return
+        if (!isCurrent()) return
         console.error('[useWatchTogether] 解析视频源失败:', err)
         message.error(err instanceof Error ? err.message : '视频源解析失败')
         resetForRetry(err instanceof Error ? err.message : '视频源解析失败')
         return
       }
       // 解析成功但已被更新的加载取代：放弃（不写 store、不 attach）
-      if (loadSeqRef.current !== seq) return
+      if (!isCurrent()) return
 
       // 2. 在线解析成功后同步清晰度 UI 状态（recovery 复用时保持现有值）
       if (sourceType === 'bilibili' && !resolved.reusedRecoveryUrl) {
@@ -1003,11 +1068,11 @@ export function useWatchTogether({
         // Movie 类型不含 headers 字段，recovery 时从 initialPlayback.headers 获取，
         // 确保 ani-subs 等依赖防盗链的源在刷新恢复后仍能正确 MSE attach。
         headers: r.headers,
-        isPlaying: !isRecovery,
+        isPlaying: !isRecovery && resumePlaying,
         currentTime: recoveryTime,
         playbackRate: isRecovery
           ? (recovery!.playbackRate ?? watchTogether.playbackRate)
-          : watchTogether.playbackRate,
+          : resumeRate,
         duration: r.duration,
         currentQn: r.currentQn,
         acceptQuality: r.acceptQuality,
@@ -1030,46 +1095,27 @@ export function useWatchTogether({
         // 恢复进度时传入 recoveryTime 作为 startTime，引擎从该时间对应的
         // 字节偏移开始下载，而非从文件头顺序下载到 recoveryTime 才播放。
         const startTime =
-          isRecovery && recoveryTime > 0 ? recoveryTime : undefined
+          recoveryTime > 0 ? recoveryTime : undefined
         await applySourceToVideo(video, state, startTime, blobs)
         // attach 已完成但本次加载已过期（新加载进行中）：不再恢复进度/广播/动
         // suppressEventsRef（由新流程管理），避免旧状态覆盖新影片
-        if (loadSeqRef.current !== seq) return
-        if (isRecovery && recoveryTime > 0) {
-          // 恢复进度：seek 到目标时间并强制暂停
-          try {
-            video.currentTime = recoveryTime
-          } catch {
-            // ignore
-          }
-          video.pause()
-          suppressEventsRef.current = false
-          if (isHostRef.current) {
-            broadcastState(state)
-            sendControl('pause')
-          }
-          message.info(`已恢复到 ${formatDuration(recoveryTime)}（已暂停）`)
-        } else {
-          video.currentTime = 0
-          // 用户在管线运行期间（MKV 的 playsvideo attach 可达 5-10s）按了
-          // 暂停时，不得强制起播，否则出现「已暂停但仍有声音输出」。
-          // 仅当用户没有暂停意图、且视频未在播放时才补 play。
-          const userPaused = wasUserPaused(video)
-          if (!video.paused && !userPaused) {
-            // 已由引擎自动起播，无需处理
-          } else if (!userPaused) {
-            void safePlay(video)
-          }
-          suppressEventsRef.current = false
-          if (isHostRef.current) {
-            // 用户暂停了加载中的影片：广播暂停态，观众同步暂停
-            const broadcast = userPaused
-              ? { ...state, isPlaying: false }
-              : state
-            broadcastState(broadcast)
-            sendControl(userPaused ? 'pause' : 'play')
-          }
-        }
+        if (!isCurrent()) return
+        video.playbackRate = state.playbackRate
+        try { video.currentTime = recoveryTime } catch { /* engine already seeks via startTime */ }
+        const shouldPlay = !isRecovery && resumePlaying && !wasUserPaused(video)
+        if (shouldPlay) await safePlay(video)
+        else video.pause()
+        if (!isCurrent()) return
+        const applied = { ...state, currentTime: video.currentTime, playbackRate: video.playbackRate,
+          isPlaying: shouldPlay && !video.paused && !wasUserPaused(video) }
+        // Only successfully attached media can be observed by full-state requests/forceSync.
+        setWatchTogether(applied)
+        suppressEventsRef.current = false
+        broadcastState(applied)
+        sendControl(applied.isPlaying ? 'play' : 'pause')
+        lastSuccessfulMovieRef.current = { id: movie.id, key, state: applied }
+        if (runtimeToken !== undefined) useRoomStore.getState().finishMoviePlaybackSettings(movie.id, runtimeToken)
+        if (isRecovery) message.info(`已恢复到 ${formatDuration(recoveryTime)}（已暂停）`)
       }
 
       /**
@@ -1080,8 +1126,7 @@ export function useWatchTogether({
        */
       const newState = buildNewState(resolved)
       // 写入 store 前复查代际：过期则不覆盖新流程的状态
-      if (loadSeqRef.current !== seq) return
-      setWatchTogether(newState)
+      if (!isCurrent()) return
 
       // 缓冲模式：在 attach 前先下载完整 m4s 流到 IndexedDB
       let blobs: { videoBlob: Blob; audioBlob: Blob } | undefined
@@ -1089,7 +1134,7 @@ export function useWatchTogether({
         try {
           blobs = await fetchBlobsForBufferModeLocal(newState, movie)
         } catch {
-          if (loadSeqRef.current === seq) {
+          if (isCurrent()) {
             // 缓冲失败已通过 message.error 提示，重置状态允许用户重试
             resetForRetry('缓冲下载失败')
           }
@@ -1099,7 +1144,7 @@ export function useWatchTogether({
 
       void applyAndRecover(newState, blobs).catch(async (err: unknown) => {
         // 已被新加载取代：失败无需处理（新流程自管理状态）
-        if (loadSeqRef.current !== seq) return
+        if (!isCurrent()) return
         // MSE attach 失败时必须释放 suppressEventsRef，否则房主端
         // play/pause/seek/timeupdate 事件全部被吞，broadcastState 永不调用，
         // 导致观众端永久黑屏。
@@ -1113,7 +1158,7 @@ export function useWatchTogether({
           try {
             // 旧 URL 已失效（403/404 deadline 过期），必须绕过解析缓存强制取新地址
             const reResolved = await resolveOnline(true)
-            if (loadSeqRef.current !== seq) return
+            if (!isCurrent()) return
             if (reResolved.acceptQuality?.length) {
               quality.setAvailableQualities(reResolved.acceptQuality)
             }
@@ -1122,7 +1167,6 @@ export function useWatchTogether({
             )
 
             const reResolvedState = buildNewState(reResolved)
-            setWatchTogether(reResolvedState)
 
             // 缓冲模式重新解析时也需要重新下载 m4s
             let reBlobs: { videoBlob: Blob; audioBlob: Blob } | undefined
@@ -1133,7 +1177,7 @@ export function useWatchTogether({
                   movie
                 )
               } catch {
-                if (loadSeqRef.current === seq) {
+                if (isCurrent()) {
                   resetForRetry('缓冲下载失败')
                 }
                 return
@@ -1143,7 +1187,7 @@ export function useWatchTogether({
             await applyAndRecover(reResolvedState, reBlobs)
             return
           } catch (retryErr) {
-            if (loadSeqRef.current !== seq) return
+            if (!isCurrent()) return
             console.error('[useWatchTogether] 回退重新解析失败:', retryErr)
             const retryMsg =
               retryErr instanceof Error ? retryErr.message : 'B站视频解析失败'
@@ -1164,6 +1208,10 @@ export function useWatchTogether({
   }, [
     currentMovieId,
     movies,
+    movieSettingsOperations,
+    canEditRuntime,
+    isHost,
+    runtimeSession,
     videoRef,
     watchTogether.playbackRate,
     setWatchTogether,
@@ -1192,6 +1240,7 @@ export function useWatchTogether({
     }
     cleanupMedia()
     lastLoadedMovieRef.current = null
+    lastSuccessfulMovieRef.current = null
     failedLoadMovieIdsRef.current.clear()
   }, [currentMovieId, cleanupMedia, videoRef, suppressEventsRef])
 

@@ -128,5 +128,5 @@ export function buildCmsProxyUrl(
   headers?: Record<string, string>,
   force = false
 ): string {
-  return buildAntileechProxyUrl('cms', url, headers, { force })
+  return buildAntileechProxyUrl('cms', url, headers, { force, relative: true })
 }

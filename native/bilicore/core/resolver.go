@@ -478,17 +478,29 @@ func intSliceContains(s []int, v int) bool {
 	return false
 }
 
-// computeFnval 根据 VIP 状态和请求的 qn 计算 fnval 位标志。
-func computeFnval(isVip bool, qn int) int {
-	dash := 16
-	fourK := 64
-	eightK := 2048
+const (
+	fnvalMP4         = 1
+	fnvalDASH        = 16
+	fnvalHDR         = 64
+	fnval4K          = 128
+	fnvalDolbyAudio  = 256
+	fnvalDolbyVision = 512
+	fnval8K          = 1024
+	fnvalAV1         = 2048
+)
+
+// Request flags describe available streams, not permission or device support.
+// Dolby remains opt-in outside the mobile ordinary-quality policy.
+func computeFnval(isVip bool, qn int, codec ...string) int {
 	if !isVip {
-		return dash
+		return fnvalDASH
 	}
-	fnval := dash | fourK
+	fnval := fnvalDASH | fnvalHDR | fnval4K
 	if qn == qn8K {
-		fnval |= eightK
+		fnval |= fnval8K
+	}
+	if len(codec) > 0 && codec[0] == "av1" {
+		fnval |= fnvalAV1
 	}
 	return fnval
 }
@@ -846,7 +858,7 @@ func getPlayUrlWbi(bvid string, cid int64, cookie string, options *getPlayUrlOpt
 		if options.Fnval != 0 {
 			fnval = options.Fnval
 		} else {
-			fnval = computeFnval(isVip, requestedQn)
+			fnval = computeFnval(isVip, requestedQn, options.Codec)
 		}
 		platform = options.Platform
 	}
@@ -900,7 +912,7 @@ func getPlayUrlLegacy(bvid string, cid int64, cookie string, options *getPlayUrl
 		if options.Fnval != 0 {
 			fnval = options.Fnval
 		} else {
-			fnval = computeFnval(isVip, requestedQn)
+			fnval = computeFnval(isVip, requestedQn, options.Codec)
 		}
 		platform = options.Platform
 	}

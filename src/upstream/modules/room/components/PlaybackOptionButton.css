@@ -1,0 +1,40 @@
+.playback-option-group {
+  container-type: inline-size;
+  align-items: center;
+  column-gap: 6px;
+  row-gap: 2px;
+}
+
+/* Keep a comfortable touch target around a smaller visible capsule. */
+button.playback-option-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+}
+
+.playback-option-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  max-width: 100%;
+  gap: .375rem;
+  padding: .375rem .625rem;
+  border-radius: 9999px;
+  font-size: .75rem;
+  /* Follow the available panel width, including tablets in split screen. */
+  font-size: clamp(.75rem, 3.8cqw, .8125rem);
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.playback-option-icon {
+  flex-shrink: 0;
+  width: 1.08em;
+  height: 1.08em;
+}

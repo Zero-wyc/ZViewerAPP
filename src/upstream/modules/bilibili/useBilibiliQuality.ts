@@ -3,6 +3,8 @@ import type { RefObject, MutableRefObject } from 'react'
 import { resolveBilibiliWithOptions } from './bilibiliApi'
 import type { QualityOption, ResolvedSource } from './types'
 import { useRoomStore } from '@/store/roomStore'
+import { message } from '@/components/ui/message'
+import { assertVideoCodecSupported, UnsupportedVideoCodecError } from '../player/codec-capability'
 // 分P 切换支持：applyQualityChange 在有 preResolved 时跳过 format 检查
 import type { WatchTogetherState, Movie } from '@/store/roomStore'
 import { safePlay } from '@/modules/sync-playback/safePlay'
@@ -194,6 +196,7 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
         if (!resolved.videoUrl) {
           throw new Error('未获取到对应清晰度的播放地址')
         }
+        assertVideoCodecSupported(resolved)
         if (isEmbeddedBilibiliHost() && resolved.currentQn) recordNativeQuality(movie.id, resolved.currentQn, resolved.acceptQuality ?? [])
 
         const newState: WatchTogetherState = {
@@ -252,6 +255,11 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
       } catch (err) {
         if (!isCurrent()) return
         if (isEmbeddedBilibiliHost()) restoreNativeQuality(movie.id, previousPolicy)
+        // Preflight did not touch the active engine. Keep its source and clock.
+        if (err instanceof UnsupportedVideoCodecError) {
+          message.error(err.message)
+          return
+        }
         console.error('[useBilibiliQuality] 切换清晰度失败:', err)
         // 回退到原 source
         try {

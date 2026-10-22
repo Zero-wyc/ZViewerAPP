@@ -1,5 +1,5 @@
 import { connectionUrl } from '../../../../platform/connectionTransport'
-import { detectVoiceTransport, voicePeerConnections, type VoiceTransport } from '../transport'
+import { createVoiceMediaMonitor, detectVoiceTransport, voicePeerConnections, VOICE_MEDIA_TIMEOUT_MS, type VoiceMediaStatus, type VoiceTransport } from '../transport'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AudioPresets, ConnectionState, DisconnectReason, Room, RoomEvent, Track } from 'livekit-client'
 import type { RemoteParticipant, RemoteTrack } from 'livekit-client'
@@ -22,6 +22,7 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
   const [joined, setJoined] = useState(false)
   const [joining, setJoining] = useState(false)
   const [mediaConnected, setMediaConnected] = useState(false)
+  const [mediaStatus, setMediaStatus] = useState<VoiceMediaStatus>('idle')
   const [micEnabled, setMicEnabled] = useState(true)
   const [selfId, setSelfId] = useState<string | null>(null)
   const [members, setMembers] = useState<VoiceMember[]>([])
@@ -36,6 +37,7 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
   const generation = useRef(0)
   const busy = useRef(false)
   const abortRef = useRef<AbortController | null>(null)
+  const mediaMonitor = useRef<ReturnType<typeof createVoiceMediaMonitor> | null>(null)
   const localStream = useRef<MediaStream | null>(null)
   const microphoneLease = useRef<MicrophoneLease | null>(null)
   const voicePublished = useRef(false)
@@ -70,6 +72,8 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
     busy.current = false
     abortRef.current?.abort()
     abortRef.current = null
+    mediaMonitor.current?.stop()
+    mediaMonitor.current = null
     const room = roomRef.current
     roomRef.current = null
     room?.removeAllListeners()
@@ -100,6 +104,7 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
     setJoined(false)
     setJoining(false)
     setMediaConnected(false)
+    setMediaStatus('idle')
     setMicEnabled(true)
     setSelfId(null)
     setMembers([])
@@ -164,6 +169,8 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
     const controller = new AbortController()
     abortRef.current = controller
     setJoining(true)
+    setMediaStatus('idle') // Permission acquisition is outside the media establishment window.
+    let mediaTimeoutReported = false
     try {
       const res = await apiFetch('/api/voice/token', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -216,7 +223,8 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
         .on(RoomEvent.ParticipantDisconnected, p => { if (active()) { cleanupRemote(p.identity); refreshMembers(room) } })
         .on(RoomEvent.ParticipantMetadataChanged, () => refreshMembers(room))
         .on(RoomEvent.ConnectionStateChanged, state => { if (active()) {
-          setMediaConnected(state === ConnectionState.Connected)
+          if (state === ConnectionState.Reconnecting || state === ConnectionState.SignalReconnecting) mediaMonitor.current?.restart()
+          else mediaMonitor.current?.refresh()
           microphoneCapture.setVoiceState({ joined: state === ConnectionState.Connected,
             publishing: voicePublished.current && micIntent.current && !adminMuted(room.localParticipant.metadata) })
           if (state !== ConnectionState.Connected) setTransport(null)
@@ -228,7 +236,24 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
           leave()
           message.warning(reason === DisconnectReason.DUPLICATE_IDENTITY ? '同一账号已在另一设备加入语音，本机已断开' : reason === DisconnectReason.PARTICIPANT_REMOVED ? '您已被移出语音聊天' : '语音连接已断开，可重新加入')
         })
-      await room.connect(connectionUrl(data.url), data.token)
+      mediaMonitor.current = createVoiceMediaMonitor({
+        room, active: () => active() && roomRef.current === room,
+        signalingConnected: () => room.state === ConnectionState.Connected,
+        onChange: status => {
+          if (!active() || roomRef.current !== room) return
+          setMediaStatus(status)
+          setMediaConnected(status === 'connected')
+          if (status !== 'connected') setTransport(null)
+        },
+        onTimeout: () => { if (active() && roomRef.current === room) {
+          mediaTimeoutReported = true
+          message.warning('语音媒体连接超时，请检查网络后重试')
+        } },
+        now: () => Date.now(),
+        schedule: tick => setInterval(tick, 500),
+        cancel: timer => clearInterval(timer as ReturnType<typeof setInterval>),
+      })
+      await room.connect(connectionUrl(data.url), data.token, { peerConnectionTimeout: VOICE_MEDIA_TIMEOUT_MS })
       if (!active()) { room.removeAllListeners(); void room.disconnect().catch(() => {}); return }
       // Silence the share clone before publication can start sending its first packet.
       voicePublished.current = true
@@ -238,11 +263,12 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
       setSelfId(room.localParticipant.identity)
       refreshMembers(room)
       setJoined(true)
-      setMediaConnected(room.state === ConnectionState.Connected)
+      mediaMonitor.current?.refresh()
     } catch (err) {
       if (!active()) return
       leave()
-      message.error(err instanceof DOMException && err.name === 'NotAllowedError' ? '麦克风权限被拒绝，请授权后重试' : err instanceof Error ? err.message : '加入语音失败')
+      const mediaTimeout = err instanceof Error && /(?:peer.?connection|connection)\s*timeout/i.test(err.message)
+      if (!mediaTimeout || !mediaTimeoutReported) message.error(err instanceof DOMException && err.name === 'NotAllowedError' ? '麦克风权限被拒绝，请授权后重试' : mediaTimeout ? '语音媒体连接超时，请检查网络后重试' : err instanceof Error ? err.message : '加入语音失败')
     } finally {
       if (generation.current === epoch) {
         if (getApiUrl() !== server) leave()
@@ -374,15 +400,20 @@ export function useVoiceChat({ roomId, username }: UseVoiceChatOptions) {
   useEffect(() => {
     if (!joined || !mediaConnected) return
     let cancelled = false
+    const epoch = generation.current
+    const server = getApiUrl()
     const poll = async () => {
       const room = roomRef.current
       let detected: VoiceTransport | null = null
-      for (const pc of voicePeerConnections(room)) { detected = await detectVoiceTransport(pc); if (detected) break }
-      if (!cancelled && room === roomRef.current) setTransport(detected)
+      for (const pc of voicePeerConnections(room)) {
+        const candidate = await detectVoiceTransport(pc)
+        if (candidate && voicePeerConnections(room).includes(pc)) { detected = candidate; break }
+      }
+      if (!cancelled && room === roomRef.current && epoch === generation.current && server === getApiUrl()) setTransport(detected)
     }
     void poll()
     const timer = setInterval(() => { void poll() }, 5000)
     return () => { cancelled = true; clearInterval(timer) }
   }, [joined, mediaConnected])
-  return { transport, joined, joining, mediaConnected, micEnabled, selfId, members, globalVolume, peerVolumes, micVolume, monitorEnabled, audioLevels, voiceMutedIds, audioBlocked, resumeAudio, join, leave, toggleMic, toggleMonitor, setGlobalVolume, setPeerVolume, setMicVolume, muteVoiceMember, kickVoiceMember }
+  return { transport, joined, joining, mediaConnected, mediaStatus, micEnabled, selfId, members, globalVolume, peerVolumes, micVolume, monitorEnabled, audioLevels, voiceMutedIds, audioBlocked, resumeAudio, join, leave, toggleMic, toggleMonitor, setGlobalVolume, setPeerVolume, setMicVolume, muteVoiceMember, kickVoiceMember }
 }

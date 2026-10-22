@@ -98,8 +98,19 @@ async function pgcInfo(input: string, cid: number, cookie: string): Promise<PgcI
     epId, seasonId: season.season_id, url: `https://www.bilibili.com/bangumi/play/ep${epId}` };
 }
 
-async function pgcPlay(epId: number, cid: number, qn: number, cookie: string, mp4: boolean): Promise<PlayData> {
-  const response = await getJson<PgcPlayEnvelope>(`https://api.bilibili.com/pgc/player/web/playurl?ep_id=${epId}&cid=${cid}&qn=${qn}&fnver=0&fnval=${mp4 ? 1 : 2128}&fourk=1`, cookie);
+// Keep request flags separate from the ordinary AVC/SDR device selection below.
+export function computeBilibiliFnval(vip: boolean, qn: number, codec: string = '', mp4: boolean = false, allowDolbyVision: boolean = false): number {
+  if (mp4) return 1;
+  if (!vip) return 16;
+  let value = 16 | 64 | 128; // DASH, HDR, 4K
+  if (qn === 127) value |= 1024;
+  if (qn === 126 && allowDolbyVision) value |= 512;
+  if (codec === 'av1') value |= 2048;
+  return value;
+}
+
+async function pgcPlay(epId: number, cid: number, qn: number, cookie: string, mp4: boolean, vip: boolean): Promise<PlayData> {
+  const response = await getJson<PgcPlayEnvelope>(`https://api.bilibili.com/pgc/player/web/playurl?ep_id=${epId}&cid=${cid}&qn=${qn}&fnver=0&fnval=${computeBilibiliFnval(vip, qn, '', mp4)}&fourk=1`, cookie);
   const play = response.result || response.data?.result;
   if (response.code !== 0 || !play) throw pgcError(response.code, response.message);
   return play;
@@ -142,7 +153,7 @@ async function signedPlayUrl(bvid: string, cid: number, qn: number, cookie: stri
   params.set('cid', String(cid));
   params.set('qn', String(qn));
   params.set('fnver', '0');
-  params.set('fnval', vip ? '80' : '16');
+  params.set('fnval', String(computeBilibiliFnval(vip, qn)));
   params.set('fourk', '1');
   params.set('wts', String(Math.floor(Date.now() / 1000)));
   const md = cryptoFramework.createMd('MD5');
@@ -214,7 +225,7 @@ export async function resolveBilibili(bvid: string, requestedCid: number, reques
   // is available through the explicit quality selector but may stall in ArkWeb.
   const defaultQn = cookie === '' ? 32 : 80;
   const qn = mode === 'manual' && requestedQn > 0 ? requestedQn : fallbackQn > 0 ? fallbackQn : defaultQn;
-  const play = pgcData ? await pgcPlay(pgcData.epId, cid, qn, cookie, preferMp4) : await signedPlayUrl(bvid, cid, qn, cookie, vip);
+  const play = pgcData ? await pgcPlay(pgcData.epId, cid, qn, cookie, preferMp4, vip) : await signedPlayUrl(bvid, cid, qn, cookie, vip);
   const qualities: QualityOption[] = (play.accept_quality || []).map((id: number): QualityOption => ({ id, label: qualityLabel(id) }));
   const fullDuration = page?.duration || info.duration;
   const playDuration = Math.round((play.timelength || 0) / 1000) || play.dash?.duration || 0;

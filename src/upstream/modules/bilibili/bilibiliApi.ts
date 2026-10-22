@@ -1,4 +1,5 @@
 import { apiFetch } from '@/lib/api'
+import { assertVideoCodecSupported } from '../player/codec-capability'
 import type {
   BilibiliQrData,
   BilibiliUserInfo,
@@ -428,6 +429,9 @@ function mapResolvedBilibili(data: ResolveProgressLine): ResolvedSource {
     videoUrl: data.videoUrl ?? '',
     audioUrl: data.audioUrl,
     videoCodec: data.videoCodec,
+    isHdr: data.isHdr,
+    hdrType: data.hdrType,
+    videoCodecid: data.videoCodecid,
     audioCodec: data.audioCodec,
     duration: data.duration,
     format: data.format || 'mp4',
@@ -487,6 +491,7 @@ async function parseNdjsonStream(
   }
 
   if (resolved) {
+    assertVideoCodecSupported(resolved)
     return resolved
   }
 
@@ -560,7 +565,9 @@ export async function resolveBilibili(
       }
       throw new Error(data.message || '解析 B站 视频失败')
     }
-    return mapResolvedBilibili(data)
+    const resolved = mapResolvedBilibili(data)
+    assertVideoCodecSupported(resolved)
+    return resolved
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       throw new Error('解析 B站 视频超时，请稍后重试', { cause: err })

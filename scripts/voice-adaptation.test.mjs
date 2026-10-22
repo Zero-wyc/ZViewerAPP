@@ -16,11 +16,48 @@ test('voice badge uses the selected candidate pair and tolerates SDK/stat failur
   assert.equal(await detectVoiceTransport({ connectionState: 'connected', getStats: async () => stats }), 'tcp')
   assert.equal(await detectVoiceTransport({ connectionState: 'disconnected' }), null)
   assert.equal(await detectVoiceTransport({ connectionState: 'connected', getStats: async () => { throw Error('unavailable') } }), null)
+  const onlyOldNomination = new Map([...stats].filter(([key]) => !['transport', 'chosen'].includes(key)))
+  assert.equal(await detectVoiceTransport({ connectionState: 'connected', getStats: async () => onlyOldNomination }), null, 'an old nominated pair cannot identify the current route')
   assert.equal(voicePeerConnections({}).length, 0)
+})
+
+test('media monitor requires both active directions and replaces PC listeners without stale callbacks', () => {
+  const { createVoiceMediaMonitor, voiceMediaConnectionState } = loadTs('src/upstream/modules/voice-chat/transport.ts')
+  class Peer extends EventTarget {
+    connectionState = 'connected'; iceConnectionState = 'connected'; listeners = 0
+    addEventListener(...args) { this.listeners++; super.addEventListener(...args) }
+    removeEventListener(...args) { this.listeners--; super.removeEventListener(...args) }
+  }
+  const subscriber = new Peer(), publisher = new Peer()
+  const manager = { subscriber: { _pc: subscriber }, publisher: { _pc: publisher }, needsSubscriber: true, needsPublisher: true }
+  const room = { engine: { pcManager: manager } }
+  publisher.connectionState = 'connecting'; publisher.iceConnectionState = 'checking'
+  assert.equal(voiceMediaConnectionState(room), false, 'receiving alone does not prove the microphone channel connected')
+  let now = 0, ticks, cancelled = false, active = true, status, warnings = 0
+  const monitor = createVoiceMediaMonitor({ room, active: () => active, signalingConnected: () => true, onChange: next => { status = next }, onTimeout: () => warnings++, now: () => now, schedule: callback => { ticks = callback; return 1 }, cancel: () => { cancelled = true } })
+  assert.equal(status, 'connecting')
+  publisher.connectionState = 'connected'; publisher.iceConnectionState = 'completed'; publisher.dispatchEvent(new Event('iceconnectionstatechange'))
+  assert.equal(status, 'connected')
+  const replacement = new Peer(); replacement.connectionState = 'disconnected'
+  manager.publisher._pc = replacement; ticks()
+  assert.equal(status, 'recovering')
+  assert.equal(publisher.listeners, 0)
+  assert.equal(replacement.listeners, 2)
+  now = 10000; ticks(); ticks()
+  assert.equal(status, 'timeout'); assert.equal(warnings, 1)
+  replacement.connectionState = 'connected'; replacement.dispatchEvent(new Event('connectionstatechange'))
+  assert.equal(status, 'connected')
+  active = false; ticks()
+  assert.equal(cancelled, true)
+  assert.equal(replacement.listeners, 0)
+  assert.equal(subscriber.listeners, 0)
+  monitor.restart(); publisher.dispatchEvent(new Event('iceconnectionstatechange'))
+  assert.equal(warnings, 1)
 })
 function harness(options = {}) {
   let cursor = 0, output
   const slots = [], effects = [], rooms = [], streams = [], contexts = [], messages = [], requests = []
+  const timers = new Map(); let nextTimer = 0, now = 0
   const react = {
     useState(value) { const i = cursor++; slots[i] ??= { value }; return [slots[i].value, v => { slots[i].value = typeof v === 'function' ? v(slots[i].value) : v }] },
     useRef(value) { const i = cursor++; return slots[i] ??= { current: value } },
@@ -49,8 +86,9 @@ function harness(options = {}) {
   }
   const RoomEvent = Object.fromEntries(['TrackSubscribed', 'TrackUnsubscribed', 'ParticipantConnected', 'ParticipantDisconnected', 'ParticipantMetadataChanged', 'ConnectionStateChanged', 'AudioPlaybackStatusChanged', 'Disconnected'].map(s => [s, s]))
   class Room extends EventEmitter {
-    constructor() { super(); rooms.push(this); this.state = 'connected'; this.remoteParticipants = new Map(); this.localParticipant = { identity: 'user:1', name: 'test', metadata: '{}', publishTrack: async track => { this.track = track; await options.publish?.() } }; this.canPlaybackAudio = true }
-    async connect(url) { this.url = url; await options.connect?.() }
+    constructor() { super(); rooms.push(this); this.state = 'connected'; this.engine = { pcManager: { subscriber: { _pc: { connectionState: 'connected', iceConnectionState: 'connected', getStats: async () => new Map() } }, needsSubscriber: true, needsPublisher: false } }; this.remoteParticipants = new Map(); this.localParticipant = { identity: 'user:1', name: 'test', metadata: '{}', publishTrack: async track => { this.track = track; await options.publish?.() } }; this.canPlaybackAudio = true }
+    emit(event, ...args) { if (event === RoomEvent.ConnectionStateChanged) this.state = args[0]; return super.emit(event, ...args) }
+    async connect(url, _token, config) { this.url = url; this.connectOptions = config; await options.connect?.() }
     async disconnect() { this.disconnected = true; this.emit(RoomEvent.Disconnected) }
     async startAudio() {}
   }
@@ -66,21 +104,22 @@ function harness(options = {}) {
   const { useVoiceChat } = loadTs('src/upstream/modules/voice-chat/hooks/useVoiceChat.ts', {
     '../../../../platform/connectionTransport': loadTs('src/platform/connectionTransport.ts', {}, { URL }),
     '../transport': loadTs('src/upstream/modules/voice-chat/transport.ts'),
-    react, 'livekit-client': { Room, RoomEvent, Track: { Kind: { Audio: 'audio' }, Source: { Microphone: 'microphone' } }, AudioPresets: { music: {} }, ConnectionState: { Connected: 'connected' }, DisconnectReason: { DUPLICATE_IDENTITY: 2, PARTICIPANT_REMOVED: 3 } },
+    react, 'livekit-client': { Room, RoomEvent, Track: { Kind: { Audio: 'audio' }, Source: { Microphone: 'microphone' } }, AudioPresets: { music: {} }, ConnectionState: { Connected: 'connected', Reconnecting: 'reconnecting', SignalReconnecting: 'signalReconnecting' }, DisconnectReason: { DUPLICATE_IDENTITY: 2, PARTICIPANT_REMOVED: 3 } },
     '@/lib/api': { getApiUrl: () => server, apiFetch: async (url, init) => { requests.push({ url, init }); return options.token ? options.token() : { ok: true, status: 200, json: async () => ({ success: true, token: 'test-only', url: 'wss://rtc.example' }) } } },
     '@/components/ui/message': { message: { warning: m => messages.push(m), error: m => messages.push(m) } },
     '@/lib/mediaTeardown': { ROOM_MEDIA_TEARDOWN_EVENT: 'teardown' },
     '../../../../platform/microphoneCapture': { microphoneCapture },
-  }, { window, document, navigator: { userAgent: 'Android' }, MediaStream, AudioContext, setInterval: () => 1, clearInterval() {} })
+  }, { window, document, navigator: { userAgent: 'Android' }, MediaStream, AudioContext, Date: { now: () => now }, setInterval: (fn, ms) => { timers.set(++nextTimer, { fn, ms }); return nextTimer }, clearInterval: timer => timers.delete(timer) })
   const render = (roomId = 'room-a') => { cursor = 0; output = useVoiceChat({ roomId, username: 'test' }); while (effects.length) effects.shift()(); return output }
   render()
-  return { render, rooms, streams, contexts, messages, requests, RoomEvent, window, MediaStream, microphoneCapture, switchServer: () => { server = 'https://new.example' } }
+  return { render, rooms, streams, contexts, messages, requests, RoomEvent, window, MediaStream, microphoneCapture, timers, tick: ms => { now += ms; for (const timer of [...timers.values()]) if (timer.ms === 500) timer.fn() }, switchServer: () => { server = 'https://new.example' } }
 }
 
 test('LiveKit joins the returned URL, reconnects visibly, and releases raw and processed capture on teardown', async () => {
   const h = harness(); await h.render().join()
   assert.equal(h.render().joined, true)
   assert.equal(h.rooms[0].url, 'wss://rtc.example')
+  assert.equal(h.rooms[0].connectOptions.peerConnectionTimeout, 10000)
   h.rooms[0].emit(h.RoomEvent.ConnectionStateChanged, 'reconnecting')
   assert.equal(h.render().mediaConnected, false)
   h.rooms[0].emit(h.RoomEvent.ConnectionStateChanged, 'connected')
@@ -91,6 +130,48 @@ test('LiveKit joins the returned URL, reconnects visibly, and releases raw and p
   assert.ok(h.contexts.every(c => c.closed))
   assert.ok(h.rooms[0].disconnected)
   h.render().leave() // Idempotent cleanup.
+})
+
+test('microphone permission waiting does not consume the media timeout window', async () => {
+  const permission = defer(), h = harness({ permission: () => permission.promise })
+  const joining = h.render().join(); await new Promise(resolve => setImmediate(resolve))
+  h.tick(30000)
+  assert.equal(h.timers.size, 0)
+  assert.equal(h.render().mediaStatus, 'idle')
+  assert.equal(h.messages.length, 0)
+  permission.resolve(new h.MediaStream()); await joining
+  assert.equal(h.render().mediaStatus, 'connected')
+  h.render().leave()
+})
+
+test('media loss warns once, recovers from PC state, and cannot write or warn after leave', async () => {
+  const h = harness(); await h.render().join()
+  const pc = h.rooms[0].engine.pcManager.subscriber._pc
+  pc.connectionState = 'disconnected'; pc.iceConnectionState = 'disconnected'
+  h.tick(500)
+  assert.equal(h.render().mediaStatus, 'recovering')
+  assert.equal(h.render().mediaConnected, false)
+  h.tick(9999)
+  assert.equal(h.messages.length, 0)
+  h.tick(1); h.tick(5000)
+  assert.equal(h.render().mediaStatus, 'timeout')
+  assert.equal(h.messages.filter(message => message.includes('媒体连接超时')).length, 1)
+  pc.connectionState = 'connected'; pc.iceConnectionState = 'completed'; h.tick(500)
+  assert.equal(h.render().mediaStatus, 'connected')
+  h.render().leave(); h.tick(20000)
+  assert.equal(h.render().mediaStatus, 'idle')
+  assert.equal(h.timers.size, 0)
+  assert.equal(h.messages.length, 1)
+})
+
+test('unavailable private SDK diagnostics leave audio usable without false media timeout', async () => {
+  const h = harness(); await h.render().join()
+  h.rooms[0].engine = {}; h.tick(500); h.tick(30000)
+  assert.equal(h.render().joined, true)
+  assert.equal(h.render().mediaStatus, 'unavailable')
+  assert.equal(h.render().mediaConnected, false)
+  assert.equal(h.messages.length, 0)
+  h.render().leave()
 })
 
 test('leave during permission acquisition stops the late raw stream and never publishes it', async () => {

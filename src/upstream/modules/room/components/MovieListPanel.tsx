@@ -42,6 +42,7 @@ import { useCliAgentStore } from '@/store/cliAgentStore'
 import { cn } from '@/lib/utils'
 import { isEmbeddedBilibiliHost, getEmbeddedProxyStatus } from '../../../../platform/bilibiliProxy'
 import { NativeQualitySelect } from '@/modules/bilibili/NativeQualitySelect'
+import { MovieRuntimeSettings } from './MovieRuntimeSettings'
 import { AutoContinueToggle } from './AutoContinueToggle'
 import { getNativeQualityPolicy } from '@/modules/bilibili/nativeQualityPolicy'
 
@@ -836,6 +837,7 @@ export function MovieListPanel({
                   <Button size="sm" variant="secondary" icon={<ArrowUp className="h-4 w-4" />} disabled={sorting || movies[0]?.id === movie.id} onClick={() => void moveMovie(movie.id, -1)}>上移</Button>
                   <Button size="sm" variant="secondary" icon={<ArrowDown className="h-4 w-4" />} disabled={sorting || movies[movies.length - 1]?.id === movie.id} onClick={() => void moveMovie(movie.id, 1)}>下移</Button>
                 </div>}
+                {movie.sourceType !== 'bilibili' && !isScreenShare && <MovieRuntimeSettings movie={movie} isHost={isHost} />}
                 {/* B站解析设置：每个 B站 影片独享一份配置；房主可操作，观众可查看并独立开启 CLI 代理 */}
                 {movie.sourceType === 'bilibili' && !isScreenShare && (
                   <BilibiliParseSettings movieId={movie.id} isHost={isHost} />

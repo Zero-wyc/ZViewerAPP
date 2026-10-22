@@ -40,6 +40,7 @@
  * 标签且丢弃样式表头，所以 ASS 特效在此链路下不可恢复地退化为纯文本。
  */
 import { PlaysVideoEngine } from 'playsvideo'
+import { assertVideoCodecSupported } from '../codec-capability'
 import type { KeyframeIndex } from 'playsvideo'
 import {
   fetchPlaysVideoTrackCues,
@@ -617,6 +618,7 @@ export const playsVideoEngine: PlayerEngine = {
     video: HTMLVideoElement,
     source: PlayerSource
   ): Promise<EngineAttachResult> {
+    assertVideoCodecSupported(source, true)
     const controller = new PlaysVideoController(video, source)
     try {
       await controller.attach(source.startTime ?? 0)

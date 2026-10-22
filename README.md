@@ -1,5 +1,7 @@
 # ZViewer Mobile Client
 
+**本地开发版本 2.1.8 / 218**：已按服务端 v4.7.4 执行文档完成播放设置按钮与即时应用、源解析同步、B站请求/解码防护和语音媒体监看。安装包及验收边界见 [2.1.8 验证记录](docs/client-2.1.8-validation.md)，尚未发布。下方 2.1.7 下载与发行状态继续指向已公开版本。
+
 **Android / HarmonyOS 2.1.7 / 217**：支持普通 B站视频仅用服务端账号解析和添加，明确区分本机与服务端登录状态；修复短链后续操作、竖屏高清轨道筛选，并按实际视频方向锁定全屏。保留完整名称和选集布局等既有功能。用户已反馈测试通过，构建与验证范围见 [2.1.7 记录](docs/client-2.1.7-validation.md)。
 
 **iOS 1.9.0 / build 26**：播放器、弹幕设置、房间语音、投屏、房间设置、方向控制和音乐菜单完成独立更新；设备 Release IPA 未签名，需自行签名后侧载。维护入口见 [iOS 维护文档](docs/ios-maintenance-architecture.md)，发布包见 [iOS 1.9.0 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0)。

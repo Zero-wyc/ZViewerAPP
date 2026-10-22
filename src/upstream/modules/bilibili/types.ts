@@ -45,6 +45,9 @@ export interface ResolvedSource {
   videoUrl: string
   audioUrl?: string
   videoCodec?: string
+  isHdr?: boolean
+  hdrType?: 'hlg' | 'dolby-vision'
+  videoCodecid?: number
   audioCodec?: string
   duration?: number
   /** 媒体容器格式。FTP/WebDAV/OpenList 可能返回 mkv/avi 等浏览器不支持的格式。 */
@@ -98,6 +101,9 @@ export interface ResolveProgressLine {
   videoUrl?: string
   audioUrl?: string
   videoCodec?: string
+  isHdr?: boolean
+  hdrType?: 'hlg' | 'dolby-vision'
+  videoCodecid?: number
   audioCodec?: string
   duration?: number
   format?: MediaFormat

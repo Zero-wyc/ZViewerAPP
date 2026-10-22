@@ -2,6 +2,7 @@ import type { ResolvedSource } from './types'
 import { logicalConnectionUrl } from '../../../platform/connectionTransport'
 import { embeddedBilibiliProxy, getEmbeddedProxyStatus, isEmbeddedBilibiliHost } from '../../../platform/bilibiliProxy'
 import { getWebViewCapabilities } from './nativeQualityPolicy'
+import { assertVideoCodecSupported } from '../player/codec-capability'
 
 const BV_REGEX = /BV[0-9A-Za-z]{10}/
 
@@ -97,6 +98,9 @@ interface CliResolveResponse {
   videoUrl?: string
   audioUrl?: string
   videoCodec?: string
+  isHdr?: boolean
+  hdrType?: 'hlg' | 'dolby-vision'
+  videoCodecid?: number
   audioCodec?: string
   format?: 'mp4' | 'dash' | string
   loggedIn?: boolean
@@ -232,6 +236,9 @@ export async function resolveBilibiliViaCli(
     videoUrl: data.videoUrl,
     audioUrl: data.audioUrl,
     videoCodec: data.videoCodec,
+    isHdr: data.isHdr,
+    hdrType: data.hdrType,
+    videoCodecid: data.videoCodecid,
     audioCodec: data.audioCodec,
     duration: data.duration,
     format: (data.format as ResolvedSource['format']) || 'mp4',
@@ -249,6 +256,7 @@ export async function resolveBilibiliViaCli(
     preview: data.preview,
   }
 
+  assertVideoCodecSupported(resolved)
   // CLI /resolve 已返回代理 URL，但本地包装可确保旧版 CLI 与兜底场景也走代理。
   // Native media URLs are wrapped only during attachment. Room state keeps
   // upstream URLs so a localhost token can never leak to other participants.

@@ -1,4 +1,4 @@
-import { resolveMovieSource } from '@/modules/room/watch-together/movie-source-resolver'
+import { resolveViewerMovieSource } from '@/modules/room/watch-together/movie-source-resolver'
 import { getApiUrl, refreshAccessToken } from '@/lib/api'
 import { isAccessTokenExpired } from '@/lib/authTransport'
 import { isPlaybackSessionCurrent } from '../playbackIdentity'
@@ -468,12 +468,8 @@ export function useVideoSource({
       if (isHostRef.current || !state.sourceUrl || state.isPreview) return state
       const room = useRoomStore.getState()
       const movie = room.movies.find(m => m.id === room.currentMovieId)
-      if (movie && (['cms', 'anime'].includes(movie.sourceType) || (movie.sourceType === 'kazumi' && movie.sourceMeta) || movie.sourceType === 'ftp')) {
-        // A newer state can arrive before its movie-list update. Never replace an
-        // explicit direct-only policy with a proxy chosen from stale metadata.
-        const dataSource = ['anime', 'kazumi', 'cms'].includes(movie.sourceType)
-        const resolvingMovie = dataSource && state.noProxyFallback === true ? { ...movie, serverProxy: false } : movie
-        const resolved = await resolveMovieSource({movie: resolvingMovie, sourceType: movie.sourceType})
+      if (movie && ['cms', 'anime', 'kazumi', 'ftp'].includes(movie.sourceType)) {
+        const resolved = await resolveViewerMovieSource(movie, state)
         if (room.roomSessionRevision !== useRoomStore.getState().roomSessionRevision || room.currentMovieId !== useRoomStore.getState().currentMovieId) throw new DOMException('Playback session replaced', 'AbortError')
         return {...state, ...resolved,
           noProxyFallback: state.noProxyFallback ?? resolved.noProxyFallback,

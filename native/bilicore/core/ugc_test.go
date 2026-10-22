@@ -50,7 +50,7 @@ func TestUGCPageQualityAndSplitAudioContract(t *testing.T) {
 		case "/x/player/wbi/playurl":
 			playRequests++
 			q := r.URL.Query()
-			if q.Get("cid") != expectedCid || q.Get("qn") != "64" || q.Get("fnval") != "2128" || q.Get("w_rid") == "" {
+			if q.Get("cid") != expectedCid || q.Get("qn") != "64" || q.Get("fnval") != "16" || q.Get("w_rid") == "" {
 				t.Fatalf("incorrect device DASH request: %s", r.URL.RawQuery)
 			}
 			var playback map[string]any

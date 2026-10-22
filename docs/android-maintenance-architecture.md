@@ -1,14 +1,30 @@
 # Android 客户端维护文档
 
-更新日期：2026-10-21。本文与同目录的 HarmonyOS、iOS 维护文档采用统一命名 `平台-maintenance-architecture.md`。
+更新日期：2026-10-22。本文与同目录的 HarmonyOS、iOS 维护文档采用统一命名 `平台-maintenance-architecture.md`。
 
 ## 当前状态与范围
 
-- Android 当前版本为 **2.1.7 / versionCode 217**，修复 B站短链、竖屏高清与全屏方向，以及仅登录服务端账号时的解析添加。用户于 2026-10-21 反馈“测试通过”并授权发布源码与 Release。服务端基线仍为 v4.7.1 后 main 快照 `fe55dde`。版本以根 package.json 与对应原生工程为准。
+- Android 当前本地版本为 **2.1.8 / versionCode 218**，按 v4.7.4 执行文档更新播放设置、解析同步、B站请求与语音媒体监看。已发布的 2.1.7 用户验收结果作为历史记录保留；本轮验证与待验收范围见下文及独立验证记录。
 - 客户端修改、Git 提交均在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。`ZViewer-source code` 是本地服务端目录，不在其中改客户端。
 - Android 与 HarmonyOS 共用根目录 React/Vite 界面，但原生宿主不同；iOS 是 `ZV-iOS` 中独立的 Expo/React Native 工程。三端实现和验收不能互相替代。
 
 ## 代码入口
+
+### 2.1.8 / 218：对齐服务端 v4.7.4（2026-10-22）
+
+本轮基线为服务端 `e3af086c7bd98ee0d4697386b69678f92ea54d81`。新增 `PlaybackOptionButton.tsx` 与 `MovieRuntimeSettings.tsx`：添加面板和非 B站影片卡使用图标＋粗体中文的独立胶囊按钮，保留服务器中转与浏览器转码两个布尔值，按用户后续反馈将可见胶囊缩为 32px、文字 12–13px、图标约 13–14px；`PlaybackOptionButton.css` 通过所在面板容器宽度（cqw/clamp）和字体比例适配窄屏/分屏，允许整按钮换行。外层触摸高度保留 44px，展开标题图标缩为 14px，不全局缩放其他控件。影片卡默认折叠；屏幕共享隐藏，观众只读，写入要求当前分享端且具 root/持久房间所有者权限，REST 鉴权仍由服务器执行。
+
+`roomStore.saveMoviePlaybackSettings` 只 PUT 改动字段，确认响应 Movie（兼容旧响应时 GET），按房间会话、逻辑服务器、事务令牌保护。`setMovies` 暂存保存中的策略，已确认值与无版本广播冲突时 GET 权威片单；GET 请求代次和 saving 阶段快照拒绝迟到结果。保存与媒体应用状态分开，当前影片交给 `useWatchTogether` 的完整源标识重载；非当前影片只保存。应用保留时间、倍速、暂停意图，成功 attach 后才写入可广播播放状态。失败保留新设置，停止失败管线、广播上次成功源的暂停态并显示重试；换片、离房、身份变化和旧回调失效，不反向 PUT 自动回滚。
+
+ani-subs 返回明确片级转码值；Kazumi 采用元数据解析并兼容旧 HTTP(S)/代理记录，拒绝 `kazumi://` 占位地址作为回退媒体，保留必要源站头并剥离添加者的服务端凭据。Kazumi/CMS 代理使用相对地址，经本机所选服务器、路径前缀与原生连接通道完成鉴权，避免固定到添加者入口。观众以广播 `noProxyFallback` 对中转双向协调，保留片级 false、清理旧音轨/编码。
+
+B站 JSON/NDJSON/CLI 接收 `isHdr/hdrType/videoCodecid`，按真实 codec/profile 做三态能力预检；明确不支持时保留旧引擎与档位，缺字段或探测不可用按未知处理。手动本机选档先解析预检再确认，旧会话结果不提交。仍保留普通 SDR/AVC/AAC 策略与原有 HDR/Dolby 过滤；手动 HDR 和音乐背景 HDR 按执行文档 B01 后置，未获得真实设备显示验收。`desktopManaged` 类型项 B02 本轮未实施。
+
+语音 `transport.ts` 监看实际活动 publisher/subscriber PC/ICE，加入、重连与中断开启约 10 秒媒体窗口；等待麦克风授权不计入超时。每轮提示一次，恢复后清除；SDK 私有诊断不可用显示待确认，不直接断开通话。PC 替换、离房、重试均清理监听与计时器；线路仅采用当前 selected candidate pair。客户端不设置 UDP/TCP/TURN 固定端口，不修改 NAS 网络。
+
+实际自动化、浏览器、原生模拟器、签名安装包与未测边界分别记录于 [2.1.8 验证记录](client-2.1.8-validation.md)。该版本本地构建待用户验收，尚未推送或发布；iOS 不修改、不构建。
+
+Android `native/bilicore/core/resolver.go/quality.go/pgc.go` 的实际 UGC/PGC 请求统一 `buildFnval`，修正会员、8K、AV1 位组合，MP4 保持 fnval=1；`fnval_test.go` 截获真实请求进行验证。修改后重建 ARM64/x86_64 Go AAR，再同步网页资源和构建 APK。
 
 ### 2.1.7 / 217：B站短链、竖屏播放与账号路由（2026-10-21）
 

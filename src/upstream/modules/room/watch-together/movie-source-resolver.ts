@@ -1,6 +1,5 @@
 import { resolveCmsEpisode, buildCmsProxyUrl } from '@/modules/cms/api'
 import { resolveKazumiEpisode, buildKazumiProxyUrl } from '@/modules/kazumi'
-import { buildProxyUrl } from '@/modules/player/services/url-proxy'
 /**
  * 影片播放源解析器（从 useWatchTogether.loadMovie 抽取）。
  *
@@ -29,7 +28,6 @@ import { getNativeQualityPolicy, getWebViewCapabilities, nativeQualityCacheKey, 
 import {
   resolveAniSubsEpisode,
   buildAniSubsProxyUrl,
-  needsAniSubsProxy,
 } from '@/modules/anisubs'
 
 /** 房主刷新恢复时由后端返回的最近一次播放状态（源相关子集） */
@@ -53,6 +51,9 @@ export interface RecoverySourceInfo {
 
 /** 解析出的播放源字段（供构建 WatchTogetherState） */
 export interface ResolvedMovieSource {
+  isHdr?: boolean
+  hdrType?: 'hlg' | 'dolby-vision'
+  videoCodecid?: number
   epId?: number
   seasonId?: number
   seasonTitle?: string
@@ -200,6 +201,9 @@ export function getEffectivePreferMp4(movieId: number): boolean {
 
 function mapResolvedSourceToMovieSource(
   resolved: {
+    isHdr?: boolean
+    hdrType?: 'hlg' | 'dolby-vision'
+    videoCodecid?: number
     epId?: number
     seasonId?: number
     seasonTitle?: string
@@ -220,6 +224,7 @@ function mapResolvedSourceToMovieSource(
     throw new Error('未获取到对应清晰度的播放地址')
   }
   return {
+    isHdr: resolved.isHdr, hdrType: resolved.hdrType, videoCodecid: resolved.videoCodecid,
     epId: resolved.epId, seasonId: resolved.seasonId, seasonTitle: resolved.seasonTitle, preview: resolved.preview,
     noProxyFallback: movie.cliOnly === true,
     sourceUrl: resolved.videoUrl,
@@ -430,7 +435,95 @@ export async function resolveAnimeOnline(
     headers: undefined,
     reusedRecoveryUrl: false,
     noProxyFallback: movie.serverProxy !== true,
+    playsvideoEnabled: movie.playsvideoEnabled !== false,
   }
+}
+
+/** Unwrap saved Kazumi proxies without retaining another device's server or login token. */
+function readKazumiMediaUrl(
+  value: string
+): { url: string; headers?: Record<string, string> } | null {
+  let url = value
+  const headers: Record<string, string> = {}
+  for (let depth = 0; depth < 8; depth++) {
+    let parsed: URL
+    try { parsed = new URL(url, 'http://local.invalid') } catch { return null }
+    if (/\/api\/stream\/kazumi\/proxy$/.test(parsed.pathname)) {
+      const inner = parsed.searchParams.get('url')
+      if (!inner) return null
+      for (const [query, name] of [
+        ['referer', 'Referer'], ['userAgent', 'User-Agent'], ['origin', 'Origin'], ['cookie', 'Cookie'],
+      ]) {
+        const value = parsed.searchParams.get(query)
+        if (value && !headers[name]) headers[name] = value
+      }
+      url = inner
+      continue
+    }
+    // A kazumi:// placeholder or an arbitrary local page is an identity, not media.
+    if (!/^https?:\/\//i.test(url) || !['http:', 'https:'].includes(parsed.protocol)) return null
+    return { url, headers: Object.keys(headers).length ? headers : undefined }
+  }
+  return null
+}
+
+/** Refresh new records; legacy records may only reuse a real media URL. */
+export async function resolveKazumiOnline(
+  movie: Movie,
+  recoverySourceUrl?: string
+): Promise<ResolvedMovieSource> {
+  let media: { url: string; headers?: Record<string, string>; format?: MediaFormat } | null = null
+  let resolutionError: unknown
+  const meta = movie.sourceMeta
+  if (meta && 'episode' in meta && meta.sourceId && meta.episode) {
+    try {
+      const resolved = await resolveKazumiEpisode(meta.sourceId, meta.episode)
+      const parsed = readKazumiMediaUrl(resolved.url)
+      if (!parsed) throw new Error('数据源未返回有效媒体地址')
+      media = { ...parsed, headers: { ...parsed.headers, ...resolved.headers }, format: resolved.format as MediaFormat | undefined }
+    } catch (error) {
+      resolutionError = error
+    }
+  }
+  if (!media) {
+    // Recovery may contain a stale placeholder while the record still has valid media.
+    media = [recoverySourceUrl, movie.url].flatMap(value => {
+      const parsed = value ? readKazumiMediaUrl(value) : null
+      return parsed ? [parsed] : []
+    })[0] ?? null
+  }
+  if (!media) {
+    throw new Error(resolutionError instanceof Error
+      ? `番剧源解析失败：${resolutionError.message}；请重试或重新添加影片`
+      : '番剧源缺少有效媒体地址，请重新解析或重新添加影片')
+  }
+  return {
+    sourceUrl: movie.serverProxy === true ? buildKazumiProxyUrl(media.url, media.headers, true) : media.url,
+    audioUrl: undefined,
+    videoCodec: undefined,
+    audioCodec: undefined,
+    headers: undefined,
+    format: media.format ?? movie.format ?? detectMediaFormat(media.url),
+    duration: movie.duration ?? 0,
+    reusedRecoveryUrl: false,
+    noProxyFallback: movie.serverProxy !== true,
+    playsvideoEnabled: movie.playsvideoEnabled !== false,
+  }
+}
+
+/** Playback broadcasts can precede movie-list in either relay direction. */
+export async function resolveViewerMovieSource(
+  movie: Movie,
+  state: { sourceUrl?: string; noProxyFallback?: boolean; playsvideoEnabled?: boolean }
+): Promise<ResolvedMovieSource> {
+  const dataSource = ['anime', 'kazumi', 'cms'].includes(movie.sourceType)
+  const resolvingMovie = {
+    ...movie,
+    ...(dataSource && typeof state.noProxyFallback === 'boolean' ? { serverProxy: !state.noProxyFallback } : {}),
+    ...(typeof state.playsvideoEnabled === 'boolean' ? { playsvideoEnabled: state.playsvideoEnabled } : {}),
+  }
+  if (movie.sourceType === 'kazumi') return resolveKazumiOnline(resolvingMovie, state.sourceUrl)
+  return resolveMovieSource({ movie: resolvingMovie, sourceType: movie.sourceType })
 }
 
 /**
@@ -481,16 +574,17 @@ export async function resolveMovieSource({
     return resolveBilibiliOnline(movie, onProgress)
   }
 
-  if (sourceType === 'cms' || (sourceType === 'kazumi' && movie.sourceMeta)) {
+  if (sourceType === 'kazumi') return resolveKazumiOnline(movie, recovery?.sourceUrl)
+
+  if (sourceType === 'cms') {
     const meta = movie.sourceMeta
     if (!meta) throw new Error('数据源元数据缺失，请重新添加影片')
-    const resolved = sourceType === 'cms' && 'vodId' in meta
+    const resolved = 'vodId' in meta
       ? await resolveCmsEpisode(meta.sourceId, { vodId: meta.vodId, playFromIndex: meta.playFromIndex, episodeIndex: meta.episodeIndex })
-      : sourceType === 'kazumi' && 'episode' in meta ? await resolveKazumiEpisode(meta.sourceId, meta.episode)
       : null
     if (!resolved) throw new Error('数据源元数据不匹配，请重新添加影片')
-    const proxy = sourceType === 'cms' ? buildCmsProxyUrl : buildKazumiProxyUrl
-    return { sourceUrl: movie.serverProxy === true ? proxy(resolved.url, resolved.headers, true) : resolved.url,
+    return { sourceUrl: movie.serverProxy === true ? buildCmsProxyUrl(resolved.url, resolved.headers, true) : resolved.url,
+      audioUrl: undefined, videoCodec: undefined, audioCodec: undefined, headers: undefined,
       format: resolved.format as MediaFormat, duration: movie.duration ?? 0, reusedRecoveryUrl: false,
       noProxyFallback: movie.serverProxy !== true, playsvideoEnabled: movie.playsvideoEnabled !== false }
   }
