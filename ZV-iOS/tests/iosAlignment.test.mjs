@@ -43,7 +43,7 @@ test('library room playback substitutes authoritative stream identity, switches 
   room.current(null); room.state({ ...value, isPlaying: true }); assert.equal(room.value(), null);
 });
 test('clear/sort permissions are distinct from live host and autoplay never wraps at end', () => {
-  assert(canClearMovies('root',1,null)); assert(canClearMovies('admin',2,2)); assert(!canClearMovies('admin',2,1)); assert(!canClearMovies('user',2,2));
+  assert(canClearMovies('root',1,null)); assert(canClearMovies('admin',2,2)); assert(!canClearMovies('admin',2,1)); assert(canClearMovies('user',2,2)); assert(!canClearMovies('guest',2,2)); assert(!canClearMovies('user',2,3));
   assert.equal(nextMovieId([1,3,2],3),2); assert.equal(nextMovieId([1,3,2],2),null); assert.equal(nextMovieId([1,3,2],8),null);
 });
 test('LiveKit token validation uses server URL verbatim and separates admin mute from user intent', () => {

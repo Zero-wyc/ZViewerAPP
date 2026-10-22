@@ -32,12 +32,14 @@ function mountSettings({ host = true, initial } = {}) {
   const modules = {
     react: hooks.react, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
     'react-native': { Alert: { alert() {} }, Pressable: 'Pressable', StyleSheet: { create: v => v }, Switch: 'Switch', Text: 'Text', View: 'View' },
-    '@expo/vector-icons/Feather': { default: 'Icon' }, 'expo-clipboard': { async setStringAsync(value) { copied.push(value); return true; } },
+    '@/components/DynamicText': { DynamicText: 'Text' },
+    '@expo/vector-icons/Feather': { default: 'Icon' }, '@expo/vector-icons/FontAwesome6': { default: 'Icon' }, 'expo-clipboard': { async setStringAsync(value) { copied.push(value); return true; } },
     '@/lib/roomModes': { roomModes: [{ id: 'watch-together', name: '一起看' }, { id: 'screen-share', name: '投屏' }, { id: 'listen-together', name: '一起听' }] },
     '@/lib/socket': { emitAck: network.ack }, '@/lib/server': { messageFor: e => e.message },
     '@/state/session': { useSession: () => ({ socket: network.socket, connected: true, request, session: { serverUrl: 'http://fixture.invalid/base' } }) },
     './BiliAccount': { BiliAccount: 'Account' }, './MediaPanelUi': { useMediaPalette: () => ({ text: '#111', muted: '#333', accent: '#06c', onAccent: '#fff', line: '#aaa', container: '#eee', surface: '#fff', field: '#eee', error: '#a00' }) },
     './RoomUi': { RoomButton: 'Button', RoomInput: 'Input' },
+    './AppDialog': { AppDialog: 'Dialog' },
   };
   const exports = {}; vm.runInNewContext(compile('../src/components/RoomSettings.tsx'), { exports, require: name => { assert.ok(modules[name], name); return modules[name]; } });
   let tree; const props = { roomId: 'room-1', roomName: 'Room one', host, mode: 'watch-together', close() {}, viewers: [], openAppearance() {}, autoApprove: false, toggleAutoApprove() {} };
@@ -46,7 +48,7 @@ function mountSettings({ host = true, initial } = {}) {
 }
 test('viewers retain sharing and member access while host mutation controls stay absent or disabled', async () => {
   const ui = mountSettings({ host: false }); await tick(); ui.render();
-  assert.equal(ui.find('修改房间名称'), null); assert.equal(ui.find('加入条件'), null); assert.equal(ui.find('自动通过播放控制申请'), null);
+  assert.equal(ui.find('修改房间名称'), null); assert.equal(ui.find('房间设置'), null); assert.equal(ui.find('自动通过播放控制申请'), null);
   assert.equal(ui.find('投屏').props.disabled, true); ui.find('投屏').props.onPress(); await tick();
   assert.equal(ui.sent.length, 0); ui.find('分享').props.onPress(); await tick(); assert.equal(ui.copied[0], 'http://fixture.invalid/base/room/room-1'); ui.unmount();
 });
@@ -55,12 +57,12 @@ test('a late room snapshot cannot overwrite a newer settings broadcast from the 
   ui.receive('room-settings-updated', { roomId: 'other-room', maxViewers: 5, requireApproval: false });
   ui.receive('room-settings-updated', { roomId: 'room-1', maxViewers: 30, requireApproval: true });
   pending.resolve({ rooms: [{ roomId: 'room-1', maxViewers: 10, requireApproval: false }] }); await tick(); ui.render();
-  assert.equal(ui.find('切换入房审批').props.selected, true); ui.find('加入条件').props.onPress(); ui.render(); assert.ok(/当前人数上限\s+30/.test(ui.text())); ui.unmount();
+  assert.equal(ui.find('切换入房审批').props.selected, true); ui.find('房间设置').props.onPress(); ui.render(); assert.equal(ui.find('观众上限').props.value, '30'); ui.unmount();
 });
 test('saving a password alone preserves untouched capacity and admission settings', async () => {
-  const ui = mountSettings(); await tick(); ui.render(); ui.find('加入条件').props.onPress(); ui.render();
-  ui.find('修改房间密码').props.onValueChange(true); ui.render(); ui.input('新密码（留空移除密码）').props.onChangeText('new password'); ui.render();
-  await ui.find('保存加入条件').props.onPress(); await tick();
+  const ui = mountSettings(); await tick(); ui.render(); ui.find('房间设置').props.onPress(); ui.render();
+  ui.input('留空表示无密码').props.onChangeText('new password'); ui.render();
+  await ui.find('保存设置').props.onPress(); await tick();
   assert.deepEqual(JSON.parse(JSON.stringify(ui.sent.at(-1))), { event: 'update-room-settings', data: { roomId: 'room-1', password: 'new password' } }); ui.unmount();
 });
 test('admission approval reflects server acknowledgement and retains its value when rejected', async () => {

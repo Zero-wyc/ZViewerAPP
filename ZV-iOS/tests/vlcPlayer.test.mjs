@@ -12,10 +12,48 @@ function fixture(available = true) {
 }
 const state = { sourceUrl: '/api/server-files/proxy?path=custom%3Avideos%2FS01E01.mkv', sourceType: 'server-files', format: 'mkv', currentTime: 120, isPlaying: true };
 
+test('native owner is unique and stable while source revision follows replacements and clear', async () => {
+  const first = fixture(), second = fixture();
+  const owner = first.player.nativeOwnerId;
+  assert(owner && owner !== second.player.nativeOwnerId);
+  assert.equal(first.player.sourceRevision, 0);
+  await first.player.replaceAsync(nativeVideoSource(state, server, 'fixture'));
+  const one = first.player.sourceRevision; assert(one > 0);
+  first.player.currentTime = 10; first.player.play(); first.player.configure({ volume: 80 });
+  assert.equal(first.player.nativeOwnerId, owner); assert.equal(first.player.sourceRevision, one);
+  await first.player.replaceAsync(nativeVideoSource({ ...state, sourceUrl: '/api/server-files/proxy?path=next.mp4' }, server, 'fixture'));
+  assert(first.player.sourceRevision > one); assert.equal(first.player.nativeOwnerId, owner);
+  await first.player.replaceAsync(null); assert.equal(first.player.sourceRevision, 0);
+});
+
 test('raw Expo events and wrapper-converted events retain the new input revision', () => {
   assert.equal(vlcEventRevision({ nativeEvent: { revision: 24 } }, 23), 24);
   assert.equal(vlcEventRevision({ revision: 24 }, 23), 24);
   assert.equal(vlcEventRevision(undefined, 23), 23);
+});
+
+test('failed confirmed seek restores observed native time and permits another explicit seek on the loaded input', async () => {
+  const f = fixture(); const deferred = [], errors = [];
+  f.player.addListener('statusChange', event => { if (event.error) errors.push(event.error); });
+  f.view.seek = time => new Promise((resolve, reject) => { deferred.push({ time, resolve, reject }); });
+  await f.player.replaceAsync(nativeVideoSource({ sourceUrl: 'https://cdn.example/movie.m3u8' }, server, 'fixture'));
+  const id = f.snapshots.at(-1).id; f.player.attach(id, f.view, true); f.player.loaded(id, 600000);
+  f.player.progress(id, 129842); f.player.currentTime = 144.842; f.player.progress(id, 147975);
+  deferred[0].reject(Error('did not settle')); await Promise.resolve(); await Promise.resolve();
+  assert.equal(f.player.seeking, false); assert.equal(f.player.preparing, false); assert.equal(f.player.readyForSettings, false); assert.equal(f.player.currentTime, 147.975);
+  assert.equal(errors.at(-1).code, 'VLC_SEEK');
+  assert.equal(f.snapshots.at(-1).autoplay, false); assert.equal(f.snapshots.at(-1).initialTime, 147.975);
+  f.player.currentTime = 160.123; assert.equal(deferred.length, 2); assert.equal(deferred[1].time, 160123);
+  deferred[1].resolve(160123); await Promise.resolve();
+  assert.equal(f.player.seeking, false); assert.equal(f.player.readyForSettings, true); assert.equal(f.player.currentTime, 160.123);
+});
+
+test('native failed-seek payload uses the actual paused clock instead of keeping an optimistic target', async () => {
+  const f = fixture(); f.view.seek = async () => ({ success: false, actualMilliseconds: 147975 });
+  await f.player.replaceAsync(nativeVideoSource(state, server, 'fixture')); const id = f.snapshots.at(-1).id;
+  f.player.attach(id, f.view, true); f.player.loaded(id, 600000); f.player.progress(id, 129842);
+  f.player.currentTime = 144.842; await Promise.resolve();
+  assert.equal(f.player.currentTime, 147.975); assert.equal(f.player.seeking, false); assert.equal(f.player.preparing, false); assert.equal(f.player.readyForSettings, false);
 });
 
 test('early play survives native initialization and start-paused callbacks', async () => {
@@ -26,6 +64,7 @@ test('early play survives native initialization and start-paused callbacks', asy
   f.player.attach(snapshot.id, f.view); f.player.playingChanged(snapshot.id, false);
   assert.deepEqual(events, []); // Initial paused notification is not a room pause.
   f.calls.length = 0; f.player.loaded(snapshot.id, 1446200);
+  await Promise.resolve();
   assert.equal(f.player.preparing, false); assert.ok(f.calls.includes('play'));
   await adapter.apply({ ...state, isPlaying: false }, server, 'token');
   assert.equal(f.snapshots.at(-1).autoplay, false);

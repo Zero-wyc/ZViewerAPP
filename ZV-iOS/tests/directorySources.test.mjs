@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { addDirectoryFiles, browseDirectory, directoryParent, directoryManualPath, listDirectoryRoots } from '../src/lib/directorySources.ts';
+import { addDirectoryFiles, browseDirectory, directoryParent, directoryBreadcrumbs, directoryManualPath, listDirectoryRoots } from '../src/lib/directorySources.ts';
 const { AbortController } = createRequire(import.meta.url)('abort-controller');
 for (const kind of ['webdav', 'ftp', 'openlist', 'server-files']) test(`${kind} roots, browse and partial batch retry retain real mount and file identity`, async () => {
   const calls = []; const writes = []; let fail = true;
@@ -31,5 +31,36 @@ test('manual server file input binds relative paths to selected space; explicit 
 });
 test('RN cancellation during file resolution prevents any add mutation', async () => {
   const controller = new AbortController(); let writes = 0;
-  await assert.rejects(addDirectoryFiles(async () => { controller.abort(); return { videoUrl: '/api/ftp/proxy' }; }, 'ftp', { id: 4, path: '/' }, [{ name: '影片', path: '/movie.mkv', type: 'file' }], async () => { writes++; }, controller.signal), { name: 'AbortError' }); assert.equal(writes, 0);
+  const result = await addDirectoryFiles(async () => { controller.abort(); return { videoUrl: '/api/ftp/proxy' }; }, 'ftp', { id: 4, path: '/' }, [{ name: '影片', path: '/movie.mkv', type: 'file' }], async () => { writes++; }, controller.signal);
+  assert.deepEqual(result, { added: [], failures: [], cancelled: true }); assert.equal(writes, 0);
+});
+
+for (const kind of ['webdav', 'openlist']) test(`${kind} inherits the saved mount's direct mode and never silently replaces a failed direct URL with a proxy`, async () => {
+  const calls = [], writes = []; let fail = false;
+  const request = async path => {
+    calls.push(path);
+    if (path.endsWith('/mounts')) return { mounts: [{ id: 7, name: 'fixture', directLink: true }] };
+    if (path.includes('/direct-url?')) { if (fail) throw new Error('direct denied'); return { directUrl: 'https://cdn.invalid/selected.mkv' }; }
+    return { videoUrl: `/api/${kind}/proxy`, format: 'mkv' };
+  };
+  const [root] = await listDirectoryRoots(request, kind);
+  assert.equal(root.directLink, true);
+  const entry = { name: 'fixture', path: '/selected.mkv', type: 'file' };
+  const result = await addDirectoryFiles(request, kind, root, [entry], async value => writes.push(value));
+  assert.deepEqual(result.added, [entry.path]); assert.equal(writes[0].url, 'https://cdn.invalid/selected.mkv'); assert.equal(writes[0].directLink, true); assert.equal(writes[0].sourceMountId, 7);
+  assert(calls.some(path => path.includes('/direct-url?mountId=7') || path.includes('&mountId=7')));
+  fail = true; const rejected = await addDirectoryFiles(request, kind, root, [entry], async value => writes.push(value));
+  assert.equal(rejected.added.length, 0); assert.equal(rejected.failures[0].message, 'direct denied'); assert.equal(writes.length, 1);
+});
+
+
+test('directory breadcrumbs retain the complete selected-root prefix and each exact ancestor path', () => {
+  assert.deepEqual(directoryBreadcrumbs('custom:3:/电影/第二季', 'custom:3:/'), [
+    { label: 'custom:3:/', path: 'custom:3:/' }, { label: '电影', path: 'custom:3:/电影' }, { label: '第二季', path: 'custom:3:/电影/第二季' },
+  ]);
+  assert.deepEqual(directoryBreadcrumbs('/media/电影/第二季', '/media'), [
+    { label: '/media', path: '/media' }, { label: '电影', path: '/media/电影' }, { label: '第二季', path: '/media/电影/第二季' },
+  ]);
+  assert.deepEqual(directoryBreadcrumbs('/', '/'), [{ label: '/', path: '/' }]);
+  assert.deepEqual(directoryBreadcrumbs('/different/电影', '/media'), [{ label: '/different/电影', path: '/different/电影' }]);
 });

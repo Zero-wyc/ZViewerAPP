@@ -50,3 +50,8 @@ test('cyclic master playlists fail before a native recursive load', async () => 
   await assert.rejects(prepareHlsPlaylists(upstream, proxy, async () => { calls++; return master; }, store), /循环/);
   assert.equal(calls, 1); assert.equal(store.files.size, 0);
 });
+test('finite VOD duration is derived from actual EXTINF values even while paused VLC reports zero length', async () => {
+  const values = []; const store = { ...storage(), duration: value => values.push(value) };
+  await prepareHlsPlaylists(upstream, proxy, async () => '#EXTM3U\n#EXTINF:10.123,\na.ts\n#EXTINF:0.456,\nb.ts\n#EXT-X-ENDLIST\n', store);
+  assert(Math.abs(values[0] - 10.579) < 0.000001);
+});

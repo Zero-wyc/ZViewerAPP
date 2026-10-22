@@ -85,6 +85,7 @@ test('probe covers start/middle/end/open/large/416 and cancels large streams', a
     assert.ok(result.checks.every(check => check.valid));
     assert.equal(result.checks.filter(check => check.bodyChecked).length, 3);
     assert.ok(requests.every(request => request.signal.aborted));
+    assert.ok(requests.every(request => request.credentials === 'omit'));
   });
 });
 

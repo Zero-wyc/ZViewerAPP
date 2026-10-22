@@ -93,21 +93,23 @@ test('resolved video and audio preserve signed URLs and required proxy headers',
 test('already cancelled RN signal prevents resolution and additions', async () => {
   const controller = new AbortController(); controller.abort();
   assert.equal(controller.signal.throwIfAborted, undefined);
-  await assert.rejects(addAnimeEpisodes(async () => assert.fail('must not resolve'), 'kazumi', 'DM84', '示例', [episode('one')], async () => assert.fail('must not add'), controller.signal), { name: 'AbortError' });
+  const result = await addAnimeEpisodes(async () => assert.fail('must not resolve'), 'kazumi', 'DM84', '示例', [episode('one')], async () => assert.fail('must not add'), controller.signal);
+  assert.deepEqual(result, { added: [], failures: [], cancelled: true });
 });
 
 test('RN cancellation during resolution stops this and all following additions', async () => {
   const controller = new AbortController(); let resolves = 0; let writes = 0;
-  await assert.rejects(addAnimeEpisodes(async (_path, options) => {
+  const result = await addAnimeEpisodes(async (_path, options) => {
     assert.equal(options.signal, controller.signal); resolves++; controller.abort();
     return { url: 'https://cdn.invalid/video.m3u8' };
-  }, 'kazumi', 'DM84', '示例', [episode('one'), episode('two', 2)], async () => { writes++; }, controller.signal), { name: 'AbortError' });
-  assert.equal(resolves, 1); assert.equal(writes, 0);
+  }, 'kazumi', 'DM84', '示例', [episode('one'), episode('two', 2)], async () => { writes++; }, controller.signal);
+  assert.deepEqual(result, { added: [], failures: [], cancelled: true }); assert.equal(resolves, 1); assert.equal(writes, 0);
 });
 
 test('RN cancellation after an add prevents starting the next episode', async () => {
   const controller = new AbortController(); const writes = [];
-  await assert.rejects(addAnimeEpisodes(async () => assert.fail('ani-subs must resolve later'), 'anisubs', 'source', '示例', [episode('one'), episode('two', 2)], async value => { writes.push(value); controller.abort(); }, controller.signal), { name: 'AbortError' });
+  const result = await addAnimeEpisodes(async () => assert.fail('ani-subs must resolve later'), 'anisubs', 'source', '示例', [episode('one'), episode('two', 2)], async value => { writes.push(value); controller.abort(); }, controller.signal);
+  assert.deepEqual(result, { added: ['one'], failures: [], cancelled: true });
   assert.equal(writes.length, 1);
   assert.equal(writes[0].sourceMeta.episode.id, 'one');
 });

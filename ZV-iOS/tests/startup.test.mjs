@@ -5,9 +5,9 @@ import { SessionLease } from '../src/lib/sessionLease.ts';
 import { normalizeAppearance, appearanceDefaults } from '../src/lib/appearancePreferences.ts';
 import { authenticationFailure } from '../src/lib/httpAuth.ts';
 
-test('v4.2.1 403 distinguishes expired authentication from valid user permission denial', () => {
+test('v4.7.4 refreshes 401 while preserving sessions on admission and permission 403', () => {
   assert(authenticationFailure(401, ''));
-  assert(authenticationFailure(403, JSON.stringify({ message: '认证令牌无效或已过期' })));
+  assert(!authenticationFailure(403, JSON.stringify({ message: '认证令牌无效或已过期' })));
   assert(!authenticationFailure(403, JSON.stringify({ message: '无权限：仅超级管理员可操作' })));
   assert(!authenticationFailure(403, 'Forbidden'));
   assert(!authenticationFailure(500, JSON.stringify({ message: 'token expired' })));

@@ -17,13 +17,16 @@ test('native compilation guard detects missing slave retry and background patche
     const original = readFileSync(file, 'utf8');
     apply(root);
     assert.equal(readFileSync(file, 'utf8'), original);
-    for (const marker of ['ZViewerDeferredSlaves', 'ZViewerVlcProgress', 'zviewerAddedSlaves.removeAll()']) {
+    for (const marker of ['ZViewerDeferredSlaves', 'ZViewerVlcProgress', 'zviewerAddedSlaves.removeAll()', 'ZViewerPausedMediaReady', 'if newState == .playing || newState == .paused {']) {
       writeFileSync(file, original.replaceAll(marker, 'removed-by-dependency-reinstall'));
       assert.throws(() => verify(root), /VLC native patch missing/);
     }
     writeFileSync(file, original);
+    writeFileSync(file, original.replace('  func destroyPlayer() {', '  func destroyPlayer() {\n    view.cancelPendingSeek()'));
+    assert.throws(() => verify(root), /unowned view during deinit/);
+    writeFileSync(file, original);
     for (const [relative, marker] of [
-      ['Managers/MediaPlayerManager.swift', 'if !view.backgroundAudio && view.source !='],
+      ['Managers/MediaPlayerManager.swift', 'ZViewerDecorationBackground'],
       ['Managers/AudioSessionManager.swift', 'func prepareForBackgroundAudio()'],
       ['LibVlcPlayerModule.swift', 'Prop("backgroundAudio", false)'],
       ['Player/MediaPlayer.swift', 'if view.backgroundAudio { args.append(":no-video") }'],
@@ -32,6 +35,22 @@ test('native compilation guard detects missing slave retry and background patche
       ['Player/MediaPlayer.swift', 'view.resumeRequestedPlayback(player)'],
       ['LibVlcPlayerView.swift', 'self.zviewerRevision == revision, self.autoplay'],
       ['LibVlcPlayerView.swift', '!self.zviewerSeeking, input.state == .paused'],
+      ['LibVlcPlayerView.swift', 'ZViewerDecodedHlsSeek'],
+      ['LibVlcPlayerView.swift', 'ZViewerOpeningPauseGuard'],
+      ['LibVlcPlayerView.swift', 'ZViewerSeekCancellation'],
+      ['LibVlcPlayerView.swift', 'ZViewerContinuousAudioSeek'],
+      ['LibVlcPlayerView.swift', 'ZViewerContinuousAudioSeekV2'],
+      ['LibVlcPlayerView.swift', 'ZViewerContinuousAudioSeekV3'],
+      ['LibVlcPlayerView.swift', 'ZViewerAudioSeekPauseGate'],
+      ['Player/MediaPlayer.swift', 'ZViewerCancelReplacedSeek'],
+      ['Player/MediaPlayer.swift', 'ZViewerDeinitSafeSeekCancellation'],
+      ['Player/MediaPlayer.swift', 'ZViewerTypedMediaProgress'],
+      ['LibVlcPlayerView.swift', 'ZViewerProgressOwner'],
+      ['LibVlcPlayerModule.swift', 'Prop("zviewerOwnerId"'],
+      ['LibVlcPlayerModule.swift', 'Prop("zviewerBackgroundDecoration"'],
+      ['LibVlcPlayerModule.swift', 'ZViewerSeekFailureClock'],
+      ['LibVlcPlayerModule.swift', 'Prop("zviewerPreciseVideoSeek", false)'],
+      ['Player/MediaPlayer.swift', 'ZViewerSeekFrameDelegate'],
     ]) {
       const target = join(root, 'ios', relative);
       const saved = readFileSync(target, 'utf8');
@@ -87,7 +106,7 @@ test('native event configuration precedes player creation and system observers n
   const media = readFileSync(new URL('../modules/zviewer-native/ios/ZVSystemMedia.swift', import.meta.url), 'utf8');
   assert(!media.includes('queue: .main'), 'NotificationCenter queue delivery can synchronously wait for main');
   assert(media.includes('DispatchQueue.main.async { [weak self] in'));
-  assert(media.includes('!uri.isEmpty, uri == self.state["uri"] as? String'));
+  assert(media.includes('self.inputGate.accepts(data, state: self.state)'));
 });
 
 test('compilation rejects the old blocking system media observer', () => {
