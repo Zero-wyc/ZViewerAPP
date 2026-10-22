@@ -1,8 +1,10 @@
 import { Stack, DarkTheme, DefaultTheme, ThemeProvider, router } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { debugLaunchConfiguration } from '@/lib/debugLaunch';
+import { sessionDiagnostic } from '@/lib/sessionDiagnostics';
 import { AppearanceProvider, useAppearance } from '@/state/appearance';
 import { SessionProvider, useSession } from '@/state/session';
+import { FontScaleProvider } from '@/components/DynamicText';
 
 function AppStack() {
   const { session, restoring } = useSession();
@@ -13,6 +15,7 @@ function AppStack() {
     void debugLaunchConfiguration().then(launch => {
       if (!active || !launch?.roomId || debugNavigated.current) return;
       debugNavigated.current = true;
+      sessionDiagnostic('debug-route-room', { userId: session.user.id, role: session.user.role, roomId: launch.roomId });
       router.replace({ pathname: '/room/[roomId]', params: { roomId: launch.roomId, asHost: '0' } });
     });
     return () => { active = false; };
@@ -25,9 +28,9 @@ function AppStack() {
 
 export default function RootLayout() {
   return (
-    <AppearanceProvider><SessionProvider>
+    <FontScaleProvider><AppearanceProvider><SessionProvider>
 
       <AppStack />
-    </SessionProvider></AppearanceProvider>
+    </SessionProvider></AppearanceProvider></FontScaleProvider>
   );
 }
