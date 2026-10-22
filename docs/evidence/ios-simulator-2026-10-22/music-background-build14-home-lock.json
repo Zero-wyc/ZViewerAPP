@@ -1,0 +1,1532 @@
+{
+  "build": 14,
+  "recordedDate": "2026-10-22",
+  "device": "iPad Pro 11 M5 Simulator / iPadOS 26.5",
+  "nativeProcessId": 99952,
+  "roomId": "0ObNnK13",
+  "ownerUserId": 1,
+  "observerUserId": 5,
+  "scope": "One Simulator Home/Lock natural-cross-track main-audio round; not a physical-device or second-native-audio synchronization claim",
+  "observer": {
+    "startedAt": "2026-10-22T11:54:17.167Z",
+    "stoppedAt": "2026-10-22T12:04:01.811Z",
+    "counts": {
+      "start": 1,
+      "connect": 1,
+      "join": 1,
+      "get-state": 39,
+      "server": 292,
+      "track-change": 3,
+      "host": 290,
+      "sync-state": 3,
+      "phase": 5,
+      "stop": 1,
+      "disconnect": 1
+    },
+    "readOnlyCommands": [
+      "request-join",
+      "music:get-state"
+    ],
+    "controlsSent": false,
+    "hermesConnectedDuringBackground": false,
+    "released": true
+  },
+  "preparationFailure": {
+    "scope": "Old nonzero Bili restoration before fresh UI start; retained independently",
+    "at": "2026-10-22T11:54:26.844Z",
+    "revision": 3,
+    "targetMs": 31352,
+    "actualMs": 31352,
+    "noOp": false,
+    "targetObserved": false,
+    "anchored": false,
+    "advancing": 0,
+    "durationSec": 8.007,
+    "success": false
+  },
+  "freshUiStart": {
+    "at": "2026-10-22T11:55:20.868Z",
+    "trackKey": "bili:BV17x411w7KC:279786",
+    "positionSec": 0,
+    "fullPlayerBeforeHome": "Root saw0:15/3:19 and decorative video visible"
+  },
+  "phases": [
+    {
+      "at": "2026-10-22T11:55:58.000Z",
+      "type": "phase",
+      "action": "home",
+      "approximate": true,
+      "source": "Root CUA Home and iPad desktop confirmed; prior full player showed 0:15/3:19 and decorative video visible; same PID99952 expected",
+      "segment": "fresh-bili-zero-start"
+    },
+    {
+      "at": "2026-10-22T12:00:13.000Z",
+      "type": "phase",
+      "action": "lock",
+      "approximate": true,
+      "source": "Root CUA Lock executed between12:00:00-12:00:10; black screen still confirmed after12:00:13; no App re-entry or debugger",
+      "nodePolicy": "conservative verified-black node"
+    },
+    {
+      "at": "2026-10-22T12:02:30.000Z",
+      "type": "phase",
+      "action": "wake-lock-screen",
+      "approximate": true,
+      "source": "Root CUA wake; visible20:02 lock screen showed no NowPlaying card",
+      "nowPlayingCardVisible": false
+    },
+    {
+      "at": "2026-10-22T12:03:30.000Z",
+      "type": "phase",
+      "action": "foreground-recovery",
+      "approximate": true,
+      "source": "Root CUA unlock, Controls AppSwitcher to ZViewer; full player Bili2:07/3:19 with pause button and no error",
+      "sameProcess": true,
+      "nativeProcessId": 99952
+    },
+    {
+      "at": "2026-10-22T12:03:42.000Z",
+      "type": "phase",
+      "action": "process-confirmed",
+      "source": "Root launchctl confirmed same original nativePID99952",
+      "nativeProcessId": 99952
+    }
+  ],
+  "home": {
+    "result": "passed-simulator-main-audio",
+    "bili100SecondNativeSample": {
+      "at": "2026-10-22T11:57:12.439Z",
+      "trackKey": "bili:BV17x411w7KC:279786",
+      "positionSec": 100.593,
+      "isPlaying": true,
+      "updatedAt": 1792670232376
+    },
+    "naturalNewTrack": {
+      "at": "2026-10-22T11:58:50.785Z",
+      "type": "sync-state",
+      "trackKey": "ncm:371362",
+      "trackSongId": 371362,
+      "positionSec": 0,
+      "isPlaying": true,
+      "playMode": "sequence",
+      "updatedAt": 1792670330669
+    },
+    "newTrackNativeReadyAt": "2026-10-22T11:58:51.659Z",
+    "newTrackRevision": 4,
+    "newTrackDurationSec": 149.106,
+    "firstNativeSampleAtLeast30Seconds": {
+      "at": "2026-10-22T11:59:24.672Z",
+      "trackKey": "ncm:371362",
+      "positionSec": 31.881,
+      "isPlaying": true,
+      "updatedAt": 1792670364612
+    }
+  },
+  "lock": {
+    "result": "passed-simulator-main-audio",
+    "naturalNewTrack": {
+      "at": "2026-10-22T12:01:21.543Z",
+      "type": "sync-state",
+      "trackKey": "bili:BV17x411w7KC:279786",
+      "trackSongId": null,
+      "positionSec": 0,
+      "isPlaying": true,
+      "playMode": "sequence",
+      "updatedAt": 1792670481427
+    },
+    "newTrackNativeReadyAt": "2026-10-22T12:01:23.821Z",
+    "newTrackRevision": 5,
+    "newTrackDurationSec": 199.274,
+    "firstNativeSampleAtLeast30Seconds": {
+      "at": "2026-10-22T12:01:59.532Z",
+      "trackKey": "bili:BV17x411w7KC:279786",
+      "positionSec": 31.735,
+      "isPlaying": true,
+      "updatedAt": 1792670518876
+    },
+    "nativeNearZeroSeek": {
+      "at": "2026-10-22T12:01:27.092Z",
+      "targetMs": 1,
+      "actualMs": 1919,
+      "noOp": true,
+      "targetObserved": true,
+      "anchored": true,
+      "advancing": 2,
+      "durationSec": 3.208,
+      "success": true
+    }
+  },
+  "foregroundRecovery": {
+    "atApproximate": "2026-10-22T12:03:30.000Z",
+    "mainAudio": "passed-simulator-same-process",
+    "visibleTrack": "bili:BV17x411w7KC:279786",
+    "visiblePosition": "2:07/3:19",
+    "pauseButtonVisible": true,
+    "sameNativeProcessConfirmedAt": "2026-10-22T12:03:42.000Z",
+    "sameNativeProcessId": 99952,
+    "laterMainAudioPosition": "2:45/3:19 around12:04UTC",
+    "decorationRecovery": "failed",
+    "decorationMessage": "视频背景加载失败，主音频继续播放",
+    "pureVideoActionEnabled": false,
+    "decorationFailureAtApproximate": "2026-10-22T12:04:00.000Z"
+  },
+  "nowPlayingCard": {
+    "result": "not-displayed",
+    "wakeAtApproximate": "2026-10-22T12:02:30.000Z",
+    "evidence": "Root CUA saw20:02 lock screen with no NowPlaying card; metadata publication is not card acceptance"
+  },
+  "passiveNativeRuntime": {
+    "metadata": [
+      {
+        "at": "2026-10-22T11:54:16.778Z",
+        "applicationState": 0,
+        "artworkPresent": true,
+        "duration": 0,
+        "elapsed": 0,
+        "enabledTargetCount": 6,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 1,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategorySoloAmbient",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": false,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T11:54:18.040Z",
+        "applicationState": 0,
+        "artworkPresent": true,
+        "duration": 0,
+        "elapsed": 0,
+        "enabledTargetCount": 6,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 7,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategorySoloAmbient",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T11:54:18.813Z",
+        "applicationState": 0,
+        "artworkPresent": true,
+        "duration": 199.274,
+        "elapsed": 31.352,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 13,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T11:54:18.814Z",
+        "applicationState": 0,
+        "artworkPresent": true,
+        "duration": 199.274,
+        "elapsed": 31.352,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 14,
+        "rate": 1,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T11:54:26.862Z",
+        "applicationState": 0,
+        "artworkPresent": true,
+        "duration": 199.274,
+        "elapsed": 31.352,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 27,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T11:54:27.807Z",
+        "applicationState": 0,
+        "artworkPresent": true,
+        "duration": 199.274,
+        "elapsed": 31.352,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 30,
+        "rate": 1,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T11:54:28.808Z",
+        "applicationState": 0,
+        "artworkPresent": true,
+        "duration": 199.274,
+        "elapsed": 31.352,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 32,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T11:54:29.806Z",
+        "applicationState": 0,
+        "artworkPresent": true,
+        "duration": 199.274,
+        "elapsed": 31.352,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 33,
+        "rate": 1,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T11:54:30.807Z",
+        "applicationState": 0,
+        "artworkPresent": true,
+        "duration": 199.274,
+        "elapsed": 31.352,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 35,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T11:58:50.681Z",
+        "applicationState": 2,
+        "artworkPresent": true,
+        "duration": 0,
+        "elapsed": 0,
+        "enabledTargetCount": 6,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 592,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": false,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T11:58:50.718Z",
+        "applicationState": 2,
+        "artworkPresent": true,
+        "duration": 0,
+        "elapsed": 0,
+        "enabledTargetCount": 6,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 595,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T11:58:51.661Z",
+        "applicationState": 2,
+        "artworkPresent": true,
+        "duration": 149.106,
+        "elapsed": 0,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 602,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T11:58:51.729Z",
+        "applicationState": 2,
+        "artworkPresent": true,
+        "duration": 149.106,
+        "elapsed": 0,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 605,
+        "rate": 1,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T11:58:51.985Z",
+        "applicationState": 2,
+        "artworkPresent": true,
+        "duration": 149.106,
+        "elapsed": 0,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 609,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T11:58:51.989Z",
+        "applicationState": 2,
+        "artworkPresent": true,
+        "duration": 149.106,
+        "elapsed": 0,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 611,
+        "rate": 1,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T12:01:21.364Z",
+        "applicationState": 2,
+        "artworkPresent": true,
+        "duration": 149.106,
+        "elapsed": 149.106,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 995,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T12:01:21.433Z",
+        "applicationState": 2,
+        "artworkPresent": true,
+        "duration": 149.106,
+        "elapsed": 149.106,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 998,
+        "rate": 1,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T12:01:21.435Z",
+        "applicationState": 2,
+        "artworkPresent": true,
+        "duration": 149.106,
+        "elapsed": 149.106,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 999,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T12:01:21.436Z",
+        "applicationState": 2,
+        "artworkPresent": true,
+        "duration": 0,
+        "elapsed": 0,
+        "enabledTargetCount": 6,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 1000,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": false,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T12:01:22.138Z",
+        "applicationState": 2,
+        "artworkPresent": true,
+        "duration": 0,
+        "elapsed": 0,
+        "enabledTargetCount": 6,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 1005,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T12:01:23.883Z",
+        "applicationState": 2,
+        "artworkPresent": true,
+        "duration": 199.274,
+        "elapsed": 0.001,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 1013,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T12:01:23.883Z",
+        "applicationState": 2,
+        "artworkPresent": true,
+        "duration": 199.274,
+        "elapsed": 0.001,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 1014,
+        "rate": 1,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T12:01:25.066Z",
+        "applicationState": 2,
+        "artworkPresent": true,
+        "duration": 199.274,
+        "elapsed": 0.001,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 1019,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T12:01:25.077Z",
+        "applicationState": 2,
+        "artworkPresent": true,
+        "duration": 199.274,
+        "elapsed": 0.001,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 1020,
+        "rate": 1,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T12:03:35.078Z",
+        "applicationState": 1,
+        "artworkPresent": true,
+        "duration": 199.274,
+        "elapsed": 128.732,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 1349,
+        "rate": 1,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T12:03:35.780Z",
+        "applicationState": 0,
+        "artworkPresent": true,
+        "duration": 199.274,
+        "elapsed": 128.732,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 1351,
+        "rate": 1,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T12:04:45.624Z",
+        "applicationState": 0,
+        "artworkPresent": true,
+        "duration": 199.274,
+        "elapsed": 199.274,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 1534,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T12:04:45.692Z",
+        "applicationState": 0,
+        "artworkPresent": true,
+        "duration": 0,
+        "elapsed": 0,
+        "enabledTargetCount": 6,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 1539,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": false,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T12:04:45.736Z",
+        "applicationState": 0,
+        "artworkPresent": true,
+        "duration": 0,
+        "elapsed": 0,
+        "enabledTargetCount": 6,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 1542,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T12:04:48.231Z",
+        "applicationState": 0,
+        "artworkPresent": true,
+        "duration": 149.106,
+        "elapsed": 0,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 1549,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T12:04:48.231Z",
+        "applicationState": 0,
+        "artworkPresent": true,
+        "duration": 149.106,
+        "elapsed": 0,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 1551,
+        "rate": 1,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T12:04:48.399Z",
+        "applicationState": 0,
+        "artworkPresent": true,
+        "duration": 149.106,
+        "elapsed": 0,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 1555,
+        "rate": 0,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      },
+      {
+        "at": "2026-10-22T12:04:48.400Z",
+        "applicationState": 0,
+        "artworkPresent": true,
+        "duration": 149.106,
+        "elapsed": 0,
+        "enabledTargetCount": 9,
+        "hasOwner": true,
+        "isRemoteControlRegistered": true,
+        "mediaKind": "audio",
+        "metadataKeys": [
+          "MPNowPlayingInfoPropertyElapsedPlaybackTime",
+          "MPNowPlayingInfoPropertyMediaType",
+          "MPNowPlayingInfoPropertyPlaybackRate",
+          "albumTitle",
+          "artist",
+          "artwork",
+          "playbackDuration",
+          "title"
+        ],
+        "otherAudioPlaying": false,
+        "publishCount": 1556,
+        "rate": 1,
+        "registeredTargetCount": 9,
+        "routeSharingPolicy": 0,
+        "sessionCategory": "AVAudioSessionCategoryPlayback",
+        "sessionMode": "AVAudioSessionModeDefault",
+        "sessionOptions": 0,
+        "sourceAttached": true,
+        "titlePresent": true
+      }
+    ],
+    "vlc": [
+      {
+        "at": "2026-10-22T11:54:18.096Z",
+        "event": "init revision=3 autoplay=1 state=4"
+      },
+      {
+        "at": "2026-10-22T11:54:18.187Z",
+        "event": "state revision=3 raw=1 first=1 length=0 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T11:54:18.804Z",
+        "event": "length revision=3 milliseconds=199274"
+      },
+      {
+        "at": "2026-10-22T11:54:18.805Z",
+        "event": "state revision=3 raw=2 first=1 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T11:54:18.805Z",
+        "event": "ready revision=3 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T11:54:26.844Z",
+        "event": "audio-seek revision=3 target=31352 actual=31352 noOp=0 targetObserved=0 anchored=0 advancing=0 duration=8.007 success=0"
+      },
+      {
+        "at": "2026-10-22T11:54:41.677Z",
+        "event": "state revision=3 raw=3 first=0 length=199274 autoplay=0"
+      },
+      {
+        "at": "2026-10-22T11:54:44.741Z",
+        "event": "init revision=2 autoplay=0 state=4"
+      },
+      {
+        "at": "2026-10-22T11:54:44.742Z",
+        "event": "state revision=2 raw=1 first=1 length=0 autoplay=0"
+      },
+      {
+        "at": "2026-10-22T11:54:46.780Z",
+        "event": "length revision=2 milliseconds=199274"
+      },
+      {
+        "at": "2026-10-22T11:54:46.785Z",
+        "event": "state revision=2 raw=2 first=1 length=199274 autoplay=0"
+      },
+      {
+        "at": "2026-10-22T11:54:46.786Z",
+        "event": "ready revision=2 length=199274 autoplay=0"
+      },
+      {
+        "at": "2026-10-22T11:54:48.371Z",
+        "event": "state revision=2 raw=3 first=0 length=199274 autoplay=0"
+      },
+      {
+        "at": "2026-10-22T11:54:48.444Z",
+        "event": "seek-issued revision=2 target=31352 actual=584 state=3 accepted=1 attempt=1"
+      },
+      {
+        "at": "2026-10-22T11:54:50.619Z",
+        "event": "seek revision=2 target=31352 actual=31352 success=1"
+      },
+      {
+        "at": "2026-10-22T11:55:20.793Z",
+        "event": "seek-issued revision=3 target=0 actual=69346 state=3 accepted=1 attempt=1"
+      },
+      {
+        "at": "2026-10-22T11:55:22.962Z",
+        "event": "seek revision=3 target=0 actual=0 success=1"
+      },
+      {
+        "at": "2026-10-22T11:55:24.891Z",
+        "event": "state revision=3 raw=2 first=0 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T11:55:24.894Z",
+        "event": "seek-issued revision=2 target=0 actual=70467 state=3 accepted=1 attempt=1"
+      },
+      {
+        "at": "2026-10-22T11:55:27.476Z",
+        "event": "seek revision=2 target=0 actual=0 success=1"
+      },
+      {
+        "at": "2026-10-22T11:55:29.020Z",
+        "event": "state revision=2 raw=2 first=0 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T11:55:34.690Z",
+        "event": "state revision=2 raw=3 first=0 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T11:55:34.766Z",
+        "event": "seek-issued revision=2 target=2590 actual=0 state=3 accepted=1 attempt=1"
+      },
+      {
+        "at": "2026-10-22T11:55:36.934Z",
+        "event": "seek revision=2 target=2590 actual=2533 success=1"
+      },
+      {
+        "at": "2026-10-22T11:55:36.934Z",
+        "event": "state revision=2 raw=2 first=0 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T11:55:37.893Z",
+        "event": "state revision=2 raw=3 first=0 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T11:55:37.997Z",
+        "event": "seek-issued revision=2 target=10590 actual=3533 state=3 accepted=1 attempt=1"
+      },
+      {
+        "at": "2026-10-22T11:55:40.169Z",
+        "event": "seek revision=2 target=10590 actual=10590 success=1"
+      },
+      {
+        "at": "2026-10-22T11:55:40.724Z",
+        "event": "state revision=2 raw=2 first=0 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T11:55:45.114Z",
+        "event": "state revision=2 raw=3 first=0 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T11:55:45.135Z",
+        "event": "seek-issued revision=2 target=13590 actual=10590 state=3 accepted=1 attempt=1"
+      },
+      {
+        "at": "2026-10-22T11:55:48.141Z",
+        "event": "seek revision=2 target=13590 actual=13590 success=1"
+      },
+      {
+        "at": "2026-10-22T11:55:48.142Z",
+        "event": "state revision=2 raw=2 first=0 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T11:55:49.680Z",
+        "event": "state revision=2 raw=3 first=0 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T11:55:49.723Z",
+        "event": "seek-issued revision=2 target=19246 actual=15088 state=3 accepted=1 attempt=1"
+      },
+      {
+        "at": "2026-10-22T11:55:50.629Z",
+        "event": "seek revision=2 target=19246 actual=19200 success=0"
+      },
+      {
+        "at": "2026-10-22T11:55:50.629Z",
+        "event": "state revision=2 raw=5 first=0 length=199274 autoplay=0"
+      },
+      {
+        "at": "2026-10-22T11:58:50.609Z",
+        "event": "state revision=3 raw=5 first=0 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T11:58:50.653Z",
+        "event": "state revision=3 raw=4 first=0 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T11:58:50.725Z",
+        "event": "init revision=4 autoplay=0 state=4"
+      },
+      {
+        "at": "2026-10-22T11:58:50.728Z",
+        "event": "state revision=4 raw=1 first=1 length=0 autoplay=0"
+      },
+      {
+        "at": "2026-10-22T11:58:51.658Z",
+        "event": "length revision=4 milliseconds=149106"
+      },
+      {
+        "at": "2026-10-22T11:58:51.659Z",
+        "event": "state revision=4 raw=2 first=1 length=149106 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T11:58:51.659Z",
+        "event": "ready revision=4 length=149106 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T11:58:51.984Z",
+        "event": "state revision=4 raw=3 first=0 length=149106 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T11:58:51.988Z",
+        "event": "state revision=4 raw=2 first=0 length=149106 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T12:01:21.363Z",
+        "event": "state revision=4 raw=5 first=0 length=149106 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T12:01:21.414Z",
+        "event": "state revision=4 raw=4 first=0 length=149106 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T12:01:22.142Z",
+        "event": "init revision=5 autoplay=0 state=4"
+      },
+      {
+        "at": "2026-10-22T12:01:22.143Z",
+        "event": "state revision=5 raw=1 first=1 length=0 autoplay=0"
+      },
+      {
+        "at": "2026-10-22T12:01:23.820Z",
+        "event": "length revision=5 milliseconds=199274"
+      },
+      {
+        "at": "2026-10-22T12:01:23.821Z",
+        "event": "state revision=5 raw=2 first=1 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T12:01:23.821Z",
+        "event": "ready revision=5 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T12:01:25.064Z",
+        "event": "state revision=5 raw=3 first=0 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T12:01:25.076Z",
+        "event": "state revision=5 raw=2 first=0 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T12:01:26.110Z",
+        "event": "audio-seek-anchor revision=5 target=1 actual=919 noOp=1 duration=2.227"
+      },
+      {
+        "at": "2026-10-22T12:01:27.092Z",
+        "event": "audio-seek revision=5 target=1 actual=1919 noOp=1 targetObserved=1 anchored=1 advancing=2 duration=3.208 success=1"
+      },
+      {
+        "at": "2026-10-22T12:03:36.472Z",
+        "event": "init revision=8 autoplay=1 state=4"
+      },
+      {
+        "at": "2026-10-22T12:03:36.483Z",
+        "event": "state revision=8 raw=1 first=1 length=0 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T12:03:37.461Z",
+        "event": "length revision=8 milliseconds=199274"
+      },
+      {
+        "at": "2026-10-22T12:03:37.461Z",
+        "event": "state revision=8 raw=2 first=1 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T12:03:37.462Z",
+        "event": "ready revision=8 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T12:03:38.662Z",
+        "event": "state revision=8 raw=3 first=0 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T12:03:38.740Z",
+        "event": "seek-issued revision=8 target=129732 actual=215 state=3 accepted=1 attempt=1"
+      },
+      {
+        "at": "2026-10-22T12:03:40.904Z",
+        "event": "seek revision=8 target=129732 actual=129732 success=1"
+      },
+      {
+        "at": "2026-10-22T12:03:41.079Z",
+        "event": "seek-issued revision=8 target=134731 actual=129732 state=3 accepted=1 attempt=1"
+      },
+      {
+        "at": "2026-10-22T12:03:44.552Z",
+        "event": "state revision=8 raw=2 first=0 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T12:03:56.157Z",
+        "event": "seek revision=8 target=134731 actual=10920 success=0"
+      },
+      {
+        "at": "2026-10-22T12:03:58.677Z",
+        "event": "state revision=8 raw=3 first=0 length=199274 autoplay=0"
+      },
+      {
+        "at": "2026-10-22T12:04:45.623Z",
+        "event": "state revision=5 raw=5 first=0 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T12:04:45.670Z",
+        "event": "state revision=5 raw=4 first=0 length=199274 autoplay=1"
+      },
+      {
+        "at": "2026-10-22T12:04:45.733Z",
+        "event": "state revision=8 raw=5 first=0 length=199274 autoplay=0"
+      },
+      {
+        "at": "2026-10-22T12:04:45.746Z",
+        "event": "init revision=6 autoplay=0 state=4"
+      },
+      {
+        "at": "2026-10-22T12:04:45.752Z",
+        "event": "state revision=6 raw=1 first=1 length=0 autoplay=0"
+      },
+      {
+        "at": "2026-10-22T12:04:48.169Z",
+        "event": "length revision=6 milliseconds=149106"
+      },
+      {
+        "at": "2026-10-22T12:04:48.169Z",
+        "event": "state revision=6 raw=2 first=1 length=149106 autoplay=0"
+      },
+      {
+        "at": "2026-10-22T12:04:48.169Z",
+        "event": "ready revision=6 length=149106 autoplay=0"
+      },
+      {
+        "at": "2026-10-22T12:04:48.170Z",
+        "event": "state revision=6 raw=3 first=0 length=149106 autoplay=0"
+      },
+      {
+        "at": "2026-10-22T12:04:48.171Z",
+        "event": "state revision=6 raw=2 first=0 length=149106 autoplay=1"
+      }
+    ],
+    "privacy": "No URI/token/title value/address/SDP; logs read passively via simctl without debugger"
+  },
+  "boundaries": [
+    "Physical-device background/real screen-off pending",
+    "No second-native audible sync or listening acceptance inferred",
+    "Nonzero old-state restoration failed before fresh run",
+    "Decorative-video foreground recovery failed later",
+    "NowPlaying card remained absent",
+    "No force-kill/memory-pressure/hour-scale/interruption/route-change acceptance inferred"
+  ]
+}

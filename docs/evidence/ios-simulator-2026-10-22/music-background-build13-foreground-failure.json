@@ -1,0 +1,118 @@
+{
+  "build": 13,
+  "device": "iPad Pro 11 M5 Simulator / iPadOS 26.5",
+  "roomId": "0ObNnK13",
+  "ownerUserId": 1,
+  "observerUserId": 5,
+  "nativeProcessId": 97626,
+  "observerStartedAt": "2026-10-22T11:37:55.320Z",
+  "observerStoppedAt": "2026-10-22T11:41:20.098Z",
+  "observerScope": "request-join and music:get-state only; no playback/queue controls",
+  "counts": {
+    "start": 1,
+    "connect": 1,
+    "join": 1,
+    "get-state": 14,
+    "server": 102,
+    "track-change": 2,
+    "host": 79,
+    "sync-state": 1,
+    "failure": 1,
+    "stop": 1,
+    "disconnect": 1
+  },
+  "initialState": {
+    "trackKey": "ncm:371362",
+    "positionSec": 0,
+    "isPlaying": false
+  },
+  "biliSelectedAt": "2026-10-22T11:38:52.935Z",
+  "nativeReadyAt": "2026-10-22T11:38:57.720Z",
+  "result": "failed-foreground-initial-audio-seek",
+  "nativeFailure": {
+    "at": "2026-10-22T11:39:05.802Z",
+    "revision": 4,
+    "targetMs": 1,
+    "actualMs": 7000,
+    "advancing": 0,
+    "durationSec": 8.045,
+    "success": false
+  },
+  "sampledServerPositions": [
+    {
+      "at": "2026-10-22T11:38:55.791Z",
+      "positionSec": 2.876,
+      "isPlaying": true,
+      "hostOnline": true
+    },
+    {
+      "at": "2026-10-22T11:39:10.792Z",
+      "positionSec": 8.5,
+      "isPlaying": true,
+      "hostOnline": true
+    },
+    {
+      "at": "2026-10-22T11:39:25.791Z",
+      "positionSec": 9.419,
+      "isPlaying": true,
+      "hostOnline": true
+    },
+    {
+      "at": "2026-10-22T11:39:40.792Z",
+      "positionSec": 8.337,
+      "isPlaying": true,
+      "hostOnline": true
+    },
+    {
+      "at": "2026-10-22T11:39:55.793Z",
+      "positionSec": 9.256,
+      "isPlaying": true,
+      "hostOnline": true
+    },
+    {
+      "at": "2026-10-22T11:40:10.794Z",
+      "positionSec": 8.154,
+      "isPlaying": true,
+      "hostOnline": true
+    },
+    {
+      "at": "2026-10-22T11:40:25.801Z",
+      "positionSec": 9.072000000000001,
+      "isPlaying": true,
+      "hostOnline": true
+    },
+    {
+      "at": "2026-10-22T11:40:40.799Z",
+      "positionSec": 7.9719999999999995,
+      "isPlaying": true,
+      "hostOnline": true
+    },
+    {
+      "at": "2026-10-22T11:40:55.797Z",
+      "positionSec": 8.858,
+      "isPlaying": true,
+      "hostOnline": true
+    },
+    {
+      "at": "2026-10-22T11:41:10.796Z",
+      "positionSec": 7.806000000000001,
+      "isPlaying": true,
+      "hostOnline": true
+    }
+  ],
+  "actualAudioSession": {
+    "category": "AVAudioSessionCategoryPlayback",
+    "mode": "AVAudioSessionModeDefault",
+    "options": 0,
+    "titlePresent": true,
+    "artworkPresent": true,
+    "duration": 199.274,
+    "registeredTargetCount": 9
+  },
+  "audioSessionEvidenceBoundary": "Passive native SystemMedia logs for same foreground input; category change is not a claimed cause of seek failure.",
+  "homeExecuted": false,
+  "lockExecuted": false,
+  "backgroundDeinitAccepted": false,
+  "newTrackPlaybackAccepted": false,
+  "oldRoomAttempts": "CsChgpYz closed before new-room observation; separate failed-join samples excluded from this run."
+}

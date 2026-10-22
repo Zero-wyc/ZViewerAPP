@@ -1,0 +1,291 @@
+{
+  "capturedAtUTC": "2026-10-22T10:30:16Z",
+  "roomId": "CsChgpYz",
+  "serverVersion": "4.7.4",
+  "nativeDevice": {
+    "kind": "Simulator",
+    "name": "iPad Pro 11-inch (M5)",
+    "os": "iPadOS 26.5",
+    "role": "host",
+    "userId": 1
+  },
+  "observer": {
+    "userId": 5,
+    "role": "viewer",
+    "readOnly": true,
+    "emittedEvents": [
+      "request-join",
+      "music:get-state"
+    ],
+    "startedUTC": "2026-10-22T10:24:50.492Z",
+    "cutoffUTC": "2026-10-22T10:30:15.284Z"
+  },
+  "queue": [
+    {
+      "queueId": 1615,
+      "trackKey": "ncm:371362",
+      "durationMsNative": 149106
+    },
+    {
+      "queueId": 1616,
+      "trackKey": "bili:BV17x411w7KC:279786",
+      "durationMsNative": 199274
+    }
+  ],
+  "phases": [
+    {
+      "name": "Home background",
+      "reportedStartUTC": "2026-10-22T10:24:23.000Z",
+      "endUTC": "2026-10-22T10:29:15.000Z",
+      "startEvidence": "Root agent DeviceHub action and screenshot report; approximate action timestamp",
+      "counts": {
+        "start": 1,
+        "connect": 1,
+        "join": 1,
+        "get-state": 18,
+        "server": 132,
+        "track-change": 2,
+        "host": 132,
+        "sync-state": 1
+      },
+      "hostFirst": {
+        "at": "2026-10-22T10:24:52.576Z",
+        "type": "host",
+        "trackKey": "ncm:371362",
+        "trackSongId": 371362,
+        "positionSec": 69.932,
+        "isPlaying": true,
+        "playMode": "sequence",
+        "updatedAt": 1792664692538
+      },
+      "hostLast": {
+        "at": "2026-10-22T10:29:14.965Z",
+        "type": "host",
+        "trackKey": "bili:BV17x411w7KC:279786",
+        "trackSongId": null,
+        "positionSec": 178.88,
+        "isPlaying": true,
+        "playMode": "sequence",
+        "updatedAt": 1792664954922
+      },
+      "hostSyncEvents": [
+        {
+          "at": "2026-10-22T10:26:11.910Z",
+          "type": "sync-state",
+          "trackKey": "bili:BV17x411w7KC:279786",
+          "trackSongId": null,
+          "positionSec": 0,
+          "isPlaying": true,
+          "playMode": "sequence",
+          "updatedAt": 1792664771804
+        }
+      ]
+    },
+    {
+      "name": "Simulator Lock Screen",
+      "reportedStartUTC": "2026-10-22T10:29:15.000Z",
+      "endUTC": "2026-10-22T10:30:15.284Z",
+      "startEvidence": "Root agent DeviceHub action and screenshot report; approximate action timestamp",
+      "counts": {
+        "server": 31,
+        "host": 31,
+        "get-state": 4,
+        "sync-state": 1,
+        "track-change": 1
+      },
+      "hostFirst": {
+        "at": "2026-10-22T10:29:16.961Z",
+        "type": "host",
+        "trackKey": "bili:BV17x411w7KC:279786",
+        "trackSongId": null,
+        "positionSec": 180.88,
+        "isPlaying": true,
+        "playMode": "sequence",
+        "updatedAt": 1792664956921
+      },
+      "hostLast": {
+        "at": "2026-10-22T10:30:15.284Z",
+        "type": "host",
+        "trackKey": "ncm:371362",
+        "trackSongId": 371362,
+        "positionSec": 36.926,
+        "isPlaying": true,
+        "playMode": "sequence",
+        "updatedAt": 1792665015244
+      },
+      "hostSyncEvents": [
+        {
+          "at": "2026-10-22T10:29:35.473Z",
+          "type": "sync-state",
+          "trackKey": "ncm:371362",
+          "trackSongId": 371362,
+          "positionSec": 0,
+          "isPlaying": true,
+          "playMode": "sequence",
+          "updatedAt": 1792664975383
+        }
+      ]
+    }
+  ],
+  "serverTrackTransitions": [
+    {
+      "at": "2026-10-22T10:24:51.090Z",
+      "type": "track-change",
+      "previous": null,
+      "current": "ncm:371362"
+    },
+    {
+      "at": "2026-10-22T10:26:13.104Z",
+      "type": "track-change",
+      "previous": "ncm:371362",
+      "current": "bili:BV17x411w7KC:279786"
+    },
+    {
+      "at": "2026-10-22T10:29:37.129Z",
+      "type": "track-change",
+      "previous": "bili:BV17x411w7KC:279786",
+      "current": "ncm:371362"
+    }
+  ],
+  "allCounts": {
+    "start": 1,
+    "connect": 1,
+    "join": 1,
+    "get-state": 22,
+    "server": 163,
+    "track-change": 3,
+    "host": 163,
+    "sync-state": 2
+  },
+  "nativeLogCorroboration": [
+    {
+      "localTime": "2026-10-22 18:26:11.730",
+      "revision": 2,
+      "event": "state raw5",
+      "durationMs": 149106
+    },
+    {
+      "localTime": "2026-10-22 18:26:12.954",
+      "revision": 3,
+      "event": "Bili length",
+      "durationMs": 199274
+    },
+    {
+      "localTime": "2026-10-22 18:26:13.699",
+      "revision": 3,
+      "event": "playing raw3"
+    },
+    {
+      "localTime": "2026-10-22 18:29:35.903",
+      "revision": 4,
+      "event": "NCM length",
+      "durationMs": 149106
+    },
+    {
+      "localTime": "2026-10-22 18:29:36.013",
+      "revision": 4,
+      "event": "playing raw3"
+    },
+    {
+      "localTime": "2026-10-22 18:29:38.225",
+      "revision": 4,
+      "event": "initial seek success",
+      "targetMs": 1,
+      "actualMs": 1
+    }
+  ],
+  "result": {
+    "homeContinuousAuthoritativeClock": true,
+    "homeNaturalNcmToBili": true,
+    "simulatorLockNaturalBiliToNcm": true,
+    "simulatorLockNewTrackProgressOver30Sec": true,
+    "foregroundMusicUiRestoredSameProcess": true
+  },
+  "limits": [
+    "Simulator Home and simulated Lock Screen; not a physical iPad/iPhone background guarantee",
+    "Native host/server track and clock proof, not microphone or loopback audio capture",
+    "Second native viewer showed repeated corrective seeks and was not accepted as smooth synchronized audio",
+    "Not process termination, force quit, memory pressure, long pause, Bluetooth, phone call or hours-long background validation",
+    "Observer started after reported Home action; phase boundaries use root action/screenshot reports",
+    "Lock Screen Now Playing card was absent after wake; metadata presentation is unresolved, not accepted"
+  ],
+  "observerStoppedUTC": "2026-10-22T10:32:50.624Z",
+  "totalObservationCounts": {
+    "start": 1,
+    "connect": 1,
+    "join": 1,
+    "get-state": 32,
+    "server": 240,
+    "track-change": 4,
+    "host": 241,
+    "sync-state": 3,
+    "stop": 1,
+    "disconnect": 1
+  },
+  "postWakeUnclassifiedObservation": {
+    "reportedScreenWakeUTC": "2026-10-22T10:30:35.000Z",
+    "reportedAction": "Root toggled DeviceHub Lock; lock-screen clock visible, no Now Playing card; not yet proof of foreground",
+    "foregroundReturnUTC": "2026-10-22T10:31:17.000Z",
+    "counts": {
+      "server": 77,
+      "host": 78,
+      "get-state": 10,
+      "sync-state": 1,
+      "track-change": 1,
+      "stop": 1,
+      "disconnect": 1
+    },
+    "hostFirst": {
+      "at": "2026-10-22T10:30:17.281Z",
+      "type": "host",
+      "trackKey": "ncm:371362",
+      "trackSongId": 371362,
+      "positionSec": 38.926,
+      "isPlaying": true,
+      "playMode": "sequence",
+      "updatedAt": 1792665017244
+    },
+    "hostLast": {
+      "at": "2026-10-22T10:32:49.750Z",
+      "type": "host",
+      "trackKey": "bili:BV17x411w7KC:279786",
+      "trackSongId": null,
+      "positionSec": 40.918,
+      "isPlaying": true,
+      "playMode": "sequence",
+      "updatedAt": 1792665169711
+    },
+    "hostSyncEvents": [
+      {
+        "at": "2026-10-22T10:32:07.605Z",
+        "type": "sync-state",
+        "trackKey": "bili:BV17x411w7KC:279786",
+        "trackSongId": null,
+        "positionSec": 0,
+        "isPlaying": true,
+        "playMode": "sequence",
+        "updatedAt": 1792665127521
+      }
+    ],
+    "result": "Screen wake and foreground return are separate; foreground music UI restored around UTC10:31:17 with the same process",
+    "foregroundUIEvidence": {
+      "source": "Root CUA unlock and same App icon; screenshot/visual confirmation reported by root",
+      "approximateTimestamp": true,
+      "trackKey": "ncm:371362",
+      "displayedPosition": "1:42",
+      "displayedDuration": "2:29",
+      "lyricsVisible": true,
+      "pauseControlVisible": true,
+      "sameProcess": true
+    }
+  },
+  "systemMediaInspection": {
+    "publishedPlaybackUriPresent": true,
+    "publishedPlaybackUriIsNcmApi": true,
+    "voiceSessionActive": false,
+    "metadataDictionaryRuntimeRead": false,
+    "nowPlayingCardVisible": false,
+    "simulatorLimitationProven": false,
+    "readDuringObservation": true
+  }
+}

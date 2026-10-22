@@ -1,0 +1,22 @@
+{
+  "test": "NAS music native host/server clock observation",
+  "device": "iPad Pro 11-inch (M5), iPadOS 26.5, native host",
+  "serverVersion": "4.7.4",
+  "startedAt": "2026-10-22T08:07:04.666Z",
+  "finishedAt": "2026-10-22T08:17:04.993Z",
+  "serverHeartbeatCount": 300,
+  "nativeHostHeartbeatCount": 298,
+  "checkStatusCount": 59,
+  "forcedDriftCorrection": {
+    "at": 1792656435028,
+    "forced": true,
+    "success": true,
+    "needsSync": true,
+    "hasState": true
+  },
+  "otherCheckNeedsSyncCount": 1,
+  "maxAbsoluteClockDifferenceSec": 0.18,
+  "meanAbsoluteClockDifferenceSec": 0.0127,
+  "p95AbsoluteClockDifferenceSec": 0.029,
+  "scope": "Native iPad host and server clock comparison; Socket.IO observer. Not Android/HarmonyOS or second native viewer audio drift."
+}

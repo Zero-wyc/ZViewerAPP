@@ -1,0 +1,785 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-22",
+  "snapshot": "16 Simulator Debug and2 device ARM64 Release builds succeeded (18 total); Debug16 installed and launched on phone and iPad; iPad native room admission, connection-page certificate option default-off and portrait system-window More below trigger observed. Rotation attempt did not change the actual portrait window, so iPad landscape is unaccepted. check20 patch/lint/TypeScript and409 of409 passed, followed only by build metadata26 to27. Unsigned IPA27 delivered; physical27 pending. IPA26 user-reported install and listen-together/native controls accepted without model/OS/duration, independently unobserved. Scoped Simulator failures retained.",
+  "requirements": 609,
+  "uniqueRequirementIds": 609,
+  "automaticTests": {
+    "command": "npm run check",
+    "run": 20,
+    "passed": 409,
+    "notNativeAcceptance": true
+  },
+  "nativeBuildsSuccessful": 18,
+  "counts": {
+    "explicitPendingMarkerRows": 514,
+    "explicitExternalBlockedRows": 14,
+    "observedIssueGroups": 12,
+    "distinctObservedIssueRequirementRows": 18,
+    "currentUnresolvedFailureGroups": 8,
+    "correctedNativeScopePassedGroups": 4
+  },
+  "countSemantics": {
+    "pendingPattern": "待|未验|尚未|未做|未覆盖|未通过|未稳定通过|尚无|没有.*证据|原生.*失败|画面失败|画面不通过|未显示|缺口",
+    "blockedPattern": "外部阻塞|上游.*阻塞|受.*E-SR-02.*阻塞",
+    "overlap": true,
+    "notPassRate": true,
+    "referenceOnlyRowsNotExpanded": true,
+    "sameIssueCanMapToMultipleRequirements": true
+  },
+  "families": [
+    {
+      "family": "D01-AGG",
+      "requirements": 13,
+      "explicitPendingMarkerRows": 8,
+      "explicitExternalBlockedRows": 2
+    },
+    {
+      "family": "D01-BASE",
+      "requirements": 18,
+      "explicitPendingMarkerRows": 16,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D01-BILI",
+      "requirements": 39,
+      "explicitPendingMarkerRows": 39,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D01-CAPS",
+      "requirements": 8,
+      "explicitPendingMarkerRows": 8,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D01-CAST",
+      "requirements": 2,
+      "explicitPendingMarkerRows": 0,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D01-DELIVER",
+      "requirements": 20,
+      "explicitPendingMarkerRows": 15,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D01-DISPLAY",
+      "requirements": 3,
+      "explicitPendingMarkerRows": 3,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D01-LIB",
+      "requirements": 17,
+      "explicitPendingMarkerRows": 10,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D01-MUSIC",
+      "requirements": 21,
+      "explicitPendingMarkerRows": 18,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D01-NATIVE",
+      "requirements": 14,
+      "explicitPendingMarkerRows": 9,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D01-POLICY",
+      "requirements": 25,
+      "explicitPendingMarkerRows": 22,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D01-SOURCE",
+      "requirements": 18,
+      "explicitPendingMarkerRows": 12,
+      "explicitExternalBlockedRows": 6
+    },
+    {
+      "family": "D01-SYSTEM",
+      "requirements": 1,
+      "explicitPendingMarkerRows": 1,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D01-UI",
+      "requirements": 4,
+      "explicitPendingMarkerRows": 4,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D01-VOICE",
+      "requirements": 7,
+      "explicitPendingMarkerRows": 7,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D01-WATCH",
+      "requirements": 6,
+      "explicitPendingMarkerRows": 6,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-ADD",
+      "requirements": 11,
+      "explicitPendingMarkerRows": 6,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-AX",
+      "requirements": 3,
+      "explicitPendingMarkerRows": 3,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-BACK",
+      "requirements": 7,
+      "explicitPendingMarkerRows": 7,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-BAR",
+      "requirements": 14,
+      "explicitPendingMarkerRows": 14,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-BROWSE",
+      "requirements": 18,
+      "explicitPendingMarkerRows": 14,
+      "explicitExternalBlockedRows": 2
+    },
+    {
+      "family": "D03-CARD",
+      "requirements": 9,
+      "explicitPendingMarkerRows": 9,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-CAST",
+      "requirements": 28,
+      "explicitPendingMarkerRows": 16,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-CHAT",
+      "requirements": 30,
+      "explicitPendingMarkerRows": 26,
+      "explicitExternalBlockedRows": 1
+    },
+    {
+      "family": "D03-CONNECT",
+      "requirements": 10,
+      "explicitPendingMarkerRows": 9,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-CONTROL",
+      "requirements": 12,
+      "explicitPendingMarkerRows": 12,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-DATA",
+      "requirements": 8,
+      "explicitPendingMarkerRows": 7,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-DIM",
+      "requirements": 29,
+      "explicitPendingMarkerRows": 26,
+      "explicitExternalBlockedRows": 2
+    },
+    {
+      "family": "D03-DISPLAY",
+      "requirements": 10,
+      "explicitPendingMarkerRows": 10,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-GESTURE",
+      "requirements": 5,
+      "explicitPendingMarkerRows": 5,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-LOBBY",
+      "requirements": 9,
+      "explicitPendingMarkerRows": 9,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-MUSIC",
+      "requirements": 42,
+      "explicitPendingMarkerRows": 40,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-PERM",
+      "requirements": 12,
+      "explicitPendingMarkerRows": 12,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-PREF",
+      "requirements": 15,
+      "explicitPendingMarkerRows": 14,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-PRINCIPLE",
+      "requirements": 3,
+      "explicitPendingMarkerRows": 2,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-ROOM",
+      "requirements": 10,
+      "explicitPendingMarkerRows": 10,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-SET",
+      "requirements": 9,
+      "explicitPendingMarkerRows": 9,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-STATE",
+      "requirements": 11,
+      "explicitPendingMarkerRows": 10,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D03-TODO",
+      "requirements": 10,
+      "explicitPendingMarkerRows": 7,
+      "explicitExternalBlockedRows": 1
+    },
+    {
+      "family": "D03-VOICE",
+      "requirements": 27,
+      "explicitPendingMarkerRows": 27,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D05-BOUND",
+      "requirements": 10,
+      "explicitPendingMarkerRows": 7,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D05-LOGIC",
+      "requirements": 17,
+      "explicitPendingMarkerRows": 6,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D05-REPORT",
+      "requirements": 7,
+      "explicitPendingMarkerRows": 6,
+      "explicitExternalBlockedRows": 0
+    },
+    {
+      "family": "D05-STAGE",
+      "requirements": 17,
+      "explicitPendingMarkerRows": 13,
+      "explicitExternalBlockedRows": 0
+    }
+  ],
+  "observedIssueGroups": [
+    {
+      "id": "seek-hls",
+      "evidence": [
+        "E-WA-02"
+      ],
+      "requirements": [
+        "D01-BASE-11",
+        "D01-LIB-09"
+      ],
+      "state": "Observed fractional paused seek failure; public small HLS preparation/seek and revised native verification remain open.",
+      "currentStatus": "open"
+    },
+    {
+      "id": "seek-mkv-picture",
+      "evidence": [
+        "E-WA-06"
+      ],
+      "requirements": [
+        "D03-DIM-29"
+      ],
+      "state": "Movie66 clock/ACK matched137.207s but picture grey; bounded original reference frame has colour. Movie67 seek untested.",
+      "currentStatus": "open"
+    },
+    {
+      "id": "cms-media",
+      "evidence": [
+        "E-WA-04",
+        "E-SR-02"
+      ],
+      "requirements": [
+        "D01-AGG-12",
+        "D03-DIM-20"
+      ],
+      "state": "Selected source returned HTML rather than media. Client error-loop guard has regression support; native follow-up open.",
+      "currentStatus": "open"
+    },
+    {
+      "id": "now-playing-card",
+      "evidence": [
+        "E-MU-10",
+        "E-MU-11"
+      ],
+      "requirements": [
+        "D01-SYSTEM-01"
+      ],
+      "state": "Build15 Simulator wake still showed no NowPlaying card; metadata is not card acceptance. Physical-device card unverified, main-audio natural transitions separately passed.",
+      "currentStatus": "open"
+    },
+    {
+      "id": "font-runtime-change",
+      "evidence": [
+        "E-UI-02"
+      ],
+      "requirements": [
+        "D03-PERM-01",
+        "D03-DIM-08"
+      ],
+      "state": "Phone and iPad fontScale1.353 to1 to1.353 passed for documented room UI. iPad edit draft remained and was cancelled without changing the room name. Other pages/short landscape/split view not covered.",
+      "currentStatus": "corrected-native-scope-passed"
+    },
+    {
+      "id": "host-transfer-roster",
+      "evidence": [
+        "E-UI-03"
+      ],
+      "requirements": [
+        "D03-PERM-05",
+        "D03-DIM-14"
+      ],
+      "state": "iPad user1 to phone user3 to iPad user1 continuous roundtrip without reconnect passed. Host controls and viewer roster updated. Other roles and network failures not covered.",
+      "currentStatus": "corrected-native-scope-passed"
+    },
+    {
+      "id": "background-natural-transition",
+      "evidence": [
+        "E-MU-08",
+        "E-MU-10",
+        "E-MU-11"
+      ],
+      "requirements": [
+        "D01-MUSIC-09",
+        "D01-MUSIC-13",
+        "D01-MUSIC-21",
+        "D03-MUSIC-36"
+      ],
+      "state": "Build12 crash remains historical. Build15 Home NCM to Bili and Simulator Lock Bili to NCM reached native ready and30.923/30.972seconds; originalPID3018 foreground main-audio recovery confirmed. Build14 reverse-order positive retained. Other lifecycle cases not accepted.",
+      "currentStatus": "corrected-native-scope-passed"
+    },
+    {
+      "id": "foreground-initial-audio-seek",
+      "evidence": [
+        "E-MU-09",
+        "E-MU-10",
+        "E-MU-11"
+      ],
+      "requirements": [
+        "D01-MUSIC-10",
+        "D03-STATE-09"
+      ],
+      "state": "Build13 initial1ms failure is historical. Build14 and15 natural new-input near-zero attachment confirmed observed target/anchor/later clock advances. This does not accept paused-zero play accuracy or old nonzero restoration.",
+      "currentStatus": "corrected-native-scope-passed"
+    },
+    {
+      "id": "music-nonzero-restoration",
+      "evidence": [
+        "E-MU-10"
+      ],
+      "requirements": [
+        "D01-MUSIC-10",
+        "D03-STATE-09"
+      ],
+      "state": "Build14 old target31352ms clock matched but no actual advancement, timeout8.007s. Build15 natural transitions do not close this separate restoration failure.",
+      "currentStatus": "open"
+    },
+    {
+      "id": "music-decoration-return",
+      "evidence": [
+        "E-MU-10",
+        "E-MU-11"
+      ],
+      "requirements": [
+        "D01-SYSTEM-01",
+        "D03-MUSIC-36"
+      ],
+      "state": "Build15 original-PID return still failed actual decorative playback. Screenshot18 confirms native failed-surface clearing and ordinary background fallback while main audio continues; fallback is passed, decorative playback remains failed.",
+      "currentStatus": "open",
+      "failureSurfaceFallbackNativePassed": true
+    },
+    {
+      "id": "music-paused-zero-start",
+      "evidence": [
+        "E-MU-11"
+      ],
+      "requirements": [
+        "D01-MUSIC-09",
+        "D03-STATE-09"
+      ],
+      "state": "Build15 paused at0 with native paused-ready0; UI play requested0, first host0 then actual native31.172sec without user seek. Accurate zero start failed independently of successful later natural transitions.",
+      "currentStatus": "open"
+    },
+    {
+      "id": "nas-movie-runtime",
+      "evidence": [
+        "E-DM-05",
+        "E-UI-05"
+      ],
+      "requirements": [
+        "D03-DATA-04",
+        "D03-CONTROL-07"
+      ],
+      "state": "Old dedicated room Node numeric movie75 succeeds while phone same numeric ID is rejected with matching room/movieID. New iPad room created through actual GUI, direct host registration and REST78/79/80, then GUI play78 also rejected. Root cause unresolved; cache, permission, cookie and debug asHost0 are not established diagnoses. No new Bili auto-track native pass claimed. Actual iPad NAS WebSocket origin/path and connected state verified; read-only request-movie-list returns movies:[], immediately followed by same-room REST IDs78/79/80. This is a direct native Socket/REST list discrepancy, not an established multiworker/cache/auth diagnosis.",
+      "currentStatus": "open"
+    }
+  ],
+  "materialGaps": [
+    "Emby has no mount for selected account",
+    "Selected Jellyfin media are single-version",
+    "No actual FTP/WebDAV/OpenList positive playback fixture",
+    "No Kazumi HLS positive native fixture this round",
+    "No Android/HarmonyOS device results; IPA26 user-reported physical listen-together/native controls only, IPA27 physical results pending",
+    "Actual iPad window resize not observed"
+  ],
+  "materialsAudit": {
+    "textFilesScanned": 25,
+    "knownCredentialValueHits": 0,
+    "jwtPatternHits": 0,
+    "evidenceJsonRawHttpUriHits": 0,
+    "evidenceJsonQrPayloadHits": 0,
+    "localMarkdownLinksMissing": [],
+    "scope": "Seven owned delivery documents, current Simulator evidence Markdown/JSON and the two device-IPA JSON files; known local session-secret values, JWT forms and raw HTTP/QR forms in evidence JSON. Local Markdown link resolution checked for these scoped documents; no universal unknown-secret, historical-repository, screenshot-pixel or full-package-byte claim.",
+    "jsonFilesParsed": 16
+  },
+  "musicFailureGate": {
+    "productionFile": "ZV-iOS/src/components/MusicPanel.tsx",
+    "beforeLocalResolveAttempts": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "afterLocalResolveAttempts": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "newRuntimeRegressions": 4,
+    "relatedTestsPassed": 51,
+    "notNativeAcceptance": true
+  },
+  "productionCheckpoint": "9e7ff04",
+  "independentReviewTestsPassed": 16,
+  "historicalBackgroundFailure": {
+    "nativeBuild": 12,
+    "status": "FAIL_NATIVE_SIGABRT",
+    "homeUtc": "11:11:50",
+    "naturalTransitionUtc": "11:12:54.963",
+    "transition": "Bili to NCM",
+    "observed": [
+      "Bili native clock advanced after Home",
+      "new NCM input opening only",
+      "no new input ready",
+      "no new track native heartbeat",
+      "hostOnline became false"
+    ],
+    "notEvidenceOfPlayback": "server extrapolation",
+    "historicalPositiveBuild": 10,
+    "crashLocalTime": "2026-10-22 19:12:55.1079 +0800",
+    "crashedProcessId": 92636,
+    "signal": "SIGABRT",
+    "mainThreadStack": [
+      "swift_abortRetainUnowned",
+      "MediaPlayer.destroyPlayer",
+      "LibVlcPlayerView.deinit"
+    ],
+    "reopenedProcessId": 93622,
+    "reopenLocalTime": "19:17",
+    "sameProcessRecovery": false,
+    "crashEvidence": "music-background-build12-crash.json",
+    "observationEvidence": "music-background-build12-observation.json",
+    "historical": true
+  },
+  "historicalForegroundFailure": {
+    "nativeBuild": 13,
+    "status": "FAIL_FOREGROUND_INITIAL_AUDIO_SEEK",
+    "nativeProcessId": 97626,
+    "targetMilliseconds": 1,
+    "actualMilliseconds": 7000,
+    "durationSeconds": 8.045,
+    "advancing": 0,
+    "homeExecuted": false,
+    "lockExecuted": false,
+    "guiBackgroundDeinitAccepted": false,
+    "evidence": "music-background-build13-foreground-failure.json",
+    "historical": true,
+    "nearZeroFreshTrackPositiveBuild": 14
+  },
+  "latestBackgroundPlayback": {
+    "nativeBuild": 15,
+    "status": "PASS_SIMULATOR_MAIN_AUDIO_AND_FAILURE_FALLBACK_SCOPED",
+    "evidence": "music-background-build15-home-lock.json",
+    "nativeProcessId": 3018,
+    "home": {
+      "transition": "NCM to Bili",
+      "readyUtc": "12:12:54.923",
+      "nativeSampleUtc": "12:13:28.219",
+      "nativePositionSeconds": 30.923
+    },
+    "lock": {
+      "transition": "Bili to NCM",
+      "readyUtc": "12:16:16.424",
+      "nativeSampleUtc": "12:16:48.583",
+      "nativePositionSeconds": 30.972
+    },
+    "sameProcessRecovery": true,
+    "sameProcessConfirmedUtc": "12:19:15",
+    "nowPlayingCardVisible": false,
+    "decorationPlaybackRecovery": "failed",
+    "decorationFailureSurfaceFallback": "passed-native-ui",
+    "decorationFallbackEvidence": "18-ipad-music-video-fallback.png",
+    "pausedZeroStart": {
+      "status": "failed",
+      "requestedPositionSeconds": 0,
+      "firstJumpNativePositionSeconds": 31.172,
+      "noUserSeekConfirmed": true,
+      "notAccurateZeroStartAcceptance": true
+    },
+    "earlierNonzeroRestorationFailureRetained": true,
+    "notPhysicalDeviceAcceptance": true,
+    "notSecondNativeAudibleSynchronizationAcceptance": true
+  },
+  "latestInstalledBuild": {
+    "nativeBuild": 16,
+    "target": "Simulator",
+    "phoneInstalled": true,
+    "phoneGuiScope": "Casting layout/draft, music settings/discussion drawer and More placement accepted within feedback-build16 scope; new Bili auto-track runtime blocked by NAS movie lookup mismatch.",
+    "ipadInstalled": true,
+    "ipadLaunchedThisBuild": true,
+    "backgroundRetestPerformed": false,
+    "latestBackgroundEvidenceNativeBuild": 15,
+    "feedbackEvidence": "feedback-build16.json",
+    "ipadNativeRoomAdmissionPassed": true,
+    "ipadGuiScope": "Connection page certificate option default-off and portrait system-window More below trigger; RotateLeft attempt left actual window portrait, not landscape acceptance."
+  },
+  "toolbarLayoutRegression": {
+    "realComponentAndOrientationButton": true,
+    "minimumTouchTargetPoints": 44,
+    "measuredRowThresholdsPoints": {
+      "volume": 264,
+      "settings": 308,
+      "fullscreenDirection": 352
+    },
+    "moreFirstItemOrderKnownMismatch": false,
+    "composerFirstItemOrderAndToggleEventPassed": true,
+    "nativeGuiScopePassed": {
+      "nativeBuild": 15,
+      "device": "iPhone17Pro Simulator",
+      "orientation": "ordinary portrait",
+      "nativeProcessId": 5023,
+      "buttons": 7,
+      "evenSpacingAndNoOverflow": true,
+      "composerFirstItemToggleAndMenuClose": true,
+      "messageSent": false,
+      "evidence": "19-iphone-watch-control-bar.png"
+    },
+    "nativeBoundaryGuiPending": true,
+    "historicalTestsPassed": 3,
+    "currentComponentAndGeometryTestsPassed": 8,
+    "nativeBuild16Placement": {
+      "evidence": "feedback-build16.json",
+      "portraitBelowTrigger": true,
+      "landscapeInsufficientBottomAboveTriggerGapPoints": 8,
+      "allBelowAccepted": false,
+      "ipadAccepted": "PORTRAIT_SYSTEM_WINDOW_BELOW_ONLY",
+      "ipadLandscapeAccepted": false,
+      "ipadEvidence": "27-ipad-watch-more-below.png"
+    }
+  },
+  "historicalBackgroundPositiveBuild14": {
+    "nativeBuild": 14,
+    "status": "PASS_SIMULATOR_MAIN_AUDIO_SCOPED",
+    "evidence": "music-background-build14-home-lock.json",
+    "nativeProcessId": 99952,
+    "home": {
+      "transition": "Bili to NCM",
+      "readyUtc": "11:58:51.659",
+      "nativeSampleUtc": "11:59:24.672",
+      "nativePositionSeconds": 31.881
+    },
+    "lock": {
+      "transition": "NCM to Bili",
+      "readyUtc": "12:01:23.821",
+      "nativeSampleUtc": "12:01:59.532",
+      "nativePositionSeconds": 31.735,
+      "nearZeroSeekActualAdvancementConfirmed": true
+    },
+    "sameProcessRecovery": true,
+    "foregroundMainAudioPosition": "2:07 / 3:19",
+    "nowPlayingCardVisible": false,
+    "decorationRecovery": "failed",
+    "oldNonzeroRestoration": {
+      "status": "failed",
+      "targetMs": 31352,
+      "actualMs": 31352,
+      "advancing": 0,
+      "durationSec": 8.007
+    },
+    "notPhysicalDeviceAcceptance": true,
+    "notSecondNativeAudibleSynchronizationAcceptance": true,
+    "historical": true
+  },
+  "simulatorDebugBuildsSuccessful": 16,
+  "deviceArm64ReleaseBuildsSuccessful": 2,
+  "deviceIpa": {
+    "evidence": "../ios-device-ipa-27-2026-10-22.json",
+    "path": "/Users/chuzu/Downloads/ZViewer-ios/deliverables/ZViewer-1.9.0-27-20261022-unsigned.ipa",
+    "bytes": 49276344,
+    "sha256": "50d2fefce399827831e52cf20a6c4a0ca077e02f71f085a1efc031c3804c6671",
+    "version": "1.9.0",
+    "build": "27",
+    "bundleIdentifier": "com.zviewer.mobile",
+    "minimumIOS": "16.4",
+    "deviceFamily": [
+      "iPhone",
+      "iPad"
+    ],
+    "architecture": "arm64",
+    "machoPlatform": 2,
+    "platform": "IOS",
+    "configuration": "Release",
+    "unsigned": true,
+    "embeddedProfilePresent": false,
+    "offlineHermesBytes": 6622435,
+    "nativeDebugSecretsChecks": "passed",
+    "userExplicitlyRequested": true,
+    "deliveredToUser": true,
+    "userSelfSigning": true,
+    "physicalInstallationStatus": "PENDING_USER_SELF_SIGN_AND_DEVICE_TEST",
+    "physicalFunctionalityAccepted": false,
+    "newPublicReleasePublished": false,
+    "easStarted": false,
+    "physicalModelOsDurationProvided": false,
+    "independentlyObservedByAgent": false,
+    "old26Preserved": true,
+    "pushPerformed": false,
+    "packageFactsSource": "Build-time inspection evidence; documentation update reuses recorded digest rather than recalculating the IPA."
+  },
+  "devicePrepareHelper": {
+    "explicitSystemGoOptIn": true,
+    "exactGoVersion": "1.27.1",
+    "executedSuccessfully": true,
+    "notAdditionalApplicationTests": true,
+    "defaultDownloadAndDigestPathRetained": true
+  },
+  "productionCheckpointScope": "Delivered IPA26 source checkpoint; build16/IPA27 follow-up local commit remains parent task responsibility.",
+  "historicalDeviceIpa26": {
+    "evidence": "../ios-device-ipa-2026-10-22.json",
+    "path": "/Users/chuzu/Downloads/ZViewer-ios/deliverables/ZViewer-1.9.0-26-20261022-unsigned.ipa",
+    "bytes": 49248343,
+    "sha256": "ada5987e6de3c4539508526c73d58dde9866f3e48dce1e831119264a50422165",
+    "version": "1.9.0",
+    "build": "26",
+    "bundleIdentifier": "com.zviewer.mobile",
+    "minimumIOS": "16.4",
+    "deviceFamily": [
+      "iPhone",
+      "iPad"
+    ],
+    "architecture": "arm64",
+    "machoPlatform": 2,
+    "platform": "IOS",
+    "configuration": "Release",
+    "unsigned": true,
+    "embeddedProfilePresent": false,
+    "offlineHermesBytes": 6589210,
+    "nativeDebugSecretsChecks": "passed",
+    "userExplicitlyRequested": true,
+    "deliveredToUser": true,
+    "userSelfSigning": true,
+    "physicalInstallationStatus": "USER_REPORTED_INSTALLED_AND_LAUNCHED",
+    "physicalFunctionalityAccepted": "USER_REPORTED_LISTEN_TOGETHER_AND_NATIVE_MUSIC_CONTROLS_ONLY",
+    "newPublicReleasePublished": false,
+    "easStarted": false,
+    "independentlyCheckedSizeSha256InfoPlistOfflineBundle": true,
+    "physicalModelOsDurationProvided": false,
+    "independentlyObservedByAgent": false,
+    "notAcceptanceOfNewBuild27": true
+  },
+  "certificateException": {
+    "nativeBuild": 16,
+    "evidence": "server-certificate-build16.json",
+    "actualSyntheticNativeChecksPassed": 23,
+    "defaultStrict": true,
+    "exactCanonicalOrigin": true,
+    "foreignPortAndHostnameStrict": true,
+    "independentVoiceStrict": true,
+    "revokeClosesActiveHttpAndWebSocket": true,
+    "reactNativeEngineIoWebSocket": true,
+    "nativeDecodedMediaAccepted": false,
+    "physicalDeviceAccepted": false
+  },
+  "feedbackBuild16": {
+    "evidence": "feedback-build16.json",
+    "screenshots": [
+      "20",
+      "21",
+      "22",
+      "23",
+      "24",
+      "25",
+      "26",
+      "27",
+      "28"
+    ],
+    "phoneGuiScopedPassed": [
+      "Casting portrait bottom chat and landscape right chat",
+      "Manual fullscreen hides chat and restores draft on exit",
+      "Music settings first control is NCM quality",
+      "Music room discussion right drawer, keyboard avoidance and close/reopen after actual send",
+      "More below in portrait; actual-content-height above with8pt gap when landscape bottom is insufficient"
+    ],
+    "ipadGuiAccepted": "SCOPED_PORTRAIT_MORE_AND_CONNECTION_DEFAULT_OFF_ONLY",
+    "biliAutoTrackTestsPassed": 23,
+    "biliAutoTrackNativeClosedLoopAccepted": false,
+    "nasRuntimeInvestigation": "Old dedicated room Node numeric movie75 succeeds while phone same numeric ID is rejected with matching room/movieID. New iPad room created through actual GUI, direct host registration and REST78/79/80, then GUI play78 also rejected. Root cause unresolved; cache, permission, cookie and debug asHost0 are not established diagnoses. No new Bili auto-track native pass claimed. Actual iPad NAS WebSocket origin/path and connected state verified; read-only request-movie-list returns movies:[], immediately followed by same-room REST IDs78/79/80. This is a direct native Socket/REST list discrepancy, not an established multiworker/cache/auth diagnosis.",
+    "ipadLandscapeAccepted": false,
+    "nativeDrawerSwipeAccepted": false,
+    "nativeRuntimeListComparison": {
+      "atUTC": "2026-10-22T13:47:00.697570+00:00",
+      "roomId": "jEhjLMJs",
+      "restMovieIds": [
+        78,
+        79,
+        80
+      ],
+      "nativeSocketMovieIds": [],
+      "nativeSocketConnected": true,
+      "nativeEndpointOriginAndSocketPathMatchSelectedNas": true,
+      "query": "request-movie-list",
+      "responseObservedFromActualNativeConnection": true,
+      "serverConfigurationChanged": false,
+      "rootCauseEstablished": false
+    }
+  }
+}

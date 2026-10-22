@@ -1,0 +1,153 @@
+{
+  "at": "2026-10-22T09:50:03.738Z",
+  "authUserId": 1,
+  "songId": 371362,
+  "probes": [
+    {
+      "kind": "status",
+      "http": 200,
+      "loggedIn": true,
+      "vipStatus": null,
+      "hasProfile": true
+    },
+    {
+      "kind": "search",
+      "http": 200,
+      "code": 200,
+      "songs": [
+        {
+          "id": 371362,
+          "name": "小跳蛙",
+          "artist": "青蛙乐队",
+          "fee": 8,
+          "durationMs": 149106
+        },
+        {
+          "id": 1875993690,
+          "name": "小跳蛙",
+          "artist": "青蛙乐队",
+          "fee": 1,
+          "durationMs": 149106
+        },
+        {
+          "id": 3416803197,
+          "name": "小跳蛙 (Single Version)",
+          "artist": "青蛙乐队",
+          "fee": 8,
+          "durationMs": 125936
+        }
+      ]
+    },
+    {
+      "kind": "recommend",
+      "http": 200,
+      "code": 200,
+      "count": 3
+    },
+    {
+      "kind": "newsong",
+      "http": 200,
+      "code": 200,
+      "count": 3
+    },
+    {
+      "kind": "details",
+      "http": 200,
+      "code": 200,
+      "songs": [
+        {
+          "songId": 371362,
+          "name": "小跳蛙",
+          "artist": "青蛙乐队",
+          "album": "我们爱音乐(首唱会赠送版)",
+          "durationMs": 149106,
+          "fee": 8,
+          "vip": false,
+          "coverPresent": true
+        }
+      ]
+    },
+    {
+      "kind": "url-v1",
+      "http": 404,
+      "code": 404,
+      "urlPresent": false,
+      "trial": false
+    },
+    {
+      "kind": "url-legacy",
+      "http": 200,
+      "code": 200,
+      "urlPresent": true,
+      "trial": false,
+      "durationMs": 149106,
+      "format": "mp3",
+      "bitrate": 128002,
+      "fee": 8
+    },
+    {
+      "kind": "quality",
+      "http": 200,
+      "success": true,
+      "level": "standard",
+      "type": "mp3",
+      "sr": 44100,
+      "br": 128002
+    },
+    {
+      "kind": "lyrics",
+      "http": 200,
+      "code": 200,
+      "lyricChars": 842,
+      "translationChars": 0,
+      "romanChars": 0,
+      "pureMusic": false
+    },
+    {
+      "kind": "comments",
+      "http": 200,
+      "code": 200,
+      "count": 154625,
+      "items": 2,
+      "more": true,
+      "firstCommentId": 9669433120
+    }
+  ],
+  "streamRangeProbe": {
+    "at": "2026-10-22T09:51:15.354Z",
+    "songId": 371362,
+    "requestedLevel": "standard",
+    "http": 206,
+    "contentType": "audio/mpeg; charset=UTF-8",
+    "contentRange": "bytes 0-1023/2386591",
+    "observedBytes": 718
+  },
+  "scope": "Read-only NAS API probe using authenticated user 1 with loggedIn=true; not native audio playback, lyrics layout, queue UI, or comments UI acceptance.",
+  "formatNote": "NCM fee=8 permits the observed full standard MP3 stream; this is not fee=1 VIP-only. Do not infer higher-quality entitlement.",
+  "privacy": "No account nickname, cookie, token, signed audio URL, lyrics text, comment text, or media payload saved.",
+  "commentPaginationProbe": [
+    {
+      "kind": "comment-page-1",
+      "http": 200,
+      "code": 200,
+      "total": 154625,
+      "items": 30,
+      "more": true
+    },
+    {
+      "kind": "comment-page-2",
+      "http": 200,
+      "code": 200,
+      "total": 154625,
+      "items": 30,
+      "more": true
+    },
+    {
+      "kind": "comment-floor",
+      "http": 200,
+      "code": 200,
+      "items": 0,
+      "more": false
+    }
+  ]
+}

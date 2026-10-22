@@ -1,0 +1,103 @@
+{
+  "date": "2026-10-22",
+  "simulatorDebugBuild": 16,
+  "deviceReleaseBuild": 27,
+  "simulatorDebugBuildsSuccessful": 16,
+  "deviceReleaseBuildsSuccessful": 2,
+  "applicationCheck": {
+    "run": 20,
+    "passed": 409
+  },
+  "physicalUserReport": {
+    "testedBuild": 26,
+    "installationAndLaunchReported": true,
+    "listenTogetherAndNativeControlsReportedNormal": true,
+    "independentlyObservedByAgent": false,
+    "deviceDetailsProvided": false
+  },
+  "certificate": {
+    "uiOptionDefaultOffObservedOnIPad": true,
+    "syntheticNativeTransportEvidence": "server-certificate-build16.json",
+    "nativeTransportChecksPassed": 23,
+    "decodedMediaAcceptance": false
+  },
+  "casting": {
+    "phonePortraitChatBelow": true,
+    "phoneLandscapeChatRight": true,
+    "manualFullscreenHidesChat": true,
+    "draftPreserved": true,
+    "mediaTransportRepeated": false
+  },
+  "musicUi": {
+    "defaultPageSelectorRemoved": true,
+    "musicLibraryPreserved": true,
+    "rightSideDrawerObserved": true,
+    "portraitAndLandscapeObserved": true,
+    "keyboardAvoidanceObserved": true,
+    "messageSentAndPreservedAfterReopen": true,
+    "nativeSwipeExecuted": false,
+    "playbackLifecycleChanged": false
+  },
+  "moreMenu": {
+    "phonePortraitBelowButtonObserved": true,
+    "iPadPortraitBelowButtonObserved": true,
+    "phoneInsufficientBottomSpaceAttachedAbove": true,
+    "iPadLandscapeAccepted": false
+  },
+  "bilibili": {
+    "automaticTrackAndIsolationImplemented": true,
+    "relatedTestsPassed": 23,
+    "nativeSwitchAcceptance": "BLOCKED_NOT_ACCEPTED",
+    "nativeGuiDirectCreationAlsoRejected": true,
+    "nativeAck": {
+      "success": false,
+      "message": "影片不存在"
+    },
+    "nodeNumericPlayControlSucceeded": true,
+    "nodeMovieIdsWereNumbers": true,
+    "rootCauseEstablished": false,
+    "addedDuplicateMovies": false,
+    "materials": [
+      {
+        "bvid": "BV19E411D78Q",
+        "page": 1,
+        "cid": 1475633911,
+        "nasDanmakuItems": 1200
+      },
+      {
+        "bvid": "BV19E411D78Q",
+        "page": 2,
+        "cid": 1475635389,
+        "nasDanmakuItems": 2623
+      }
+    ],
+    "nativeRuntimeListComparison": {
+      "atUTC": "2026-10-22T13:47:00.697570+00:00",
+      "roomId": "jEhjLMJs",
+      "restMovieIds": [
+        78,
+        79,
+        80
+      ],
+      "nativeSocketMovieIds": [],
+      "nativeSocketConnected": true,
+      "nativeEndpointOriginAndSocketPathMatchSelectedNas": true,
+      "query": "request-movie-list",
+      "responseObservedFromActualNativeConnection": true,
+      "serverConfigurationChanged": false,
+      "rootCauseEstablished": false
+    }
+  },
+  "screenshots": [
+    "20-casting-portrait-chat.png",
+    "21-casting-landscape-chat.png",
+    "22-music-settings.png",
+    "23-music-discussion-keyboard.png",
+    "24-music-discussion-portrait.png",
+    "25-watch-more-below.png",
+    "26-ipad-server-certificate.png",
+    "27-ipad-watch-more-below.png",
+    "28-ipad-empty-nas-runtime-list.png"
+  ],
+  "all609RequirementsAccepted": false
+}

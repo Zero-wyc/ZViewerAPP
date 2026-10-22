@@ -1,0 +1,12 @@
+{
+  "test": "Native iPad WebRTC receive after NAS auth cookie isolation",
+  "date": "2026-10-22",
+  "device": "iPad Pro 11-inch (M5), iPadOS 26.5 Simulator",
+  "nativeDebugBuildRound": 9,
+  "samples": [
+    { "sample": 1, "videoBytesReceived": 143220, "audioBytesReceived": 25587, "framesDecoded": 91, "width": 480, "height": 270 },
+    { "sample": 2, "videoBytesReceived": 325661, "audioBytesReceived": 45837, "framesDecoded": 166, "width": 640, "height": 360 },
+    { "sample": 3, "videoBytesReceived": 617592, "audioBytesReceived": 66087, "framesDecoded": 241, "width": 960, "height": 540 }
+  ],
+  "scope": "Native receive counters and actual portrait video observed after successful NAS admission. Counters do not establish audio listening quality, AV sync, sustained decode frame rate, physical-device performance, or Android/HarmonyOS interoperability. No network addresses or session identifiers are included."
+}
