@@ -4,7 +4,7 @@
 
 ## 当前状态与范围
 
-- Android 当前发行目标为 **2.1.10 / versionCode 220**，修复内网 HTTP 登录及 IP:端口自动识别。HTTP / 自签名 HTTPS 的自动模式、证书例外、登录与实际进房验证见 [2.1.10 验证记录](lan-connection-fix-20261022.md)。上一公开版本 2.1.9 的媒体与源解析证据保留在 [历史记录](client-2.1.9-validation.md)。
+- Android 当前发行版本为 **2.1.10 / versionCode 220**，修复内网 HTTP 登录及 IP:端口自动识别。HTTP / 自签名 HTTPS 的自动模式、证书例外、登录与实际进房验证见 [2.1.10 验证记录](lan-connection-fix-20261022.md)。上一公开版本 2.1.9 的媒体与源解析证据保留在 [历史记录](client-2.1.9-validation.md)。
 - 客户端修改、Git 提交均在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。`ZViewer-source code` 是本地服务端目录，不在其中改客户端。
 - Android 与 HarmonyOS 共用根目录 React/Vite 界面，但原生宿主不同；iOS 是 `ZV-iOS` 中独立的 Expo/React Native 工程。三端实现和验收不能互相替代。
 
@@ -14,7 +14,7 @@
 
 修复“地址探测成功，但游客/账号登录提示无法连接服务器”。旧版 `probe()` 在 WebView 请求失败后可由原生探测判定地址可用，而登录与后续 REST/Socket 仍直接访问内网 HTTP；两条请求路径可能产生不同结果。`native/bilicore/mobile/server_connection.go` 现在为 HTTP 地址也创建仅绑定当前服务器的随机回环通道，统一承载公开设置、登录 POST、Cookie、REST、Socket.IO/WebSocket 与流式/Range 请求；HTTPS 仍按既有证书策略处理。`connectionTransport.ts` 补齐明文 `ws:` 映射，保存与广播继续使用逻辑服务器地址。空地址且关闭证书例外表示关闭原生通道，切服、断开会清理连接与 Cookie。
 
-共享 `serverConnection.ts` 对证书例外通道返回的 502 追加原始地址的无凭据原生诊断，仅在确认 TLS/端口不可用时继续 HTTP 候选；真实后端 502、401/403、证书错误，以及没有有效 HTTP 公开接口证据的网络错误，不会触发自动降级。`App.tsx` 登录复用刚确认的地址和通道，修改地址、模式或证书选项时清除选择，避免登录时重新探测协议和重开通道。问题证据、双端运行验证及本地安装包见 [内网连接修复验证](lan-connection-fix-20261022.md)。本次统一版本为 2.1.10 / 220，安装包位于 `release/client-v2.1.10/`。
+共享 `serverConnection.ts` 对证书例外通道返回的 502 追加原始地址的无凭据原生诊断，仅在确认 TLS/端口不可用时继续 HTTP 候选；真实后端 502、401/403、证书错误，以及没有有效 HTTP 公开接口证据的网络错误，不会触发自动降级。`App.tsx` 登录复用刚确认的地址和通道，修改地址、模式或证书选项时清除选择，避免登录时重新探测协议和重开通道。问题证据、双端运行验证及本地安装包见 [内网连接修复验证](lan-connection-fix-20261022.md)。本次统一版本为 2.1.10 / 220，正式安装包已发布，构建记录位于 `release/client-v2.1.10/`。
 
 ### 2.1.9 / 219：对齐服务端 v4.7.4 与最终播放设置（2026-10-22）
 

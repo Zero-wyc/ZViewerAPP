@@ -1,6 +1,6 @@
 # ZViewer Mobile Client
 
-**Android / HarmonyOS 2.1.10 / 220**：修复内网 HTTP 地址已识别却无法登录，以及自动模式开启证书例外后误报 502。HTTP 登录、接口和房间连接统一使用当前服务器专用的原生通道；纯 IP:端口可自动识别 HTTP / HTTPS。正式签名安装包已构建，最终包检查与发布状态见 [2.1.10 验证记录](docs/lan-connection-fix-20261022.md)。
+**Android / HarmonyOS 2.1.10 / 220**：修复内网 HTTP 地址已识别却无法登录，以及自动模式开启证书例外后误报 502。HTTP 登录、接口和房间连接统一使用当前服务器专用的原生通道；纯 IP:端口可自动识别 HTTP / HTTPS。正式签名安装包已发布，最终包检查与发布状态见 [2.1.10 验证记录](docs/lan-connection-fix-20261022.md)。
 
 此前公开版本为 **2.1.9 / 219**，本版保留其服务端 v4.7.4 对齐、播放设置、源解析同步、B站与语音修复。既有播放验证见 [2.1.9 记录](docs/client-2.1.9-validation.md)。
 
@@ -14,14 +14,14 @@
 
 ## 2.1.10 发行状态
 
-当前 Android/HarmonyOS 发行目标为 **2.1.10 / 220**。按验收标准，本地从真实服务端源码启动 HTTP 与自签名 HTTPS；安卓、鸿蒙在自动模式勾选证书例外、仅输入 IP:端口，均完成登录、Socket.IO 连接和实际进房。两端同时在线时服务端报告房主在线、观众 1 人。发行说明见 [2.1.10](docs/releases/client-2.1.10.md)，原生运行、正式包静态检查与真机边界见 [交付验证](docs/lan-connection-fix-20261022.md)。发布状态待最终确认。
+当前 Android/HarmonyOS 发行版本为 **2.1.10 / 220**。按验收标准，本地从真实服务端源码启动 HTTP 与自签名 HTTPS；安卓、鸿蒙在自动模式勾选证书例外、仅输入 IP:端口，均完成登录、Socket.IO 连接和实际进房。两端同时在线时服务端报告房主在线、观众 1 人。发行说明见 [2.1.10](docs/releases/client-2.1.10.md)，原生运行、正式包静态检查与真机边界见 [交付验证](docs/lan-connection-fix-20261022.md)。源码、标签、APK、HAP 与校验文件已发布为 GitHub Latest 正式版本。
 
 ## 发行版本与三端状态
 
 | 平台 | 版本 | 交付和目前状态 |
 | --- | --- | --- |
-| Android | **2.1.10 / 220** | 正式签名 APK 已构建；内网连接与进房验证见验证记录。 |
-| HarmonyOS | **2.1.10 / 220** | 正式签名 HAP 已构建；最低 SDK 6.1.0(23)，内网连接与进房验证见验证记录。 |
+| Android | **2.1.10 / 220** | 正式签名 APK 已发布；内网连接与进房验证见验证记录。 |
+| HarmonyOS | **2.1.10 / 220** | 正式签名 HAP 已发布；最低 SDK 6.1.0(23)，内网连接与进房验证见验证记录。 |
 | iOS | **1.9.0 / build 26** | 未签名设备 Release IPA，需个人签名后侧载；自动检查和模拟器覆盖范围、真实媒体与后台限制见 iOS 维护文档。 |
 
 [ZViewer-Client V2.1.10](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.10) 的发行资产为 Android APK、HarmonyOS HAP 与构建时生成的 `SHA256SUMS.txt`；源码按 main 与标签发布，使用 GitHub 自动源码归档。每个最终包只在构建完成时计算一次 SHA-256，发布复用记录。iOS 保持在 [1.9.0 / build 26](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0)，本轮不构建或发布 IPA。

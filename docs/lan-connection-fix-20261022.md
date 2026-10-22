@@ -62,10 +62,12 @@ HTTPS 使用服务端自身生成、包含测试 IP 的自签证书；开启当�
 
 本机忽略证据位于 `.ui-validation/lan-connection-20261022/`：最终 `local-native-results.json`、四张协议/宿主进房截图、`native-results.json`、`certificate-scope.json`、版本记录、构建与包检查日志。真实服务端编译与隔离数据位于工作区 `tools/lan-connection-20261022/`；测试身份、签名配置、证书私钥和 Agents.md 不进入发行源码。
 
+测试后已关闭两个真实服务端、原生回环通道、调试转发及本轮启动的模拟器；应用原存储、导航和模拟器配置已恢复，清理记录保存在同一忽略证据目录。
+
 ## 范围与发布状态
 
 本轮完成最终 220 Debug 包的真实 Android WebView / HarmonyOS ArkWeb 模拟器进房验收，以及正式签名 Release 包静态检查。用户实体手机，尤其 HarmonyOS API 23 实机的网络策略仍需安装后复测；未将本次连接验收扩大为所有实体设备、媒体播放或语音验收。iOS 不修改、不构建、不发布。
 
-源码与正式 Release 发布待最终确认。发行目标为 main / `client-v2.1.10`，标题 **ZViewer-Client V2.1.10**，发行资产仅 APK、HAP、`SHA256SUMS.txt`，使用 GitHub 自动源码归档。
+源码提交 `61a79b14022e5e8df1def8f139e878651e4bbf4e` 已推送 main，`client-v2.1.10` 指向该构建源码。正式 Release **ZViewer-Client V2.1.10** 于 2026-10-22 18:45:12（Asia/Shanghai）发布，Release ID 为 420596558。GitHub API 确认 draft=false、prerelease=false、Latest=client-v2.1.10，APK、HAP、`SHA256SUMS.txt` 三项资产均为 uploaded，大小及服务端摘要与构建记录一致；发布复用已保存摘要。使用 GitHub 自动源码归档。发布元数据位于本机忽略目录 `release/client-v2.1.10/published-release.json`。
 
-发行说明：[2.1.10](releases/client-2.1.10.md)。目标 Release：[client-v2.1.10](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.10)。
+发行说明：[2.1.10](releases/client-2.1.10.md)。正式 Release：[client-v2.1.10](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.10)。
