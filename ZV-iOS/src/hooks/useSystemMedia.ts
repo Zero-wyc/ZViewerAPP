@@ -2,7 +2,7 @@ import { useEffect, useRef, useId, useCallback } from 'react';
 import { AppState } from 'react-native';
 import { nativeBridge, type SystemMediaState } from '@/lib/nativeBridge';
 import type { VlcPlayer } from '@/lib/vlcPlayer';
-type SystemMetadata = Omit<SystemMediaState, 'sessionId' | 'position' | 'duration' | 'playing' | 'playbackRate' | 'uri'> & { sourceIdentity?: string } | null;
+type SystemMetadata = Omit<SystemMediaState, 'sessionId' | 'position' | 'duration' | 'playing' | 'playbackRate' | 'uri' | 'ownerId' | 'inputRevision'> & { sourceIdentity?: string } | null;
 export function useSystemMedia(player: VlcPlayer, state: SystemMetadata, command: (action: string, value?: number) => void) {
   const id = useId();
   const enabled = state !== null;
@@ -10,7 +10,7 @@ export function useSystemMedia(player: VlcPlayer, state: SystemMetadata, command
   useEffect(() => { latest.current = { state, command }; }, [state, command]);
   const publish = useCallback(() => {
       const value = latest.current.state; if (!value) return;
-      void nativeBridge?.mediaUpdate(JSON.stringify({ ...value, sessionId: id, uri: !value.sourceIdentity || value.sourceIdentity === player.sourceIdentity ? player.sourceUri : '', playing: (!value.sourceIdentity || value.sourceIdentity === player.sourceIdentity) && player.playing, position: !value.sourceIdentity || value.sourceIdentity === player.sourceIdentity ? player.currentTime : 0, duration: !value.sourceIdentity || value.sourceIdentity === player.sourceIdentity ? player.duration : 0, playbackRate: player.playbackRate })).catch(() => {});
+      void nativeBridge?.mediaUpdate(JSON.stringify({ ...value, sessionId: id, ownerId: player.nativeOwnerId, inputRevision: player.sourceRevision, uri: !value.sourceIdentity || value.sourceIdentity === player.sourceIdentity ? player.sourceUri : '', playing: (!value.sourceIdentity || value.sourceIdentity === player.sourceIdentity) && player.playing, position: !value.sourceIdentity || value.sourceIdentity === player.sourceIdentity ? player.currentTime : 0, duration: !value.sourceIdentity || value.sourceIdentity === player.sourceIdentity ? player.duration : 0, playbackRate: player.playbackRate })).catch(() => {});
   }, [id, player]);
   const setMetadata = useCallback((next: SystemMetadata) => { latest.current.state = next; if (next) publish(); else void nativeBridge?.mediaClear(id).catch(() => {}); }, [id, publish]);
   useEffect(() => {

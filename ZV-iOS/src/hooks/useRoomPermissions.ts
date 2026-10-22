@@ -16,5 +16,5 @@ export function useRoomPermissions(roomId: string, host: boolean) {
   const currentMatrix = matrix?.scope === scope ? matrix.value : null;
   const moderator = moderators?.scope === scope && moderators.ids.includes(session?.user.id ?? -1);
   // Until settings arrive, only unconditional roles are exposed.
-  return { canSwitch: host || session?.user.role === 'root' || matrix?.scope === scope && canRoomAction(currentMatrix, 'manageMovie', session?.user.role, host, !!moderator) };
+  return { canAdd: host || session?.user.role === 'root' || matrix?.scope === scope && canRoomAction(currentMatrix, 'addMovie', session?.user.role, host, !!moderator), canSwitch: host || session?.user.role === 'root' || matrix?.scope === scope && canRoomAction(currentMatrix, 'manageMovie', session?.user.role, host, !!moderator), canQueue: host || session?.user.role === 'root' || matrix?.scope === scope && canRoomAction(currentMatrix, 'musicQueue', session?.user.role, host, !!moderator) };
 }
