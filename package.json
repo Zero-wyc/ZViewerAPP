@@ -1,6 +1,6 @@
 {
   "name": "zviewer-client",
-  "version": "4.1.9",
+  "version": "2.1.9",
   "private": true,
   "type": "module",
   "scripts": {
