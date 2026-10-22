@@ -1,6 +1,6 @@
-# Android / HarmonyOS 4.1.9 / 419 验证记录
+# Android / HarmonyOS 2.1.9 / 219 验证记录
 
-日期：2026-10-22（Asia/Shanghai）。状态：**最终双端 Debug 模拟器界面与 HLS 双向播放复核通过；正式签名 Release 的签名、资源及版本检查通过，尚未发布**。最终版本为 4.1.9 / 419，此前公开版本为 2.1.7 / 217；历史本地运行证据见 [2.1.8 记录](client-2.1.8-validation.md)。
+日期：2026-10-22（Asia/Shanghai）。状态：**最终 2.1.9 / 219 双端 Debug 模拟器界面复核通过，正式签名 Release 的签名、资源及版本检查通过，尚未发布**。同一播放代码的 HLS 双向互测在此前误填版本 4.1.9 / 419 的 Debug 包完成，以下单独记录，不作为 219 包重新执行 HLS 的证明。此前公开版本为 2.1.7 / 217；历史本地运行证据见 [2.1.8 记录](client-2.1.8-validation.md)。
 
 客户端修改和 Git 操作均在指定 `ZViewer-client` 仓库。服务端固定基线为 `e3af086c7bd98ee0d4697386b69678f92ea54d81`（v4.7.4），客户端公开基线为 `5e829a491d3bd0612fb48c5294ae463312f8c066`（2.1.7）。本轮不修改 NAS 或服务端部署；iOS 不修改、不构建、不发布。
 
@@ -41,14 +41,14 @@ B01 移动端手动 HDR/音乐背景 HDR 后置，保留 HDR/Dolby 过滤；B02 
 | node vendor/local-patches.mjs --check | 6 / 6 补丁在位 |
 | TypeScript / Vite | android:sync、harmony:web 内构建通过 |
 | Android Go AAR | 修改后的 ARM64 / x86_64 产物已重建 |
-| Gradle Debug / 正式签名 Release | 最终 4.1.9 / 419 构建通过 |
-| Hvigor Debug / 正式签名 Release | 最终 4.1.9 / 419 构建通过 |
+| Gradle Debug / 正式签名 Release | 最终 2.1.9 / 219 构建通过 |
+| Hvigor Debug / 正式签名 Release | 最终 2.1.9 / 219 构建通过 |
 
 行为用例覆盖最小写入、HTTP/Socket 双向顺序、缺 Movie 兼容、迟到片单与 GET、重复操作、403/超时权威刷新、旧房间/服务器取消、同 URL 策略一次 attach、进度/倍速/暂停保持及失败正确暂停。源解析用例验证旧 Kazumi、占位 URL 拒绝、源站头、两个中转方向、LAN/公网与路径前缀，以及第三方媒体不接收 ZViewer token。B站请求测试截获实际 Go/ArkTS 参数，解码预检与语音监看有独立行为回归。接口夹具通过不扩大为线上源站或真机能力验收。
 
-## 最终 419 Debug 宿主复核
+## 最终 219 Debug 宿主复核
 
-最终 4.1.9 / 419 Debug APK / 签名 Debug HAP 已在 Android API 37 与 HarmonyOS API 26 模拟器的实际打包页面完成界面复核；页面 origin 分别为 `https://localhost` 与 `https://zviewer.local`，没有导航到 Vite 或替换产品组件。双端关闭/选中截图已目视检查，添加区两张原说明 Switch 卡保留，胶囊文字与图标对齐、选中实色/勾号、状态切换与无横向溢出符合要求。
+最终 2.1.9 / 219 Debug APK / 签名 Debug HAP 已在 Android API 37 与 HarmonyOS API 26 模拟器的实际打包页面完成界面复核；页面 origin 分别为 `https://localhost` 与 `https://zviewer.local`，没有导航到 Vite 或替换产品组件。双端关闭/选中截图已目视检查，添加区两张原说明 Switch 卡保留，胶囊文字与图标对齐、选中实色/勾号、状态切换与无横向溢出符合要求。
 
 | 最终宿主界面检查 | Android | HarmonyOS |
 | --- | --- | --- |
@@ -59,36 +59,44 @@ B01 移动端手动 HDR/音乐背景 HDR 后置，保留 HDR/Dolby 过滤；B02 
 | 原添加说明卡、选中实色与勾号、无横溢出 | 通过 | 通过 |
 | 减少动态效果 | 实际 0.01ms | 实际 0.01ms |
 
-证据位于 `.ui-validation/release-419/native/`：`android-geometry.json`、`harmony-geometry.json` 和两端对应的 `selected-preview`、`unchecked-preview`、`original-draft-cards.png`。此处为最终 Debug 宿主界面证据，正式签名 Release 仍只计入下节静态验包。
+正确版本的证据位于 `.ui-validation/release-219/native/`：`summary.json`、`android-geometry.json`、`harmony-geometry.json`、两端版本记录和对应的 `selected-preview`、`unchecked-preview`、`original-draft-cards.png`。本项确认实际安装的 Android versionName=2.1.9-debug / code219、HarmonyOS versionName=2.1.9 / code219；正式签名 Release 仍只计入下节静态验包。
 
-最终 419 包同时通过本地 H264/AAC HLS 解码与四种运行中策略切换，分别由 Android、HarmonyOS 充当房主并以另一端为观众。每次切换后双端保持 10 秒、暂停、1.5 倍速，恢复后进度和实际解码帧继续增长：
+219 复核后的原存储与导航已恢复，模拟器配置按原字节还原，测试服务和调试转发全部停止；恢复证据为同目录 `cleanup-results.json`。
 
-| 最终 419 播放场景 | Android 房主 → HarmonyOS 观众 | HarmonyOS 房主 → Android 观众 |
+### 同代码播放互测：4.1.9 / 419 历史 Debug 包
+
+本轮版本元数据更正前，误填为 4.1.9 / 419 的 Debug 包通过本地 H264/AAC HLS 解码与四种运行中策略切换，分别由 Android、HarmonyOS 充当房主并以另一端为观众。更正为 2.1.9 / 219 时仅修改版本元数据，UI 与播放逻辑相同；正确 219 包已另行重建并执行上方原生界面轻量复核。本表实际运行包为 419，不能表述为 219 完整播放重测。
+
+每次切换后双端保持 10 秒、暂停、1.5 倍速，恢复后进度和实际解码帧继续增长：
+
+| 同代码 419 Debug 播放场景 | Android 房主 → HarmonyOS 观众 | HarmonyOS 房主 → Android 观众 |
 | --- | --- | --- |
 | 中转/转码四种组合切换 | 通过 | 通过 |
 | 每次切换后的 10 秒 / paused / 1.5x | 双端保持 | 双端保持 |
 | 恢复后实际解码帧 | 房主 36、观众 40，持续增长 | 房主 54、观众 38，持续增长 |
 
-最终运行汇总见 `.ui-validation/release-419/native/summary.json`。本项使用隔离的真实本地房间/API/Socket 与 HLS 媒体环境，不扩大为线上源站或真实设备验收；正式 Release 包的静态检查另列如下。测试环境恢复与临时服务清理已完成。
+历史运行汇总见 `.ui-validation/release-419/native/summary.json`。本项使用隔离的真实本地房间/API/Socket 与 HLS 媒体环境，不扩大为线上源站或真实设备验收；正确 219 Release 包的静态检查另列如下。测试环境恢复与临时服务清理已完成。
 
-早期 218 亦完成双向房主/观众 HLS 互测，具体夹具问题、诊断和原有测试范围见历史记录；上表已使用最终 419 Debug 宿主重新验证，不复用 218 安装记录作为最终复装证明。
+早期 218 亦完成双向房主/观众 HLS 互测，具体夹具问题、诊断和原有测试范围见历史记录；218、419 和正确 219 的安装及测试范围分别登记。
 
 ## 最终安装包与静态检查
 
-目录：`release/client-v4.1.9/`。
+目录：`release/client-v2.1.9/`。
 
 | 资产 | 大小与版本 | 静态检查 |
 | --- | --- | --- |
-| `ZViewer-Android-4.1.9-release.apk` | 76,761,777 字节；4.1.9 / 419 | apksigner v2 通过；33 个网页资源与最终同步目录逐字节一致 |
-| `ZViewer-HarmonyOS-4.1.9-release.hap` | 14,303,786 字节；4.1.9 / 419，release profile | hap-sign-tool verify-app 通过；31 个网页资源与最终同步目录逐字节一致 |
+| `ZViewer-Android-2.1.9-release.apk` | 76,761,773 字节；2.1.9 / 219 | apksigner v2 通过，aapt 确认版本；33 个网页资源与最终同步目录逐字节一致 |
+| `ZViewer-HarmonyOS-2.1.9-release.hap` | 14,303,786 字节；2.1.9 / 219，debug=false | hap-sign-tool verify-app 通过；module.json 确认版本；31 个网页资源与最终同步目录逐字节一致 |
 | `SHA256SUMS.txt` | 构建完成时分别计算一次 SHA-256 | 后续交付和发布复用，不重复计算或为发布重新构建 |
 
 正式签名 Release 静态验包、Debug 原生宿主运行和真实设备验收分开记录；签名及资源一致不表示已完成正式包实体设备安装/播放验收。签名材料、本机配置、Agents.md、测试身份及缓存不进入公开源码。
+
+正确包的版本/签名/资源检查日志位于 `.ui-validation/release-219/`，SHA 与包元数据记录为 `release/client-v2.1.9/SHA256SUMS.txt`、`package-metadata.json`；每个最终包摘要只计算一次。
 
 ## 未覆盖与发布状态
 
 真实双设备语音、局域网 UDP/公网 TCP/TURN 选路、移动硬件 HDR 显示、HarmonyOS API 23 实体设备和全部设备硬件解码仍未验收。本轮不构建或发布 iOS，也不以浏览器、模拟器或能力声明替代真机结论。
 
-发行目标为 main / `client-v4.1.9`，标题 **ZViewer-Client V4.1.9**，资产仅 Android APK、HarmonyOS HAP、`SHA256SUMS.txt`；不另打源码压缩包。源码与包审查无阻断项。最终提交/标签、远端上传及发布确认尚未完成，当前状态为“尚未发布”。
+发行目标为 main / `client-v2.1.9`，标题 **ZViewer-Client V2.1.9**，资产仅 Android APK、HarmonyOS HAP、`SHA256SUMS.txt`；不另打源码压缩包。源码与包审查无阻断项。最终提交/标签、远端上传及发布确认尚未完成，当前状态为“尚未发布”。
 
-发行说明：[4.1.9](releases/client-4.1.9.md)。目标 Release：[client-v4.1.9](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v4.1.9)；目标链接本身不作为发布成功证明。
+发行说明：[2.1.9](releases/client-2.1.9.md)。目标 Release：[client-v2.1.9](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.9)；目标链接本身不作为发布成功证明。

@@ -1,6 +1,6 @@
-# ZViewer-Client V4.1.9
+# ZViewer-Client V2.1.9
 
-Android / HarmonyOS 同步更新为 **4.1.9 / 419**，对齐服务端 v4.7.4，完善播放设置即时应用、源解析同步、B站解码防护与语音媒体监看。详细验收层级见 [4.1.9 验证记录](https://github.com/Zero-wyc/ZViewerAPP/blob/main/docs/client-4.1.9-validation.md)。
+Android / HarmonyOS 同步更新为 **2.1.9 / 219**，对齐服务端 v4.7.4，完善播放设置即时应用、源解析同步、B站解码防护与语音媒体监看。详细验收层级见 [2.1.9 验证记录](https://github.com/Zero-wyc/ZViewerAPP/blob/main/docs/client-2.1.9-validation.md)。
 
 ## 🚀 新特性 / Features
 
@@ -28,9 +28,9 @@ Android / HarmonyOS 同步更新为 **4.1.9 / 419**，对齐服务端 v4.7.4，�
 
 ## 📖 文档与依赖更新 / Documentation & Dependencies
 
-- 同步安卓、鸿蒙维护文档、v4.7.4 执行文档与最终 4.1.9 验证记录，保留 2.1.8 为历史本地迭代记录；依赖版本不变。
-- 240 项适配、4 项媒体、Go core/mobile 与 6 项 vendor 检查通过；系统字体及华文行楷的 24 组几何验证、最终双端 Debug 模拟器界面和 HLS 双向播放/策略切换通过。正式签名 Release 的签名、资源与版本检查通过，真机范围独立登记。
-- 发行资产为正式签名 APK、HAP 与构建时一次生成的 `SHA256SUMS.txt`。源码同步 main / `client-v4.1.9`，使用 GitHub 自动源码归档，不另打源码压缩包。
+- 同步安卓、鸿蒙维护文档、v4.7.4 执行文档与最终 2.1.9 验证记录，保留 2.1.8 为历史本地迭代记录；依赖版本不变。
+- 240 项适配、4 项媒体、Go core/mobile 与 6 项 vendor 检查通过；系统字体及华文行楷的 24 组几何验证、双端 Debug 模拟器界面及本轮播放逻辑的 HLS 双向播放/策略切换验证通过。正式签名 Release 的签名、资源与版本检查通过，实际测试包版本和真机范围独立登记。
+- 发行资产为正式签名 APK、HAP 与构建时一次生成的 `SHA256SUMS.txt`。源码同步 main / `client-v2.1.9`，使用 GitHub 自动源码归档，不另打源码压缩包。
 
 ---
-**完整变更记录**：[client-v2.1.7...client-v4.1.9](https://github.com/Zero-wyc/ZViewerAPP/compare/client-v2.1.7...client-v4.1.9)
+**完整变更记录**：[client-v2.1.7...client-v2.1.9](https://github.com/Zero-wyc/ZViewerAPP/compare/client-v2.1.7...client-v2.1.9)

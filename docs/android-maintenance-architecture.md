@@ -4,13 +4,13 @@
 
 ## 当前状态与范围
 
-- Android 当前发行版本为 **4.1.9 / versionCode 419**，按 v4.7.4 执行文档更新播放设置、解析同步、B站请求与语音媒体监看。最终 APK 已构建并完成签名和网页资源静态检查；最终 419 Debug 宿主复核与发布确认见 [4.1.9 验证记录](client-4.1.9-validation.md)。2.1.8 为本地迭代，2.1.7 为此前公开版本，历史验收不替代本轮证据。
+- Android 当前发行版本为 **2.1.9 / versionCode 219**，按 v4.7.4 执行文档更新播放设置、解析同步、B站请求与语音媒体监看。最终 APK 已构建并完成签名和网页资源静态检查；最终 219 Debug 宿主复核与发布确认见 [2.1.9 验证记录](client-2.1.9-validation.md)。2.1.8 为本地迭代，2.1.7 为此前公开版本，历史验收不替代本轮证据。
 - 客户端修改、Git 提交均在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。`ZViewer-source code` 是本地服务端目录，不在其中改客户端。
 - Android 与 HarmonyOS 共用根目录 React/Vite 界面，但原生宿主不同；iOS 是 `ZV-iOS` 中独立的 Expo/React Native 工程。三端实现和验收不能互相替代。
 
 ## 代码入口
 
-### 4.1.9 / 419：对齐服务端 v4.7.4 与最终播放设置（2026-10-22）
+### 2.1.9 / 219：对齐服务端 v4.7.4 与最终播放设置（2026-10-22）
 
 本轮基线为服务端 `e3af086c7bd98ee0d4697386b69678f92ea54d81`。新增 `PlaybackOptionButton.tsx` 与 `MovieRuntimeSettings.tsx`：非 B站影片卡使用图标＋粗体中文的独立胶囊按钮，保留服务器中转与浏览器转码两个布尔值；添加面板按用户后续要求恢复 `PlaybackOptionToggle.tsx` 的说明卡＋滑动开关，沿用原草稿默认值与来源可见性。按用户后续反馈将可见胶囊缩为 32px、文字 12–13px、图标约 13–14px；`PlaybackOptionButton.css` 通过所在面板容器宽度（cqw/clamp）和字体比例适配窄屏/分屏，允许整按钮换行。外层触摸高度保留 44px，展开标题图标缩为 14px，不全局缩放其他控件。胶囊开启时使用 primary 实心填充、on-primary 对比色和勾选图标，关闭为表面色描边；勾选位预留宽度避免状态变化时跳动。影片卡默认折叠；屏幕共享隐藏，观众只读，写入要求当前分享端且具 root/持久房间所有者权限，REST 鉴权仍由服务器执行。
 
@@ -24,7 +24,7 @@ B站 JSON/NDJSON/CLI 接收 `isHdr/hdrType/videoCodecid`，按真实 codec/profi
 
 语音 `transport.ts` 监看实际活动 publisher/subscriber PC/ICE，加入、重连与中断开启约 10 秒媒体窗口；等待麦克风授权不计入超时。每轮提示一次，恢复后清除；SDK 私有诊断不可用显示待确认，不直接断开通话。PC 替换、离房、重试均清理监听与计时器；线路仅采用当前 selected candidate pair。客户端不设置 UDP/TCP/TURN 固定端口，不修改 NAS 网络。
 
-本轮 240 项适配、4 项媒体、6 项 vendor 与 Go core/mobile 回归通过；最终 4.1.9 APK 为 76,761,777 字节，apksigner v2 通过，33 个网页资源与最终同步目录逐字节一致。每包仅构建后计算一次 SHA-256，复用 `release/client-v4.1.9/SHA256SUMS.txt`。最终 419 Debug 模拟器界面与 HLS 双向房主/观众解码、四种策略切换通过，均保持 10 秒暂停与 1.5 倍速，恢复后解码帧继续增长；各层证据与发布状态见 [4.1.9 验证记录](client-4.1.9-validation.md)，早期互测见 [2.1.8 历史记录](client-2.1.8-validation.md)。iOS 不修改、不构建、不发布。
+本轮 240 项适配、4 项媒体、6 项 vendor 与 Go core/mobile 回归通过；正确 2.1.9 / 219 APK 为 76,761,773 字节，apksigner v2 与 aapt 版本检查通过，33 个网页资源与最终同步目录逐字节一致。每包仅构建后计算一次 SHA-256，复用 `release/client-v2.1.9/SHA256SUMS.txt`。正确 219 Debug 模拟器版本与界面复核通过，证据为 `.ui-validation/release-219/native/`。同一播放代码此前在误填为 4.1.9 / 419 的 Debug 包完成双向 HLS、四种策略切换、10 秒暂停与 1.5 倍速保持和恢复解码；219 仅更正版本元数据，没有将此前播放证据改称 219 重测。各层证据与发布状态见 [2.1.9 验证记录](client-2.1.9-validation.md)，早期互测见 [2.1.8 历史记录](client-2.1.8-validation.md)。iOS 不修改、不构建、不发布。
 
 Android `native/bilicore/core/resolver.go/quality.go/pgc.go` 的实际 UGC/PGC 请求统一 `buildFnval`，修正会员、8K、AV1 位组合，MP4 保持 fnval=1；`fnval_test.go` 截获真实请求进行验证。修改后重建 ARM64/x86_64 Go AAR，再同步网页资源和构建 APK。
 
