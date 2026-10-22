@@ -38,3 +38,15 @@ button.playback-option-button {
   width: 1.08em;
   height: 1.08em;
 }
+
+/* A solid primary surface plus a check makes the selected state unambiguous. */
+.playback-option-button[aria-pressed="true"] .playback-option-pill {
+  box-shadow: 0 0 0 1px var(--md-sys-color-primary);
+}
+
+.playback-option-state-icon {
+  flex-shrink: 0;
+  width: 1em;
+  height: 1em;
+  stroke-width: 3;
+}

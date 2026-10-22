@@ -2,8 +2,7 @@ import { CmsSelector } from '@/modules/cms/CmsSelector'
 import { enumerateSeriesPages } from '@/modules/emby/seriesPages'
 import { logicalConnectionUrl } from '../../../../platform/connectionTransport'
 import { BiliSearchModal } from './BiliSearchModal'
-import { PlaybackOptionButton } from './PlaybackOptionButton'
-import { Network, Cpu } from 'lucide-react'
+import { PlaybackOptionToggle } from './PlaybackOptionToggle'
 import { FullMediaNameToggle } from '@/components/FullMediaNameToggle'
 import { EpisodeViewToggle } from '@/components/EpisodeViewToggle'
 import { mediaNameClass, useFullMediaNames } from '@/hooks/useFullMediaNames'
@@ -2063,12 +2062,12 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
 
           {renderActionButton()}
 
-          {sourceType !== 'bilibili' && <div className="playback-option-group flex min-w-0 flex-wrap">
-            {['anime', 'kazumi', 'cms'].includes(sourceType) && <PlaybackOptionButton icon={Network} label="服务器中转"
-              pressed={serverProxy} disabled={!isHost} onPressedChange={setServerProxy} />}
-            <PlaybackOptionButton icon={Cpu} label="浏览器转码" pressed={playsvideoEnabled}
-              disabled={!isHost} onPressedChange={setPlaysvideoEnabled} />
-          </div>}
+          {['anime', 'kazumi', 'cms'].includes(sourceType) && <PlaybackOptionToggle label="服务器中转"
+            description="关闭（默认）：一律直连源站，服务器零媒体流量，带防盗链的源需开启才能播放。开启：媒体流一律经服务器中转，兼容性最好但占用服务器流量。"
+            checked={serverProxy} disabled={!isHost} onChange={setServerProxy} />}
+          {sourceType !== 'bilibili' && <PlaybackOptionToggle label="浏览器转码引擎"
+            description="开启：MKV/DTS 等非常规格式由浏览器端重封装/转码播放。关闭：强制原生直连，不兼容编码将无声。"
+            checked={playsvideoEnabled} disabled={!isHost} onChange={setPlaysvideoEnabled} />}
           {resolveProgress && (
             <div
               className="flex items-center gap-2 rounded-[var(--md-sys-shape-corner)] px-3 py-2 text-xs"
