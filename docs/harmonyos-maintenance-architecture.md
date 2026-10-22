@@ -4,11 +4,17 @@
 
 ## 当前状态与范围
 
-- HarmonyOS 当前发行版本为 **2.1.9 / versionCode 219**，按 v4.7.4 执行文档更新播放设置、解析同步、B站请求与语音媒体监看。最终 HAP 已构建并完成签名和网页资源静态检查；最终 219 Debug 宿主复核通过，已发布正式 Release；完整证据见 [2.1.9 验证记录](client-2.1.9-validation.md)。2.1.8 为本地迭代，2.1.7 为此前公开版本；模拟器结果不扩大为 API 23 实体设备验收。
+- HarmonyOS 当前发行目标为 **2.1.10 / versionCode 220**，修复内网 HTTP 登录及 IP:端口自动识别。HTTP / 自签名 HTTPS 的自动模式、证书例外、登录与实际进房验证见 [2.1.10 验证记录](lan-connection-fix-20261022.md)。上一公开版本 2.1.9 的媒体与源解析证据保留在 [历史记录](client-2.1.9-validation.md)。
 - 客户端源码和 Git 操作均在 `E:/Codex-bulid/ZViewer/ZViewer-client`；共享 React/Vite 前端与 Android 相同，原生部分使用 HarmonyOS ArkTS 与 ArkWeb。
 - B站 Cookie、服务端凭据和本机代理状态只保存在原生侧。不能进入 React 状态持久化、网页日志、Socket 房间广播或公开源码。
 
 ## 代码入口
+
+### 2.1.10 / 220：内网 HTTP 连接修复（2026-10-22）
+
+修复截图中的“连接地址已显示 HTTP，但游客登录提示无法连接服务器”。旧版 ArkWeb 请求失败后，公开设置可以由原生 HTTP 探测兜底；后续登录和 REST/Socket 没有同一路径保障。`ServerConnection.ets` 现在将已有的单服务器回环通道扩展到 HTTP：HTTP 上游使用 `TCPSocket`，HTTPS 证书例外使用 `TLSSocket`，分别按 SDK 的参数格式连接与发送；随机路径、宿主/Origin 限制、Cookie 隔离、流式与 WebSocket 转发继续共用。常规 HTTPS 不改变证书策略，最低系统仍为 6.1.0(23)。空地址且关闭证书例外会关闭监听、活动连接与 Cookie。
+
+共享 `connectionTransport.ts` 补齐 `ws:` 映射；`serverConnection.ts` 对证书通道 502 先做无凭据原生诊断，只有明确 TLS/端口不可用才尝试 HTTP。`App.tsx` 登录复用已确认的地址及通道，地址、模式、证书选项变化会清除该选择。逻辑 HTTP 地址持久化，随机回环地址不进入房间广播或存储。问题证据、双端运行验证和本地包见 [内网连接修复验证](lan-connection-fix-20261022.md)。本次统一版本为 2.1.10 / 220，安装包位于 `release/client-v2.1.10/`；模拟器验证与用户实体手机验收分别记录。
 
 ### 2.1.9 / 219：对齐服务端 v4.7.4 与最终播放设置（2026-10-22）
 

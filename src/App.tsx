@@ -302,7 +302,7 @@ export default function App() {
     connectionAttempt.current = attempt
     try {
       resetSocket()
-      const normalizedServer = await selectServer(serverUrl, addressMode, allowUntrusted, attempt.signal)
+      const normalizedServer = selectedAddress || await selectServer(serverUrl, addressMode, allowUntrusted, attempt.signal)
       attempt.signal.throwIfAborted()
       if (selectedAddress !== normalizedServer) { setSelectedAddress(normalizedServer); return }
       setSelectedAddress(normalizedServer)

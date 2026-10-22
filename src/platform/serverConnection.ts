@@ -34,21 +34,38 @@ export async function applyServerPolicy(url: string, allow: boolean) {
   bindConnectionTransport(url, result.url)
 }
 async function probe(url: string, signal: AbortSignal): Promise<ServerProbe> {
+  const endpoint = url + '/api/auth/public-settings'
+  const transportEndpoint = connectionUrl(endpoint)
+  let response: Response
   // Credential-free browser request also verifies the actual packaged web network path.
   try {
-    const response = await fetch(connectionUrl(url + '/api/auth/public-settings'), {
+    response = await fetch(transportEndpoint, {
       credentials: 'omit', redirect: 'error', cache: 'no-store', signal: AbortSignal.any([signal, AbortSignal.timeout(6000)]),
     })
-    const data = await response.json().catch(() => null) as { success?: boolean; settings?: { roomCreationMode?: string; registrationMode?: string } } | null
-    return { ok: response.ok && data?.success === true && !!data.settings &&
-      (typeof data.settings.roomCreationMode === 'string' || typeof data.settings.registrationMode === 'string'), code: 'response', status: response.status }
   } catch (error) {
     signal.throwIfAborted()
-    const platform = getRuntimePlatform()
-    if (platform === 'android') return native.probe({ url })
-    if (platform === 'harmony') return getHarmonyBridge()!.probeServerConnection!({ url })
+    const diagnostic = await probeNative(url, signal)
+    if (diagnostic) return diagnostic
     throw new Error(error instanceof Error && error.name === 'TimeoutError' ? '连接超时' : '无法连接；请检查 TLS 证书、网络或跨域设置')
   }
+  // The certificate-exception tunnel emits 502 when TLS meets a plain HTTP
+  // port. Diagnose the original endpoint before treating that as a server
+  // response; a real upstream 502 or a certificate error must not downgrade.
+  if (response.status === 502 && transportEndpoint !== endpoint) {
+    const diagnostic = await probeNative(url, signal)
+    if (diagnostic && ['tls_unavailable', 'port_unavailable'].includes(diagnostic.code)) return diagnostic
+  }
+  const data = await response.json().catch(() => null) as { success?: boolean; settings?: { roomCreationMode?: string; registrationMode?: string } } | null
+  return { ok: response.ok && data?.success === true && !!data.settings &&
+    (typeof data.settings.roomCreationMode === 'string' || typeof data.settings.registrationMode === 'string'), code: 'response', status: response.status }
+}
+async function probeNative(url: string, signal: AbortSignal): Promise<ServerProbe | null> {
+  signal.throwIfAborted()
+  const platform = getRuntimePlatform()
+  const result = platform === 'android' ? await native.probe({ url })
+    : platform === 'harmony' ? await getHarmonyBridge()!.probeServerConnection!({ url }) : null
+  signal.throwIfAborted()
+  return result
 }
 export async function selectServer(raw: string, mode: ServerAddressMode, allow: boolean, signal: AbortSignal): Promise<string> {
   const candidates = serverCandidates(raw, mode)
@@ -66,8 +83,11 @@ export async function selectServer(raw: string, mode: ServerAddressMode, allow: 
   }
   throw new Error('服务器端口不可用或没有提供对应协议')
 }
-export async function revokeServerConnection(url: string) {
+export async function revokeServerConnection(_url: string) {
   ++generation; clearConnectionTransport()
-  await applyServerPolicy(url, false)
+  const options: ServerConnectionPolicy = { url: '', allowUntrustedCertificate: false }
+  const platform = getRuntimePlatform()
+  if (platform === 'android') await native.configure(options)
+  if (platform === 'harmony') await getHarmonyBridge()!.configureServerConnection!(options)
 }
 export { connectionUrl }

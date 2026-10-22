@@ -24,8 +24,8 @@ export function connectionUrl(raw: string): string {
   if (!binding) return raw
   try {
     const u = new URL(raw)
-    const websocket = u.protocol === 'wss:'
-    if (websocket) u.protocol = 'https:'
+    const websocket = u.protocol === 'wss:' || u.protocol === 'ws:'
+    if (websocket) u.protocol = u.protocol === 'wss:' ? 'https:' : 'http:'
     if (u.origin !== binding.origin) return raw
     return `${websocket ? binding.localOrigin.replace(/^http/, 'ws') : binding.localOrigin}${binding.prefix}${u.pathname}${u.search}${u.hash}`
   } catch { return raw }

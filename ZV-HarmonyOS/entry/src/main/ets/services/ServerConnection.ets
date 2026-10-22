@@ -25,7 +25,7 @@ function text(data: Uint8Array): string { return new util.TextDecoder('utf-8').d
 function bytes(value: string): Uint8Array { return new util.TextEncoder().encode(value); }
 function buffer(data: Uint8Array): ArrayBuffer { return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer; }
 
-/** Raw HTTP/1.1 tunnel to one immutable TLS origin, including streaming and WS upgrade. */
+/** Raw HTTP/1.1 tunnel to one immutable HTTP/TLS origin, including streaming and WS upgrade. */
 class ConnectionTunnel {
   private local: socket.TCPSocketConnection;
   private target: url.URL;
@@ -33,7 +33,7 @@ class ConnectionTunnel {
   private prefix: string;
   private cookies: Map<string, CookieEntry>;
   private onClosed: () => void;
-  private remote: socket.TLSSocket = socket.constructTLSSocketInstance();
+  private remote: socket.TLSSocket | socket.TCPSocket;
   private initial = new Uint8Array(0);
   private responseHeader = new Uint8Array(0);
   private ready: boolean = false;
@@ -57,6 +57,7 @@ class ConnectionTunnel {
   constructor(local: socket.TCPSocketConnection, target: url.URL,
     localBase: string, prefix: string, cookies: Map<string, CookieEntry>, onClosed: () => void) {
     this.local = local; this.target = target; this.localBase = localBase; this.prefix = prefix;
+    this.remote = target.protocol === 'https:' ? socket.constructTLSSocketInstance() : socket.constructTCPSocketInstance();
     this.cookies = cookies; this.onClosed = onClosed;
     local.on('message', (event: socket.SocketMessageInfo) => this.receive(new Uint8Array(event.message)));
     local.on('close', () => this.close());
@@ -127,15 +128,25 @@ class ConnectionTunnel {
       this.remote.on('message', (event: socket.SocketMessageInfo) => this.reply(new Uint8Array(event.message)));
       this.remote.on('close', () => this.endRemote());
       this.remote.on('error', () => this.fail());
-      return this.remote.connect({ address: { address: this.target.hostname.replace(/^\[|\]$/g, ''), port: Number(this.target.port || '443') },
-      secureOptions: { protocols: [socket.Protocol.TLSv12, socket.Protocol.TLSv13] },
-      skipRemoteValidation: true, ALPNProtocols: ['http/1.1'], timeout: 10000 }); });
+      const address: socket.NetAddress = { address: this.target.hostname.replace(/^\[|\]$/g, ''), port: Number(this.target.port || (this.target.protocol === 'https:' ? '443' : '80')) };
+      if (this.target.protocol === 'https:') {
+        return (this.remote as socket.TLSSocket).connect({ address,
+          secureOptions: { protocols: [socket.Protocol.TLSv12, socket.Protocol.TLSv13] },
+          skipRemoteValidation: true, ALPNProtocols: ['http/1.1'], timeout: 10000 });
+      }
+      return (this.remote as socket.TCPSocket).connect({ address, timeout: 10000 }); });
     this.send(joinBytes(bytes(forwarded + '\r\n'), body));
   }
   private send(data: Uint8Array): void {
     this.pending += data.length;
     if (this.pending > MAX_PENDING) { this.close(); return; }
-    this.outbound = this.outbound.then(async () => { if (!this.closed) await this.remote.send(buffer(data)); this.pending -= data.length; })
+    this.outbound = this.outbound.then(async () => {
+      if (!this.closed) {
+        if (this.target.protocol === 'https:') await (this.remote as socket.TLSSocket).send(buffer(data));
+        else await (this.remote as socket.TCPSocket).send({ data: buffer(data) });
+      }
+      this.pending -= data.length;
+    })
       .catch(() => this.fail());
   }
   private storeCookie(line: string): void {
@@ -221,13 +232,14 @@ export class ServerConnection {
   private generation: number = 0;
 
   async configure(policy: ConnectionPolicy): Promise<ConnectionResult> {
-    const target = new url.URL(policy.url);
+    const disconnect = policy.url === '' && !policy.allowUntrustedCertificate;
+    const target = new url.URL(disconnect ? 'https://localhost' : policy.url);
     if (!['http:', 'https:'].includes(target.protocol) || target.username !== '' || target.password !== '' || target.search !== '' || target.hash !== '') throw new Error('服务器地址无效');
     const epoch = ++this.generation;
     for (const tunnel of this.tunnels) tunnel.close(); this.tunnels.clear(); this.cookies.clear();
     const previous = this.server; this.server = null; if (previous) await previous.close();
-    if (!policy.allowUntrustedCertificate) return { url: policy.url };
-    if (target.protocol !== 'https:') throw new Error('证书例外仅适用于 HTTPS');
+    if (disconnect || (!policy.allowUntrustedCertificate && target.protocol === 'https:')) return { url: policy.url };
+    if (policy.allowUntrustedCertificate && target.protocol !== 'https:') throw new Error('证书例外仅适用于 HTTPS');
     const server = socket.constructTCPSocketServerInstance();
     await server.listen({ address: '127.0.0.1', port: 0 });
     if (epoch !== this.generation) { await server.close(); throw new Error('服务器选择已取消'); }
@@ -247,8 +259,10 @@ export class ServerConnection {
     const request = http.createHttp();
     try {
       const response = await request.request(raw.replace(/\/$/, '') + '/api/auth/public-settings', { method: http.RequestMethod.GET, usingCache: false, connectTimeout: 6000, readTimeout: 6000, maxRedirects: 0 });
-      const result = JSON.parse(typeof response.result === 'string' ? response.result : '') as PublicResponse;
-      return { ok: response.responseCode === 200 && result.success === true && !!result.settings &&
+      let result: PublicResponse;
+      try { result = JSON.parse(typeof response.result === 'string' ? response.result : '') as PublicResponse; }
+      catch (_error) { return { ok: false, code: 'response', status: response.responseCode }; }
+      return { ok: response.responseCode === 200 && result?.success === true && !!result.settings &&
         (typeof result.settings.roomCreationMode === 'string' || typeof result.settings.registrationMode === 'string'), code: 'response', status: response.responseCode };
     } catch (error) {
       const failure = error as BusinessError;
@@ -257,9 +271,9 @@ export class ServerConnection {
       if (/expired|not yet valid/i.test(detail)) return { ok: false, code: 'certificate_invalid' };
       if (/certificate|2300060/i.test(detail)) return { ok: false, code: 'certificate_untrusted' };
       if (/2300007/.test(detail)) return { ok: false, code: 'port_unavailable' };
-      // A handshake failure alone cannot justify downgrading. Confirm that the
-      // same port actually serves the credential-free ZViewer HTTP endpoint.
-      if (/2300035|2300999/.test(detail) && raw.startsWith('https:')) {
+      // HTTP ports can close/reset a TLS handshake without a specific TLS
+      // error. Require a valid public HTTP API before classifying that failure.
+      if (raw.startsWith('https:')) {
         const plain = await this.probe(raw.replace(/^https:/, 'http:'));
         if (plain.ok) return { ok: false, code: 'tls_unavailable' };
       }

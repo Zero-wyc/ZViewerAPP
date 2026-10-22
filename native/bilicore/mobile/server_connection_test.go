@@ -28,7 +28,13 @@ func connectionResult(t *testing.T, raw string, allow bool) string {
 	return result.URL
 }
 func TestScopedTLSStreamCookiesRangeAndRevocation(t *testing.T) {
-	remote := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testScopedStreamCookiesRangeAndRevocation(t, true)
+}
+func TestScopedHTTPStreamCookiesRangeAndRevocation(t *testing.T) {
+	testScopedStreamCookiesRangeAndRevocation(t, false)
+}
+func testScopedStreamCookiesRangeAndRevocation(t *testing.T, secure bool) {
+	remote := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/auth/public-settings" {
 			if r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
 				t.Error("probe sent credentials")
@@ -41,7 +47,7 @@ func TestScopedTLSStreamCookiesRangeAndRevocation(t *testing.T) {
 		}
 		switch r.URL.Path {
 		case "/login":
-			http.SetCookie(w, &http.Cookie{Name: "private", Value: "native-only", Path: "/", Secure: true, HttpOnly: true})
+			http.SetCookie(w, &http.Cookie{Name: "private", Value: "native-only", Path: "/", Secure: secure, HttpOnly: true})
 			io.WriteString(w, "login")
 		case "/cookie":
 			if c, err := r.Cookie("private"); err != nil || c.Value != "native-only" {
@@ -64,16 +70,27 @@ func TestScopedTLSStreamCookiesRangeAndRevocation(t *testing.T) {
 			http.NotFound(w, r)
 		}
 	}))
+	if secure {
+		remote.StartTLS()
+	} else {
+		remote.Start()
+	}
 	defer remote.Close()
 	probe, err := ProbeServer(remote.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(probe, "certificate_untrusted") {
+	if secure && !strings.Contains(probe, "certificate_untrusted") {
 		t.Fatalf("strict validation weakened %s", probe)
 	}
-	local := connectionResult(t, remote.URL, true)
-	t.Cleanup(func() { ConfigureServer(remote.URL, false) })
+	if !secure && !strings.Contains(probe, `"ok":true`) {
+		t.Fatal(probe)
+	}
+	local := connectionResult(t, remote.URL, secure)
+	if local == remote.URL {
+		t.Fatal("HTTP must use the native channel too")
+	}
+	t.Cleanup(func() { ConfigureServer("", false) })
 	request := func(path string) *http.Response {
 		t.Helper()
 		req, _ := http.NewRequest("GET", local+path, nil)
@@ -121,7 +138,7 @@ func TestScopedTLSStreamCookiesRangeAndRevocation(t *testing.T) {
 	if err != nil || first != "first\n" {
 		t.Fatal("stream buffered until completion")
 	}
-	connectionResult(t, remote.URL, false)
+	connectionResult(t, "", false)
 	finished := make(chan struct{})
 	go func() { io.Copy(io.Discard, stream.Body); stream.Body.Close(); close(finished) }()
 	select {
@@ -134,7 +151,13 @@ func TestScopedTLSStreamCookiesRangeAndRevocation(t *testing.T) {
 	}
 }
 func TestTLSWebSocketUpgradeAndRevoke(t *testing.T) {
-	remote := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testWebSocketUpgradeAndRevoke(t, true)
+}
+func TestHTTPWebSocketUpgradeAndRevoke(t *testing.T) {
+	testWebSocketUpgradeAndRevoke(t, false)
+}
+func testWebSocketUpgradeAndRevoke(t *testing.T, secure bool) {
+	remote := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
 			http.Error(w, "not upgrade", 400)
 			return
@@ -148,8 +171,13 @@ func TestTLSWebSocketUpgradeAndRevoke(t *testing.T) {
 		b.Flush()
 		io.Copy(c, c)
 	}))
+	if secure {
+		remote.StartTLS()
+	} else {
+		remote.Start()
+	}
 	defer remote.Close()
-	local := connectionResult(t, remote.URL, true)
+	local := connectionResult(t, remote.URL, secure)
 	u, _ := url.Parse(local + "/socket.io/?transport=websocket")
 	c, err := net.DialTimeout("tcp", u.Host, time.Second)
 	if err != nil {
@@ -169,9 +197,47 @@ func TestTLSWebSocketUpgradeAndRevoke(t *testing.T) {
 	if _, err = io.ReadFull(reader, got); err != nil || string(got) != string(frame) {
 		t.Fatal("duplex frame failed")
 	}
-	connectionResult(t, remote.URL, false)
+	connectionResult(t, "", false)
 	if _, err = reader.ReadByte(); err == nil {
 		t.Fatal("revocation left WS alive")
+	}
+}
+
+func TestHTTPLoginAndBasePathRedirect(t *testing.T) {
+	remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/base/redirect" {
+			w.Header().Set("Location", "/base/api/auth/login")
+			w.WriteHeader(302)
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		if r.URL.Path != "/base/api/auth/login" || r.Method != "POST" || string(body) != `{"guest":true}` || r.Header.Get("Origin") != "http://"+r.Host {
+			t.Errorf("incorrect HTTP login forwarding: %s %s %s", r.Method, r.URL.Path, body)
+		}
+		w.WriteHeader(401)
+		io.WriteString(w, `{"success":false,"message":"denied"}`)
+	}))
+	defer remote.Close()
+	local := connectionResult(t, remote.URL+"/base", false)
+	t.Cleanup(func() { ConfigureServer("", false) })
+	req, _ := http.NewRequest("POST", local+"/api/auth/login", strings.NewReader(`{"guest":true}`))
+	req.Header.Set("Origin", "https://localhost")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != 401 || res.Header.Get("Access-Control-Allow-Origin") != "https://localhost" {
+		t.Fatal("login status or CORS lost")
+	}
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	res, err = client.Get(local + "/redirect")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != 302 || res.Header.Get("Location") != local+"/api/auth/login" {
+		t.Fatal("same-origin HTTP redirect was rejected or lost base path")
 	}
 }
 func TestProtocolProbeAndPrivateOrigin(t *testing.T) {
@@ -193,6 +259,52 @@ func TestProtocolProbeAndPrivateOrigin(t *testing.T) {
 	for _, raw := range []string{"https://user:pass@host", "https://host?x=1", "ftp://host"} {
 		if _, err := ConfigureServer(raw, true); err == nil {
 			t.Error("accepted invalid server")
+		}
+	}
+}
+
+func TestTLSCloseRequiresValidPlainHTTP(t *testing.T) {
+	for _, validHTTP := range []bool{true, false} {
+		listener, err := net.Listen("tcp4", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		go func() {
+			for {
+				conn, err := listener.Accept()
+				if err != nil {
+					return
+				}
+				go func() {
+					defer conn.Close()
+					conn.SetDeadline(time.Now().Add(2 * time.Second))
+					reader := bufio.NewReader(conn)
+					first, err := reader.Peek(1)
+					if err != nil || first[0] == 0x16 {
+						return // Model a plain server closing the TLS ClientHello.
+					}
+					request, err := http.ReadRequest(reader)
+					if err != nil {
+						return
+					}
+					if request.Header.Get("Authorization") != "" || request.Header.Get("Cookie") != "" || request.URL.Path != "/base/api/auth/public-settings" {
+						t.Error("invalid public HTTP evidence request")
+					}
+					body := `{"success":true,"settings":{"registrationMode":"open"}}`
+					if !validHTTP {
+						body = `{"success":false}`
+					}
+					io.WriteString(conn, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n"+body)
+				}()
+			}
+		}()
+		result, err := ProbeServer("https://" + listener.Addr().String() + "/base")
+		listener.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(result, "tls_unavailable") != validHTTP {
+			t.Fatalf("incorrect HTTP evidence classification: %s", result)
 		}
 	}
 }

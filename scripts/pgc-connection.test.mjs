@@ -25,6 +25,15 @@ test('transport only maps selected origin; WS, base paths, broadcasting and revo
  assert.equal(urls.authenticatedMediaUrl('https://selected.test/base',remote,'access'),'http://127.0.0.1:3333/private/base/api/media?id=1&token=access')
  transport.clearConnectionTransport();assert.equal(transport.connectionUrl(remote),remote)
 })
+test('plain HTTP and WS use one scoped native channel while persisted URLs remain logical',()=>{
+ transport.bindConnectionTransport('http://192.168.100.50:3333/base','http://127.0.0.1:33331/private/base')
+ const socket='ws://192.168.100.50:3333/base/socket.io/?transport=websocket'
+ assert.equal(transport.connectionUrl(socket),'ws://127.0.0.1:33331/private/base/socket.io/?transport=websocket')
+ assert.equal(transport.logicalConnectionUrl(transport.connectionUrl(socket)),socket)
+ assert.equal(transport.connectionUrl('http://192.168.100.50:3333/base/api/rooms'),'http://127.0.0.1:33331/private/base/api/rooms')
+ assert.equal(transport.connectionUrl('http://192.168.100.51:3333/media'),'http://192.168.100.51:3333/media')
+ transport.clearConnectionTransport()
+})
 function harmony(play='preview',nested=false){
  const requests=[]
  const http={RequestMethod:{GET:'GET'},createHttp:()=>({destroy(){},async request(url,options){
@@ -77,6 +86,57 @@ test('cancelled address selection cannot send a diagnostic or credentials',async
  const h=connectionHarness(),abort=new AbortController();abort.abort()
  await assert.rejects(()=>h.selectServer('server.test','auto',false,abort.signal));assert.equal(h.calls.length,0);assert.equal(h.configured.length,0)
 })
+
+function tunnelProbeHarness(platform,diagnostic={ok:false,code:'tls_unavailable'},status=502){
+ const calls=[],configured=[],nativeProbes=[]
+ const channelTransport=loadTs('src/platform/connectionTransport.ts',{},globals)
+ const channelUrls=loadTs('src/mobile/serverUrl.ts',{'../platform/connectionTransport':channelTransport},globals)
+ const native={async configure(policy){
+  configured.push(policy)
+  return {url:policy.allowUntrustedCertificate?'http://127.0.0.1:33331/private':policy.url}
+ },async probe(options){nativeProbes.push(options);return typeof diagnostic==='function'?diagnostic():diagnostic}}
+ const connection=loadTs('src/platform/serverConnection.ts',{
+  '@capacitor/core':{registerPlugin:()=>native},
+  './runtime':{getRuntimePlatform:()=>platform,getHarmonyBridge:()=>({configureServerConnection:native.configure,probeServerConnection:native.probe})},
+  './connectionTransport':channelTransport,'../mobile/serverUrl':channelUrls,
+ },{...globals,localStorage:{getItem:()=>null,setItem(){}},fetch:async(url,options)=>{
+  calls.push({url,options})
+  const code=url.startsWith('http://127.0.0.1:33331')?status:200
+  return {ok:code===200,status:code,json:async()=>({success:true,settings:{roomCreationMode:'all-users'}})}
+ }})
+ return {...connection,calls,configured,nativeProbes}
+}
+for(const platform of ['android','harmony']){
+ test(`${platform}: certificate tunnel 502 confirms plain HTTP before LAN fallback`,async()=>{
+  const h=tunnelProbeHarness(platform)
+  assert.equal(await h.selectServer('192.168.100.50:3333','auto',true,new AbortController().signal),'http://192.168.100.50:3333')
+  assert.deepEqual(h.nativeProbes.map(p=>p.url),['https://192.168.100.50:3333'])
+  assert.deepEqual(h.configured.map(p=>p.allowUntrustedCertificate),[true,false])
+  assert.equal(h.calls[1].url,'http://192.168.100.50:3333/api/auth/public-settings')
+  for(const {options} of h.calls){assert.equal(options.credentials,'omit');assert.equal(options.redirect,'error');assert.equal(options.headers,undefined)}
+ })
+ test(`${platform}: real server 502, certificate and uncertain network failures do not downgrade`,async()=>{
+  for(const diagnostic of [{ok:false,code:'response',status:502},{ok:false,code:'certificate_untrusted'},{ok:false,code:'network'}]){
+   const h=tunnelProbeHarness(platform,diagnostic)
+   await assert.rejects(()=>h.selectServer('192.168.100.50:3333','auto',true,new AbortController().signal),/502/)
+   assert.equal(h.configured.length,1);assert.equal(h.calls.length,1);assert.equal(h.nativeProbes.length,1)
+  }
+  for(const status of [401,403]){
+   const h=tunnelProbeHarness(platform,undefined,status)
+   await assert.rejects(()=>h.selectServer('192.168.100.50:3333','auto',true,new AbortController().signal),new RegExp(String(status)))
+   assert.equal(h.nativeProbes.length,0);assert.equal(h.configured.length,1)
+  }
+ })
+ test(`${platform}: explicit HTTPS and cancelled diagnostics never select HTTP`,async()=>{
+  const explicit=tunnelProbeHarness(platform)
+  await assert.rejects(()=>explicit.selectServer('https://192.168.100.50:3333','custom',true,new AbortController().signal))
+  assert.equal(explicit.configured.length,1)
+  const controller=new AbortController()
+  const cancelled=tunnelProbeHarness(platform,()=>{controller.abort();return {ok:false,code:'tls_unavailable'}})
+  await assert.rejects(()=>cancelled.selectServer('192.168.100.50:3333','auto',true,controller.signal),{name:'AbortError'})
+  assert.equal(cancelled.configured.length,1);assert.equal(cancelled.calls.length,1)
+ })
+}
 
 function resolverHarness(){
  let status={ready:false,loggedIn:false,proxyUrl:'http://127.0.0.1:9333/local',sessionVersion:1},serverCalls=0,localCalls=0

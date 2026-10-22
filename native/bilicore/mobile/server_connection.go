@@ -50,6 +50,12 @@ func stopConnectionLocked() {
 
 // Each transport has a single immutable origin. Never install a global TLS exception.
 func ConfigureServer(raw string, allow bool) (string, error) {
+	if raw == "" && !allow {
+		connectionMu.Lock()
+		defer connectionMu.Unlock()
+		stopConnectionLocked()
+		return asJSON(map[string]any{"url": ""}), nil
+	}
 	target, err := serverURL(raw)
 	if err != nil {
 		return "", err
@@ -57,10 +63,10 @@ func ConfigureServer(raw string, allow bool) (string, error) {
 	connectionMu.Lock()
 	defer connectionMu.Unlock()
 	stopConnectionLocked()
-	if !allow {
+	if !allow && target.Scheme == "https" {
 		return asJSON(map[string]any{"url": raw}), nil
 	}
-	if target.Scheme != "https" {
+	if allow && target.Scheme != "https" {
 		return "", fmt.Errorf("证书例外仅适用于 HTTPS")
 	}
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
@@ -79,7 +85,7 @@ func ConfigureServer(raw string, allow bool) (string, error) {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
 	// Safe only because Director binds every request to target and never follows redirects.
-	transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: true}
+	transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: allow}
 	transport.ResponseHeaderTimeout = 30 * time.Second
 	proxy := &httputil.ReverseProxy{Transport: transport, FlushInterval: -1, ErrorHandler: func(w http.ResponseWriter, r *http.Request, e error) {
 		if requestOrigin, _ := r.Context().Value(localOriginKey{}).(string); requestOrigin != "" {
@@ -116,7 +122,7 @@ func ConfigureServer(raw string, allow bool) (string, error) {
 			if err != nil {
 				return err
 			}
-			if destination.Scheme == "http" && destination.Host == target.Host {
+			if target.Scheme == "https" && destination.Scheme == "http" && destination.Host == target.Host {
 				return fmt.Errorf("HTTPS 降级重定向已拒绝")
 			}
 			if destination.Scheme == target.Scheme && destination.Host == target.Host {
@@ -209,6 +215,22 @@ func ProbeServer(raw string) (string, error) {
 			code = "port_unavailable"
 		case errors.Is(err, context.DeadlineExceeded):
 			code = "timeout"
+		}
+		// Some HTTP servers close/reset a TLS ClientHello instead of replying
+		// with an HTTP record. Confirm their public HTTP API before classifying
+		// that ambiguous network failure as an unavailable TLS endpoint.
+		if target.Scheme == "https" && (code == "network" || code == "timeout") {
+			plain := *target
+			plain.Scheme = "http"
+			plain.Path = strings.TrimRight(strings.TrimSuffix(plain.Path, "/api/auth/public-settings"), "/")
+			if result, probeErr := ProbeServer(plain.String()); probeErr == nil {
+				var evidence struct {
+					OK bool `json:"ok"`
+				}
+				if json.Unmarshal([]byte(result), &evidence) == nil && evidence.OK {
+					code = "tls_unavailable"
+				}
+			}
 		}
 		return asJSON(map[string]any{"ok": false, "code": code}), nil
 	}
