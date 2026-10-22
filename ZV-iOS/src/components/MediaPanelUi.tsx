@@ -11,7 +11,7 @@ export function useMediaPalette() {
 
 export function MediaTabs<T extends string>({ tabs, value, onChange }: { tabs: { value: T; label: string }[]; value: T; onChange: (value: T) => void }) {
   const p = useMediaPalette();
-  return <View accessibilityRole="tablist" style={[panel.tabs, { borderColor: p.line, backgroundColor: p.container }]}>{tabs.map(tab => <Pressable key={tab.value} accessibilityRole="tab" accessibilityLabel={tab.label} accessibilityState={{ selected: value === tab.value }} onPress={() => onChange(tab.value)} style={[panel.tab, { backgroundColor: value === tab.value ? p.accent : 'transparent' }]}><Text style={{ color: value === tab.value ? p.onAccent : p.muted, fontSize: 16, fontWeight: '600' }}>{tab.label}</Text></Pressable>)}</View>;
+  return <View accessibilityRole="tablist" style={[panel.tabs, { borderColor: p.line, backgroundColor: p.container }]}>{tabs.map(tab => <Pressable key={tab.value} accessibilityRole="tab" accessibilityLabel={tab.label} accessibilityState={{ selected: value === tab.value }} onAccessibilityTap={() => onChange(tab.value)} onPress={() => onChange(tab.value)} style={[panel.tab, { backgroundColor: value === tab.value ? p.accent : 'transparent' }]}><Text style={{ color: value === tab.value ? p.onAccent : p.muted, fontSize: 16, fontWeight: '600' }}>{tab.label}</Text></Pressable>)}</View>;
 }
 
 export function MediaSlider({ label, value, minimumValue = 0, maximumValue = 1, step, displayValue, onChange, onComplete, disabled = false, inline = false }: { label: string; value: number; minimumValue?: number; maximumValue?: number; step?: number; displayValue: string; onChange?: (value: number) => void; onComplete?: (value: number) => void; disabled?: boolean; inline?: boolean }) {
@@ -27,7 +27,7 @@ export function MediaSwitch({ label, value, onChange }: { label: string; value: 
 export function MediaAction({ label, icon, onPress, disabled, danger = false, selected = false, iconOnly = false }: { label: string; icon?: ComponentProps<typeof Feather>['name']; onPress: () => void; disabled?: boolean; danger?: boolean; selected?: boolean; iconOnly?: boolean }) {
   const p = useMediaPalette();
   const ink = danger ? p.error : selected ? p.onAccent : p.text;
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled, selected }} disabled={disabled} onPress={onPress} style={[panel.action, { flex: iconOnly ? undefined : 1, width: iconOnly ? 48 : undefined, borderColor: danger || selected ? 'transparent' : p.line, backgroundColor: danger ? `${p.error}25` : selected ? p.accent : p.container, opacity: disabled ? .4 : 1 }]}>{icon ? <Feather name={icon} color={ink} size={20} /> : null}{!iconOnly ? <Text style={{ color: ink, fontSize: 15, fontWeight: '500', flexShrink: 1 }}>{label}</Text> : null}</Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled, selected }} disabled={disabled} onAccessibilityTap={() => { if (!disabled) onPress(); }} onPress={onPress} style={[panel.action, { flex: iconOnly ? undefined : 1, width: iconOnly ? 48 : undefined, borderColor: danger || selected ? 'transparent' : p.line, backgroundColor: danger ? `${p.error}25` : selected ? p.accent : p.container, opacity: disabled ? .4 : 1 }]}>{icon ? <Feather name={icon} color={ink} size={20} /> : null}{!iconOnly ? <Text style={{ color: ink, fontSize: 15, fontWeight: '500', flexShrink: 1 }}>{label}</Text> : null}</Pressable>;
 }
 
 export const panel = StyleSheet.create({

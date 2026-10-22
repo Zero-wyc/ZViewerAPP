@@ -5,6 +5,7 @@ import { useSession } from '@/state/session';
 import { useAppearance } from '@/state/appearance';
 import { danmakuBody, importDanmaku } from '@/lib/danmakuImport';
 import type { DanmakuTrack } from '@/lib/timeline';
+import type { DanmakuMutation } from '@/lib/danmakuSource';
 import { messageFor } from '@/lib/server';
 import { AppDialog } from './AppDialog';
 import { SourceDropdown } from './SourceDropdown';
@@ -12,7 +13,7 @@ import { RoomButton, RoomInput, ui as baseUi } from './RoomUi';
 import { MediaImage } from './MediaImage';
 
 type Entry = { id: string; title: string; cover?: string; description?: string; stats?: { play?: number; danmaku?: number }; episodeNumber?: number; playbackParams?: Record<string, unknown> };
-export function DanmakuSearchDialog({ roomId, close, imported, tracks }: { tracks: DanmakuTrack[]; roomId: string; close: () => void; imported: (message: string) => void }) {
+export function DanmakuSearchDialog({ roomId, close, imported, tracks, mutate }: { tracks: DanmakuTrack[]; roomId: string; close: () => void; imported: (message: string) => void; mutate: DanmakuMutation }) {
   const { request, session } = useSession(); const theme = useAppearance(); const ui = theme.styles(baseUi);
   const { width, height } = useWindowDimensions(); const columns = width >= 760;
   const [sources, setSources] = useState<{ id: string; name: string }[]>([]);
@@ -39,13 +40,14 @@ export function DanmakuSearchDialog({ roomId, close, imported, tracks }: { track
     importing.current = true;
     try {
       const data = await request<{ danmaku: DanmakuTrack['items'] }>('/api/stream/danmaku/fetch', { method: 'POST', signal, body: JSON.stringify({ source, episode }) });
-      checkAbort(signal); const items = importDanmaku(JSON.stringify(data.danmaku));
+      checkAbort(signal); const items = importDanmaku(JSON.stringify(data.danmaku), source);
       if (!items.length) throw new Error('该集没有可用弹幕，请选择其他集数');
-      await request(`/api/rooms/${encodeURIComponent(roomId)}/danmaku-tracks`, { method: 'POST', signal, body: danmakuBody({ trackId: `${source}:${episode.id}`, label: `${selected?.title || ''} · ${episode.title}`, source, items, offset: 0, hidden: false }) });
+      await mutate(`/api/rooms/${encodeURIComponent(roomId)}/danmaku-tracks`, { method: 'POST', signal, body: danmakuBody({ trackId: `${source}:${episode.id}`, label: `${selected?.title || ''} · ${episode.title}`, source, items, offset: 0, hidden: false }) });
       checkAbort(signal); imported(`已导入 ${episode.title} · ${items.length} 条弹幕`);
     } finally { importing.current = false; }
   });
   const listHeight = Math.min(columns ? 360 : 240, Math.max(100, height * (columns ? 0.46 : 0.25)));
+  const hasEpisode = (id: string) => tracks.some(track => track.trackId === `${source}:${id}` || track.trackId.startsWith('zv-media:') && track.trackId.endsWith(`:${source}:${id}`));
   const coverSource = (cover: string) => {
     try {
       const url = new URL(cover.startsWith('//') ? `https:${cover}` : cover);
@@ -67,7 +69,7 @@ export function DanmakuSearchDialog({ roomId, close, imported, tracks }: { track
         </ScrollView></View> : null}
       {selected ? <View style={{ width: columns ? 300 : undefined, gap: 8 }}><View style={ui.row}><Text numberOfLines={2} style={[ui.text, { flex: 1 }]}>{selected.title}</Text><RoomButton label="返回结果" secondary disabled={busy} onPress={() => { setSelected(null); setEpisodes([]); }} /></View><Text style={ui.title}>选择集数 · {episodes.length}</Text>
         <ScrollView testID="danmaku-search-episodes" onLayout={event => setEpisodeWidth(event.nativeEvent.layout.width)} nestedScrollEnabled keyboardShouldPersistTaps="handled" style={{ maxHeight: listHeight, flexGrow: 0 }} contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {episodes.map(item => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={item.title} accessibilityHint="点击添加该集弹幕" disabled={busy || tracks.some(track => track.trackId === `${source}:${item.id}`)} onPress={() => importEpisode(item)} style={[ui.button, ui.secondary, { width: Math.max(0, (episodeWidth - 8) / 2), paddingHorizontal: 8, paddingVertical: 8, opacity: busy ? .5 : 1 }]}><Text numberOfLines={2} style={[ui.text, { textAlign: 'center' }]}>{tracks.some(track => track.trackId === `${source}:${item.id}`) ? `✓ 已添加 · ${item.title}` : item.title}</Text></Pressable>)}
+          {episodes.map(item => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={item.title} accessibilityHint="点击添加该集弹幕" disabled={busy || hasEpisode(item.id)} onPress={() => importEpisode(item)} style={[ui.button, ui.secondary, { width: Math.max(0, (episodeWidth - 8) / 2), paddingHorizontal: 8, paddingVertical: 8, opacity: busy ? .5 : 1 }]}><Text numberOfLines={2} style={[ui.text, { textAlign: 'center' }]}>{hasEpisode(item.id) ? `✓ 已添加 · ${item.title}` : item.title}</Text></Pressable>)}
         </ScrollView></View> : null}
     </View>
     {error ? <Text accessibilityLiveRegion="polite" style={ui.error}>{error}</Text> : null}

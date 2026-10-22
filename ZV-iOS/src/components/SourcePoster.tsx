@@ -4,6 +4,7 @@ import { fromByteArray } from 'base64-js';
 import { useSession } from '@/state/session';
 import { useAppearance } from '@/state/appearance';
 import { posterHeight } from '@/lib/biliCatalog';
+import { connectionUrl } from '@/lib/connectionTransport';
 
 // Server credentials stay in one origin-bound fetch. Image only receives data.
 export function SourcePoster({ uri, serverProxy = false, proxyPath, width = 66, height = 92, naturalRatio = false, contain = false }: { uri?: string; serverProxy?: boolean; proxyPath?: string; width?: number; height?: number; naturalRatio?: boolean; contain?: boolean }) {
@@ -17,7 +18,7 @@ export function SourcePoster({ uri, serverProxy = false, proxyPath, width = 66, 
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 15000);
     const path = serverProxy ? uri : proxyPath || `/api/stream/proxy-image?url=${encodeURIComponent(uri)}`;
     if (!path.startsWith('/api/') || path.startsWith('//')) return () => { controller.abort(); clearTimeout(timer); };
-    void fetch(`${session.serverUrl}${path}`, { headers: { Authorization: `Bearer ${session.accessToken}` }, signal: controller.signal, redirect: 'error', credentials: 'omit' }).then(async response => {
+    void fetch(connectionUrl(`${session.serverUrl}${path}`), { headers: { Authorization: `Bearer ${session.accessToken}` }, signal: controller.signal, redirect: 'error', credentials: 'omit' }).then(async response => {
       if (!response.ok || !/^image\/(jpeg|png|webp|gif)/i.test(response.headers.get('content-type') || '')) throw new Error('图片不可用');
       if (Number(response.headers.get('content-length')) > 2_000_000) throw new Error('图片过大');
       const bytes = new Uint8Array(await response.arrayBuffer());
@@ -26,7 +27,7 @@ export function SourcePoster({ uri, serverProxy = false, proxyPath, width = 66, 
     }).catch(() => {}).finally(() => clearTimeout(timer));
     return () => { controller.abort(); clearTimeout(timer); };
   }, [uri, session, serverProxy, failed, key, proxyPath]);
-  const imageUri = data?.key === key ? data.uri : !serverProxy && failed !== key && uri && /^https?:\/\//.test(uri) ? uri : '';
+  const imageUri = data?.key === key ? data.uri : !serverProxy && failed !== key && uri && /^https?:\/\//.test(uri) ? connectionUrl(uri) : '';
   useEffect(() => {
     if (!naturalRatio || !imageUri) return; let active = true;
     Image.getSize(imageUri, (originalWidth, originalHeight) => { if (active && originalWidth > 0 && originalHeight > 0) setSize(old => old?.key === key && old.width === originalWidth && old.height === originalHeight ? old : { key, width: originalWidth, height: originalHeight }); }, () => {});

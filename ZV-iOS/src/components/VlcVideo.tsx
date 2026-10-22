@@ -5,6 +5,7 @@ import { isDevice } from 'expo-device';
 import type { LibVlcPlayerViewProps, LibVlcPlayerViewRef } from 'expo-libvlc-player';
 import { VlcPlayer, vlcEventRevision, type VlcSnapshot } from '@/lib/vlcPlayer';
 import { readPreference } from '@/lib/preferences';
+import { connectionUrl } from '@/lib/connectionTransport';
 
 // Expo Go/Web previews must report a missing kernel rather than crash during
 // startup. There is deliberately no alternate playback engine in this app.
@@ -32,17 +33,17 @@ function VlcSurface({ player, snapshot, style, background, backgroundAudio }: { 
   // seek and autoplay renders; Simulator VideoToolbox can produce blank frames.
   const options = useMemo(() => __DEV__ && !isDevice ? [...snapshot.source.options, 'codec=avcodec', 'avcodec-threads=1'] : snapshot.source.options, [snapshot.source.options]);
   useEffect(() => {
-    player.attach(snapshot.id, ref.current as LibVlcPlayerViewRef & { replaceSource?(uri: string, options: string[], revision: number): Promise<void> });
+    player.attach(snapshot.id, ref.current as LibVlcPlayerViewRef & { replaceSource?(uri: string, options: string[], revision: number): Promise<void> }, true);
     return () => player.attach(snapshot.id, null);
   }, [player, snapshot.id]);
   if (!VlcView) return null;
   return <VlcView
     ref={ref}
     style={style}
-    {...({ zviewerRevision: snapshot.id } as object)}
-    source={snapshot.source.uri}
+    {...({ zviewerOwnerId: player.nativeOwnerId, zviewerRevision: snapshot.id, zviewerBackgroundDecoration: background, zviewerPreciseVideoSeek: !backgroundAudio && snapshot.source.contentType === 'hls' } as object)}
+    source={connectionUrl(snapshot.source.uri)}
     options={options}
-    slaves={[...snapshot.source.slaves.map(slave => ({ source: slave.uri, type: 'audio' as const, selected: true })), ...(snapshot.settings.subtitleUri ? [{ source: snapshot.settings.subtitleUri, type: 'subtitle' as const, selected: true }] : [])]}
+    slaves={[...snapshot.source.slaves.map(slave => ({ source: connectionUrl(slave.uri), type: 'audio' as const, selected: true })), ...(snapshot.settings.subtitleUri ? [{ source: connectionUrl(snapshot.settings.subtitleUri), type: 'subtitle' as const, selected: true }] : [])]}
     tracks={snapshot.settings.tracks}
     volume={snapshot.settings.volume}
     delays={{ subtitle: Math.round(snapshot.settings.subtitleDelay * 1000000) }}
@@ -52,8 +53,8 @@ function VlcSurface({ player, snapshot, style, background, backgroundAudio }: { 
     rate={snapshot.rate}
     contentFit={background ? 'cover' : 'contain'}
     audioMixingMode={background ? 'mixWithOthers' : 'doNotMix'}
-    onFirstPlay={event => player.loaded(vlcEventRevision(event, snapshot.id), event.media.length)}
-    onTimeChanged={event => player.progress(vlcEventRevision(event, snapshot.id), event.value)}
+    onFirstPlay={event => { const revision = vlcEventRevision(event, snapshot.id); player.videoSize(revision, event.video.width, event.video.height); player.loaded(revision, event.media.length); }}
+    onTimeChanged={event => { const revision = vlcEventRevision(event, snapshot.id); const size = event as typeof event & { width?: number; height?: number; length?: number }; player.videoSize(revision, size.width || 0, size.height || 0); player.durationChanged(revision, size.length || 0); player.progress(revision, event.value); }}
     onPlaying={(event?: unknown) => player.playingChanged(vlcEventRevision(event, snapshot.id), true)}
     onPaused={(event?: unknown) => player.playingChanged(vlcEventRevision(event, snapshot.id), false)}
     onStopped={(event?: unknown) => player.stopped(vlcEventRevision(event, snapshot.id))}

@@ -1,3 +1,4 @@
+import { voiceTransportState, type VoiceTransportRoom } from '@/lib/voiceTransport';
 import { useAppearance } from '@/state/appearance';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, NativeModules, Platform, Text, View } from 'react-native';
@@ -17,21 +18,32 @@ const available = Platform.OS === 'ios' && !!NativeModules.WebRTCModule && !!Nat
 let audioQueue: Promise<unknown> = Promise.resolve();
 let rtcRegistered = false;
 type Member = { identity: string; name: string; muted: boolean; adminMuted: boolean; speaking: boolean; level: number; self: boolean };
+const defaultMemberVolumes: Readonly<Record<string, number>> = {};
 export function VoicePanel({ roomId, ready, host, compact = false }: { roomId: string; ready: boolean; host: boolean; compact?: boolean }) {
   const theme = useAppearance(); const ui = theme.styles(baseUi); const palette = useMediaPalette();
   const { session, socket, request, connected } = useSession();
+  const scope = `${session?.serverUrl}:${session?.user.id}:${roomId}`;
   const [visible, setVisible] = useState(false); const [wanted, setWanted] = useState(false); const [joined, setJoined] = useState(false);
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const [members, setMembers] = useState<Member[]>([]); const [muted, setMuted] = useState(true); const [serverMuted, setServerMuted] = useState(false); const [error, setError] = useState(''); const [status, setStatus] = useState('未加入语音'); const [micBusy, setMicBusy] = useState(false);
   const [globalVolume, setGlobalVolume] = useState(1); const [micVolume, setMicVolume] = useState(1); const [deafened, setDeafened] = useState(false);
-  const levels = useRef({ globalVolume, micVolume, deafened });
-  useEffect(() => { levels.current = { globalVolume, micVolume, deafened }; if (room.current) applyVoiceVolumes(room.current, globalVolume, micVolume, deafened); }, [globalVolume, micVolume, deafened]);
-  const [moderators, setModerators] = useState<number[]>([]); const room = useRef<Room | null>(null); const selfMuted = useRef(true); const scope = `${session?.serverUrl}:${session?.user.id}:${roomId}`;
-  useEffect(() => { const sub = AppState.addEventListener('change', value => { setForeground(value === 'active'); if (value !== 'active') { selfMuted.current = true; setMuted(true); void room.current?.localParticipant.setMicrophoneEnabled(false).catch(() => {}); } }); return () => sub.remove(); }, []);
+  const [memberGains, setMemberGains] = useState<{ scope: string; values: Record<string, number> }>({ scope: '', values: {} });
+  const memberVolumes = memberGains.scope === scope ? memberGains.values : defaultMemberVolumes;
+  const levels = useRef({ globalVolume, micVolume, deafened, memberVolumes });
+  const permissionWaiting = useRef(false); const transportRestart = useRef(0);
+  useEffect(() => { levels.current = { globalVolume, micVolume, deafened, memberVolumes }; if (room.current) applyVoiceVolumes(room.current, globalVolume, micVolume, deafened, memberVolumes); }, [globalVolume, micVolume, deafened, memberVolumes]);
+  const [moderators, setModerators] = useState<number[]>([]); const room = useRef<Room | null>(null); const selfMuted = useRef(true);
+  useEffect(() => { const sub = AppState.addEventListener('change', value => {
+    // iOS microphone authorization temporarily makes the app inactive. Keep
+    // the existing listen-only session; a real background transition retires it.
+    if (value === 'inactive' && permissionWaiting.current) return;
+    setForeground(value === 'active'); if (value !== 'active') { selfMuted.current = true; setMuted(true); void room.current?.localParticipant.setMicrophoneEnabled(false).catch(() => {}); }
+  }); return () => sub.remove(); }, []);
   useEffect(() => { if (!socket) return; const changed = (value: { roomId?: string; moderators?: number[] }) => { if ((!value.roomId || value.roomId === roomId) && Array.isArray(value.moderators)) setModerators(value.moderators); }; socket.on('moderators-changed', changed); return () => { socket.off('moderators-changed', changed); }; }, [socket, roomId]);
   useEffect(() => {
     if (!wanted || !foreground || !ready || !connected || !session || !available) return;
     let active = true; let tokenReady = false; let currentRoom: Room | null = null; let sdk: typeof import('@livekit/react-native') | null = null; const controller = new AbortController();
+    let monitor: ReturnType<typeof setInterval> | undefined; let mediaSince = Date.now(); let previousManager: unknown; let monitoring = false; let restart = transportRestart.current;
     selfMuted.current = true;
     const work = audioQueue.catch(() => {}).then(async () => {
       if (!active) return;
@@ -48,25 +60,39 @@ export function VoicePanel({ roomId, ready, host, compact = false }: { roomId: s
         if (!active) return;
         const values: Participant[] = [call.localParticipant, ...call.remoteParticipants.values()];
         setMembers(values.map(participant => ({ identity: participant.identity, name: participant.name || participant.identity, muted: !participant.isMicrophoneEnabled, adminMuted: adminMuted(participant.metadata), speaking: participant.isSpeaking, level: participant.audioLevel, self: participant === call.localParticipant })));
-        applyVoiceVolumes(call, levels.current.globalVolume, levels.current.micVolume, levels.current.deafened);
+        applyVoiceVolumes(call, levels.current.globalVolume, levels.current.micVolume, levels.current.deafened, levels.current.memberVolumes);
         const locked = adminMuted(call.localParticipant.metadata); setServerMuted(locked);
         // Administrator unlock never turns on a user's disabled microphone.
         if (locked) { selfMuted.current = true; setMuted(true); void call.localParticipant.setMicrophoneEnabled(false).catch(() => {}); }
       };
       for (const event of [RoomEvent.ParticipantConnected, RoomEvent.ParticipantDisconnected, RoomEvent.ParticipantMetadataChanged, RoomEvent.TrackMuted, RoomEvent.TrackUnmuted, RoomEvent.LocalTrackPublished, RoomEvent.LocalTrackUnpublished, RoomEvent.TrackSubscribed, RoomEvent.ActiveSpeakersChanged]) call.on(event, update);
       call.on(RoomEvent.Reconnecting, () => { if (active) { setJoined(false); setStatus('语音连接中断，正在重连…'); } });
-      call.on(RoomEvent.Reconnected, () => { if (active) { setJoined(true); setStatus('已连接'); update(); } });
+      call.on(RoomEvent.Reconnected, () => { if (active) { setJoined(true); transportRestart.current++; setStatus('信令已恢复，正在检查媒体连接…'); update(); } });
       call.on(RoomEvent.Disconnected, reason => { if (active) { setJoined(false); setWanted(false); setStatus('语音已断开'); setError(reason === DisconnectReason.PARTICIPANT_REMOVED ? '你已被移出语音频道' : reason === DisconnectReason.DUPLICATE_IDENTITY ? '此账号已在另一台设备加入语音' : '语音连接已结束，请重新加入'); } });
       await nativeBridge!.voiceSessionActive(true);
       await sdk.AudioSession.configureAudio({ ios: { defaultOutput: 'speaker' } }); await sdk.AudioSession.startAudioSession();
       if (!active) return;
       setStatus('正在连接语音服务…'); await call.connect(credentials.url, credentials.token, { autoSubscribe: true });
       if (!active) return;
-      await call.localParticipant.setMicrophoneEnabled(false); setJoined(true); setStatus('已连接 · 只听模式'); update();
+      await call.localParticipant.setMicrophoneEnabled(false); setJoined(true); setStatus('信令已连接，媒体连接中…'); update();
+      const inspect = async () => {
+        if (!active || monitoring) return;
+        const diagnosticRoom = call as unknown as VoiceTransportRoom; const manager = diagnosticRoom.engine?.pcManager;
+        if (manager !== previousManager || restart !== transportRestart.current || permissionWaiting.current) { mediaSince = Date.now(); previousManager = manager; restart = transportRestart.current; }
+        if (permissionWaiting.current) return;
+        monitoring = true;
+        try { const media = await voiceTransportState(diagnosticRoom); if (!active || diagnosticRoom.engine?.pcManager !== manager) return;
+          if (media.state === 'connected') { mediaSince = Date.now(); setStatus(`媒体已连接${media.protocol ? ` · ${media.protocol}` : ''} · ${selfMuted.current ? '只听模式' : '麦克风开启'}`); }
+          else if (media.state === 'unknown') setStatus('信令已连接 · 媒体状态待确认');
+          else setStatus(Date.now() - mediaSince >= 10000 ? '媒体连接超时，请检查网络或重新加入语音' : '媒体连接中…');
+        } catch { if (active) setStatus('信令已连接 · 媒体状态待确认'); }
+        finally { monitoring = false; }
+      };
+      monitor = setInterval(() => { void inspect(); }, 2000); void inspect();
     }).catch(failure => { if (active) { setError(tokenReady ? '语音连接失败，请检查语音服务信令与媒体网络' : messageFor(failure)); setWanted(false); } });
     audioQueue = work;
     return () => {
-      active = false; controller.abort(); selfMuted.current = true; if (room.current === currentRoom) room.current = null;
+      active = false; if (monitor) clearInterval(monitor); controller.abort(); selfMuted.current = true; if (room.current === currentRoom) room.current = null;
       void Promise.resolve().then(() => { setJoined(false); setMembers([]); setServerMuted(false); });
       audioQueue = work.catch(() => {}).then(async () => { currentRoom?.removeAllListeners(); try { await currentRoom?.disconnect(); } finally { await sdk?.AudioSession.stopAudioSession().catch(() => {}); await nativeBridge?.voiceSessionActive(false).catch(() => {}); } });
     };
@@ -81,10 +107,10 @@ export function VoicePanel({ roomId, ready, host, compact = false }: { roomId: s
     setMicBusy(true); setError('');
     try {
       const enabled = selfMuted.current;
-      if (enabled && !await nativeBridge?.voicePermission()) throw new Error('请在 iOS 设置中允许麦克风访问，仍可只听');
+      if (enabled) { permissionWaiting.current = true; try { if (!await nativeBridge?.voicePermission()) throw new Error('请在 iOS 设置中允许麦克风访问，仍可只听'); } finally { permissionWaiting.current = false; transportRestart.current++; } }
       const published = await changeVoiceMicrophone(enabled, () => call === room.current && AppState.currentState === 'active' && !adminMuted(call.localParticipant.metadata), value => call.localParticipant.setMicrophoneEnabled(value));
       if (call !== room.current) return;
-      selfMuted.current = !published; setMuted(!published); applyVoiceVolumes(call, levels.current.globalVolume, levels.current.micVolume, levels.current.deafened);
+      selfMuted.current = !published; setMuted(!published); applyVoiceVolumes(call, levels.current.globalVolume, levels.current.micVolume, levels.current.deafened, levels.current.memberVolumes);
     }
     catch (failure) { setError(messageFor(failure)); } finally { setMicBusy(false); }
   };
@@ -96,9 +122,9 @@ export function VoicePanel({ roomId, ready, host, compact = false }: { roomId: s
     <AppDialog visible={visible} title="房间语音" maxWidth={460} close={() => setVisible(false)} footer={<View style={[panel.row, { paddingTop: 8 }]}>{wanted ? <><MediaAction label={muted ? '取消静音' : '静音'} icon={muted ? 'mic-off' : 'mic'} disabled={!joined || serverMuted || micBusy} onPress={() => void toggleMic()} /><MediaAction label={deafened ? '恢复收听' : '暂停收听'} icon="headphones" iconOnly selected={deafened} disabled={!joined} onPress={() => setDeafened(value => !value)} /><MediaAction label="断开" icon="phone-off" danger onPress={() => { setWanted(false); setStatus('未加入语音'); }} /></> : <MediaAction label="加入语音" icon="phone" selected disabled={!ready || !available} onPress={() => { setError(''); setWanted(true); }} />}</View>}>
       <View style={[panel.row, { paddingVertical: 6 }]}><View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: palette.container, alignItems: 'center', justifyContent: 'center' }}><Feather name="headphones" size={23} color={palette.text} /></View><View style={{ flex: 1, gap: 4 }}><Text style={{ color: palette.text, fontSize: 18, fontWeight: '600' }}>语音聊天</Text><Text style={ui.muted}>{joined ? `${members.length} 人在线 · ${muted ? '麦克风已静音' : '麦克风开启'}` : status}</Text></View></View>
       {wanted ? <><MediaSlider label="全局音量" value={globalVolume} displayValue={`${Math.round(globalVolume * 100)}%`} onChange={setGlobalVolume} disabled={!joined} /><MediaSlider label="麦克风音量" value={micVolume} displayValue={`${Math.round(micVolume * 100)}%`} onChange={setMicVolume} disabled={!joined} /></> : <Text style={ui.muted}>加入后即可与房间成员语音交流，麦克风默认静音。</Text>}
-      {wanted && !joined ? <Text accessibilityLiveRegion="polite" style={ui.muted}>{status}</Text> : null}
+      {wanted ? <Text accessibilityLiveRegion="polite" style={ui.muted}>{status}</Text> : null}
       {serverMuted ? <Text style={ui.error}>你已被管理员语音禁言，仍可收听</Text> : null}
-      {members.map(member => <View key={member.identity} style={{ backgroundColor: palette.field, borderRadius: 12, padding: 10, gap: 8 }}><View style={panel.row}><View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: palette.container, alignItems: 'center', justifyContent: 'center' }}><Feather name={member.muted || member.adminMuted ? 'mic-off' : member.self ? 'mic' : 'user'} size={16} color={member.adminMuted ? palette.error : palette.text} /></View><Text numberOfLines={1} style={[ui.text, { maxWidth: '35%' }]}>{member.self ? '我' : member.name}</Text><View accessibilityLabel={`${member.self ? '我' : member.name}的语音音量`} accessibilityValue={{ min: 0, max: 100, now: Math.round(member.level * 100) }} style={{ flex: 1, height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: palette.container }}><View style={{ width: `${Math.max(2, Math.min(100, member.level * 100))}%`, height: '100%', borderRadius: 3, backgroundColor: member.speaking ? palette.accent : palette.muted }} /></View>{member.adminMuted ? <Text style={{ color: palette.error, fontSize: 12 }}>已禁言</Text> : null}</View>{canManage && !member.self ? <View style={ui.row}><RoomButton label={member.adminMuted ? '解除禁言' : '语音禁言'} secondary onPress={() => void manage(member)} /><RoomButton label="移出语音" secondary onPress={() => void manage(member, true)} /></View> : null}</View>)}
+      {members.map(member => <View key={member.identity} style={{ backgroundColor: palette.field, borderRadius: 12, padding: 10, gap: 8 }}><View style={panel.row}><View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: palette.container, alignItems: 'center', justifyContent: 'center' }}><Feather name={member.muted || member.adminMuted ? 'mic-off' : member.self ? 'mic' : 'user'} size={16} color={member.adminMuted ? palette.error : palette.text} /></View><Text numberOfLines={1} style={[ui.text, { maxWidth: '35%' }]}>{member.self ? '我' : member.name}</Text><View accessibilityLabel={`${member.self ? '我' : member.name}的语音音量`} accessibilityValue={{ min: 0, max: 100, now: Math.round(member.level * 100) }} style={{ flex: 1, height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: palette.container }}><View style={{ width: `${Math.max(2, Math.min(100, member.level * 100))}%`, height: '100%', borderRadius: 3, backgroundColor: member.speaking ? palette.accent : palette.muted }} /></View>{member.adminMuted ? <Text style={{ color: palette.error, fontSize: 12 }}>已禁言</Text> : null}</View>{!member.self ? <MediaSlider label={`${member.name}的收听音量`} value={memberVolumes[member.identity] ?? 1} displayValue={`${Math.round((memberVolumes[member.identity] ?? 1) * 100)}%`} disabled={!joined} onChange={value => setMemberGains(current => ({ scope, values: { ...(current.scope === scope ? current.values : {}), [member.identity]: value } }))} /> : null}{canManage && !member.self ? <View style={ui.row}><RoomButton label={member.adminMuted ? '解除禁言' : '语音禁言'} secondary onPress={() => void manage(member)} /><RoomButton label="移出语音" secondary onPress={() => void manage(member, true)} /></View> : null}</View>)}
       {!available ? <Text style={ui.muted}>当前预览包可检查语音界面；通话需要包含 LiveKit 的原生安装包。</Text> : null}
       {error ? <Text style={ui.error}>{error}</Text> : null}
     </AppDialog></>;

@@ -1,24 +1,25 @@
+import { DynamicText as Text } from '@/components/DynamicText';
 import { useAppearance } from '@/state/appearance';
-import { Pressable, StyleSheet, Text, TextInput, type TextInputProps } from 'react-native';
+import { Pressable, StyleSheet, TextInput, type TextInputProps } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 import type { ComponentProps } from 'react';
 
 export const roomColors = { background: '#111417', surface: '#1b2024', line: '#343d41', text: '#edf1ef', muted: '#a8b3b6', accent: '#65d59b', error: '#ffaaa5' };
 export const ui = StyleSheet.create({
   text: { color: roomColors.text, fontSize: 15 }, muted: { color: roomColors.muted, fontSize: 13 },
-  title: { color: roomColors.text, fontSize: 18, fontWeight: '700' },
+  title: { color: roomColors.text, fontSize: 18, fontWeight: '600' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   card: { backgroundColor: roomColors.surface, padding: 12, borderRadius: 12, gap: 8 },
   content: { gap: 12, paddingBottom: 20 }, error: { color: roomColors.error },
   button: { backgroundColor: roomColors.accent, borderRadius: 10, minHeight: 44, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
   secondary: { backgroundColor: roomColors.surface, borderWidth: 1, borderColor: roomColors.line },
-  buttonText: { color: roomColors.background, fontWeight: '700' }, input: { borderWidth: 1, borderColor: roomColors.line, borderRadius: 10, color: roomColors.text, minHeight: 44, padding: 10, backgroundColor: roomColors.surface },
+  buttonText: { color: roomColors.background, fontSize: 15, fontWeight: '500' }, input: { borderWidth: 1, borderColor: roomColors.line, borderRadius: 10, color: roomColors.text, minHeight: 44, padding: 10, backgroundColor: roomColors.surface },
 });
 export function RoomButton({ label, onPress, disabled, secondary, selected }: { label: string; onPress: () => void; disabled?: boolean; secondary?: boolean; selected?: boolean }) {
   const theme = useAppearance();
   const localUi = theme.styles(ui);
 
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled, selected: !!selected }} disabled={disabled} onPress={onPress} style={[localUi.button, secondary && !selected && localUi.secondary, selected && { borderWidth: 2, borderColor: theme.color(roomColors.accent) }, disabled && { opacity: 0.45 }]}><Text style={[localUi.buttonText, secondary && !selected && localUi.text]}>{selected ? `✓ ${label}` : label}</Text></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled, selected: !!selected }} disabled={disabled} onAccessibilityTap={() => { if (!disabled) onPress(); }} onPress={onPress} style={[localUi.button, secondary && !selected && localUi.secondary, selected && { borderWidth: 2, borderColor: theme.color(roomColors.accent) }, disabled && { opacity: 0.45 }]}><Text style={[localUi.buttonText, secondary && !selected && localUi.text]}>{selected ? `✓ ${label}` : label}</Text></Pressable>;
 }
 export function RoomInput(props: TextInputProps) {
   const theme = useAppearance();
@@ -27,5 +28,5 @@ export function RoomInput(props: TextInputProps) {
 export function RoomIconButton({ label, icon, onPress }: { label: string; icon: ComponentProps<typeof Feather>['name']; onPress: () => void }) {
   const theme = useAppearance();
 
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><Feather name={icon} size={22} color={theme.color(roomColors.muted)} /></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} onAccessibilityTap={onPress} onPress={onPress} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><Feather name={icon} size={22} color={theme.color(roomColors.muted)} /></Pressable>;
 }

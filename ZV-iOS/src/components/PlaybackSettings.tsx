@@ -12,7 +12,7 @@ import { MediaSwitch, MediaTabs, useMediaPalette } from './MediaPanelUi';
 import { RoomButton, RoomInput, ui as baseUi } from './RoomUi';
 import { SubtitlePanel, type useSubtitles } from './Subtitles';
 
-export function PlaybackSettings({ visible, close, player, subtitles, danmaku, roomId, host, trackVersion }: { visible: boolean; close: () => void; player: VlcPlayer; subtitles: ReturnType<typeof useSubtitles>; danmaku: ReturnType<typeof useDanmaku>; roomId: string; host: boolean; trackVersion: number }) {
+export function PlaybackSettings({ visible, close, player, subtitles, danmaku, roomId, trackVersion }: { visible: boolean; close: () => void; player: VlcPlayer; subtitles: ReturnType<typeof useSubtitles>; danmaku: ReturnType<typeof useDanmaku>; roomId: string; host: boolean; trackVersion: number }) {
   const theme = useAppearance(); const ui = theme.styles(baseUi); const p = useMediaPalette(); const { session } = useSession();
   const [tab, setTab] = useState<'subtitles' | 'danmaku'>('subtitles');
   const [advanced, setAdvanced] = useState(false); const [tracksOpen, setTracksOpen] = useState(false);
@@ -44,7 +44,7 @@ export function PlaybackSettings({ visible, close, player, subtitles, danmaku, r
         <SubtitlePanel subtitles={subtitles} />
         <RoomButton label="画中画" secondary onPress={() => void player.startPictureInPicture().catch(() => setError('设备当前无法进入画中画'))} />
       </View> : null}
-    </> : <><DanmakuSettings state={danmaku} /><Pressable accessibilityRole="button" accessibilityLabel="弹幕轨道" accessibilityState={{ expanded: tracksOpen }} onPress={() => setTracksOpen(value => !value)} style={{ minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderColor: p.line }}><Text style={ui.text}>弹幕轨道 · {danmaku.tracks.length}</Text><Feather name={tracksOpen ? 'chevron-up' : 'chevron-down'} size={18} color={p.muted} /></Pressable>{tracksOpen ? <DanmakuManager roomId={roomId} host={host} tracks={danmaku.tracks} /> : null}</>}
+    </> : <><DanmakuSettings state={danmaku} /><Pressable accessibilityRole="button" accessibilityLabel="弹幕轨道" accessibilityState={{ expanded: tracksOpen }} onPress={() => setTracksOpen(value => !value)} style={{ minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderColor: p.line }}><Text style={ui.text}>弹幕轨道 · {danmaku.tracks.length}</Text><Feather name={tracksOpen ? 'chevron-up' : 'chevron-down'} size={18} color={p.muted} /></Pressable>{tracksOpen ? <DanmakuManager key={danmaku.mediaKey} roomId={roomId} host={danmaku.canManage} tracks={danmaku.tracks} mutate={danmaku.mutate} /> : null}{danmaku.error ? <Text style={ui.error}>{danmaku.error}</Text> : null}</>}
     {error ? <Text style={ui.error}>{error}</Text> : null}
   </AppDialog>;
 }

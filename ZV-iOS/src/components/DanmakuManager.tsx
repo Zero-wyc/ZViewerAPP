@@ -1,15 +1,15 @@
 import { useAppearance } from '@/state/appearance';
 import { useState } from 'react';
 import { Alert, Switch, Text, View } from 'react-native';
-import { useSession } from '@/state/session';
 import type { DanmakuTrack } from '@/lib/timeline';
+import type { DanmakuMutation } from '@/lib/danmakuSource';
 import { danmakuBody } from '@/lib/danmakuImport';
 import { messageFor } from '@/lib/server';
 import { RoomButton, RoomInput, ui as baseUi } from './RoomUi';
 import { DanmakuSearchDialog } from './DanmakuSearchDialog';
-export function DanmakuManager({ roomId, host, tracks }: { roomId: string; host: boolean; tracks: DanmakuTrack[] }) {
+export function DanmakuManager({ roomId, host, tracks, mutate }: { roomId: string; host: boolean; tracks: DanmakuTrack[]; mutate: DanmakuMutation }) {
   const ui = useAppearance().styles(baseUi);
-  const { request } = useSession();
+  const request = mutate;
   const [open, setOpen] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const [edit, setEdit] = useState<DanmakuTrack | null>(null); const [offset, setOffset] = useState('0');
   const [searchOpen, setSearchOpen] = useState(false); const [notice, setNotice] = useState('');
@@ -28,6 +28,6 @@ export function DanmakuManager({ roomId, host, tracks }: { roomId: string; host:
       {host ? <RoomButton label="在线搜索弹幕源" disabled={busy} secondary onPress={() => { setNotice(''); setSearchOpen(true); }} /> : null}
       {notice ? <Text style={ui.muted}>{notice}</Text> : null}{error ? <Text style={ui.error}>{error}</Text> : null}
     </> : null}
-    {searchOpen && host ? <DanmakuSearchDialog key={roomId} tracks={tracks} roomId={roomId} close={() => setSearchOpen(false)} imported={setNotice} /> : null}
+    {searchOpen && host ? <DanmakuSearchDialog key={roomId} tracks={tracks} roomId={roomId} mutate={mutate} close={() => setSearchOpen(false)} imported={setNotice} /> : null}
   </View>;
 }

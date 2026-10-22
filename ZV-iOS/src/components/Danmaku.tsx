@@ -1,5 +1,5 @@
 import { useAppearance } from '@/state/appearance';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 import { DanmakuTypeIcon } from './DanmakuTypeIcon';
@@ -7,56 +7,132 @@ import { MediaSlider, MediaSwitch, useMediaPalette } from './MediaPanelUi';
 import { useSession } from '@/state/session';
 import type { VlcPlayer } from '@/lib/vlcPlayer';
 import { trackTimeline, upperBound, type DanmakuItem, type DanmakuTrack } from '@/lib/timeline';
+import { normalizeDanmakuMeta, mergeRealtimeDanmaku, danmakuRoomBlocked, type RealtimeDanmaku, type DanmakuMeta } from '@/lib/danmakuRoom';
 import { readPreference, writePreference } from '@/lib/preferences';
 import { ui as baseUi } from './RoomUi';
 import { defaultDanmakuPreferences as defaults, danmakuArea, danmakuLanes, danmakuVisible, normalizeDanmakuPreferences } from '@/lib/danmakuLayout';
+import { danmakuMediaKey, DanmakuWrites, scopeDanmakuTrack, sourceDanmakuTracks, type DanmakuBinding, type DanmakuTicket, type DanmakuMutation } from '@/lib/danmakuSource';
+import { danmakuBody, importDanmaku } from '@/lib/danmakuImport';
 type Preferences = typeof defaults;
 type Active = DanmakuItem & { key: number; lane: number; start: number };
-export function useDanmaku(roomId: string, player: VlcPlayer, enabled: boolean) {
-  const { request, socket } = useSession(); const [preferences, setPreferences] = useState(defaults); const [tracks, setTracks] = useState<DanmakuTrack[]>([]); const [live, setLive] = useState<DanmakuItem[]>([]);
+const emptyKeywords: string[] = []; const emptyDeleted: unknown[] = [];
+type RoomDanmaku = { scope: string; tracks: DanmakuTrack[]; live: DanmakuItem[]; meta: DanmakuMeta; error: string };
+const emptyRoomDanmaku = (scope: string): RoomDanmaku => ({ scope, tracks: [], live: [], meta: normalizeDanmakuMeta(null), error: '' });
+export function useDanmaku(roomId: string, player: VlcPlayer, enabled: boolean, binding?: DanmakuBinding) {
+  const { request, socket, session } = useSession(); const [preferences, setPreferences] = useState(defaults); const [room, setRoom] = useState(() => emptyRoomDanmaku(''));
+  const mediaKey = danmakuMediaKey(binding?.media);
+  const roomKey = JSON.stringify([roomId, session?.serverUrl, session?.user.id]);
+  const scope = JSON.stringify([roomKey, socket?.id, enabled, mediaKey, binding?.canManage === true]);
+  const writes = useMemo(() => new DanmakuWrites(roomKey), [roomKey]);
+  const ticket = useMemo<DanmakuTicket>(() => ({ scope, mediaKey, active: false, canManage: binding?.canManage === true }), [scope, mediaKey, binding?.canManage]);
+  const root = `/api/rooms/${encodeURIComponent(roomId)}/danmaku-tracks`;
+  const mutate: DanmakuMutation = async (path, init) => {
+    if (!path.startsWith(root + '/') && path !== root) throw new Error('弹幕操作地址无效');
+    const { signal, ...submitted } = init;
+    const options = { ...submitted };
+    if (path === root && init.method === 'POST' && mediaKey) options.body = danmakuBody(scopeDanmakuTrack(JSON.parse(String(init.body)), mediaKey));
+    const result = await writes.run(ticket, async () => {
+      if (signal?.aborted) throw new Error('弹幕操作已取消');
+      return request(path, options);
+    });
+    if (!writes.accepts(ticket)) throw new Error('视频已切换，旧弹幕操作已结束');
+    if (init.method === 'DELETE' && decodeURIComponent(path.slice(root.length + 1)) === scopeDanmakuTrack({ trackId: 'default', label: '当前视频', items: [] }, mediaKey).trackId) {
+      writes.suppressDefault(ticket);
+      const removed = decodeURIComponent(path.slice(root.length + 1));
+      setRoom(previous => previous.scope === scope ? { ...previous, tracks: previous.tracks.filter(track => track.trackId !== removed) } : previous);
+    }
+    return result;
+  };
   useEffect(() => { let active = true; void readPreference('zviewer-danmaku', defaults).then(value => { if (active) setPreferences(normalizeDanmakuPreferences(value)); }); return () => { active = false; }; }, []);
   useEffect(() => {
     if (!enabled || !socket) return;
-    let active = true; const updated = (payload: { roomId: string; tracks: DanmakuTrack[] }) => { if (payload.roomId === roomId) setTracks(payload.tracks || []); };
-    const received = (payload: { id: string; text: string }) => setLive(previous => [...previous.slice(-99), { id: payload.id, content: payload.text, time: player.currentTime, color: 0xffffff }]);
-    socket.on('danmaku-tracks-updated', updated); socket.on('danmaku', received);
-    void request<{ tracks: DanmakuTrack[] }>(`/api/rooms/${encodeURIComponent(roomId)}/danmaku-tracks`).then(data => { if (active) setTracks(data.tracks); }).catch(() => {});
-    return () => { active = false; socket.off('danmaku-tracks-updated', updated); socket.off('danmaku', received); setLive([]); setTracks([]); };
-  }, [enabled, roomId, player, request, socket]);
+    let trackRevision = 0, metaRevision = 0, tracksReady = false, persistedDefault = false; let automatic: DanmakuTrack | null = null;
+    const controller = new AbortController(); const { changed, legacy } = writes.open(ticket);
+    const active = () => writes.accepts(ticket) && !controller.signal.aborted;
+    const update = (change: (previous: RoomDanmaku) => RoomDanmaku) => { if (active()) setRoom(previous => change(previous.scope === scope ? previous : emptyRoomDanmaku(scope))); };
+    const defaultId = scopeDanmakuTrack({ trackId: 'default', label: '当前视频', items: [] }, mediaKey).trackId;
+    const tracksForSource = (values: DanmakuTrack[], fromServer = false) => {
+      let selected = mediaKey ? sourceDanmakuTracks(values, mediaKey, legacy) : values;
+      if (fromServer) {
+        const present = selected.some(track => track.trackId === defaultId);
+        if (persistedDefault && !present) writes.suppressDefault(ticket);
+        persistedDefault = present;
+      }
+      if (writes.defaultSuppressed(ticket)) selected = selected.filter(track => track.trackId !== defaultId);
+      return automatic && !writes.defaultSuppressed(ticket) && !selected.some(track => track.trackId === automatic!.trackId) ? [...selected, automatic] : selected;
+    };
+    const updated = (payload: { roomId: string; tracks: DanmakuTrack[] }) => { if (!active() || !tracksReady || payload?.roomId !== roomId) return; trackRevision++; const tracks = tracksForSource(Array.isArray(payload.tracks) ? payload.tracks : [], true); update(previous => ({ ...previous, tracks })); };
+    const metaUpdated = (payload: { roomId: string; meta: unknown }) => { if (!active() || payload?.roomId !== roomId) return; metaRevision++; const meta = normalizeDanmakuMeta(payload.meta); update(previous => ({ ...previous, meta: { ...meta, realtimeLog: mergeRealtimeDanmaku(previous.meta.realtimeLog, meta.realtimeLog) } })); };
+    const received = (payload: { roomId?: string; id: string; text: string; sender?: string; videoTime?: number }) => {
+      if (!active() || payload?.roomId && payload.roomId !== roomId || typeof payload?.id !== 'string' || typeof payload.text !== 'string') return;
+      update(previous => {
+        const existing = previous.meta.realtimeLog.find(item => item.id === payload.id);
+        const entry: RealtimeDanmaku = existing || { id: payload.id, content: payload.text, ...(typeof payload.sender === 'string' ? { sender: payload.sender } : {}), ...(Number.isFinite(payload.videoTime) && payload.videoTime! >= 0 ? { time: payload.videoTime } : {}) };
+        return { ...previous, live: [...previous.live.filter(item => item.id !== payload.id).slice(-99), { id: payload.id, content: payload.text, time: player.currentTime, color: 0xffffff }], meta: { ...previous.meta, realtimeLog: mergeRealtimeDanmaku(previous.meta.realtimeLog, [entry]) } };
+      });
+    };
+    socket.on('danmaku-tracks-updated', updated); socket.on('danmaku-meta-updated', metaUpdated); socket.on('danmaku', received);
+    const clearing = changed && ticket.canManage;
+    const ready = clearing ? writes.run(ticket, () => request(root + '/bulk', { method: 'POST', body: danmakuBody({ tracks: [] }) })) : Promise.resolve();
+    const loadTracks = () => {
+      if (!active()) return;
+      tracksReady = true; const initialTracks = trackRevision;
+      return request<{ tracks: DanmakuTrack[] }>(root, { signal: controller.signal }).then(data => { if (active() && trackRevision === initialTracks) { const tracks = tracksForSource(Array.isArray(data.tracks) ? data.tracks : [], true); update(previous => ({ ...previous, tracks })); } });
+    };
+    const tracksLoaded = clearing ? ready.then(loadTracks) : loadTracks();
+    void tracksLoaded?.catch(() => { if (active()) update(previous => ({ ...previous, error: '弹幕轨道加载或切换清理失败，请重新进入房间重试' })); });
+    const cid = binding?.media?.sourceType === 'bilibili' ? binding.media.cid : 0;
+    if (Number.isSafeInteger(cid) && cid! > 0) {
+      void request<{ danmaku: DanmakuItem[] }>(`/api/stream/bilibili/danmaku?cid=${cid}`, { signal: controller.signal }).then(async data => {
+        if (!active()) return;
+        const items = importDanmaku(JSON.stringify(data.danmaku), 'bilibili-video');
+        if (ticket.canManage) await tracksLoaded;
+        if (!active()) return;
+        automatic = scopeDanmakuTrack({ trackId: 'default', label: '当前视频', source: 'bilibili-video', items, offset: 0, hidden: false }, mediaKey);
+        const saved = ticket.canManage && !persistedDefault && !writes.defaultSuppressed(ticket) ? writes.run(ticket, () => request(root, { method: 'POST', body: danmakuBody(automatic!) })) : null;
+        update(previous => ({ ...previous, tracks: tracksForSource(previous.tracks) }));
+        if (saved) await saved;
+      }).catch(() => { if (active()) update(previous => ({ ...previous, error: '当前视频自动弹幕加载或保存失败，可在线搜索后导入重试' })); });
+    }
+    const initialMeta = metaRevision;
+    void request<{ meta: unknown }>(`/api/rooms/${encodeURIComponent(roomId)}/danmaku-meta`, { signal: controller.signal }).then(data => { if (active() && metaRevision === initialMeta) { const meta = normalizeDanmakuMeta(data.meta); update(previous => ({ ...previous, meta: { ...meta, realtimeLog: mergeRealtimeDanmaku(previous.meta.realtimeLog, meta.realtimeLog) } })); } }).catch(() => { if (active() && metaRevision === initialMeta) update(previous => ({ ...previous, error: '实时弹幕历史加载失败，请重新进入房间重试' })); });
+    return () => { writes.close(ticket); controller.abort(); socket.off('danmaku-tracks-updated', updated); socket.off('danmaku-meta-updated', metaUpdated); socket.off('danmaku', received); };
+  }, [enabled, roomId, player, request, socket, scope, mediaKey, root, writes, ticket, binding?.media?.sourceType, binding?.media?.cid]);
   const change = (next: Partial<Preferences>) => { const value = { ...preferences, ...next }; setPreferences(value); void writePreference('zviewer-danmaku', value).catch(() => {}); };
-  return { preferences, change, tracks, live };
+  const current = room.scope === scope ? room : emptyRoomDanmaku(scope);
+  return { preferences, change, mediaKey, mutate, canManage: binding?.canManage === true, tracks: current.tracks, live: current.live, realtime: current.meta.realtimeLog, blockKeywords: current.meta.blockKeywords, deletedLog: current.meta.deletedLog, error: current.error };
 }
 export function DanmakuOverlay({ player, state, width, height }: { player: VlcPlayer; state: ReturnType<typeof useDanmaku>; width: number; height: number }) {
   useAppearance();
 
-  const { preferences, tracks, live } = state; const [items, setItems] = useState<Active[]>([]); const [playing, setPlaying] = useState(player.playing);
+  const { preferences, tracks, live } = state; const blockKeywords = state.blockKeywords || emptyKeywords; const deletedLog = state.deletedLog || emptyDeleted; const [items, setItems] = useState<Active[]>([]); const [playing, setPlaying] = useState(player.playing);
   const next = useRef(0); const laneEnd = useRef<number[]>([]); const [last, setLast] = useState(0); const seen = useRef(new Set<string>()); const liveRef = useRef(live);
   useEffect(() => { liveRef.current = live; }, [live]);
   const font = preferences.size * (preferences.scaleWithScreen ? Math.min(2, Math.max(0.7, width / 560)) : 1);
   useEffect(() => {
-    const timeline = trackTimeline(tracks); let cursor = upperBound(timeline, player.currentTime); let previous = player.currentTime;
+    const timeline = trackTimeline(tracks); let cursor = upperBound(timeline, player.currentTime - 0.0001); let previous = player.currentTime;
     laneEnd.current = []; seen.current.clear();
     const tick = player.addListener('timeUpdate', ({ currentTime }) => {
       if (!preferences.enabled) return;
-      if (currentTime < previous - 0.5 || currentTime - previous > 2) { cursor = upperBound(timeline, Math.max(0, currentTime - 0.1)); laneEnd.current = []; setItems([]); }
+      if (currentTime < previous - 0.5 || currentTime - previous > 2) { cursor = upperBound(timeline, Math.max(0, currentTime - 0.1) - 0.0001); laneEnd.current = []; setItems([]); }
       previous = currentTime; setLast(currentTime);
       const due: DanmakuItem[] = [];
       while (cursor < timeline.length && timeline[cursor].time <= currentTime) { if (timeline[cursor].time >= currentTime - 0.6) due.push(timeline[cursor]); cursor++; }
       due.push(...liveRef.current.filter(item => !seen.current.has(item.id) && item.time <= currentTime + 0.5 && item.time >= currentTime - 2));
       const active: Active[] = []; const lanes = danmakuLanes(height, preferences.displayArea, font);
-      for (const item of due.filter(item => danmakuVisible(item, preferences.filters)).slice(0, 12)) {
+      for (const item of due.filter(item => danmakuVisible(item, preferences.filters) && !danmakuRoomBlocked(item, blockKeywords, deletedLog)).slice(0, 12)) {
         seen.current.add(item.id); const lane = Array.from({ length: lanes }, (_, i) => i).find(i => (laneEnd.current[i] || 0) <= currentTime);
         if (lane === undefined) continue;
         const length = Math.min(width * 1.5, Math.max(font, item.content.length * font));
         laneEnd.current[lane] = currentTime + ((item.mode === 4 || item.mode === 5) ? preferences.speed : preferences.speed * length / (width + length) + 0.4);
         active.push({ ...item, key: next.current++, lane, start: currentTime });
       }
-      setItems(old => [...old.filter(item => currentTime - item.start <= preferences.speed && danmakuVisible(item, preferences.filters)), ...active].slice(-40));
+      setItems(old => [...old.filter(item => currentTime - item.start <= preferences.speed && danmakuVisible(item, preferences.filters) && !danmakuRoomBlocked(item, blockKeywords, deletedLog)), ...active].slice(-40));
     }); const status = player.addListener('playingChange', event => setPlaying(event.isPlaying)); const load = player.addListener('statusChange', event => { if (event.status === 'loading' || event.status === 'idle') { setItems([]); laneEnd.current = []; } });
     return () => { tick.remove(); status.remove(); load.remove(); };
-  }, [player, tracks, width, height, font, preferences]);
+  }, [player, tracks, width, height, font, preferences, blockKeywords, deletedLog]);
   if (!preferences.enabled) return null;
-  return <View pointerEvents="none" style={[StyleSheet.absoluteFill, { bottom: undefined, height: danmakuArea(height, preferences.displayArea), overflow: 'hidden' }]}>{items.filter(item => danmakuVisible(item, preferences.filters)).map(item => <FlyingText key={item.key} item={item} width={width} font={font} opacity={preferences.opacity} duration={preferences.speed} playing={playing} time={last} />)}</View>;
+  return <View pointerEvents="none" style={[StyleSheet.absoluteFill, { bottom: undefined, height: danmakuArea(height, preferences.displayArea), overflow: 'hidden' }]}>{items.filter(item => danmakuVisible(item, preferences.filters) && !danmakuRoomBlocked(item, blockKeywords, deletedLog)).map(item => <FlyingText key={item.key} item={item} width={width} font={font} opacity={preferences.opacity} duration={preferences.speed} playing={playing} time={last} />)}</View>;
 }
 function FlyingText({ item, width, font, opacity, duration, playing, time }: { item: Active; width: number; font: number; opacity: number; duration: number; playing: boolean; time: number }) {
   useAppearance();

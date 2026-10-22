@@ -6,13 +6,15 @@ import { useAppearance } from '@/state/appearance';
 import type { Movie } from '@/lib/sources';
 import { resolveLibrary, type LibraryMedia } from '@/lib/mediaLibrary';
 import { biliSelection } from '@/lib/biliSelection';
-import { resolveLocalBili } from '@/lib/biliNative';
+import { readMovieBiliPolicy, resolveInputBili } from '@/lib/biliNative';
+import { useMediaPreferences } from '@/hooks/useMediaPreferences';
 import { messageFor } from '@/lib/server';
 import { SourceDropdown } from './SourceDropdown';
 import { RoomButton, ui as baseUi } from './RoomUi';
 
 export function MovieSourceSettings({ movie, roomId, canEdit, reload }: { movie: Movie; roomId: string; canEdit: boolean; reload: () => Promise<void> }) {
-  const { request } = useSession(); const theme = useAppearance(); const ui = theme.styles(baseUi);
+  const display = useMediaPreferences();
+  const { request, session } = useSession(); const theme = useAppearance(); const ui = theme.styles(baseUi);
   const kind = movie.source || movie.sourceType; const library = kind === 'emby' || kind === 'jellyfin';
   const [versions, setVersions] = useState<LibraryMedia['versions']>([]); const [versionId, setVersionId] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const operation = useRef<AbortController | null>(null); const lock = useRef(false);
@@ -20,7 +22,7 @@ export function MovieSourceSettings({ movie, roomId, canEdit, reload }: { movie:
   const task = async (work: (signal: AbortSignal) => Promise<void>) => {
     if (lock.current) return; lock.current = true; operation.current?.abort(); const controller = new AbortController(); operation.current = controller; setBusy(true); setError('');
     try { await work(controller.signal); } catch (failure) { if (!controller.signal.aborted) setError(messageFor(failure)); }
-    finally { lock.current = false; if (!controller.signal.aborted) setBusy(false); }
+    finally { lock.current = false; setBusy(false); }
   };
   const update = async (patch: Partial<Movie>, signal: AbortSignal) => { checkAbort(signal); await request(`/api/rooms/${encodeURIComponent(roomId)}/movies/${movie.id}`, { method: 'PUT', signal, body: JSON.stringify(patch) }); checkAbort(signal); await reload(); };
   const changePage = (value: string) => task(async signal => {
@@ -34,7 +36,8 @@ export function MovieSourceSettings({ movie, roomId, canEdit, reload }: { movie:
     }
     if (kind === 'bilibili') {
       const parsed = new URL(biliSelection(page.epId ? `ep${page.epId}` : movie.url).url); parsed.searchParams.set('p', String(page.page)); if (page.cid) parsed.searchParams.set('cid', String(page.cid));
-      const media = await resolveLocalBili(parsed.toString()); checkAbort(signal);
+      const policy = await readMovieBiliPolicy(session!.serverUrl, movie.id); checkAbort(signal);
+      const media = await resolveInputBili(parsed.toString(), session!.serverUrl, session!.accessToken, policy, signal); checkAbort(signal);
       await update({ url: parsed.toString(), cid: page.cid, currentPage: page.page, duration: media.duration, cliOnly: movie.cliOnly || !!page.epId }, signal);
     }
   });
@@ -48,7 +51,7 @@ export function MovieSourceSettings({ movie, roomId, canEdit, reload }: { movie:
     await update({ url: data.streamUrl, format: data.format, duration: data.duration, audioCodec: data.audioCodec || '', multiVersion: data.multiVersion }, signal); setVersionId(data.mediaSourceId);
   });
   return <View style={{ gap: 8 }}>
-    {movie.pages && movie.pages.length > 1 ? <SourceDropdown label={library ? '切换分集' : '分 P / 番剧选集'} testID="movie-page" value={String(movie.currentPage || 1)} options={movie.pages.map(item => ({ id: String(item.page), name: `${item.page} · ${item.part}` }))} disabled={!canEdit || busy} onChange={changePage} /> : null}
+    {movie.pages && movie.pages.length > 1 ? <SourceDropdown wrap={display.fullNames} label={library ? '切换分集' : '分 P / 番剧选集'} testID="movie-page" value={String(movie.currentPage || 1)} options={movie.pages.map(item => ({ id: String(item.page), name: `${item.page} · ${item.part}` }))} disabled={!canEdit || busy} onChange={changePage} /> : null}
     {library && movie.multiVersion ? versions.length ? <SourceDropdown label="清晰度 / 媒体版本" testID="movie-version" value={versionId} options={versions.map(item => ({ id: item.id, name: item.label }))} disabled={!canEdit || busy} onChange={changeVersion} /> : <RoomButton label="选择清晰度 / 媒体版本" secondary disabled={busy || !canEdit} onPress={() => void loadVersions()} /> : null}
     {movie.cliOnly ? <Text style={ui.muted}>仅本机 B站解析 · 每位成员需登录自己的 B站账号</Text> : null}
     {error ? <Text style={ui.error}>{error}</Text> : null}

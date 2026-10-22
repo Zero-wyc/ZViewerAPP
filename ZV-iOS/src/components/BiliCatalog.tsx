@@ -1,3 +1,5 @@
+import { useMediaPreferences } from '@/hooks/useMediaPreferences';
+import { MediaDisplayTools } from './MediaDisplayTools';
 import { useAppearance } from '@/state/appearance';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, Pressable, Text, View } from 'react-native';
@@ -13,6 +15,7 @@ import { SourcePoster } from './SourcePoster';
 
 type Container = { id: number; title: string; season_id?: number };
 export function BiliCatalog({ choose, allowPgc = false, active = true }: { allowPgc?: boolean; active?: boolean; choose: (item: BiliCatalogItem) => void | Promise<void> }) {
+  const display = useMediaPreferences();
   const theme = useAppearance(); const ui = theme.styles(baseUi); const { request } = useSession();
   const generation = useRef(0); useEffect(() => { const lifecycle = generation; ++lifecycle.current; return () => { ++lifecycle.current; }; }, [active]);
   const [detail, setDetail] = useState<{ item: BiliCatalogItem; view: BiliView } | null>(null);
@@ -69,13 +72,14 @@ export function BiliCatalog({ choose, allowPgc = false, active = true }: { allow
     </> : <>
       <View style={ui.row}><RoomInput value={keyword} onChangeText={setKeyword} placeholder="搜索 B站视频" style={{ flex: 1, minWidth: 110 }} onSubmitEditing={() => { if (!busy && keyword.trim()) void load(searchKind); }} /><RoomButton label="搜索" disabled={busy || !keyword.trim()} onPress={() => void load(searchKind)} /></View>
       <View style={ui.row}>{allowPgc ? <View style={{ flex: 1, minWidth: 130 }}><SourceDropdown label="搜索类型" value={searchKind} options={[{ id: 'search', name: '视频' }, { id: 'search-bangumi', name: '番剧' }, { id: 'search-ft', name: '影视' }]} disabled={busy} onChange={setSearchKind} /></View> : null}<RoomButton label={more ? '收起栏目' : '我的栏目'} secondary disabled={busy} onPress={() => { setMore(value => !value); }} /></View>
+      <MediaDisplayTools />
       {more ? <View style={ui.card}><View style={ui.row}>{[{ id: 'recommended', name: '推荐视频' }, { id: 'folders', name: '我的收藏' }, { id: 'following', name: '关注番剧' }].map(value => <RoomButton key={value.id} label={value.name} secondary disabled={busy} onPress={() => void load(value.id)} />)}</View><RoomInput value={collection} onChangeText={setCollection} autoCapitalize="none" placeholder="B站合集链接" /><RoomButton label="浏览合集" secondary disabled={busy || !collection} onPress={() => void load('collection')} /></View> : null}
       {groups.map(item => <RoomButton key={item.id} label={item.title} secondary disabled={busy} onPress={() => void load(groupKind, 1, item.id)} />)}
       {items.length ? <Text style={ui.muted}>{total == null ? `本页 ${items.length} 条结果` : `共 ${total} 条结果`} · 点击封面添加播放</Text> : null}
       <View testID="bili-result-grid" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: grid.gap, alignItems: 'flex-start' }}>
         {Array.from({ length: grid.columns }, (_, column) => <View key={column} style={{ width: grid.width, gap: grid.gap }}>{items.filter((_, index) => index % grid.columns === column).map(item => <Pressable key={item.url || item.bvid} testID={`bili-result-${item.bvid || item.epId || item.seasonId}`} accessibilityRole="button" accessibilityLabel={`选择视频 ${item.title}`} disabled={busy} onPress={() => void expand(item)} style={[ui.card, { width: grid.width, padding: 0, gap: 0, overflow: 'hidden' }]}>
           <View><SourcePoster uri={item.cover} width={Math.max(1, grid.width - 2)} naturalRatio />{item.duration ? <Text style={{ position: 'absolute', bottom: 8, right: 8, color: '#fff', backgroundColor: 'rgba(0,0,0,0.65)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, fontSize: 12 }}>{formatTime(item.duration)}</Text> : null}</View>
-          <View style={{ padding: 12, gap: 6 }}><Text style={ui.text}>{item.title}</Text>{item.author ? <Text style={ui.muted}>{item.author}</Text> : null}{item.play ? <Text style={ui.muted}>{biliCount(item.play)} 播放</Text> : null}</View>
+          <View style={{ padding: 12, gap: 6 }}><Text numberOfLines={display.fullNames ? undefined : 2} style={ui.text}>{item.title}</Text>{item.author ? <Text style={ui.muted}>{item.author}</Text> : null}{item.play ? <Text style={ui.muted}>{biliCount(item.play)} 播放</Text> : null}</View>
         </Pressable>)}</View>)}
       </View>
       {items.length || groups.length && kind === 'following' ? <View style={ui.row}><RoomButton label="上一页" secondary disabled={busy || page <= 1} onPress={() => void load(kind, page - 1, id)} /><Text style={ui.muted}>第 {page} 页</Text><RoomButton label="下一页" secondary disabled={busy || ['recommended', 'episodes'].includes(kind) || !hasNext} onPress={() => void load(kind, page + 1, id)} /></View> : null}
