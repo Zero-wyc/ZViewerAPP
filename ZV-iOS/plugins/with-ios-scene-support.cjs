@@ -29,9 +29,20 @@ function sceneManifest(previous = {}) {
   };
 }
 
+function windowOrientations(plist) {
+  // Let Expo read the per-device orientation lists instead of applying one
+  // universal default mask that removes upside-down support on iPad.
+  delete plist.EXDefaultScreenOrientationMask;
+  plist.UIRequiresFullScreen = false;
+  plist.UISupportedInterfaceOrientations = ['UIInterfaceOrientationPortrait', 'UIInterfaceOrientationLandscapeLeft', 'UIInterfaceOrientationLandscapeRight'];
+  plist['UISupportedInterfaceOrientations~ipad'] = ['UIInterfaceOrientationPortrait', 'UIInterfaceOrientationPortraitUpsideDown', 'UIInterfaceOrientationLandscapeLeft', 'UIInterfaceOrientationLandscapeRight'];
+  return plist;
+}
+
 module.exports = config => {
   config = withInfoPlist(config, mod => {
     mod.modResults.UIApplicationSceneManifest = sceneManifest(mod.modResults.UIApplicationSceneManifest);
+    windowOrientations(mod.modResults);
     return mod;
   });
   return withAppDelegate(config, mod => {
@@ -42,3 +53,4 @@ module.exports = config => {
 };
 module.exports.patchAppDelegate = patchAppDelegate;
 module.exports.sceneManifest = sceneManifest;
+module.exports.windowOrientations = windowOrientations;

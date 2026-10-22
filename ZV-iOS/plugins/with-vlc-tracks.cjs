@@ -53,6 +53,28 @@ function patchVlcTracks(root) {
       .replace('      if newState == .playing {', '      if newState == .playing {\n        addPlayerSlaves(view.slaves)')
       .replace('    view.onTimeChanged(["value": player.time.intValue])', '    addPlayerSlaves(view.slaves)\n    view.onTimeChanged(["value": player.time.intValue])');
   });
+  patch('Player/MediaPlayer.swift', 'ZViewerDecodedVideoSize', source => source.replace(
+    '    view.onTimeChanged(["value": player.time.intValue, "revision": view.zviewerRevision])',
+    '    // ZViewerDecodedVideoSize: report the selected decoded track, including late/changed dimensions.\n    let zviewerVideo = getVideo()\n    view.onTimeChanged(["value": player.time.intValue, "revision": view.zviewerRevision, "width": zviewerVideo.width, "height": zviewerVideo.height])'));
+
+  patch('Player/MediaPlayer.swift', 'ZViewerAdaptiveLength', source => source
+    .replace('  var shouldInit: Bool = true', '  var shouldInit: Bool = true\n  // ZViewerAdaptiveLength: adaptive manifests discover duration after first play.\n  private var zviewerMediaLength: Int64 = 0')
+    .replace('    mediaPlayer!.delegate = self', '    mediaPlayer!.delegate = self\n    zviewerMediaLength = 0')
+    .replace('let length = Int(mediaPlayer?.media?.length.intValue ?? 0)', 'let length = getLength()')
+    .replace('    Int(mediaPlayer?.media?.length.intValue ?? 0)', '    max(Int(zviewerMediaLength), Int(mediaPlayer?.media?.length.intValue ?? 0))')
+    .replace('  func mediaPlayerLengthChanged(_: Int64) {', '  func mediaPlayerLengthChanged(_ length: Int64) {\n    zviewerMediaLength = max(0, length)\n    if let player = mediaPlayer { view.onTimeChanged(["value": player.time.intValue, "revision": view.zviewerRevision, "length": zviewerMediaLength]) }')
+    .replace('"width": zviewerVideo.width, "height": zviewerVideo.height]', '"width": zviewerVideo.width, "height": zviewerVideo.height, "length": getLength()]'));
+
+  patch('Player/MediaPlayer.swift', 'ZViewerPausedMediaReady', source => source.replace(
+    '        if firstPlay {',
+    '      }\n      // ZViewerPausedMediaReady: :start-paused inputs also finish preparing.\n      // JS must be able to seek and confirm a reload without resuming playback.\n      if newState == .playing || newState == .paused {\n        if firstPlay {'));
+
+  patch('Player/MediaPlayer.swift', 'ZViewerPausedDiagnostics', source => source
+    .replace('    mediaPlayer!.play()', '    mediaPlayer!.play()\n    #if DEBUG\n    // ZViewerPausedDiagnostics: never include media addresses or options.\n    NSLog("[ZViewerVLC] init revision=%ld autoplay=%d state=%ld", view.zviewerRevision, view.autoplay ? 1 : 0, mediaPlayer!.state.rawValue)\n    #endif')
+    .replace('    switch newState {', '    #if DEBUG\n    NSLog("[ZViewerVLC] state revision=%ld raw=%ld first=%d length=%ld autoplay=%d", view.zviewerRevision, newState.rawValue, firstPlay ? 1 : 0, getLength(), view.autoplay ? 1 : 0)\n    #endif\n    switch newState {')
+    .replace('              view.onFirstPlay(getMediaInfo())', '              #if DEBUG\n              NSLog("[ZViewerVLC] ready revision=%ld length=%ld autoplay=%d", view.zviewerRevision, getLength(), view.autoplay ? 1 : 0)\n              #endif\n              view.onFirstPlay(getMediaInfo())')
+    .replace('    zviewerMediaLength = max(0, length)', '    zviewerMediaLength = max(0, length)\n    #if DEBUG\n    NSLog("[ZViewerVLC] length revision=%ld milliseconds=%lld", view.zviewerRevision, length)\n    #endif'));
+
 }
 module.exports = config => withDangerousMod(config, ['ios', async value => {
   patchVlcTracks(path.dirname(require.resolve('expo-libvlc-player/package.json', { paths: [value.modRequest.projectRoot] })));

@@ -76,7 +76,68 @@ function patchSystemMedia(root) {
       '      try session.setCategory(.playback, mode: .default, options:',
       '      // ZViewerPrimaryAudio: keep the music owner primary in background.\n      try session.setCategory(.playback, mode: .default, options:'
     ).replace('mode: .default, options: [.mixWithOthers])', 'mode: .default, options: [])'));
+    patch('Managers/AudioSessionManager.swift', 'ZViewerOwnedMusicSession', source => source
+      .replace('  private lazy var expoViews = MediaPlayerManager.shared.expoViews', `  private lazy var expoViews = MediaPlayerManager.shared.expoViews
+  private var categoryObserver: NSObjectProtocol?
+
+  init() {
+    // Voice release can restore a mixable playback category without another
+    // VLC state event. Reconcile it with the current owner, asynchronously.
+    categoryObserver = NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: AVAudioSession.sharedInstance(), queue: nil) { [weak self] note in
+      guard (note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? NSNumber)?.uintValue == AVAudioSession.RouteChangeReason.categoryChange.rawValue else { return }
+      self?.setAppropriateAudioSession()
+    }
+  }
+
+  deinit { if let categoryObserver { NotificationCenter.default.removeObserver(categoryObserver) } }
+
+  private func musicOwner(_ view: LibVlcPlayerView) -> Bool {
+    // ZViewerOwnedMusicSession: a selected music input owns its session while
+    // paused, buffering or replacing. Clearing/unmounting the input releases it.
+    view.backgroundAudio && !(view.source ?? "").isEmpty
+  }`)
+      .replaceAll('$0.backgroundAudio && $0.mediaPlayer?.isPlaying == true', 'musicOwner($0)')
+      .replace('// Preserve an already playing owner; never resume a paused item.', '// Preserve the selected owner; configuring a session never resumes it.')
+      .replace('      playerRequiresCategory(view.mediaPlayer)', '      musicOwner(view) || playerRequiresCategory(view.mediaPlayer)')
+      .replace('      view.mediaPlayer?.isPlaying == true', '      musicOwner(view) || view.mediaPlayer?.isPlaying == true'));
+    patch('Managers/AudioSessionManager.swift', 'ZViewerOwnedMixPolicy', source => source.replace(`    // Preserve the selected owner; configuring a session never resumes it.
+    let session = AVAudioSession.sharedInstance()
+    do {
+      // ZViewerPrimaryAudio: keep the music owner primary in background.
+      try session.setCategory(.playback, mode: .default, options: [])
+      try session.setActive(true)
+    } catch { log.warn("ZViewer background audio session failed") }`, `    // ZViewerPrimaryAudio / ZViewerOwnedMixPolicy: preserve the owner without
+    // overriding an explicit mix choice or changing its paused/play intent.
+    setAudioSession()`));
     patchMusicNative(root);
+    patch('LibVlcPlayerView.swift', 'ZViewerProgressOwner', source => source
+      .replace('  var zviewerRevision: Int = 0', `  // ZViewerProgressOwner: scope system metadata to one native input owner.
+  var zviewerOwnerId: String = ""
+  var zviewerBackgroundDecoration: Bool = false
+  var zviewerRevision: Int = 0`)
+      .replace('  func play() {\n', `  func play() {
+    if zviewerBackgroundDecoration && UIApplication.shared.applicationState != .active { return }
+`));
+    patch('LibVlcPlayerModule.swift', 'Prop("zviewerOwnerId"', source => source.replace('      Prop("zviewerRevision", 0)', `      Prop("zviewerOwnerId", "") { (view: LibVlcPlayerView, owner: String) in view.zviewerOwnerId = owner }
+      Prop("zviewerBackgroundDecoration", false) { (view: LibVlcPlayerView, decoration: Bool) in view.zviewerBackgroundDecoration = decoration }
+      Prop("zviewerRevision", 0)`));
+    patch('Player/MediaPlayer.swift', 'ZViewerTypedMediaProgress', source => source
+      .replace('    NotificationCenter.default.post(name: NSNotification.Name("ZViewerVlcProgress"),', '    // ZViewerTypedMediaProgress: silent decoration must never own audio progress.\n    NotificationCenter.default.post(name: NSNotification.Name("ZViewerVlcProgress"),')
+      .replaceAll('["uri": view.source ?? "",', '["uri": view.source ?? "", "ownerId": view.zviewerOwnerId, "revision": view.zviewerRevision, "ready": !firstPlay, "backgroundAudio": view.backgroundAudio,')
+      .replace('"stopped": newState == .stopped, "backgroundAudio": view.backgroundAudio]', '"stopped": newState == .stopped]'));
+    patch('Player/MediaPlayer.swift', 'ZViewerFrozenMediaProgress', source => source
+      .replace('  private var firstPlay: Bool = true', `  private var firstPlay: Bool = true
+  // ZViewerFrozenMediaProgress: React props can change before the native input.
+  private var zviewerProgressInput: [String: Any] = [:]`)
+      .replace('    mediaPlayer!.delegate = self', `    mediaPlayer!.delegate = self
+    zviewerProgressInput = ["uri": view.source ?? "", "ownerId": view.zviewerOwnerId, "revision": view.zviewerRevision, "backgroundAudio": view.backgroundAudio]`)
+      .replace('["uri": view.source ?? "", "ownerId": view.zviewerOwnerId, "revision": view.zviewerRevision, "ready": !firstPlay, "backgroundAudio": view.backgroundAudio, "playing": player.isPlaying, "stopped": newState == .stopped]', 'zviewerProgressInput.merging(["ready": !firstPlay, "playing": player.isPlaying, "stopped": newState == .stopped]) { _, new in new }')
+      .replace('  func mediaPlayerTimeChanged(_: Notification) {\n    guard let player = mediaPlayer else { return }', `  func mediaPlayerTimeChanged(_ notification: Notification) {
+    guard let player = mediaPlayer else { return }
+    if let origin = notification.object as? VLCMediaPlayer, origin !== player { return }`)
+      .replace('["uri": view.source ?? "", "ownerId": view.zviewerOwnerId, "revision": view.zviewerRevision, "ready": !firstPlay, "backgroundAudio": view.backgroundAudio, "position": Double(player.time.intValue) / 1000, "playing": player.isPlaying]', 'zviewerProgressInput.merging(["ready": !firstPlay && player.state == .playing, "position": Double(player.time.intValue) / 1000, "playing": player.isPlaying]) { _, new in new }'));
+    patch('Managers/MediaPlayerManager.swift', 'ZViewerDecorationBackground', source => source.replace('      if !view.backgroundAudio && view.source != UserDefaults.standard.string(forKey: "ZViewerPlaybackUri") && !view.pictureInPicture {', `      // ZViewerDecorationBackground: same URI does not confer audio ownership.
+      if view.zviewerBackgroundDecoration || (!view.backgroundAudio && view.source != UserDefaults.standard.string(forKey: "ZViewerPlaybackUri") && !view.pictureInPicture) {`));
     patchVlcSeek(root);
 }
 module.exports = config => {
