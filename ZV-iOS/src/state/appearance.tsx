@@ -7,8 +7,7 @@ import { readPreference, writePreference } from '@/lib/preferences';
 import { appearanceDefaults as defaults, normalizeAppearance, type AppearancePreferences as Preferences } from '@/lib/appearancePreferences';
 import { withDeadline } from '@/lib/deadline';
 import { mobilePalette } from '@/lib/mobileDesign';
-import { AppDialog } from '@/components/AppDialog';
-import { AppearanceSettings } from '@/components/AppearanceSettings';
+import { AppearanceSheet } from '@/components/AppearanceSettings';
 
 type Appearance = { dark: boolean; preferences: Preferences; open(): void; color(value: string, role?: string): string; styles<T>(value: T): T };
 const Context = createContext<Appearance | null>(null);
@@ -67,9 +66,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
       <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: `rgba(0,0,0,${preferences.overlay})` }} />
     </View>
     <StatusBar style={dark ? 'light' : 'dark'} />{children}
-    <AppDialog visible={visible} title="外观设置" close={() => setVisible(false)}>
-      <AppearanceSettings preferences={preferences} dark={dark} patch={patch} importImage={() => void importImage()} error={error} />
-    </AppDialog>
+    <AppearanceSheet visible={visible} close={() => setVisible(false)} reducedMotion={reduceMotion} preferences={preferences} dark={dark} patch={patch} importImage={() => void importImage()} error={error} />
   </View></Context.Provider>;
 }
 
