@@ -1,8 +1,8 @@
 # ZViewer Mobile Client
 
-**本地开发版本 2.1.8 / 218**：已按服务端 v4.7.4 执行文档完成播放设置按钮与即时应用、源解析同步、B站请求/解码防护和语音媒体监看。安装包及验收边界见 [2.1.8 验证记录](docs/client-2.1.8-validation.md)，尚未发布。下方 2.1.7 下载与发行状态继续指向已公开版本。
+**Android / HarmonyOS 4.1.9 / 419**：按服务端 v4.7.4 完成影片播放设置即时应用、源解析与观众同步、B站请求/解码防护和语音媒体监看。添加影片保留原说明卡与滑动开关；影片卡胶囊的图标和文字垂直居中，关闭时文字在图标右侧区域居中，开启后文字左移并显示高亮勾号，按钮尺寸保持不变。正式安装包已构建，最终包检查与发布状态见 [4.1.9 验证记录](docs/client-4.1.9-validation.md)。
 
-**Android / HarmonyOS 2.1.7 / 217**：支持普通 B站视频仅用服务端账号解析和添加，明确区分本机与服务端登录状态；修复短链后续操作、竖屏高清轨道筛选，并按实际视频方向锁定全屏。保留完整名称和选集布局等既有功能。用户已反馈测试通过，构建与验证范围见 [2.1.7 记录](docs/client-2.1.7-validation.md)。
+此前公开版本为 **2.1.7 / 217**；4.1.9 保留其服务端账号解析、B站短链、竖屏高清和全屏方向等修复。2.1.8 / 218 为本地迭代，历史测试见 [2.1.8 记录](docs/client-2.1.8-validation.md)，最终发行以 4.1.9 / 419 为准。
 
 **iOS 1.9.0 / build 26**：播放器、弹幕设置、房间语音、投屏、房间设置、方向控制和音乐菜单完成独立更新；设备 Release IPA 未签名，需自行签名后侧载。维护入口见 [iOS 维护文档](docs/ios-maintenance-architecture.md)，发布包见 [iOS 1.9.0 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0)。
 
@@ -10,21 +10,21 @@
 
 面向手机和平板的 ZViewer 客户端，支持一起看、一起听、投屏接收、房间语音、弹幕与字幕。三端均将界面与播放器打包进安装包，填写服务器地址后连接 [ZViewer 服务端](https://github.com/Zero-wyc/ZViewer)。本仓库提供 Android/HarmonyOS 共享前端、原生宿主及独立 iOS 工程源码。
 
-[下载安卓/鸿蒙 2.1.7](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.7) · [下载 iOS 1.9.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md)
+[安卓/鸿蒙 4.1.9 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v4.1.9) · [下载 iOS 1.9.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md)
 
-## 2.1.7 发行状态
+## 4.1.9 发行状态
 
-当前 Android/HarmonyOS 版本为 **2.1.7 / 217**，包含 B站分享短链、竖屏 720P/1080P、全屏方向及仅登录服务端账号时的解析添加修复，保留既有媒体策略、长名称与选集布局、播放及投屏更新。服务端基线仍为 v4.7.1 后的 `fe55dde`；本次不改动服务器部署。发行说明见 [2.1.7](docs/releases/client-2.1.7.md)，验收证据与范围见 [交付验证](docs/client-2.1.7-validation.md)。
+当前 Android/HarmonyOS 发行目标为 **4.1.9 / 419**，对齐服务端 v4.7.4 固定提交 `e3af086`。非 B站影片的播放设置支持保存后即时重载，保持进度、倍速与暂停意图；两项设置独立，观众只读，失败可重试。语音以实际媒体连接判断状态；手动 HDR 仍后置。本次不改动服务器或 NAS 部署。发行说明见 [4.1.9](docs/releases/client-4.1.9.md)，分层验证与尚未覆盖项见 [交付验证](docs/client-4.1.9-validation.md)。正式签名 Release 的签名/资源/版本检查及最终 419 Debug 模拟器界面、HLS 双向播放与策略切换通过，发布状态待最终确认。
 
-## 最新公开发行与三端状态
+## 发行版本与三端状态
 
 | 平台 | 版本 | 交付和目前状态 |
 | --- | --- | --- |
-| Android | **2.1.7 / 217** | 正式签名 APK；B站短链、竖屏高清/全屏及服务端账号解析修复；保留既有播放与投屏功能。 |
-| HarmonyOS | **2.1.7 / 217** | 正式签名 HAP；共享上述修复；最低 SDK 6.1.0(23)，无画中画入口。 |
+| Android | **4.1.9 / 419** | 正式 Release APK 已构建；最终检查与发布确认见验证记录。 |
+| HarmonyOS | **4.1.9 / 419** | 正式 Release HAP 已构建；共享上述更新，最低 SDK 6.1.0(23)，无画中画入口；最终检查与发布确认见验证记录。 |
 | iOS | **1.9.0 / build 26** | 未签名设备 Release IPA，需个人签名后侧载；自动检查和模拟器覆盖范围、真实媒体与后台限制见 iOS 维护文档。 |
 
-[ZViewer-Client V2.1.7](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.7) 提供已完成构建并经用户测试通过的正式签名 Android APK、HarmonyOS HAP 与构建时生成的 `SHA256SUMS.txt`；发布复用这些安装包，源码同步 main，使用 GitHub 自动归档。iOS 保持在 [1.9.0 / build 26](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0)，本轮不构建或重新上传 IPA。
+[ZViewer-Client V4.1.9](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v4.1.9) 的发行资产为 Android APK、HarmonyOS HAP 与构建时生成的 `SHA256SUMS.txt`；源码按 main 与标签发布，使用 GitHub 自动源码归档。每个最终包只在构建完成时计算一次 SHA-256，发布复用记录。iOS 保持在 [1.9.0 / build 26](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0)，本轮不构建或发布 IPA。
 
 Android/HarmonyOS 2.0.0 保留服务端 v4.5.3 对齐及既有 HLS 直连/代理策略。投屏观看端去掉批注，全屏隐藏连接与分辨率；一起看更多菜单优先向下展开并避开按钮。B站图标按本机登录态着色，账号弹窗仅“已登录”标粉；关于入口悬浮在外观按钮上方，创建房间时二者均被面板覆盖。维护状态与模块入口见对应的平台维护文档；完整历史版本见 [更新记录](CHANGELOG.md) 和 [GitHub Releases](https://github.com/Zero-wyc/ZViewerAPP/releases)。
 
@@ -32,8 +32,8 @@ Android/HarmonyOS 2.0.0 保留服务端 v4.5.3 对齐及既有 HLS 直连/代理
 
 | 平台 | 安装包与方法 | 系统要求 |
 | --- | --- | --- |
-| Android | 下载 `ZViewer-Android-2.1.7-release.apk`，允许安装该来源的应用后安装；相同发布签名可覆盖旧正式版。 | Android 7.0 / API 24 起；APK 含 ARM64 / x86_64，需要 64 位设备；保持 System WebView / Chrome 更新。 |
-| HarmonyOS | 下载 `ZViewer-HarmonyOS-2.1.7-release.hap`，按设备支持的开发者安装/调试流程安装；可通过 DevEco Studio 或已连接设备的 HDC 安装。此 HAP 不是应用商店分发包。 | 工程最低 SDK `6.1.0(23)`，目标 SDK 26；本机发布 Profile 和设备授权限制以安装结果为准。 |
+| Android | 下载 `ZViewer-Android-4.1.9-release.apk`，允许安装该来源的应用后安装；相同发布签名可覆盖旧正式版。 | Android 7.0 / API 24 起；APK 含 ARM64 / x86_64，需要 64 位设备；保持 System WebView / Chrome 更新。 |
+| HarmonyOS | 下载 `ZViewer-HarmonyOS-4.1.9-release.hap`，按设备支持的开发者安装/调试流程安装；可通过 DevEco Studio 或已连接设备的 HDC 安装。此 HAP 不是应用商店分发包。 | 工程最低 SDK `6.1.0(23)`，目标 SDK 26；本机发布 Profile 和设备授权限制以安装结果为准。 |
 | iOS | 下载 `ZViewer-iOS-1.9.0-release.ipa`，用自己的证书及设备授权工具重新签名后侧载；不是直接点击即可安装的商店包。内置 Release JS，无需 Expo Go、Metro 或开发电脑。 | iOS / iPadOS 16.4 起，iPhone / iPad；签名有效期与安装设备资格由自己的签名方式决定。 |
 
 三端首次启动的操作相同：

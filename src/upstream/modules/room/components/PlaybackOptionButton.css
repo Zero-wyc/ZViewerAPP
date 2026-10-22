@@ -34,9 +34,32 @@ button.playback-option-button {
 }
 
 .playback-option-icon {
+  display: block;
   flex-shrink: 0;
   width: 1.08em;
   height: 1.08em;
+}
+
+.playback-option-content {
+  --check-space: calc(1em + .375rem);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.25em;
+  /* Reserve the check without biasing the unselected label to the left. */
+  padding-inline: calc(var(--check-space) / 2);
+}
+
+.playback-option-label {
+  display: block;
+  line-height: 1.25;
+  transform: translateX(0);
+  transition: transform 160ms ease;
+}
+
+.playback-option-button[aria-pressed="true"] .playback-option-label {
+  transform: translateX(calc(var(--check-space) / -2));
 }
 
 /* A solid primary surface plus a check makes the selected state unambiguous. */
@@ -45,8 +68,27 @@ button.playback-option-button {
 }
 
 .playback-option-state-icon {
-  flex-shrink: 0;
+  position: absolute;
+  inset-inline-end: 0;
+  top: 50%;
   width: 1em;
   height: 1em;
   stroke-width: 3;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-50%) scale(.85);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.playback-option-button[aria-pressed="true"] .playback-option-state-icon {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(-50%) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playback-option-label,
+  .playback-option-state-icon {
+    transition: none;
+  }
 }

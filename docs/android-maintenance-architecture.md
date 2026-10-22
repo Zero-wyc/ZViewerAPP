@@ -4,15 +4,17 @@
 
 ## 当前状态与范围
 
-- Android 当前本地版本为 **2.1.8 / versionCode 218**，按 v4.7.4 执行文档更新播放设置、解析同步、B站请求与语音媒体监看。已发布的 2.1.7 用户验收结果作为历史记录保留；本轮验证与待验收范围见下文及独立验证记录。
+- Android 当前发行版本为 **4.1.9 / versionCode 419**，按 v4.7.4 执行文档更新播放设置、解析同步、B站请求与语音媒体监看。最终 APK 已构建并完成签名和网页资源静态检查；最终 419 Debug 宿主复核与发布确认见 [4.1.9 验证记录](client-4.1.9-validation.md)。2.1.8 为本地迭代，2.1.7 为此前公开版本，历史验收不替代本轮证据。
 - 客户端修改、Git 提交均在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。`ZViewer-source code` 是本地服务端目录，不在其中改客户端。
 - Android 与 HarmonyOS 共用根目录 React/Vite 界面，但原生宿主不同；iOS 是 `ZV-iOS` 中独立的 Expo/React Native 工程。三端实现和验收不能互相替代。
 
 ## 代码入口
 
-### 2.1.8 / 218：对齐服务端 v4.7.4（2026-10-22）
+### 4.1.9 / 419：对齐服务端 v4.7.4 与最终播放设置（2026-10-22）
 
 本轮基线为服务端 `e3af086c7bd98ee0d4697386b69678f92ea54d81`。新增 `PlaybackOptionButton.tsx` 与 `MovieRuntimeSettings.tsx`：非 B站影片卡使用图标＋粗体中文的独立胶囊按钮，保留服务器中转与浏览器转码两个布尔值；添加面板按用户后续要求恢复 `PlaybackOptionToggle.tsx` 的说明卡＋滑动开关，沿用原草稿默认值与来源可见性。按用户后续反馈将可见胶囊缩为 32px、文字 12–13px、图标约 13–14px；`PlaybackOptionButton.css` 通过所在面板容器宽度（cqw/clamp）和字体比例适配窄屏/分屏，允许整按钮换行。外层触摸高度保留 44px，展开标题图标缩为 14px，不全局缩放其他控件。胶囊开启时使用 primary 实心填充、on-primary 对比色和勾选图标，关闭为表面色描边；勾选位预留宽度避免状态变化时跳动。影片卡默认折叠；屏幕共享隐藏，观众只读，写入要求当前分享端且具 root/持久房间所有者权限，REST 鉴权仍由服务器执行。
+
+最终对齐由 `.playback-option-content` 对称预留半个勾号区域：左侧图标固定，文字与图标垂直居中；关闭时文字在图标右侧剩余区域居中，开启时文字左移半个勾号区域并显示右侧勾号，按钮宽高和图标边界不变。普通状态过渡 160ms，减少动态效果时接近即时切换。320/393/768px、100%/130% 字体、深浅主题、系统字体与实际载入的华文行楷共 24 组实测通过；字体行框与图标垂直中心误差小于 0.004px。该结果为实际组件浏览器几何验证，不能替代原生宿主或真机验收。
 
 `roomStore.saveMoviePlaybackSettings` 只 PUT 改动字段，确认响应 Movie（兼容旧响应时 GET），按房间会话、逻辑服务器、事务令牌保护。`setMovies` 暂存保存中的策略，已确认值与无版本广播冲突时 GET 权威片单；GET 请求代次和 saving 阶段快照拒绝迟到结果。保存与媒体应用状态分开，当前影片交给 `useWatchTogether` 的完整源标识重载；非当前影片只保存。应用保留时间、倍速、暂停意图，成功 attach 后才写入可广播播放状态。失败保留新设置，停止失败管线、广播上次成功源的暂停态并显示重试；换片、离房、身份变化和旧回调失效，不反向 PUT 自动回滚。
 
@@ -22,7 +24,7 @@ B站 JSON/NDJSON/CLI 接收 `isHdr/hdrType/videoCodecid`，按真实 codec/profi
 
 语音 `transport.ts` 监看实际活动 publisher/subscriber PC/ICE，加入、重连与中断开启约 10 秒媒体窗口；等待麦克风授权不计入超时。每轮提示一次，恢复后清除；SDK 私有诊断不可用显示待确认，不直接断开通话。PC 替换、离房、重试均清理监听与计时器；线路仅采用当前 selected candidate pair。客户端不设置 UDP/TCP/TURN 固定端口，不修改 NAS 网络。
 
-实际自动化、浏览器、原生模拟器、签名安装包与未测边界分别记录于 [2.1.8 验证记录](client-2.1.8-validation.md)。该版本本地构建待用户验收，尚未推送或发布；iOS 不修改、不构建。
+本轮 240 项适配、4 项媒体、6 项 vendor 与 Go core/mobile 回归通过；最终 4.1.9 APK 为 76,761,777 字节，apksigner v2 通过，33 个网页资源与最终同步目录逐字节一致。每包仅构建后计算一次 SHA-256，复用 `release/client-v4.1.9/SHA256SUMS.txt`。最终 419 Debug 模拟器界面与 HLS 双向房主/观众解码、四种策略切换通过，均保持 10 秒暂停与 1.5 倍速，恢复后解码帧继续增长；各层证据与发布状态见 [4.1.9 验证记录](client-4.1.9-validation.md)，早期互测见 [2.1.8 历史记录](client-2.1.8-validation.md)。iOS 不修改、不构建、不发布。
 
 Android `native/bilicore/core/resolver.go/quality.go/pgc.go` 的实际 UGC/PGC 请求统一 `buildFnval`，修正会员、8K、AV1 位组合，MP4 保持 fnval=1；`fnval_test.go` 截获真实请求进行验证。修改后重建 ARM64/x86_64 Go AAR，再同步网页资源和构建 APK。
 
