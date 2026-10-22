@@ -1,6 +1,6 @@
 # Android / HarmonyOS 2.1.9 / 219 验证记录
 
-日期：2026-10-22（Asia/Shanghai）。状态：**最终 2.1.9 / 219 双端 Debug 模拟器界面复核通过，正式签名 Release 的签名、资源及版本检查通过，尚未发布**。同一播放代码的 HLS 双向互测在此前误填版本 4.1.9 / 419 的 Debug 包完成，以下单独记录，不作为 219 包重新执行 HLS 的证明。此前公开版本为 2.1.7 / 217；历史本地运行证据见 [2.1.8 记录](client-2.1.8-validation.md)。
+日期：2026-10-22（Asia/Shanghai）。状态：**最终 2.1.9 / 219 双端 Debug 模拟器界面复核通过，正式签名 Release 的签名、资源及版本检查通过，已发布 GitHub Latest 正式 Release**。同一播放代码的 HLS 双向互测在此前误填版本 4.1.9 / 419 的 Debug 包完成，以下单独记录，不作为 219 包重新执行 HLS 的证明。此前公开版本为 2.1.7 / 217；历史本地运行证据见 [2.1.8 记录](client-2.1.8-validation.md)。
 
 客户端修改和 Git 操作均在指定 `ZViewer-client` 仓库。服务端固定基线为 `e3af086c7bd98ee0d4697386b69678f92ea54d81`（v4.7.4），客户端公开基线为 `5e829a491d3bd0612fb48c5294ae463312f8c066`（2.1.7）。本轮不修改 NAS 或服务端部署；iOS 不修改、不构建、不发布。
 
@@ -97,6 +97,6 @@ B01 移动端手动 HDR/音乐背景 HDR 后置，保留 HDR/Dolby 过滤；B02 
 
 真实双设备语音、局域网 UDP/公网 TCP/TURN 选路、移动硬件 HDR 显示、HarmonyOS API 23 实体设备和全部设备硬件解码仍未验收。本轮不构建或发布 iOS，也不以浏览器、模拟器或能力声明替代真机结论。
 
-发行目标为 main / `client-v2.1.9`，标题 **ZViewer-Client V2.1.9**，资产仅 Android APK、HarmonyOS HAP、`SHA256SUMS.txt`；不另打源码压缩包。源码与包审查无阻断项。最终提交/标签、远端上传及发布确认尚未完成，当前状态为“尚未发布”。
+源码已推送 main，版本标签 `client-v2.1.9` 指向构建源码提交 `f021bb0146baad0643ed3315ca4c994e6711899f`。正式发行标题为 **ZViewer-Client V2.1.9**，于 2026-10-22 11:04:06（Asia/Shanghai） 发布（Release ID 420262477）；API 确认 draft=false、prerelease=false，Latest 为该标签。APK、HAP、`SHA256SUMS.txt` 三项资产均为 uploaded，名称、大小及服务端摘要与构建记录一致；复用构建时摘要，未重复下载或计算校验。源码与包审查无阻断项，使用 GitHub 自动源码归档，不另打源码压缩包。
 
-发行说明：[2.1.9](releases/client-2.1.9.md)。目标 Release：[client-v2.1.9](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.9)；目标链接本身不作为发布成功证明。
+发行说明：[2.1.9](releases/client-2.1.9.md)。正式 Release：[client-v2.1.9](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.9)。远端发布元数据保存在本机忽略目录 `release/client-v2.1.9/published-release.json`；状态以实际 API 确认为据。

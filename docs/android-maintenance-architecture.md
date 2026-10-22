@@ -4,7 +4,7 @@
 
 ## 当前状态与范围
 
-- Android 当前发行版本为 **2.1.9 / versionCode 219**，按 v4.7.4 执行文档更新播放设置、解析同步、B站请求与语音媒体监看。最终 APK 已构建并完成签名和网页资源静态检查；最终 219 Debug 宿主复核与发布确认见 [2.1.9 验证记录](client-2.1.9-validation.md)。2.1.8 为本地迭代，2.1.7 为此前公开版本，历史验收不替代本轮证据。
+- Android 当前发行版本为 **2.1.9 / versionCode 219**，按 v4.7.4 执行文档更新播放设置、解析同步、B站请求与语音媒体监看。最终 APK 已构建并完成签名和网页资源静态检查；最终 219 Debug 宿主复核通过，已发布正式 Release；完整证据见 [2.1.9 验证记录](client-2.1.9-validation.md)。2.1.8 为本地迭代，2.1.7 为此前公开版本，历史验收不替代本轮证据。
 - 客户端修改、Git 提交均在 `E:/Codex-bulid/ZViewer/ZViewer-client` 完成。`ZViewer-source code` 是本地服务端目录，不在其中改客户端。
 - Android 与 HarmonyOS 共用根目录 React/Vite 界面，但原生宿主不同；iOS 是 `ZV-iOS` 中独立的 Expo/React Native 工程。三端实现和验收不能互相替代。
 

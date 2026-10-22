@@ -4,7 +4,7 @@
 
 ## 当前状态与范围
 
-- HarmonyOS 当前发行版本为 **2.1.9 / versionCode 219**，按 v4.7.4 执行文档更新播放设置、解析同步、B站请求与语音媒体监看。最终 HAP 已构建并完成签名和网页资源静态检查；最终 219 Debug 宿主复核与发布确认见 [2.1.9 验证记录](client-2.1.9-validation.md)。2.1.8 为本地迭代，2.1.7 为此前公开版本；模拟器结果不扩大为 API 23 实体设备验收。
+- HarmonyOS 当前发行版本为 **2.1.9 / versionCode 219**，按 v4.7.4 执行文档更新播放设置、解析同步、B站请求与语音媒体监看。最终 HAP 已构建并完成签名和网页资源静态检查；最终 219 Debug 宿主复核通过，已发布正式 Release；完整证据见 [2.1.9 验证记录](client-2.1.9-validation.md)。2.1.8 为本地迭代，2.1.7 为此前公开版本；模拟器结果不扩大为 API 23 实体设备验收。
 - 客户端源码和 Git 操作均在 `E:/Codex-bulid/ZViewer/ZViewer-client`；共享 React/Vite 前端与 Android 相同，原生部分使用 HarmonyOS ArkTS 与 ArkWeb。
 - B站 Cookie、服务端凭据和本机代理状态只保存在原生侧。不能进入 React 状态持久化、网页日志、Socket 房间广播或公开源码。
 
