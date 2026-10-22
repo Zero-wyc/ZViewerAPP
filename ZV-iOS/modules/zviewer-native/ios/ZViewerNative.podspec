@@ -17,6 +17,6 @@ Pod::Spec.new do |s|
   s.vendored_libraries = 'Vendor/libopus.a'
   s.resource_bundles = { 'ZViewerNativeLicenses' => ['Vendor/*-LICENSE', 'Vendor/*-source-*.json'] }
   s.libraries = 'resolv'
-  s.frameworks = 'AVFoundation', 'AudioToolbox', 'Security', 'VideoToolbox', 'MediaPlayer'
+  s.frameworks = 'AVFoundation', 'AudioToolbox', 'Security', 'VideoToolbox', 'MediaPlayer', 'Network'
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'HEADER_SEARCH_PATHS' => '$(inherited) "$(PODS_TARGET_SRCROOT)/Vendor/opus"' }
 end

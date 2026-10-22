@@ -14,6 +14,12 @@ final class ZVSystemMedia {
   private var cover = ""
   private var pending: [[String: Any]] = []
   private var info: [String: Any] = [:]
+  private var inputGate = ZVSystemMediaInputGate()
+  #if DEBUG
+  private var debugPublishCount = 0
+  private var debugLogCount = 0
+  private var debugLastSignature = ""
+  #endif
   private var transitionTask: UIBackgroundTaskIdentifier = .invalid
   private func beginTransition() {
     guard transitionTask == .invalid else { return }
@@ -27,14 +33,14 @@ final class ZVSystemMedia {
     // NotificationCenter's queue delivery waits for its observer. Never wait
     // for main from a VLC callback that may hold libvlc's player lock.
     observer = NotificationCenter.default.addObserver(forName: NSNotification.Name("ZViewerVlcProgress"), object: nil, queue: nil) { [weak self] note in
-      guard let data = note.userInfo else { return }
+      guard let data = note.userInfo as? [String: Any] else { return }
       DispatchQueue.main.async { [weak self] in
-        guard let self, let uri = data["uri"] as? String, !uri.isEmpty, uri == self.state["uri"] as? String else { return }
+        guard let self, self.inputGate.accepts(data, state: self.state) else { return }
         if data["backgroundAudio"] as? Bool == true && data["stopped"] as? Bool == true && UIApplication.shared.applicationState != .active { self.beginTransition() }
-        if data["playing"] as? Bool == true { self.endTransition() }
+        if self.inputGate.advancedReadyAudio(data, state: self.state) { self.endTransition() }
         if let position = data["position"] as? Double { self.state["position"] = position; self.info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = position }
         if let playing = data["playing"] as? Bool { self.state["playing"] = playing; self.info[MPNowPlayingInfoPropertyPlaybackRate] = playing ? (self.state["playbackRate"] as? Double ?? 1) : 0 }
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = self.info
+        self.publishInfo()
       }
     }
     let audioSession = AVAudioSession.sharedInstance()
@@ -83,7 +89,15 @@ final class ZVSystemMedia {
   }
   func update(_ json: String) {
     guard let data = json.data(using: .utf8), let next = try? JSONSerialization.jsonObject(with: data) as? [String: Any], next["sessionId"] is String else { return }
-    if state["sessionId"] as? String != next["sessionId"] as? String || state["mediaId"] as? String != next["mediaId"] as? String { pending.removeAll(); info.removeAll(); cover = ""; artworkTask?.cancel() }
+    let changedInput = state["sessionId"] as? String != next["sessionId"] as? String || state["mediaId"] as? String != next["mediaId"] as? String || state["ownerId"] as? String != next["ownerId"] as? String || (state["inputRevision"] as? NSNumber)?.intValue != (next["inputRevision"] as? NSNumber)?.intValue
+    if changedInput {
+      pending.removeAll(); info.removeAll(); cover = ""; artworkTask?.cancel()
+      inputGate.reset()
+      if next["kind"] as? String == "audio" && UIApplication.shared.applicationState != .active { beginTransition() }
+      #if DEBUG
+      debugLogCount = 0; debugLastSignature = ""
+      #endif
+    }
     state = next
     UserDefaults.standard.set(next["uri"] as? String ?? "", forKey: "ZViewerPlaybackUri")
     info[MPMediaItemPropertyTitle] = next["title"] ?? "ZViewer"
@@ -105,7 +119,7 @@ final class ZVSystemMedia {
       cover = imageUrl; artworkTask?.cancel(); info.removeValue(forKey: MPMediaItemPropertyArtwork)
       let id = next["sessionId"] as? String; let media = next["mediaId"] as? String
       if let url = URL(string: imageUrl), ["http", "https"].contains(url.scheme ?? ""), url.user == nil, url.password == nil {
-        var request = URLRequest(url: url); request.timeoutInterval = 12; request.cachePolicy = .reloadIgnoringLocalCacheData
+        var request = URLRequest(url: ZVServerConnectionTransport.shared.forward(url)); request.timeoutInterval = 12; request.cachePolicy = .reloadIgnoringLocalCacheData
         artworkTask = Task { [weak self] in
           do {
             let (bytes, response) = try await URLSession.shared.bytes(for: request)
@@ -116,19 +130,71 @@ final class ZVSystemMedia {
               data.append(byte)
             }
             guard !Task.isCancelled, let image = UIImage(data: data) else { return }
-            DispatchQueue.main.async { guard let self, self.state["sessionId"] as? String == id, self.state["mediaId"] as? String == media, self.cover == imageUrl else { return }; self.info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }; MPNowPlayingInfoCenter.default().nowPlayingInfo = self.info }
+            DispatchQueue.main.async { guard let self, self.state["sessionId"] as? String == id, self.state["mediaId"] as? String == media, self.cover == imageUrl else { return }; self.info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }; self.publishInfo() }
           } catch { /* Keep the placeholder when artwork is unavailable. */ }
         }
       }
     }
     if info[MPMediaItemPropertyArtwork] == nil, let image = UIImage(systemName: "music.note") { info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image } }
-    MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    publishInfo()
   }
+  private func publishInfo() {
+    MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    #if DEBUG
+    debugPublishCount += 1
+    debugLogPublishedState()
+    #endif
+  }
+  #if DEBUG
+  // Values deliberately exclude titles, artists, IDs, URIs, artwork and tokens.
+  // Registered means this owner's MPRemoteCommandCenter targets are installed;
+  // it is not a claim that the OS routed a remote command or displayed a card.
+  func debugDiagnostic() -> [String: Any] {
+    let published = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+    let audio = AVAudioSession.sharedInstance()
+    return [
+      "metadataKeys": published.keys.sorted(),
+      "titlePresent": (published[MPMediaItemPropertyTitle] as? String)?.isEmpty == false,
+      "elapsed": (published[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? NSNumber)?.doubleValue ?? -1,
+      "duration": (published[MPMediaItemPropertyPlaybackDuration] as? NSNumber)?.doubleValue ?? -1,
+      "rate": (published[MPNowPlayingInfoPropertyPlaybackRate] as? NSNumber)?.doubleValue ?? -1,
+      "artworkPresent": published[MPMediaItemPropertyArtwork] != nil,
+      "hasOwner": state["sessionId"] is String,
+      "mediaKind": state["kind"] as? String ?? "none",
+      "sourceAttached": !(state["uri"] as? String ?? "").isEmpty,
+      "isRemoteControlRegistered": !targets.isEmpty && state["sessionId"] is String,
+      "registeredTargetCount": targets.count,
+      "enabledTargetCount": targets.filter { $0.0.isEnabled }.count,
+      "sessionCategory": audio.category.rawValue,
+      "sessionMode": audio.mode.rawValue,
+      "sessionOptions": audio.categoryOptions.rawValue,
+      "routeSharingPolicy": audio.routeSharingPolicy.rawValue,
+      "otherAudioPlaying": audio.isOtherAudioPlaying,
+      "applicationState": UIApplication.shared.applicationState.rawValue,
+      "publishCount": debugPublishCount
+    ]
+  }
+  private func debugLogPublishedState() {
+    guard debugLogCount < 8 else { return }
+    let diagnostic = debugDiagnostic()
+    // Keep the first preparing snapshot, reserving the bounded log budget for
+    // ready playback and later lock/background transitions rather than init.
+    if debugLogCount > 0 && ((diagnostic["duration"] as? Double ?? 0) <= 0 || diagnostic["sourceAttached"] as? Bool != true) { return }
+    var signature = diagnostic
+    signature.removeValue(forKey: "elapsed"); signature.removeValue(forKey: "publishCount")
+    guard let bytes = try? JSONSerialization.data(withJSONObject: signature, options: .sortedKeys),
+      let next = String(data: bytes, encoding: .utf8), next != debugLastSignature else { return }
+    debugLastSignature = next; debugLogCount += 1
+    if let data = try? JSONSerialization.data(withJSONObject: diagnostic, options: .sortedKeys), let json = String(data: data, encoding: .utf8) {
+      NSLog("[ZViewerSystemMedia] %@", json)
+    }
+  }
+  #endif
   func drain(_ id: String) -> [[String: Any]] {
     guard state["sessionId"] as? String == id else { return [] }
     let values = pending.map { event -> [String: Any] in var value = event; if event["action"] as? String == "seek" { value["value"] = state["position"] ?? event["value"] }; return value }; pending.removeAll(); return values
   }
-  func clear(_ id: String) { guard state["sessionId"] as? String == id else { return }; endTransition(); artworkTask?.cancel(); cover = ""; pending.removeAll(); state.removeAll(); info.removeAll(); UserDefaults.standard.removeObject(forKey: "ZViewerPlaybackUri"); MPNowPlayingInfoCenter.default().nowPlayingInfo = nil; for (target, _) in targets { target.isEnabled = false } }
+  func clear(_ id: String) { guard state["sessionId"] as? String == id else { return }; endTransition(); inputGate.reset(); artworkTask?.cancel(); cover = ""; pending.removeAll(); state.removeAll(); info.removeAll(); UserDefaults.standard.removeObject(forKey: "ZViewerPlaybackUri"); MPNowPlayingInfoCenter.default().nowPlayingInfo = nil; for (target, _) in targets { target.isEnabled = false } }
   func shutdown() { endTransition(); if let id = state["sessionId"] as? String { clear(id) }; command = nil }
   deinit { audioObservers.forEach { NotificationCenter.default.removeObserver($0) }; artworkTask?.cancel(); if let observer { NotificationCenter.default.removeObserver(observer) }; for (target, token) in targets { target.removeTarget(token) } }
 }

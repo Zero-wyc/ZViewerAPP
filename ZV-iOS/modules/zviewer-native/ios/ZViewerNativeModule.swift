@@ -5,14 +5,49 @@ public class ZViewerNativeModule: Module {
   private var voiceRevision = 0
   private let voice = ZVVoiceEngine()
   private lazy var systemMedia = ZVSystemMedia()
+  private let hlsRelay = ZVHLSRelayManager()
   private let biliQueue = DispatchQueue(label: "zviewer.bili", qos: .userInitiated)
+  private let connectionOwner = UUID().uuidString
+  private func configureConnection(_ server: String, _ allow: Bool, _ promise: Promise) {
+    let owner = connectionOwner
+    ZVServerConnectionTransport.queue.async {
+      let transport = ZVServerConnectionTransport.shared
+      if transport.remove() != nil { _ = ZVBiliBridge.configureServer("", allow: false) }
+      let result = ZVBiliBridge.configureServer(server, allow: allow)
+      guard result["success"] as? Bool == true, let url = result["url"] as? String else {
+        _ = ZVBiliBridge.configureServer("", allow: false)
+        promise.reject("SERVER_CONNECTION", "服务器连接配置失败，请检查地址或端口"); return
+      }
+      do {
+        try transport.install(server: server, transport: url, allow: allow, owner: owner)
+        promise.resolve(["url": url])
+      } catch {
+        _ = ZVBiliBridge.configureServer("", allow: false)
+        promise.reject("SERVER_CONNECTION", "服务器连接通道配置无效")
+      }
+    }
+  }
+  private func probeConnection(_ server: String, _ promise: Promise) {
+    let target = URL(string: server).map { ZVServerConnectionTransport.shared.forward($0).absoluteString } ?? server
+    DispatchQueue.global(qos: .userInitiated).async { promise.resolve(ZVBiliBridge.probeServer(target)) }
+  }
   public func definition() -> ModuleDefinition {
     Name("ZViewerNative")
-    Events("onVoiceFrame", "onVoiceStatus", "onMediaCommand")
+    Events("onVoiceFrame", "onVoiceStatus", "onMediaCommand", "onHlsRelayError")
+    AsyncFunction("configureServerConnection") { (server: String, allow: Bool, promise: Promise) in self.configureConnection(server, allow, promise) }.runOnQueue(.main)
+    AsyncFunction("probeServerConnection") { (server: String, promise: Promise) in self.probeConnection(server, promise) }.runOnQueue(.main)
+    AsyncFunction("isolateServerAuthCookies") { (server: String) throws -> Bool in try ZVServerCookies.isolate(server) }
+    AsyncFunction("hlsRelayStart") { (uri: String, server: String, token: String, promise: Promise) in
+      self.hlsRelay.start(uri: uri, server: server, token: token) { result in
+        switch result { case .success(let value): promise.resolve(value); case .failure(let error): promise.reject("HLS_RELAY", error.localizedDescription) }
+      }
+    }
+    AsyncFunction("hlsRelayStop") { (id: String) in self.hlsRelay.stop(id) }
     AsyncFunction("mediaUpdate") { (json: String) in self.systemMedia.update(json) }.runOnQueue(.main)
     AsyncFunction("mediaClear") { (id: String) in self.systemMedia.clear(id) }.runOnQueue(.main)
     AsyncFunction("mediaDrain") { (id: String) in self.systemMedia.drain(id) }.runOnQueue(.main)
     OnCreate { [weak self] in
+      self?.hlsRelay.failure = { [weak self] id, message in self?.sendEvent("onHlsRelayError", ["id": id, "message": message]) }
       DispatchQueue.main.async { self?.systemMedia.command = { [weak self] value in self?.sendEvent("onMediaCommand", value) } }
       // A previous process may have terminated during a call.
       UserDefaults.standard.set(false, forKey: "ZViewerVoiceActive")
@@ -28,6 +63,7 @@ public class ZViewerNativeModule: Module {
       }
     }
     #if DEBUG
+    AsyncFunction("debugMediaState") { self.systemMedia.debugDiagnostic() }.runOnQueue(.main)
     // Local simulator launch configuration, never exported by a Release module.
     AsyncFunction("debugLaunchConfiguration") { () -> String? in
       ProcessInfo.processInfo.environment["ZVIEWER_DEBUG_CONFIGURATION"]
@@ -35,8 +71,8 @@ public class ZViewerNativeModule: Module {
     #endif
     AsyncFunction("biliCancelResolve") { ZVBiliBridge.cancelResolve() }
     AsyncFunction("serverProbe") { (url: String, promise: Promise) in
-      self.biliQueue.async { promise.resolve(ZVBiliBridge.perform("server-probe", value: url)) }
-    }
+      self.probeConnection(url, promise)
+    }.runOnQueue(.main)
     // LiveKit owns capture/RTC; this bridge only handles permission and VLC coexistence.
     AsyncFunction("voicePermission") { (promise: Promise) in
       AVAudioSession.sharedInstance().requestRecordPermission { allowed in promise.resolve(allowed) }
@@ -77,6 +113,11 @@ public class ZViewerNativeModule: Module {
     }
     OnAppEntersForeground { self.voice.queue.async { self.voice.background = false } }
     OnDestroy {
+      let owner = self.connectionOwner
+      ZVServerConnectionTransport.queue.async {
+        if ZVServerConnectionTransport.shared.remove(owner: owner) != nil { _ = ZVBiliBridge.configureServer("", allow: false) }
+      }
+      self.hlsRelay.shutdown()
       DispatchQueue.main.async { self.voiceRevision += 1; self.systemMedia.shutdown() }
       self.voice.queue.async { self.voice.stop() }
       self.biliQueue.async { _ = ZVBiliBridge.perform("stop", value: "") }

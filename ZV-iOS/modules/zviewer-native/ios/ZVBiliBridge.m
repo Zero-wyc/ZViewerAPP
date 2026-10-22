@@ -3,6 +3,8 @@
 #import <Security/Security.h>
 #import <VideoToolbox/VideoToolbox.h>
 #import "ZVBiliSigning.h"
+#import "ZVBiliCapabilities.h"
+#import "ZVBiliSession.h"
 static NSLock *resolveLock;
 static NSMutableSet<NSURLSessionDataTask *> *resolveTasks;
 static NSUInteger resolveEpoch;
@@ -23,6 +25,11 @@ static BOOL saveCookie(NSString *cookie) {
   NSDictionary *query = keyQuery(); SecItemDelete((__bridge CFDictionaryRef)query);
   NSMutableDictionary *value = [query mutableCopy]; value[(__bridge id)kSecValueData] = [cookie dataUsingEncoding:NSUTF8StringEncoding]; value[(__bridge id)kSecAttrAccessible] = (__bridge id)kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly;
   return SecItemAdd((__bridge CFDictionaryRef)value, NULL) == errSecSuccess;
+}
+static NSDictionary *startSession(void) {
+  return ZVBiliEnsureSession(^NSString *{ return MobileStatus(); }, ^NSString *{ return readCookie(); },
+    ^NSString *(NSError **error) { return MobileStart(@"", error); },
+    ^NSString *(NSString *cookie, NSError **error) { return MobileSetCookie(cookie, error); });
 }
 static NSDictionary *biliGet(NSString *path, NSDictionary *params) {
   NSURLComponents *url = [NSURLComponents componentsWithString:[@"https://api.bilibili.com" stringByAppendingString:path]];
@@ -71,13 +78,25 @@ static NSArray *subtitleLines(NSString *address) {
   return lines;
 }
 @implementation ZVBiliBridge
++ (NSDictionary *)configureServer:(NSString *)url allow:(BOOL)allow {
+  NSError *error = nil;
+  NSDictionary *result = decode(MobileConfigureServer(url, allow, &error));
+  if (error || ![result[@"url"] isKindOfClass:NSString.class]) return @{ @"success":@NO };
+  return @{ @"success":@YES, @"url":result[@"url"] };
+}
++ (NSDictionary *)probeServer:(NSString *)url {
+  NSError *error = nil;
+  NSDictionary *result = decode(MobileProbeServer(url, &error));
+  return error ? @{ @"ok":@NO, @"code":@"network" } : result;
+}
 + (NSUInteger)resolveGeneration { prepareResolveRegistry(); [resolveLock lock]; NSUInteger value = resolveEpoch; [resolveLock unlock]; return value; }
 + (void)cancelResolve { prepareResolveRegistry(); [resolveLock lock]; resolveEpoch++; NSArray *tasks = [resolveTasks allObjects]; [resolveLock unlock]; for (NSURLSessionDataTask *task in tasks) [task cancel]; }
 + (NSDictionary *)perform:(NSString *)operation value:(NSString *)value {
   @synchronized(self) {
     NSError *error = nil; NSString *raw = @"{}";
     if ([operation isEqual:@"server-probe"]) { raw = MobileProbeServer(value, &error); if (error) return @{ @"success":@NO, @"message":@"服务器探测失败" }; return decode(raw); }
-    else if ([operation isEqual:@"start"]) raw = [decode(MobileStatus())[@"ready"] boolValue] ? MobileStatus() : MobileStart(readCookie(), &error);
+    else if ([operation isEqual:@"capabilities"]) return [ZVBiliCapabilities snapshot];
+    else if ([operation isEqual:@"start"]) return startSession();
     else if ([operation isEqual:@"status"]) raw = MobileStatus();
     else if ([operation isEqual:@"qr"]) raw = MobileQR(&error);
     else if ([operation isEqual:@"poll"]) {
@@ -93,8 +112,9 @@ static NSArray *subtitleLines(NSString *address) {
     } else if ([operation isEqual:@"logout"]) { SecItemDelete((__bridge CFDictionaryRef)keyQuery()); raw = MobileLogout(); }
     else if ([operation isEqual:@"stop"]) { MobileStop(); return @{ @"success":@YES }; }
     else if ([operation isEqual:@"catalog"]) {
-      NSDictionary *options = decode(value); NSString *kind = options[@"kind"]; NSDictionary *status = decode(MobileStatus());
-      if (![status[@"ready"] boolValue]) status = decode(MobileStart(readCookie(), &error));
+      NSDictionary *options = decode(value); NSString *kind = options[@"kind"]; NSDictionary *status = startSession();
+      if (![status[@"success"] boolValue]) return status;
+      if (status[@"loginError"]) return @{ @"success":@NO, @"message":status[@"loginError"] };
       NSDictionary *user = status[@"user"];
       NSString *mid = [user isKindOfClass:NSDictionary.class] ? [user[@"mid"] description] ?: @"0" : @"0";
       NSInteger page = MAX(1, MIN(1000, [options[@"page"] integerValue]));
@@ -122,30 +142,36 @@ static NSArray *subtitleLines(NSString *address) {
       return @{ @"success":@YES, @"data":response[@"data"] ?: response[@"result"] ?: @{} };
     }
     else if ([operation isEqual:@"resolve"]) {
-      NSUInteger requestGeneration = [self resolveGeneration]; NSDictionary *options = decode(value); NSDictionary *status = decode(MobileStatus());
-      if (![status[@"ready"] boolValue]) status = decode(MobileStart(readCookie(), &error));
-      if (error || ![status[@"loggedIn"] boolValue]) return @{ @"success":@NO, @"message":@"请先在本机扫码登录 B站账号" };
+      NSUInteger requestGeneration = [self resolveGeneration]; NSDictionary *options = decode(value); NSDictionary *status = startSession();
+      if (![status[@"success"] boolValue]) return status;
+      if (status[@"loginError"]) return @{ @"success":@NO, @"message":status[@"loginError"] };
+      if (![status[@"loggedIn"] boolValue]) return @{ @"success":@NO, @"message":@"请先在本机扫码登录 B站账号" };
       NSString *base = status[@"proxyUrl"]; if (![base hasPrefix:@"http://127.0.0.1:"]) return @{ @"success":@NO, @"message":@"本机媒体服务未启动" };
-      NSMutableArray *caps = [NSMutableArray arrayWithObject:@{ @"codec":@"avc", @"maxWidth":@1920, @"maxHeight":@1080, @"maxFrameRate":@60 }];
-      if (VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC)) [caps addObject:@{ @"codec":@"hevc", @"maxWidth":@3840, @"maxHeight":@2160, @"maxFrameRate":@60 }];
+      NSArray *caps = [ZVBiliCapabilities snapshot][@"capabilities"];
+      if (!caps.count) return @{ @"success": @NO, @"message": @"当前设备未验证可用的 B站解码格式，请使用服务端解析或更换设备重试" };
       NSString *capText = [[NSString alloc] initWithData:[NSJSONSerialization dataWithJSONObject:caps options:0 error:nil] encoding:NSUTF8StringEncoding];
       NSURLComponents *url = [NSURLComponents componentsWithString:[base stringByAppendingString:@"/resolve"]];
       url.queryItems = @[[NSURLQueryItem queryItemWithName:@"bvid" value:options[@"url"] ?: @""], [NSURLQueryItem queryItemWithName:@"epId" value:[options[@"epId"] longLongValue] > 0 ? [options[@"epId"] description] : @""], [NSURLQueryItem queryItemWithName:@"seasonId" value:[options[@"seasonId"] longLongValue] > 0 ? [options[@"seasonId"] description] : @""], [NSURLQueryItem queryItemWithName:@"page" value:[options[@"page"] description] ?: @"1"], [NSURLQueryItem queryItemWithName:@"forceDash" value:@"true"], [NSURLQueryItem queryItemWithName:@"cid" value:[options[@"cid"] description] ?: @"0"], [NSURLQueryItem queryItemWithName:@"qn" value:[options[@"qn"] description] ?: @"0"], [NSURLQueryItem queryItemWithName:@"qualityMode" value:[options[@"qn"] intValue] > 0 ? @"manual" : @"autoMax"], [NSURLQueryItem queryItemWithName:@"fallbackQn" value:[options[@"fallbackQn"] description] ?: @"0"], [NSURLQueryItem queryItemWithName:@"capabilities" value:capText], [NSURLQueryItem queryItemWithName:@"timeoutMs" value:@"40000"]];
-      dispatch_semaphore_t ready = dispatch_semaphore_create(0); __block NSData *body = nil; __block NSInteger code = 0;
+      dispatch_semaphore_t ready = dispatch_semaphore_create(0); __block NSData *body = nil; __block NSInteger code = 0; __block NSError *transportError = nil;
       NSURLSessionConfiguration *config = NSURLSessionConfiguration.ephemeralSessionConfiguration; config.timeoutIntervalForRequest = 45; config.HTTPShouldSetCookies = NO;
       NSURLSession *session = [NSURLSession sessionWithConfiguration:config];
-      NSURLSessionDataTask *task = [session dataTaskWithURL:url.URL completionHandler:^(NSData *data, NSURLResponse *response, NSError *failure) { body = data; code = ((NSHTTPURLResponse *)response).statusCode; dispatch_semaphore_signal(ready); }];
+      NSURLSessionDataTask *task = [session dataTaskWithURL:url.URL completionHandler:^(NSData *data, NSURLResponse *response, NSError *failure) { body = data; code = ((NSHTTPURLResponse *)response).statusCode; transportError = failure; dispatch_semaphore_signal(ready); }];
       prepareResolveRegistry(); [resolveLock lock]; if (resolveEpoch != requestGeneration) { [resolveLock unlock]; [session invalidateAndCancel]; return @{ @"success":@NO, @"message":@"播放任务已取消" }; } [resolveTasks addObject:task]; [resolveLock unlock];
-      [task resume]; if (dispatch_semaphore_wait(ready, dispatch_time(DISPATCH_TIME_NOW, 46 * NSEC_PER_SEC))) [task cancel]; [session invalidateAndCancel];
+      [task resume]; BOOL timedOut = dispatch_semaphore_wait(ready, dispatch_time(DISPATCH_TIME_NOW, 46 * NSEC_PER_SEC)) != 0; if (timedOut) [task cancel]; [session invalidateAndCancel];
       [resolveLock lock]; [resolveTasks removeObject:task]; [resolveLock unlock];
+      if ([self resolveGeneration] != requestGeneration) return @{ @"success":@NO, @"message":@"播放任务已取消" };
+      if (timedOut || transportError.code == NSURLErrorTimedOut) return @{ @"success":@NO, @"message":@"本机 B站解析超时，请检查网络后重试" };
+      if (transportError) return @{ @"success":@NO, @"message":@"本机 B站媒体服务连接失败，请重试" };
       id decoded = body ? [NSJSONSerialization JSONObjectWithData:body options:0 error:nil] : nil;
       if (![decoded isKindOfClass:NSDictionary.class]) return @{ @"success":@NO, @"message":@"本机 B站解析未返回可播放源" };
       NSMutableDictionary *result = [decoded mutableCopy];
       if (code != 200 || ![result[@"success"] boolValue]) {
-        NSDictionary *messages = @{ @"REGION_LIMITED":@"该番剧受地区限制", @"NO_PERMISSION":@"当前 B站账号没有该番剧的播放权限", @"NOT_LOGGED_IN":@"B站凭据已过期，请重新登录", @"EP_NOT_FOUND":@"该番剧暂无目标分集", @"CID_MISMATCH":@"番剧集号与 cid 不一致，请重新选集" };
         NSString *reason = [result[@"code"] isKindOfClass:NSString.class] ? result[@"code"] : @"";
-        return @{ @"success":@NO, @"message":messages[reason] ?: @"本机 B站解析失败，请检查登录、权限和网络" };
+        return @{ @"success":@NO, @"message":ZVBiliResolveErrorMessage(reason) };
       }
+      NSString *codec = [result[@"videoCodec"] isKindOfClass:NSString.class] ? [result[@"videoCodec"] lowercaseString] : @"";
+      NSString *hdr = [result[@"hdrType"] isKindOfClass:NSString.class] ? [result[@"hdrType"] lowercaseString] : @"";
+      if ([result[@"isHdr"] boolValue] || (hdr.length && ![@[@"sdr", @"none", @"off"] containsObject:hdr]) || [@[@125, @126] containsObject:result[@"currentQn"]] || [codec hasPrefix:@"dvhe"] || [codec hasPrefix:@"dvh1"]) return @{ @"success": @NO, @"message": @"当前 HDR / 杜比档位尚未通过本机验证，请选择 SDR 画质" };
       for (NSString *key in @[@"videoUrl", @"audioUrl"]) {
         NSString *target = result[key]; if (!target.length) continue;
         NSURLComponents *proxy = [NSURLComponents componentsWithString:[base stringByAppendingString:@"/proxy"]]; proxy.queryItems = @[[NSURLQueryItem queryItemWithName:@"url" value:target]]; result[key] = proxy.string;
