@@ -29,7 +29,7 @@ export function normalizeBiliCatalog(data: Record<string, unknown>, kind: string
     if (pgc ? !allowPgc : !/^BV[0-9A-Za-z]{10}$/.test(bvid)) return [];
     const length = typeof raw.duration === 'string' ? raw.duration.split(':').reduce((sum, part) => sum * 60 + Number(part), 0) : Number(raw.duration || 0);
     const title = String(raw.title || raw.name || 'B站视频').replace(/<[^>]*>/g, '');
-    return [{ bvid, title, ...(raw.cid ? { cid: Number(raw.cid) } : {}), duration: Number.isFinite(length) ? length : 0, author: String(raw.author || raw.upName || (raw.upper as { name?: string })?.name || ''), cover: biliImage(raw.pic || raw.cover), play: Number(raw.play || (raw.cnt_info as { play?: number })?.play || 0), ...(pgc ? { epId, seasonId, url: `https://www.bilibili.com/bangumi/play/${epId > 0 ? 'ep' + epId : 'ss' + seasonId}` } : { url: `https://www.bilibili.com/video/${bvid}` }) }];
+    return [{ bvid, title, ...(raw.cid ? { cid: Number(raw.cid) } : {}), duration: Number.isFinite(length) ? length : 0, author: String(raw.author || raw.upName || (raw.upper as { name?: string })?.name || ''), cover: biliImage(raw.pic || raw.cover), play: Number(raw.play || raw.view || (raw.cnt_info as { play?: number })?.play || 0), ...(pgc ? { epId, seasonId, url: `https://www.bilibili.com/bangumi/play/${epId > 0 ? 'ep' + epId : 'ss' + seasonId}` } : { url: `https://www.bilibili.com/video/${bvid}` }) }];
   });
 }
 export function chooseBiliPage(item: BiliCatalogItem, view: BiliView, page?: BiliPage): BiliCatalogItem {

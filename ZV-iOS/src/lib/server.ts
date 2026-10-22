@@ -1,4 +1,5 @@
 import { withDeadline } from './deadline.ts';
+import { connectionUrl } from './connectionTransport.ts';
 
 export class HttpError extends Error {
   status: number;
@@ -52,8 +53,11 @@ export function messageFor(error: unknown): string {
 
 export async function fetchJson<T>(url: string, init: RequestInit = {}): Promise<ApiResult<T>> {
   return withDeadline(async signal => {
-  const response = await fetch(url, {
+  const response = await fetch(connectionUrl(url), {
     ...init,
+    // This client authenticates NAS requests explicitly. Shared native cookies
+    // may belong to another account and the server can prefer them to Bearer.
+    credentials: 'omit',
     signal,
     headers: { Accept: 'application/json', ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...init.headers },
   });

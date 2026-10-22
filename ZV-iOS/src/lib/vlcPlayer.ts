@@ -2,7 +2,7 @@ import type { NativePlayerPort } from './mediaAdapter.ts';
 import type { nativeVideoSource } from './media.ts';
 
 export type VideoSource = ReturnType<typeof nativeVideoSource>;
-export type VlcViewPort = { play(): Promise<void>; pause(): Promise<void>; stop(): Promise<void>; seek(milliseconds: number, type?: 'time'): Promise<void>; replaceSource?(uri: string, options: string[], revision: number): Promise<void>; startPictureInPicture?(): Promise<void> };
+export type VlcViewPort = { play(): Promise<void>; pause(): Promise<void>; stop(): Promise<void>; seek(milliseconds: number, type?: 'time'): Promise<void | number | { success: false; actualMilliseconds: number }>; replaceSource?(uri: string, options: string[], revision: number): Promise<void>; startPictureInPicture?(): Promise<void> };
 export type VlcTrack = { id: number; name: string; selected?: boolean };
 export type VlcSettings = { tracks: { audio?: number; subtitle?: number }; volume: number; subtitleDelay: number; subtitleUri?: string };
 export type VlcSnapshot = { id: number; source: VideoSource; initialTime: number; rate: number; settings: VlcSettings; autoplay: boolean };
@@ -14,29 +14,38 @@ type Events = {
   playingChange: { isPlaying: boolean };
   playbackRateChange: { playbackRate: number };
   timeUpdate: { currentTime: number };
+  videoSize: { width: number; height: number };
   seekChange: { currentTime: number };
+  seekSettled: { currentTime: number };
   sourceLoad: { duration: number; availableAudioTracks: VlcTrack[]; availableVideoTracks: VlcTrack[]; availableSubtitleTracks: VlcTrack[] };
-  statusChange: { status: string; error?: { message: string } };
+  statusChange: { status: string; error?: { message: string; code?: string } };
   settingsChange: VlcSettings;
 };
+
+const nativeOwnerProcess = Math.random().toString(36).slice(2);
+let nativeOwnerSequence = 0;
 
 // The sole VLC kernel exposes one room clock and control port. VLC times are milliseconds;
 // room times are seconds. Every native callback carries a load revision.
 export class VlcPlayer implements NativePlayerPort {
+  readonly nativeOwnerId = `${nativeOwnerProcess}:${++nativeOwnerSequence}`;
   private render: (snapshot: VlcSnapshot | null) => void;
   private available: boolean;
   private persistent: boolean;
   private vlc: VlcViewPort | null = null;
+  private confirmedSeeks = false;
   private snapshot: VlcSnapshot | null = null;
   private revision = 0;
   private position = 0;
+  private observedPosition = 0;
   private length = 0;
   private rate = 1;
   private desiredPlaying = false;
   private actualPlaying = false;
   private prepared = false;
+  private seekError = false;
   private pendingSeek: number | null = null;
-  private activeSeek: { target: number; started: number; revision: number } | null = null;
+  private activeSeek: { target: number; started: number; revision: number; nativePending: boolean } | null = null;
   private completed = false;
   private disposed = false;
   private listeners = new Map<keyof Events, Set<(value: never) => void>>();
@@ -56,10 +65,11 @@ export class VlcPlayer implements NativePlayerPort {
   get currentTime() { return this.position; }
   get sourceUri() { return this.snapshot?.source.uri || ''; }
   get sourceIdentity() { return this.snapshot?.source.identity || ''; }
+  get sourceRevision() { return this.snapshot?.id ?? 0; }
   set currentTime(time: number) {
     if (this.disposed || !Number.isFinite(time)) return;
     const next = Math.max(0, time);
-    this.completed = false;
+    this.completed = false; this.seekError = false;
     this.position = next; this.pendingSeek = next === 0 && !this.prepared ? null : next;
     this.musicDiagnostic('seek');
     this.emit('seekChange', { currentTime: next });
@@ -75,10 +85,13 @@ export class VlcPlayer implements NativePlayerPort {
   }
   get playing() { return this.actualPlaying; }
   get preparing() { return !!this.snapshot && !this.prepared; }
+  get readyForSettings() { return !!this.snapshot && this.prepared && !this.seekError && !this.seeking && (this.snapshot.source.contentType !== 'hls' || this.length > 0); }
+  // Native HLS seeks stop after 30s; allow 5s for queued bridge callbacks.
+  get seekConfirmationDeadline() { return this.activeSeek?.nativePending ? this.activeSeek.started + 35000 : 0; }
   get seeking() {
     // A paused VLC input may not send a time callback after a seek. Use the
     // same finite settling window even when no subsequent progress arrives.
-    if (this.activeSeek && Date.now() - this.activeSeek.started >= 5000) this.activeSeek = null;
+    if (this.activeSeek && !this.activeSeek.nativePending && Date.now() - this.activeSeek.started >= 5000) this.activeSeek = null;
     return this.pendingSeek !== null || this.activeSeek !== null;
   }
   get ended() { return this.completed; }
@@ -118,13 +131,31 @@ export class VlcPlayer implements NativePlayerPort {
   private seekPending() {
     if (!this.vlc || this.pendingSeek === null) return;
     const time = this.pendingSeek; this.pendingSeek = null;
-    const seek = { target: time, started: Date.now(), revision: this.revision }; this.activeSeek = seek;
-    void this.vlc.seek(Math.round(time * 1000), 'time').then(() => {
+    const seek = { target: time, started: Date.now(), revision: this.revision, nativePending: this.confirmedSeeks }; this.activeSeek = seek;
+    void this.vlc.seek(Math.round(time * 1000), 'time').then(actual => {
       if (!this.accepts(seek.revision) || this.activeSeek !== seek) return;
+      seek.nativePending = false;
+      if (actual && typeof actual === 'object' && actual.success === false) { this.seekFailed(seek.revision, actual.actualMilliseconds); return; }
+      if (typeof actual === 'number' && Number.isFinite(actual)) {
+        this.activeSeek = null; this.position = this.observedPosition = Math.max(0, actual / 1000);
+        this.emit('seekSettled', { currentTime: this.position });
+      }
       // Seeking can pause the native input. Restore the current intent after
       // the command; an explicit pause issued meanwhile must still win.
       if (this.desiredPlaying) this.command(() => this.vlc?.play());
-    }).catch(() => { if (this.accepts(seek.revision) && this.activeSeek === seek) { this.activeSeek = null; this.fail(seek.revision, '拖动进度失败，请重试'); } });
+    }).catch(() => { if (this.accepts(seek.revision) && this.activeSeek === seek) this.seekFailed(seek.revision); });
+  }
+  private seekFailed(id: number, actualMilliseconds?: number) {
+    if (!this.accepts(id)) return;
+    if (Number.isFinite(actualMilliseconds) && actualMilliseconds! >= 0) this.observedPosition = actualMilliseconds! / 1000;
+    this.activeSeek = null; this.pendingSeek = null; this.seekError = true;
+    this.position = this.observedPosition; this.desiredPlaying = false; this.actualPlaying = false;
+    if (this.snapshot) { this.snapshot = { ...this.snapshot, initialTime: this.position, autoplay: false }; this.render(this.snapshot); }
+    // A failed seek does not unload a valid input. Keep it prepared so another
+    // explicit seek reaches native, while settings confirmation still fails.
+    this.command(() => this.vlc?.pause());
+    this.emit('timeUpdate', { currentTime: this.position });
+    this.emit('statusChange', { status: 'error', error: { code: 'VLC_SEEK', message: '拖动进度失败，请重试' } });
   }
   async replaceAsync(source: VideoSource | null) {
     if (this.disposed) return;
@@ -132,37 +163,49 @@ export class VlcPlayer implements NativePlayerPort {
     const old = this.vlc; const reuse = this.persistent && !!source && !!old?.replaceSource;
     if (!reuse) this.vlc = null;
     this.snapshot = null;
-    this.prepared = false; this.pendingSeek = null; this.activeSeek = null; this.completed = false; this.actualPlaying = false; this.desiredPlaying = false;
+    this.prepared = false; this.seekError = false; this.pendingSeek = null; this.activeSeek = null; this.completed = false; this.actualPlaying = false; this.desiredPlaying = false;
     this.availableTracks = { audio: [], video: [], subtitle: [] };
     this.settings = { ...this.settings, tracks: {}, subtitleUri: undefined, subtitleDelay: 0 };
     this.emit('settingsChange', this.settings);
     if (!reuse) this.render(null);
     if (old && !reuse) await old.stop();
     if (this.disposed) return;
-    if (!source) { this.position = 0; this.length = 0; this.emit('statusChange', { status: 'idle' }); return; }
+    if (!source) { this.position = this.observedPosition = 0; this.length = 0; this.emit('statusChange', { status: 'idle' }); return; }
     if (!this.available) throw new Error('VLC 原生模块不可用，请安装包含 VLCKit 的 development/preview 构建（Expo Go 不支持）');
-    this.position = 0; this.length = 0; this.rate = 1;
+    this.position = this.observedPosition = 0; this.length = source.duration && Number.isFinite(source.duration) ? Math.max(0, source.duration) : 0; this.rate = 1;
     this.snapshot = { id: this.revision, source, initialTime: 0, rate: 1, settings: this.settings, autoplay: false };
     this.render(this.snapshot);
     this.emit('statusChange', { status: 'loading' });
     if (reuse) await old!.replaceSource!(source.uri, source.options, this.revision);
   }
-  attach(id: number, view: VlcViewPort | null) {
+  attach(id: number, view: VlcViewPort | null, confirmedSeeks = false) {
     if (this.disposed || id !== this.revision) return;
     this.vlc = view;
+    this.confirmedSeeks = confirmedSeeks;
     if (view && this.desiredPlaying) this.command(() => view.play());
   }
   loaded(id: number, lengthMilliseconds: number) {
     if (!this.accepts(id)) return;
-    this.prepared = true; this.length = Math.max(0, lengthMilliseconds / 1000);
+    this.prepared = true; this.length = Math.max(this.length, Math.max(0, lengthMilliseconds / 1000));
     this.seekPending();
-    this.command(() => this.desiredPlaying ? this.vlc?.play() : this.vlc?.pause());
+    if (!this.activeSeek?.nativePending) this.command(() => this.desiredPlaying ? this.vlc?.play() : this.vlc?.pause());
     this.emit('sourceLoad', { duration: this.length, availableAudioTracks: this.availableTracks.audio, availableVideoTracks: this.availableTracks.video, availableSubtitleTracks: this.availableTracks.subtitle });
     this.emit('statusChange', { status: 'readyToPlay' });
   }
+  durationChanged(id: number, milliseconds: number) {
+    if (!this.accepts(id) || !Number.isFinite(milliseconds) || milliseconds <= 0 || Math.abs(this.length - milliseconds / 1000) < .1) return;
+    this.length = milliseconds / 1000;
+    this.emit('sourceLoad', { duration: this.length, availableAudioTracks: this.availableTracks.audio, availableVideoTracks: this.availableTracks.video, availableSubtitleTracks: this.availableTracks.subtitle });
+  }
+  videoSize(id: number, width: number, height: number) {
+    if (this.accepts(id) && width > 0 && height > 0 && Number.isFinite(width) && Number.isFinite(height)) this.emit('videoSize', { width, height });
+  }
   progress(id: number, milliseconds: number) {
-    if (!this.accepts(id) || !Number.isFinite(milliseconds) || this.pendingSeek !== null) return;
+    if (!this.accepts(id) || !Number.isFinite(milliseconds)) return;
+    this.observedPosition = Math.max(0, milliseconds / 1000);
+    if (this.pendingSeek !== null) return;
     if (this.activeSeek) {
+      if (this.activeSeek.nativePending) return;
       const elapsed = (Date.now() - this.activeSeek.started) / 1000;
       const reported = milliseconds / 1000;
       const arrived = Math.abs(reported - this.activeSeek.target) <= 1.5 || this.desiredPlaying && reported >= this.activeSeek.target && reported <= this.activeSeek.target + elapsed * this.rate + 1.5;
@@ -209,7 +252,7 @@ export class VlcPlayer implements NativePlayerPort {
     let set = this.listeners.get(event);
     if (!set) { set = new Set(); this.listeners.set(event, set); }
     set.add(listener as (value: never) => void);
-    return { remove: () => set!.delete(listener as (value: never) => void) };
+    return { remove: () => { set!.delete(listener as (value: never) => void); } };
   }
   dispose() {
     if (this.disposed) return;

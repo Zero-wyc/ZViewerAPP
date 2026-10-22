@@ -1,4 +1,8 @@
-export type ResolvedMedia = { videoUrl: string; audioUrl?: string; title?: string; format?: string };
+export type ResolvedMedia = { videoUrl: string; audioUrl?: string; title?: string; format?: string; resolvedUrl?: string; cid?: number; currentPage?: number; currentQn?: number; duration?: number; pages?: import('./biliNative').BiliMedia['pages']; isHdr?: boolean; hdrType?: string; videoCodecid?: number; videoCodec?: string; audioCodec?: string };
+export function isUnverifiedBiliHdr(media: Pick<ResolvedMedia, 'isHdr' | 'hdrType' | 'currentQn' | 'videoCodec'>) {
+  return media.isHdr === true || media.currentQn === 125 || media.currentQn === 126 ||
+    !!media.hdrType && !/^(sdr|none|off)$/i.test(media.hdrType) || /^(dvhe|dvh1)/i.test(media.videoCodec || '');
+}
 export function parseResolvedMedia(text: string): ResolvedMedia {
   if (text.length > 2_000_000) throw new Error('媒体解析响应过大');
   for (const line of text.split(/\r?\n/).reverse()) {

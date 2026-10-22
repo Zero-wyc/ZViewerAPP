@@ -104,6 +104,24 @@ export class RoomPlayback {
     if (state.cid && resolved.cid && state.cid !== resolved.cid) return null;
     const page = ['emby', 'jellyfin'].includes(sourceType || '') ? libraryPage(state) : undefined;
     if (page != null && page !== (movie.currentPage || 1)) return null;
-    return { ...state, ...resolved, movieId: movie.id, cid: resolved.cid ?? state.cid };
+    // Logical catalogue addresses are identities, never a replacement for a
+    // successfully resolved stream. Keep the full movie identity and policies
+    // while accepting only this provider's resolved media fields.
+    const aggregate = ['anime', 'kazumi', 'cms'].includes(sourceType || '');
+    const sameProvider = !state.sourceType || state.sourceType === sourceType;
+    const playable = /^(https?:\/\/|\/api\/)/i.test(state.sourceUrl);
+    // Legacy Kazumi entries have no re-resolution metadata. Their movie URL is
+    // the only media identity; an unlabelled control snapshot can still carry
+    // the preceding Kazumi movie's URL after current-movie changes.
+    const resolvedIdentity = !!movie.sourceMeta && (state.sourceMeta
+      ? JSON.stringify(state.sourceMeta) === JSON.stringify(movie.sourceMeta)
+      : state.movieId === movie.id);
+    const media = aggregate && resolvedIdentity && sameProvider && playable
+      ? { sourceUrl: state.sourceUrl, format: state.format ?? resolved.format, audioUrl: state.audioUrl, headers: state.headers }
+      : {};
+    return { ...state, ...resolved, ...media, movieId: movie.id,
+      cid: sourceType === 'bilibili' ? resolved.cid ?? state.cid : undefined,
+      epId: resolved.epId, seasonId: resolved.seasonId,
+    };
   }
 }

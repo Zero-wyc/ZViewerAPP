@@ -13,7 +13,7 @@ export function proxyHlsUri(value: string, upstream: string, proxy: string) {
   return { upstream: target.toString(), proxy: endpoint.toString() };
 }
 
-type PlaylistStore = { reserve(index: number): string; write(uri: string, text: string): void };
+type PlaylistStore = { reserve(index: number): string; write(uri: string, text: string): void; duration?(seconds: number): void };
 export async function prepareHlsPlaylists(upstream: string, proxy: string,
   fetchPlaylist: (uri: string) => Promise<string>, store: PlaylistStore) {
   const seen = new Map<string, string>();
@@ -31,6 +31,10 @@ export async function prepareHlsPlaylists(upstream: string, proxy: string,
     const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
     const master = lines.some(line => /^#EXT-X-(STREAM-INF|I-FRAME-STREAM-INF):/.test(line));
     if (!master && !lines.some(line => line.trim() === '#EXT-X-ENDLIST')) throw new Error('此番剧源返回直播清单，请选择完整剧集');
+    if (!master) {
+      const segments = lines.filter(line => line.startsWith('#EXTINF:')).map(line => Number(line.slice(8).split(',')[0]));
+      if (segments.length && segments.every(value => Number.isFinite(value) && value > 0)) store.duration?.(segments.reduce((total, value) => total + value, 0));
+    }
     let variant = false;
     const output: string[] = [];
     for (let line of lines) {

@@ -9,7 +9,8 @@ export function serverBiliSource(source: PlaybackSource, media: ResolvedMedia): 
   };
   return { ...source, sourceUrl: proxy(source.format === 'audio' ? media.audioUrl || media.videoUrl : media.videoUrl), format: media.format,
     audioUrl: source.format === 'audio' || source.format === 'muted-video' ? undefined : media.audioUrl ? proxy(media.audioUrl) : undefined,
-    headers: undefined, biliPolicy: undefined };
+    headers: undefined, biliPolicy: undefined, videoCodec: media.videoCodec, audioCodec: media.audioCodec,
+    isHdr: media.isHdr, hdrType: media.hdrType, videoCodecid: media.videoCodecid };
 }
 
 export function sharedPlayback<T extends PlaybackSource>(local: T, shared: PlaybackSource | null): T | null {

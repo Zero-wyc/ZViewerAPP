@@ -1,12 +1,19 @@
 import { requireOptionalNativeModule } from 'expo';
 import { Platform } from 'react-native';
+import type { HlsRelayFailure } from './sessionFreshness';
 type Subscription = { remove(): void };
 export type VoiceFrame = { data: string; mediaTs: number };
 export type MediaCommand = { sessionId: string; mediaId: string; action: string; value?: number };
-export type SystemMediaState = { sessionId: string; mediaId: string; kind: 'video' | 'audio'; title: string; artist?: string; album?: string; cover?: string; host: boolean; uri: string; playing: boolean; position: number; duration: number; playbackRate: number; actions: string[] };
+export type SystemMediaState = { sessionId: string; mediaId: string; kind: 'video' | 'audio'; title: string; artist?: string; album?: string; cover?: string; host: boolean; uri: string; ownerId?: string; inputRevision?: number; playing: boolean; position: number; duration: number; playbackRate: number; actions: string[] };
 type Bridge = {
+  debugMediaState?(): Promise<Record<string, unknown>>;
   debugLaunchConfiguration?(): Promise<string | null>;
+  isolateServerAuthCookies?(serverUrl: string): Promise<boolean>;
+  configureServerConnection?(serverUrl: string, allowUntrustedCertificate: boolean): Promise<{ url: string }>;
+  probeServerConnection?(serverUrl: string): Promise<{ ok: boolean; code: string; status?: number }>;
   serverProbe(url: string): Promise<{ ok: boolean; code: string; status?: number }>;
+  hlsRelayStart(uri: string, server: string, token: string): Promise<{ id: string; uri: string }>;
+  hlsRelayStop(id: string): Promise<void>;
   voiceSessionActive(active: boolean): Promise<void>;
   voicePermission(): Promise<boolean>;
   biliCancelResolve(): Promise<void>;
@@ -18,6 +25,7 @@ type Bridge = {
   addListener(event: 'onVoiceFrame', callback: (frame: VoiceFrame) => void): Subscription;
   addListener(event: 'onVoiceStatus', callback: (event: { message: string }) => void): Subscription;
   addListener(event: 'onMediaCommand', callback: (event: MediaCommand) => void): Subscription;
+  addListener(event: 'onHlsRelayError', callback: (event: HlsRelayFailure) => void): Subscription;
 };
 export const nativeBridge = Platform.OS === 'ios' ? requireOptionalNativeModule<Bridge>('ZViewerNative') : null;
 export async function biliOperation<T>(operation: string, value = ''): Promise<T> {

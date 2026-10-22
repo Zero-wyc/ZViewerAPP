@@ -16,8 +16,8 @@ export function roomTime(position: number, playing: boolean, updatedAt?: number,
   return Math.max(0, position + (playing ? age : 0));
 }
 export type DanmakuItem = TimedText & { id: string; mode?: number; color?: number; size?: number };
-export type DanmakuTrack = { trackId: string; label: string; items: DanmakuItem[]; offset?: number; hidden?: boolean };
+export type DanmakuTrack = { source?: string; trackId: string; label: string; items: DanmakuItem[]; offset?: number; hidden?: boolean };
 export function trackTimeline(tracks: DanmakuTrack[]): DanmakuItem[] {
-  return tracks.filter(track => !track.hidden).flatMap(track => track.items.map(item => ({ ...item, id: `${track.trackId}:${item.id}`, time: item.time + (track.offset || 0) })))
+  return tracks.filter(track => !track.hidden).flatMap(track => track.items.map(item => ({ ...item, mode: track.source === 'dandanplay' || track.source === 'bahamut' ? item.mode === 1 ? 5 : item.mode === 2 ? 4 : 1 : item.mode, id: `${track.trackId}:${item.id}`, time: item.time + (track.offset || 0) })))
     .filter(item => Number.isFinite(item.time) && item.time >= 0 && typeof item.content === 'string').sort((a, b) => a.time - b.time);
 }

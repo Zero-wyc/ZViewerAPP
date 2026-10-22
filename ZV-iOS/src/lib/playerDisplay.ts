@@ -1,6 +1,9 @@
 export type DisplayOrientation = 'portrait' | 'landscape' | 'auto';
 export type PlayerDisplayState = { available: boolean; busy: boolean; locked: boolean; landscape: boolean; fullscreen: boolean; error: string };
 export type PlayerDisplayPort = { supported(): Promise<boolean>; landscape(): Promise<boolean | null>; lock(orientation: 'portrait' | 'landscape'): Promise<void>; unlock(): Promise<void> };
+export function systemWindowDisplayPort(bounds: () => { width: number; height: number }): PlayerDisplayPort {
+  return { supported: async () => false, landscape: async () => { const window = bounds(); return window.width > window.height; }, lock: async () => {}, unlock: async () => {} };
+}
 export const initialPlayerDisplay = (landscape = false): PlayerDisplayState => ({ available: false, busy: false, locked: false, landscape, fullscreen: false, error: '' });
 export function orientationAction(state: Pick<PlayerDisplayState, 'locked' | 'landscape'>) {
   if (state.locked) return { target: 'auto', icon: 'unlock', label: '解除旋转锁定（自动旋转）' } as const;
@@ -12,6 +15,7 @@ export function orientationAction(state: Pick<PlayerDisplayState, 'locked' | 'la
 export class PlayerDisplay {
   private state: PlayerDisplayState;
   private active = false;
+  private videoOrientation: 'portrait' | 'landscape' = 'landscape';
   private revision = 0;
   private orientationRevision = 0;
   private ready: Promise<void> = Promise.resolve();
@@ -37,9 +41,17 @@ export class PlayerDisplay {
   setFullscreen(fullscreen: boolean) {
     if (!this.active) return Promise.resolve();
     this.update({ fullscreen, error: '' });
-    return this.apply(fullscreen ? 'landscape' : 'auto');
+    return this.apply(fullscreen ? this.videoOrientation : 'auto');
   }
-  reset() { return this.setFullscreen(false); }
+  videoSize(width: number, height: number) {
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return Promise.resolve();
+    const next = height > width ? 'portrait' : 'landscape';
+    if (next === this.videoOrientation) return Promise.resolve();
+    this.videoOrientation = next;
+    return this.state.fullscreen ? this.apply(next) : Promise.resolve();
+  }
+  resetVideoSize() { this.videoOrientation = 'landscape'; if (this.state.fullscreen) void this.apply('landscape'); }
+  reset() { this.resetVideoSize(); return this.setFullscreen(false); }
   private apply(target: DisplayOrientation) {
     const version = ++this.revision; this.update({ busy: true, error: '' });
     const task = this.queue.catch(() => {}).then(async () => {

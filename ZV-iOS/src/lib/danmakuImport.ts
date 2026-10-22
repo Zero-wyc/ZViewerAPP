@@ -3,7 +3,7 @@ export const MAX_DANMAKU_BYTES = 5 * 1024 * 1024;
 export const MAX_DANMAKU_ITEMS = 20000;
 const entity = (s: string) => s.replace(/&#(x[0-9a-f]+|\d+);/gi, (_, value) => { const code = value[0].toLowerCase() === 'x' ? parseInt(value.slice(1), 16) : Number(value); return code <= 0x10ffff && code >= 0 ? String.fromCodePoint(code) : ''; }).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
 export function danmakuBody(value: object): string { const body = JSON.stringify(value); if (new TextEncoder().encode(body).length > MAX_DANMAKU_BYTES) throw new Error('弹幕请求不能超过 5 MiB，请减少条目后重试'); return body; }
-export function importDanmaku(raw: string): DanmakuItem[] {
+export function importDanmaku(raw: string, source?: string): DanmakuItem[] {
   if (new TextEncoder().encode(raw).length > MAX_DANMAKU_BYTES) throw new Error('弹幕文件不能超过 5 MiB');
   const xml = raw.trimStart().startsWith('<');
   let values: unknown;
@@ -25,7 +25,7 @@ export function importDanmaku(raw: string): DanmakuItem[] {
     const mode = Number(item.mode ?? 1); if ([8, 9].includes(mode)) continue;
     if (typeof content !== 'string' || !Number.isFinite(time) || time < 0 || content.length > 300) throw new Error(`第 ${index + 1} 条弹幕格式无效`);
     const color = Number(item.color ?? 0xffffff);
-    items.push({ id: String(item.id ?? item.dmid ?? item.cid ?? index), content, time, color: Number.isInteger(color) && color >= 0 && color <= 0xffffff ? color : 0xffffff, mode: [1, 2, 3, 4, 5, 6, 7].includes(mode) ? mode : 1 });
+    items.push({ id: String(item.id ?? item.dmid ?? item.cid ?? index), content, time, color: Number.isInteger(color) && color >= 0 && color <= 0xffffff ? color : 0xffffff, mode: source === 'dandanplay' || source === 'bahamut' ? [0, 1, 2].includes(mode) ? mode : 0 : [1, 2, 3, 4, 5, 6, 7].includes(mode) ? mode : 1 });
   }
   return items.sort((a, b) => a.time - b.time);
 }

@@ -1,4 +1,5 @@
 import { nativeVideoSource, type NativeVideoSource, type PlaybackSource } from './media.ts';
+import { connectionUrl } from './connectionTransport.ts';
 
 export type RangeCheck = { name: string; status: number; valid: boolean; bodyChecked: boolean };
 export type MediaProbe = {
@@ -47,7 +48,7 @@ async function rangeCheck(uri: string, headers: Record<string, string>, name: st
   signal?.addEventListener('abort', cancel, { once: true });
   const timeout = setTimeout(cancel, 10000);
   try {
-    const response = await fetch(uri, { headers: { ...headers, Range: range }, signal: controller.signal });
+    const response = await fetch(connectionUrl(uri), { headers: { ...headers, Range: range }, credentials: 'omit', signal: controller.signal });
     const invalid = begin >= size;
     const expectedRange = invalid ? `bytes */${size}` : `bytes ${begin}-${end}/${size}`;
     const rawLength = response.headers.get('content-length');
@@ -82,7 +83,7 @@ export async function probeNativeMedia(video: NativeVideoSource, signal?: AbortS
   signal?.addEventListener('abort', cancel, { once: true });
   const timeout = setTimeout(cancel, 10000);
   try {
-    const response = await fetch(video.probeUri || video.uri, { method: 'HEAD', headers: video.headers, signal: controller.signal });
+    const response = await fetch(connectionUrl(video.probeUri || video.uri), { method: 'HEAD', headers: video.headers, credentials: 'omit', signal: controller.signal });
     const contentType = response.headers.get('content-type')?.split(';')[0]?.trim();
     const rawSize = response.headers.get('content-length');
     const size = rawSize === null ? 0 : Number(rawSize);

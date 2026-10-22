@@ -1,24 +1,18 @@
 import { checkAbort } from './cancellation.ts';
 import type { SourceSelection } from './sources.ts';
 import type { ApiRequest } from './mediaLibrary.ts';
+import { addSourceBatch } from './sourceBatch.ts';
 export type AnimeEpisode = { id: string; title: string; episodeNumber: number; playbackParams: Record<string, unknown> };
 export async function addAnimeEpisodes(request: ApiRequest, kind: string, source: string, name: string, episodes: AnimeEpisode[], add: (value: SourceSelection) => Promise<void>, signal?: AbortSignal, pendingSelections = new Map<string, SourceSelection>()) {
-  const added: string[] = []; const failures: { id: string; message: string }[] = []; const visited = new Set<string>();
-  for (const episode of episodes) {
-    checkAbort(signal); if (visited.has(episode.id)) continue; visited.add(episode.id);
-    try {
+  return addSourceBatch(episodes, episode => episode.id, async episode => {
       if (!episode.id) throw new Error('集数信息无效');
       const key = JSON.stringify([kind, source, name, episode.id]);
       // Resolution can rotate CDN signatures. Reuse the exact selection until
       // the add transaction finishes, including its refresh/play follow-ups.
       const selection = pendingSelections.get(key) ?? await resolveAnimeSelection(request, kind, source, name, episode, signal);
       checkAbort(signal); pendingSelections.set(key, selection);
-      await add(selection); pendingSelections.delete(key); checkAbort(signal);
-      added.push(episode.id);
-    }
-    catch (failure) { checkAbort(signal); failures.push({ id: episode.id, message: failure instanceof Error ? failure.message : '添加失败' }); }
-  }
-  return { added, failures };
+      await add(selection); pendingSelections.delete(key);
+  }, signal);
 }
 export async function addAnimeEpisode(request: ApiRequest, kind: string, source: string, name: string, episode: AnimeEpisode, add: (value: SourceSelection) => Promise<void>, signal?: AbortSignal) {
   const selection = await resolveAnimeSelection(request, kind, source, name, episode, signal);
@@ -37,6 +31,6 @@ async function resolveAnimeSelection(request: ApiRequest, kind: string, source: 
       for (const [key, value] of Object.entries(media.headers || {})) { const header = ({ referer: 'referer', 'user-agent': 'userAgent', origin: 'origin', cookie: 'cookie' } as Record<string, string>)[key.toLowerCase()]; if (header) params.set(header, value); }
       return `${root}/proxy?${params}`;
     };
-    return { title, source: kind === 'anime' ? 'mp4' : kind, url: proxy(media.url), ...(media.audioUrl ? { audioUrl: proxy(media.audioUrl) } : {}), format: media.format };
+    return { title, source: kind === 'anime' ? 'mp4' : kind, url: proxy(media.url), ...(media.audioUrl ? { audioUrl: proxy(media.audioUrl) } : {}), format: media.format, sourceMeta: kind === 'kazumi' ? { sourceId: source, episode, originalTitle: title } : undefined };
   }
 }
