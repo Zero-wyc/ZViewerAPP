@@ -170,7 +170,7 @@ export async function resolveBilibiliViaCli(
   qn?: number,
   preferMp4?: boolean,
   forceDash?: boolean,
-  nativeOptions?: { qualityMode?: 'autoMax' | 'manual'; fallbackQn?: number; timeoutMs?: number; page?: number }
+  nativeOptions?: { qualityMode?: 'autoMax' | 'manual'; fallbackQn?: number; timeoutMs?: number; page?: number; audioOnly?: boolean }
 ): Promise<ResolvedSource> {
   const base = proxyUrl.replace(/\/$/, '')
   const params = new URLSearchParams({
@@ -256,7 +256,7 @@ export async function resolveBilibiliViaCli(
     preview: data.preview,
   }
 
-  assertVideoCodecSupported(resolved)
+  if (!nativeOptions?.audioOnly || !resolved.audioUrl) assertVideoCodecSupported(resolved)
   // CLI /resolve 已返回代理 URL，但本地包装可确保旧版 CLI 与兜底场景也走代理。
   // Native media URLs are wrapped only during attachment. Room state keeps
   // upstream URLs so a localhost token can never leak to other participants.

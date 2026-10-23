@@ -447,9 +447,20 @@ function mapResolvedBilibili(data: ResolveProgressLine): ResolvedSource {
   }
 }
 
+/** Preserve server error codes so callers can narrowly handle format availability. */
+export class BilibiliResolveError extends Error {
+  readonly code?: string
+  constructor(message: string, code?: string) {
+    super(message)
+    this.name = 'BilibiliResolveError'
+    this.code = code
+  }
+}
+
 async function parseNdjsonStream(
   res: Response,
-  onProgress?: (step: string, message: string) => void
+  onProgress?: (step: string, message: string) => void,
+  audioOnly = false
 ): Promise<ResolvedSource> {
   // 先完整读取 NDJSON 文本再逐行解析：
   // 部分浏览器/嵌入环境在 UI 点击触发的流式读取中会记录 net::ERR_ABORTED，
@@ -476,9 +487,9 @@ async function parseNdjsonStream(
         resolved = mapResolvedBilibili(data)
       } else if (data.status === 'error') {
         if (data.code === 'NO_PERMISSION') {
-          streamError = new Error(data.message || '无权限播放，可能需要大会员')
+          streamError = new BilibiliResolveError(data.message || '无权限播放，可能需要大会员', data.code)
         } else {
-          streamError = new Error(data.message || '解析 B站 视频失败')
+          streamError = new BilibiliResolveError(data.message || '解析 B站 视频失败', data.code)
         }
       }
     } catch (err) {
@@ -491,7 +502,7 @@ async function parseNdjsonStream(
   }
 
   if (resolved) {
-    assertVideoCodecSupported(resolved)
+    if (!audioOnly || !resolved.audioUrl) assertVideoCodecSupported(resolved)
     return resolved
   }
 
@@ -515,6 +526,8 @@ export async function resolveBilibili(
   options?: {
     preferMp4?: boolean
     forceDash?: boolean
+    /** Listening uses only audioUrl and does not require the discarded video codec. */
+    audioOnly?: boolean
     page?: number
     /**
      * 按该影片所属房间房主的 B站 Cookie 身份解析（后端按 movieId 查房间房主）。
@@ -554,19 +567,19 @@ export async function resolveBilibili(
     const contentType = res.headers.get('content-type') || ''
 
     if (contentType.includes('application/x-ndjson')) {
-      return await parseNdjsonStream(res, onProgress)
+      return await parseNdjsonStream(res, onProgress, options?.audioOnly)
     }
 
     // 兜底：兼容旧版纯 JSON 响应
     const data = (await res.json()) as ResolveProgressLine
     if (!res.ok || !data.success || !data.videoUrl) {
       if (data.code === 'NO_PERMISSION') {
-        throw new Error(data.message || '无权限播放，可能需要登录或大会员')
+        throw new BilibiliResolveError(data.message || '无权限播放，可能需要登录或大会员', data.code)
       }
-      throw new Error(data.message || '解析 B站 视频失败')
+      throw new BilibiliResolveError(data.message || '解析 B站 视频失败', data.code)
     }
     const resolved = mapResolvedBilibili(data)
-    assertVideoCodecSupported(resolved)
+    if (!options?.audioOnly || !resolved.audioUrl) assertVideoCodecSupported(resolved)
     return resolved
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
@@ -592,6 +605,7 @@ export async function resolveBilibiliWithOptions(
   extraOptions?: {
     preferMp4?: boolean
     forceDash?: boolean
+    audioOnly?: boolean
     page?: number
     movieId?: number
   }
@@ -599,6 +613,7 @@ export async function resolveBilibiliWithOptions(
   return resolveBilibili(url, qn, onProgress, {
     preferMp4: extraOptions?.preferMp4,
     forceDash: extraOptions?.forceDash,
+    audioOnly: extraOptions?.audioOnly,
     page: extraOptions?.page,
     movieId: extraOptions?.movieId,
   })

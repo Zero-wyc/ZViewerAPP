@@ -1,0 +1,59 @@
+/* Landscape exposes room actions directly. Orientation comes from the viewport,
+   while container width only decides wrapping; portrait keeps its existing CSS. */
+.player-controlbar[data-landscape="true"] .player-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+}
+
+.player-controlbar[data-landscape="true"] .player-secondary {
+  display: block !important;
+  flex: 0 0 auto;
+}
+
+.player-controlbar[data-landscape="true"] .player-desktop-composer {
+  display: none !important;
+}
+
+.player-controlbar[data-landscape="true"] .player-mobile-composer.is-open {
+  display: flex;
+}
+
+.player-controlbar[data-landscape="true"] .player-time {
+  order: 0;
+  flex: 0 0 auto;
+  margin-right: auto;
+  padding-inline: 4px;
+  line-height: 1.4;
+}
+
+.player-controlbar[data-landscape="true"] .player-controls-row .player-tool {
+  flex: 0 0 44px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+}
+
+.player-controlbar[data-landscape="true"] .player-display-controls {
+  flex: 0 0 auto;
+  width: auto;
+  margin-left: 0;
+}
+
+.player-controlbar[data-landscape="true"] .player-tool[aria-pressed="true"],
+.player-controlbar[data-landscape="true"] .player-tool[aria-expanded="true"] {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+
+/* Keep the portrait overflow menu's arrangement, but follow the selected theme
+   instead of the legacy fixed green rate highlight. */
+.player-more-menu .player-rate-options button[aria-pressed="true"] {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+
+.player-more-menu .player-playback-rate-option {
+  min-height: 40px;
+}

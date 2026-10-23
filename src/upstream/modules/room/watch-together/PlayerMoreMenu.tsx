@@ -2,8 +2,12 @@ import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, 
 import { createPortal } from 'react-dom'
 import { registerOverlayBack } from '@/components/ui/overlayBack'
 
-export function PlayerMoreMenu({ anchor, children, onClose }: {
+export function PlayerMoreMenu({ anchor, children, onClose, placement = 'auto', label = '更多选项', width: preferredWidth = 220, themed = false }: {
   anchor: RefObject<HTMLButtonElement>; children: ReactNode; onClose: () => void
+  placement?: 'auto' | 'above'
+  label?: string
+  width?: number
+  themed?: boolean
 }) {
   const menu = useRef<HTMLDivElement>(null)
   const close = useRef(onClose)
@@ -19,13 +23,13 @@ export function PlayerMoreMenu({ anchor, children, onClose }: {
       const bottomEdge = (viewport?.offsetTop ?? 0) + (viewport?.height ?? innerHeight) - 8
       const leftEdge = (viewport?.offsetLeft ?? 0) + 8
       const rightEdge = (viewport?.offsetLeft ?? 0) + (viewport?.width ?? innerWidth) - 8
-      const width = Math.min(220, rightEdge - leftEdge)
+      const width = Math.min(preferredWidth, rightEdge - leftEdge)
       const below = Math.max(0, bottomEdge - rect.bottom - 8)
       const above = Math.max(0, rect.top - topEdge - 8)
       // Normal playback opens downward beyond the clipped video container.
       // At the fullscreen bottom edge, use the space above without overlapping
       // the trigger; the menu scrolls instead of moving over its own button.
-      const down = below >= 96 || below >= above
+      const down = placement !== 'above' && (below >= 96 || below >= above)
       const maxHeight = Math.min(300, down ? below : above)
       const border = getComputedStyle(popup)
       const height = Math.min(popup.scrollHeight + parseFloat(border.borderTopWidth) + parseFloat(border.borderBottomWidth), maxHeight)
@@ -67,12 +71,18 @@ export function PlayerMoreMenu({ anchor, children, onClose }: {
       window.visualViewport?.removeEventListener('resize', update)
       window.visualViewport?.removeEventListener('scroll', update)
     }
-  }, [anchor])
-  return createPortal(<div ref={menu} role="dialog" aria-label="更多选项"
+  }, [anchor, placement, preferredWidth])
+  return createPortal(<div ref={menu} role="dialog" aria-label={label}
     className="player-more-menu rounded-lg border p-1 shadow-lg"
     style={{ ...position, zIndex: 180, overflow: 'auto', overscrollBehavior: 'contain',
-      background: '#18212c', color: '#edf1ef', borderColor: '#54616a',
-      '--md-sys-color-on-surface': '#edf1ef', '--md-sys-color-surface-container-highest': '#30373b',
+      ...(themed ? {
+        background: 'var(--md-sys-color-surface-container-high)',
+        color: 'var(--md-sys-color-on-surface)',
+        borderColor: 'var(--md-sys-color-outline-variant)',
+      } : {
+        background: '#18212c', color: '#edf1ef', borderColor: '#54616a',
+        '--md-sys-color-on-surface': '#edf1ef', '--md-sys-color-surface-container-highest': '#30373b',
+      }),
     } as CSSProperties}>
     {children}
   </div>, document.fullscreenElement ?? document.body)

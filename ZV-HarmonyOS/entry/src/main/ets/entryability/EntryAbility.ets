@@ -2,11 +2,15 @@ import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { screenShareCapturePolicy } from '../services/ScreenShareCapturePolicy';
+import { NativeMediaSession } from '../services/NativeMediaSession';
 
 const DOMAIN = 0x5A56;
 
 export default class EntryAbility extends UIAbility {
   onBackground(): void { screenShareCapturePolicy.background(); }
+  // API 20+: run after the Ability has completed its background transition.
+  onDidBackground(): void { NativeMediaSession.appVisibility(false); }
+  onForeground(): void { NativeMediaSession.appVisibility(true); }
   onDestroy(): void { screenShareCapturePolicy.end(); }
   onCreate(_want: Want, _launchParam: AbilityConstant.LaunchParam): void {
     hilog.info(DOMAIN, 'ZViewer', 'Ability created');

@@ -176,11 +176,68 @@
   background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
 }
 .music-app-shell .music-player-card-face .music-primary-play svg { width: 65%; height: 65%; }
+/* The card gets only the space left after the wrapping toolbar. Its artwork
+   yields first; controls retain their own height and gap. Scroll within the
+   card only when large fonts or a short window exceed that available space. */
+.music-app-shell .music-player-card-body {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+}
+.music-app-shell .music-player-artwork-region {
+  display: flex;
+  flex: 1 1 280px;
+  min-height: 80px;
+  align-items: center;
+  justify-content: center;
+}
+.music-app-shell .music-player-artwork {
+  height: 100%;
+  max-height: 100%;
+  max-width: 100%;
+}
+.music-app-shell .music-player-cover-image,
+.music-app-shell .music-player-cover-placeholder {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.music-app-shell .music-player-artwork[data-square-cover='true'] { aspect-ratio: 1; }
+.music-app-shell .music-player-artwork[data-square-cover='true'] .music-player-cover-image { object-fit: cover; }
+.music-app-shell .music-player-controls { gap: clamp(12px, 2vh, 18px); }
+.music-app-shell .music-player-transport-row { min-height: 44px; }
+.music-app-shell .music-player-transport-row > button {
+  min-width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
+}
+.music-app-shell .music-player-content[data-player-layout='portrait'] {
+  padding-top: 48px;
+  padding-bottom: max(12px, var(--app-safe-bottom, env(safe-area-inset-bottom, 0px)));
+  gap: 12px;
+}
+.music-app-shell .music-player-content[data-player-layout='portrait'] > .music-player-card-container {
+  flex-shrink: 1;
+}
+.music-app-shell .music-player-content[data-player-layout='portrait'] .music-player-metadata {
+  padding-top: 4px;
+}
+.music-app-shell .music-player-content[data-player-layout='compact-landscape'] .music-player-artwork-region {
+  min-height: 56px;
+}
 .music-app-shell .music-player-mobile-tools {
   padding: 6px 8px;
+  flex-shrink: 0;
+  min-width: 0;
   border: 1px solid color-mix(in srgb, var(--md-sys-color-on-surface) 18%, transparent);
   border-radius: var(--music-radius);
   background: color-mix(in srgb, var(--lt-tone-inverse) 84%, transparent);
+}
+.music-app-shell .music-player-mobile-tools > button {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
 }
 .music-app-shell .music-player-mobile-tools > button,
 .music-app-shell .music-player-side-tools > button {

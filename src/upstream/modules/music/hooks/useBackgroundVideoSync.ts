@@ -19,6 +19,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePlayerSource } from '@/modules/player'
+import { useAppVisibility } from '../../../../mobile/useAppVisibility'
 import {
   BG_VIDEO_CATCHUP_EPSILON_SEC,
   BG_VIDEO_CATCHUP_GAIN_SEC,
@@ -48,6 +49,9 @@ export function useBackgroundVideoSync({
   isPlaying,
 }: BackgroundVideoSyncOptions) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const appVisible = useAppVisibility()
+  const shouldPlayRef = useRef(isPlaying && appVisible)
+  shouldPlayRef.current = isPlaying && appVisible
   const sourceUrl = source?.url ?? null
 
   /** 已就绪（首帧可播）的源 URL：与当前源一致才认为画面可见 */
@@ -164,11 +168,13 @@ export function useBackgroundVideoSync({
       // 触发一次，attach 慢时那次 play() 落在尚未就绪的元素上被静默拒绝，
       // 视频停在原地被 1s 校正循环反复大漂移 seek（表现为切歌/换分辨率后
       // 持续卡顿，暂停再播放才恢复）
-      syncBgVideoTime(true)
-      if (isPlaying) {
+      if (shouldPlayRef.current) {
+        syncBgVideoTime(true)
         void video.play().catch(() => {
           // ignore：自动播放策略拒绝
         })
+      } else if (!video.paused) {
+        video.pause()
       }
     })
   }, [status, source, attachSource, cleanup, isPlaying, syncBgVideoTime])
@@ -180,23 +186,32 @@ export function useBackgroundVideoSync({
   useEffect(() => {
     const video = videoRef.current
     if (!video || status !== 'ready') return
-    if (isPlaying) {
+    if (isPlaying && appVisible) {
+      syncBgVideoTime(true)
       void video.play().catch(() => {
         // ignore：自动播放策略拒绝
       })
     } else if (!video.paused) {
       video.pause()
     }
-  }, [isPlaying, status])
+  }, [isPlaying, status, appVisible, syncBgVideoTime])
 
   // 漂移校正驱动：interval 1s 命令式读取进度（positionSec 高频更新不再
   // 经由 React effect 触发）；播放中正常 1x 漂移远小于阈值，仅卡顿/seek
   // 后才安排校正。未就绪时不排程（sync 内部亦有护栏）
   useEffect(() => {
-    if (!sourceUrl) return
+    if (!sourceUrl || !appVisible) return
     const timer = setInterval(() => syncBgVideoTime(false), 1000)
-    return () => clearInterval(timer)
-  }, [sourceUrl, syncBgVideoTime])
+    return () => {
+      clearInterval(timer)
+      if (seekDebounceRef.current != null) {
+        clearTimeout(seekDebounceRef.current)
+        seekDebounceRef.current = null
+      }
+      seekPendingRef.current = null
+      catchUpRef.current = false
+    }
+  }, [sourceUrl, appVisible, syncBgVideoTime])
 
   // 卸载时清 seek 去抖定时器（追赶态随元素销毁失效，无需处理）
   useEffect(
@@ -214,7 +229,13 @@ export function useBackgroundVideoSync({
     () => ({
       onLoadedMetadata: () => syncBgVideoTime(true),
       onCanPlay: () => setReadyUrl(sourceUrl),
-      onPlaying: () => setReadyUrl(sourceUrl),
+      onPlaying: () => {
+        // The element/engine may autoplay after asynchronous metadata loading,
+        // after the visibility effect already ran. Keep that late play silent
+        // and stopped too; the independent music <audio> remains authoritative.
+        if (!shouldPlayRef.current) { videoRef.current?.pause(); return }
+        setReadyUrl(sourceUrl)
+      },
     }),
     [syncBgVideoTime, sourceUrl]
   )

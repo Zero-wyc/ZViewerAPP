@@ -122,8 +122,12 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
           const label = option.querySelector('span')
           if (!label) continue
           const style = getComputedStyle(option)
-          // 每个选项都预留勾选图标，切换选中项时菜单宽度不抖动。
-          const contentWidth = label.scrollWidth + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + parseFloat(style.columnGap) + 14
+          // Label must not flex-grow: its scrollWidth would otherwise include the
+          // current menu width and make this RAF measurement grow indefinitely.
+          // Reserve the same check space for every option, including enlarged fonts.
+          const check = option.querySelector('svg')
+          const checkWidth = check ? parseFloat(getComputedStyle(check).width) : 0
+          const contentWidth = label.scrollWidth + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + parseFloat(style.columnGap) + checkWidth
           width = Math.max(width, Math.ceil(contentWidth + menuPadding + scrollbar))
         }
       }
@@ -353,8 +357,8 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                     )}
                     style={{ '--item-delay': '0ms' } as React.CSSProperties}
                   >
-                    <span className={cn('min-w-0 flex-1', wrapLabels ? 'whitespace-normal [overflow-wrap:anywhere]' : menuWidth === 'content' ? 'shrink-0 whitespace-nowrap' : 'truncate')}>{opt.label}</span>
-                    {active && <Check className="h-3.5 w-3.5 shrink-0" />}
+                    <span className={cn('min-w-0', menuWidth === 'content' ? 'flex-initial' : 'flex-1', wrapLabels ? 'whitespace-normal [overflow-wrap:anywhere]' : 'truncate')}>{opt.label}</span>
+                    <Check aria-hidden="true" className={cn('h-3.5 w-3.5 shrink-0', !active && 'invisible')} />
                   </button>
                 )
               })}

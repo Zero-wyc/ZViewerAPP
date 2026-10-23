@@ -24,6 +24,7 @@ export interface MediaSessionState {
 
 /** System artwork is a decoded PixelMap; ArkWeb URLs are not delegated to the media center. */
 export class NativeMediaSession {
+  private static current: NativeMediaSession | null = null;
   private context: common.UIAbilityContext;
   private controller: webview.WebviewController;
   private session: avSession.AVSession | null = null;
@@ -41,6 +42,22 @@ export class NativeMediaSession {
   constructor(context: common.UIAbilityContext, controller: webview.WebviewController) {
     this.context = context;
     this.controller = controller;
+    NativeMediaSession.current = this;
+  }
+
+  /** Ability lifecycle is independent of the Web engine's visibility state. */
+  static appVisibility(active: boolean): void {
+    const owner = NativeMediaSession.current;
+    if (owner === null) return;
+    try {
+      // Only retain the engine in the background after the OS accepted playback.
+      // Creating an AVSession alone does not retain ArkWeb after Home / screen off.
+      if (active || (owner.backgroundRunning && owner.state?.playing)) owner.controller.onActive();
+      void owner.controller.runJavaScript(`window.dispatchEvent(new CustomEvent('zviewer:app-visibility',{detail:{active:${active}}}))`)
+        .catch(() => {});
+    } catch (_) {
+      // The initial foreground callback can precede attachment of the Web component.
+    }
   }
 
   update(state: MediaSessionState): Promise<void> {
@@ -78,6 +95,7 @@ export class NativeMediaSession {
   }
   destroy(): Promise<void> {
     return this.enqueue(async () => {
+      if (NativeMediaSession.current === this) NativeMediaSession.current = null;
       await this.release();
       this.fallbackArtwork?.release();
       this.fallbackArtwork = null;

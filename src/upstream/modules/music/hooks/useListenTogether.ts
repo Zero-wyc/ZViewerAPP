@@ -3,6 +3,7 @@ import { getEmbeddedProxyStatus, subscribeEmbeddedProxy } from '../../../../plat
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useSystemSettingsStore } from '@/store/systemSettingsStore'
 import { initialMusicVolume } from '../utils/volume'
+import { resolveBilibiliAudioWithFallback, selectBilibiliAudioStream } from '../utils/bilibiliAudioStream'
 import { advancePersonalFm, fetchPersonalFmPool, usePersonalFmStore } from '../personal-fm'
 import type { FmSongItem } from '../personal-fm'
 import type { Socket } from 'socket.io-client'
@@ -244,7 +245,7 @@ const biliResolvingPromises = new Map<string, Promise<void>>()
 
 subscribeEmbeddedProxy(() => { biliAudioUrlMap.clear(); biliResolvingPromises.clear() })
 
-/** B站 解析默认清晰度（无 CLI 时取 720P MP4 直链，audio 元素仅出声） */
+/** Video quality is irrelevant to the independent audio representation. */
 const BILI_DEFAULT_QN = 64
 
 /**
@@ -274,24 +275,24 @@ async function resolveBiliAudio(
       item.biliCid,
       undefined,
       false,
-      true
+      true,
+      { audioOnly: true }
     )
-    if (!r.audioUrl && !r.videoUrl) {
-      throw new Error('未获取到音频地址')
-    }
-    playUrl = buildCliProxyUrl(proxyUrl, (r.audioUrl ?? r.videoUrl) as string)
+    playUrl = buildCliProxyUrl(proxyUrl, selectBilibiliAudioStream(r))
     if (r.duration) durationMs = Math.round(r.duration * 1000)
   } else {
-    // CLI 未开启或未连接：服务器端解析 720P MP4 直链（音视频合一，
-    // audio 元素仅出声），经后端媒体代理注入 Referer 绕过防盗链
-    const r = await resolveBilibiliWithOptions(
+    // Request the independent audio representation even when the visual MV uses
+    // MP4. A hidden <audio> playing a muxed video still creates a video pipeline,
+    // which mobile Web engines may suspend when the application is backgrounded.
+    const r = await resolveBilibiliAudioWithFallback(options => resolveBilibiliWithOptions(
       pageUrl,
       BILI_DEFAULT_QN,
       undefined,
-      { preferMp4: true }
-    )
-    if (!r.videoUrl) throw new Error('未获取到音频地址')
-    playUrl = buildProxyUrl(r.videoUrl)
+      options
+    ))
+    // Older servers may still return a muxed MP4; retain that compatibility,
+    // but never mistake a video-only DASH representation for an audio stream.
+    playUrl = buildProxyUrl(selectBilibiliAudioStream(r))
     if (r.duration) durationMs = Math.round(r.duration * 1000)
   }
   if (session !== getEmbeddedProxyStatus().sessionVersion || mapKey !== biliAudioCacheKey(item)) throw new Error('B 站解析设置或账号已切换，请重试')

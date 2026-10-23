@@ -703,6 +703,7 @@ function ListenTogetherInner({
             卡宽经 --lt-card-w clamp 保底（横屏矮窗口不至于压成细线） ===== */
         <div
           onPointerDown={isLandscapeShort ? flashLandscapeToolbar : undefined}
+          data-player-layout={isPortraitMobile ? 'portrait' : isLandscapeShort ? 'compact-landscape' : 'wide'}
           className={cn(
             'music-player-content relative z-[1] flex h-full min-h-0 items-stretch justify-start',
             'pb-[60px] pt-[95px]',
@@ -736,7 +737,7 @@ function ListenTogetherInner({
                 : 'd-card'
             }
             className={cn(
-              'player-card-in group relative z-[1] shrink-0',
+              'music-player-card-container player-card-in group relative z-[1] min-h-0 shrink-0',
               isPortraitMobile
                 ? cn(
                     'w-full max-w-[420px] self-center',
@@ -753,8 +754,8 @@ function ListenTogetherInner({
             )}
             style={
               {
-                padding: '16px 12px',
-                paddingBottom: '4vh',
+                padding: isPortraitMobile ? '0' : '16px 12px',
+                paddingBottom: isPortraitMobile ? '0' : '4vh',
                 // 播放卡信息层文字（时间/歌手/VOLUME/进度/三键）与卡底 tint
                 // 同源、随播放页 UI 深浅色开关整体翻转：卡底是毛玻璃（tint +
                 // 模糊采样），采样内容亮度不定——文字若按主题 scheme 分支，

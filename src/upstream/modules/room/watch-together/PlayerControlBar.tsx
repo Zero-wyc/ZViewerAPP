@@ -33,9 +33,24 @@ import {
 } from '@/modules/player/services/pause-intent'
 import { DanmakuInput } from '@/components/VideoPlayer/parts/DanmakuInput'
 import type { WatchTogetherState } from '@/modules/sync-playback/types'
+import './PlayerControlBar.css'
 
 const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2]
 const VOLUME_STORAGE_KEY = 'zc-player-volume'
+
+/** Follow actual viewport orientation, matching the native display controls.
+ * A wide portrait tablet must keep the portrait toolbar arrangement. */
+function useLandscapeControls() {
+  const [landscape, setLandscape] = useState(() => window.matchMedia('(orientation: landscape)').matches)
+  useEffect(() => {
+    const orientation = window.matchMedia('(orientation: landscape)')
+    const update = () => setLandscape(orientation.matches)
+    update()
+    orientation.addEventListener('change', update)
+    return () => orientation.removeEventListener('change', update)
+  }, [])
+  return landscape
+}
 
 /** 弹幕开关图标：圆角屏幕内带"弹"字，关闭时叠加斜线。 */
 function DanmakuIcon({ off }: { off?: boolean }) {
@@ -270,6 +285,7 @@ export function PlayerControlBar({
   controlBarHideMode = false,
   onToggleHideMode,
 }: PlayerControlBarProps) {
+  const landscape = useLandscapeControls()
   const currentTime = useVideoCurrentTime(videoRef)
   const duration = useVideoDuration(videoRef, watchTogether.duration)
   const progress =
@@ -339,11 +355,18 @@ export function PlayerControlBar({
 
   const [rateOpen, setRateOpen] = useState(false)
   const rateContainerRef = useRef<HTMLDivElement>(null)
+  const rateButtonRef = useRef<HTMLButtonElement>(null)
 
   // 移动端“更多”菜单：收纳使用频率较低的房间/视频操作
   const [moreOpen, setMoreOpen] = useState(false)
   const [composerOpen, setComposerOpen] = useState(false)
   const moreButtonRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    // A portal from the previous orientation must not outlive its hidden trigger.
+    setMoreOpen(false)
+    setRateOpen(false)
+    setComposerOpen(false)
+  }, [landscape])
 
   // 初始化时从 localStorage 恢复音量
   useEffect(() => {
@@ -366,7 +389,8 @@ export function PlayerControlBar({
 
   // 点击外部关闭倍速下拉
   useEffect(() => {
-    if (!rateOpen) return
+    // The landscape portal owns its outside-pointer / Escape / back handling.
+    if (!rateOpen || landscape) return
     const handleMouseDown = (e: MouseEvent) => {
       const target = e.target as Node
       if (
@@ -378,7 +402,7 @@ export function PlayerControlBar({
     }
     document.addEventListener('mousedown', handleMouseDown)
     return () => document.removeEventListener('mousedown', handleMouseDown)
-  }, [rateOpen])
+  }, [rateOpen, landscape])
 
   const computeTimeFromClientX = useCallback(
     (clientX: number): number => {
@@ -504,18 +528,44 @@ export function PlayerControlBar({
 
   const VolumeIcon =
     muted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2
+  const keepControlsVisible = moreOpen || (landscape && (rateOpen || composerOpen))
+  const rateOptions = RATES.map((rate) => {
+    const active = Math.abs(playbackRate - rate) < 0.01
+    return (
+      <button
+        key={rate}
+        type="button"
+        aria-label={`${rate}倍速`}
+        aria-pressed={active}
+        onClick={() => handleRateSelect(rate)}
+        className={cn(
+          'flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs transition-colors',
+          landscape && 'player-playback-rate-option gap-3',
+          active
+            ? landscape
+              ? 'bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)]'
+              : 'bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)]'
+            : 'text-[var(--md-sys-color-on-surface)] hover:bg-[var(--md-sys-color-surface-container-highest)]'
+        )}
+      >
+        <span>{rate}x</span>
+        {active && <Check size={landscape ? 14 : 12} />}
+      </button>
+    )
+  })
 
   return (
     <div
+      data-landscape={landscape}
       className={cn(
         'player-controlbar absolute bottom-0 left-0 right-0 z-[80] p-2 md:p-3',
-        !controlBarVisible && !moreOpen && 'pointer-events-none'
+        !controlBarVisible && !keepControlsVisible && 'pointer-events-none'
       )}
     >
       <div
         className={cn(
           'glass-strong flex flex-col gap-1.5 md:gap-2 rounded-lg border border-[var(--glass-border)] p-1.5 md:p-2 shadow-lg',
-          controlBarVisible || moreOpen ? 'zart-controlbar-enter' : 'zart-controlbar-exit'
+          controlBarVisible || keepControlsVisible ? 'zart-controlbar-enter' : 'zart-controlbar-exit'
         )}
       >
         {/* 进度条：轨道 + 缓冲 + 已播放 + 服务器同步线 */}
@@ -644,6 +694,17 @@ export function PlayerControlBar({
             <DanmakuIcon off={!danmakuEnabled} />
           </ControlButton>
 
+          {landscape && (
+            <ControlButton
+              label={composerOpen ? '收起弹幕输入' : '发送弹幕'}
+              active={composerOpen}
+              expanded={composerOpen}
+              onClick={() => setComposerOpen(value => !value)}
+            >
+              <MessageSquare size={18} />
+            </ControlButton>
+          )}
+
           {/* 弹幕输入框（桌面端显示） */}
           <div className="player-desktop-composer ml-auto hidden min-w-0 flex-1 items-center gap-1 md:flex md:max-w-[640px]">
             <DanmakuInput onSend={onSendDanmaku} placeholder="发个友善的弹幕" />
@@ -652,38 +713,27 @@ export function PlayerControlBar({
           {/* 倍速 */}
           <div ref={rateContainerRef} className="player-secondary relative">
             <ControlButton
+              ref={rateButtonRef}
               label="播放倍速"
               disabled={!canControl}
-              active={rateOpen}
+              active={rateOpen || (landscape && Math.abs(playbackRate - 1) >= 0.01)}
+              expanded={rateOpen}
               onClick={() => canControl && setRateOpen((v) => !v)}
             >
               <span className="min-w-[2ch] text-xs font-semibold">
                 {playbackRate}x
               </span>
             </ControlButton>
-            {rateOpen && canControl && (
+            {rateOpen && canControl && (landscape ? (
+              <PlayerMoreMenu anchor={rateButtonRef} onClose={() => setRateOpen(false)}
+                placement="above" label="播放倍速" width={128} themed>
+                {rateOptions}
+              </PlayerMoreMenu>
+            ) : (
               <div className="glass absolute bottom-full left-1/2 z-30 mb-2 -translate-x-1/2 overflow-hidden rounded-xl p-1 shadow-lg">
-                {RATES.map((rate) => {
-                  const active = Math.abs(playbackRate - rate) < 0.01
-                  return (
-                    <button
-                      key={rate}
-                      type="button"
-                      onClick={() => handleRateSelect(rate)}
-                      className={cn(
-                        'flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs transition-colors',
-                        active
-                          ? 'bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)]'
-                          : 'text-[var(--md-sys-color-on-surface)] hover:bg-[var(--md-sys-color-surface-container-highest)]'
-                      )}
-                    >
-                      <span>{rate}x</span>
-                      {active && <Check size={12} />}
-                    </button>
-                  )
-                })}
+                {rateOptions}
               </div>
-            )}
+            ))}
           </div>
 
           {/* 音量：容器包含按钮和弹窗，使用延迟关闭避免移动鼠标到弹窗时隐藏；
@@ -758,7 +808,7 @@ export function PlayerControlBar({
             <Settings size={18} />
           </ControlButton>
 
-          <div className="player-more relative md:hidden">
+          {!landscape && <div className="player-more relative md:hidden">
             <ControlButton
               ref={moreButtonRef}
               label="更多"
@@ -816,7 +866,7 @@ export function PlayerControlBar({
                 </button>
               </PlayerMoreMenu>
             )}
-          </div>
+          </div>}
 
           <PlayerDisplayControls fullscreen={isFullscreen || isWebFullscreen} videoRef={videoRef}
             onFullscreen={onToggleWebFullscreen ?? onToggleFullscreen} />

@@ -109,7 +109,7 @@ export function PlayerCardFace({
   onVolumePointerDown,
 }: PlayerCardFaceProps) {
   return (
-    <div className="music-player-card-face relative flex h-full w-full flex-col overflow-hidden">
+    <div className="music-player-card-face relative flex h-full min-h-0 w-full flex-col overflow-hidden">
       <div
         aria-hidden="true"
         className="lt-blur-surface pointer-events-none absolute inset-0"
@@ -130,14 +130,18 @@ export function PlayerCardFace({
         }}
       />
       <div
-        className="relative flex h-full w-full flex-col"
+        className="music-player-card-body relative flex h-full min-h-0 w-full flex-col"
         style={uiFade < 1 ? { opacity: uiFade } : undefined}
       >
-        {/* 封面（max-height 38vh + 轻阴影与主题圆角）；
-          竖屏手机限高防吃掉控制区 */}
-        <div className="relative shrink-0 p-[max(1.5vh,10px)]">
+        {/* 封面先让出控制区需要的高度；大字体/矮屏时卡内可滚动，
+            工具栏继续占据卡片外独立的高度，避免被底部裁切。 */}
+        <div
+          className="music-player-artwork-region relative p-[max(1.5vh,10px)]"
+          style={{ maxHeight: isPortraitMobile ? 'min(34dvh, 320px)' : '38vh' }}
+        >
           <div
             className="music-player-artwork relative overflow-hidden"
+            data-square-cover={!cover || (isBiliSong && biliCoverShape === 'square')}
             style={{ boxShadow: '0 0 8px 0 rgba(0, 0, 0, 0.05)' }}
           >
             {cover ? (
@@ -145,18 +149,15 @@ export function PlayerCardFace({
                 src={cover}
                 alt={coverAlt}
                 className={cn(
-                  'block w-full object-cover',
+                  'music-player-cover-image block w-full object-cover',
                   // B站歌 + 正方形设置：封面居中裁剪呈正方形显示
                   //（网易云封面本就是正方形，不受此项影响）
                   isBiliSong && biliCoverShape === 'square' && 'aspect-square'
                 )}
-                style={{
-                  maxHeight: isPortraitMobile ? 'min(36dvh, 320px)' : '38vh',
-                }}
               />
             ) : (
               <div
-                className="flex aspect-square w-full items-center justify-center"
+                className="music-player-cover-placeholder flex aspect-square w-full items-center justify-center"
                 style={{
                   backgroundColor: 'var(--md-sys-color-surface-container-high)',
                 }}
@@ -173,7 +174,7 @@ export function PlayerCardFace({
         </div>
 
         {/* 歌曲信息：歌名（黑块滑入遮字 + 跑马灯）+ 歌手（小方点 + 名） */}
-        <div className="shrink-0 px-[max(1.5vh,10px)] pt-[max(1vh,6px)]">
+        <div className="music-player-metadata shrink-0 px-[max(1.5vh,10px)] pt-[max(1vh,6px)]">
           {/* 歌名行（Hydrogen .info-music:first-child：pb 1.2vh + overflow 隐藏；
             双击加入播放队列——网易云歌弹顶部提示/确认） */}
           <div
@@ -267,9 +268,9 @@ export function PlayerCardFace({
         {/* 控制区（Hydrogen .player-control：进度 / 三键 / 音量 纵向分布；
           滑条挂 touch-slider 禁触屏滚动，vh 尺寸全部 max() 保底，
           保证横屏矮窗口下仍可读可点） */}
-        <div className="flex min-h-0 flex-1 flex-col justify-between px-[max(1.5vh,10px)] pb-[max(1vh,6px)] pt-[max(1.5vh,10px)]">
+        <div className="music-player-controls flex shrink-0 flex-col px-[max(1.5vh,10px)] pb-[max(1vh,6px)] pt-[max(1.5vh,10px)]">
           {/* 进度区：时间行（1.5vh）+ 细黑条滑块（1.3vh + 0.5px 描边） */}
-          <div className="shrink-0">
+          <div className="music-player-progress shrink-0">
             <PlayerProgressBar
               durationSec={durationSec}
               canControl={canControl}
@@ -296,7 +297,7 @@ export function PlayerCardFace({
             横屏矮窗口时隐藏——三键已收纳到歌手行右端（见上方
             isLandscapeShort 分支），避免控件区纵向臃肿 */}
           {!isLandscapeShort && (
-            <div className="flex shrink-0 items-center justify-evenly">
+            <div className="music-player-transport-row flex shrink-0 items-center justify-evenly">
               <button
                 type="button"
                 className="music-player-transport flex h-[max(5vh,36px)] w-[max(5vh,36px)] items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity hover:opacity-70 active:scale-90"
@@ -344,7 +345,7 @@ export function PlayerCardFace({
             横屏矮窗口隐藏：物理音量键触手可及，软件音量让位给
             进度条——高度不足时本区会与进度条重叠出框 */}
           {!isLandscapeShort && (
-            <div className="shrink-0">
+            <div className="music-player-volume shrink-0">
               <div
                 ref={volumeTrackRef}
                 role="slider"
