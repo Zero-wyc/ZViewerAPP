@@ -2,11 +2,21 @@
 
 更新日期：2026-10-23（Asia/Shanghai）。本文是日常维护入口，已整合原发布、连接修复、服务端对齐与屏幕共享文档。历史运行证据和当前源码检查分开记录。
 
+## 2.2.0 发布与真机验收记录
+
+2026-10-23 用户明确反馈“真机验证通过”，并要求提交源码及发布 2.2.0。该反馈登记为本轮双端界面与播放修复的用户验收；未补写具体设备型号、系统版本或测试时长。此前各轮“待真机验证”属于当时状态，历史记录保留。本次正式包与已验收代码保持相同业务逻辑，统一版本为 2.2.0 / versionCode 221。
+
+发布目标为 [ZViewer-Client V2.2.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.2.0)，源码提交至 main，标签为 `client-v2.2.0`；仅发布 Android / HarmonyOS，iOS 保持 2.1.10 / build 31，未启动 IPA 构建。发行说明见 [2.2.0](releases/client-2.2.0.md)，源码使用 GitHub 自动归档，不另附手工源码压缩包。
+
+正式构建及检查：TypeScript/Vite、双端资源同步、32 项音轨/后台可见性/显示租约/滑动切歌回归、Android assembleRelease 与 HarmonyOS Release assembleHap 均通过。APK 版本 2.2.0 / 221、正式包名 `com.zviewer.mobile`、最低 API 24，v2 签名与上一正式版一致且非 Debug；HAP 为 2.2.0 / 221、debug=false、最低 HarmonyOS 6.1 / API 23，verify-app 与上一版证书链一致性通过。两包各 31 个前端资源与本次输出一致；鸿蒙 HTML 按同步脚本注入原生桥后比对。公开源码及包体未包含账户凭据、Agents.md 或私有签名源文件，临时鸿蒙签名配置已恢复。
+
+最终安装包保存在 `release/client-v2.2.0/`：`ZViewer-Android-2.2.0-release.apk` 为 76,767,409 字节，`ZViewer-HarmonyOS-2.2.0-release.hap` 为 14,330,925 字节。每包仅构建后计算一次 SHA256，后续上传复用 `package-metadata.json` 与 `SHA256SUMS.txt`，不重新计算。正式包检查独立于此前 Debug 包及用户真机反馈。
+
 ## 当前基线与目录边界
 
 | 项目 | 当前基线与使用规则 |
 | --- | --- |
-| Android / HarmonyOS | 2.1.10 / versionCode 220；正式版本不变，后续界面和后台播放修复的本地 Debug 包、设备验收与正式发布分别记录。 |
+| Android / HarmonyOS | 2.2.0 / versionCode 221；本轮界面和后台播放修复已获用户“真机验证通过”反馈，Debug 验证、用户验收与正式包检查分别记录。 |
 | iOS | 独立 `ZV-iOS/` 工程，2.1.10 / build31；详见 [iOS 维护文档](ios-maintenance-architecture.md)。 |
 | 客户端仓库 | 所有客户端源码、文档与 Git 操作均在本仓库；共享前端为 `src/`，平台分派为 `src/platform/`。 |
 | 服务端源码 | 相邻 `ZViewer-source code/` 已覆盖更新至上游 main `0af85d0954bb5a71bd0b6225b5a1322c1f8815fb`。源码更新不代表 NAS 已部署或客户端已对齐新增变化。 |
