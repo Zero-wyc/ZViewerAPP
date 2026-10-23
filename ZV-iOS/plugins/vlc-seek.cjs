@@ -423,6 +423,14 @@ function patchVlcSeek(root) {
           #endif`);
     source = source.slice(0, audioStart) + audio + source.slice(audioEnd);
   }
+  if (!source.includes('ZViewerContinuousDecorationSeek')) {
+    source = source.replace('    if backgroundAudio && autoplay { seekPlayingAudio(target, completion: completion); return }', `    // ZViewerContinuousDecorationSeek: a muted Bili video follows a moving
+    // audio clock. Pausing it for strict stationary confirmation loses that
+    // clock again before every seek completes. Keep progressive video running.
+    if (backgroundAudio || (zviewerBackgroundDecoration && !zviewerPreciseVideoSeek)) && autoplay { seekPlayingAudio(target, completion: completion); return }`);
+    source = source.replace('    guard backgroundAudio, autoplay, !zviewerSeeking, mediaPlayer === input else { return }', '    guard (backgroundAudio || zviewerBackgroundDecoration), autoplay, !zviewerSeeking, mediaPlayer === input else { return }');
+    if (!source.includes('ZViewerContinuousDecorationSeek')) throw new Error('Review continuous decoration seek integration');
+  }
   fs.writeFileSync(file, source);
   const moduleFile = path.join(root, 'ios/LibVlcPlayerModule.swift');
   let module = fs.readFileSync(moduleFile, 'utf8').replace(/\r\n/g, '\n');

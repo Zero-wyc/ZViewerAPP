@@ -5,6 +5,8 @@ const { patchVlcSeek } = require('./vlc-seek.cjs');
 const { patchMusicNative } = require('./music-native.cjs');
 function patchSystemMedia(root) {
     const patch = (relative, marker, edit) => { const file = path.join(root, 'ios', relative); const source = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n'); if (source.includes(marker)) return; const next = edit(source); if (next === source || !next.includes(marker)) throw new Error(`Review VLC system-media integration: ${relative}`); fs.writeFileSync(file, next); };
+    patch('ExpoLibVlcPlayer.podspec', 'ZViewerVlcAudioClock', source => source.replace(/  s\.dependency "VLCKit", "4\.0\.0a2[45]"/, `  # ZViewerVlcAudioClock: pin the tested VLCKit runtime for reproducible playback.
+  s.dependency "VLCKit", "4.0.0a25"`));
     // VLCKit 4 defaults to inline callbacks under libvlc's recursive player
     // lock. A synchronous hop from that callback to UIKit can deadlock with
     // the main thread waiting for the same lock. Configure every new player
