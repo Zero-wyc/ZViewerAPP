@@ -109,7 +109,7 @@ export function SongRow({
   return (
     <div
       className={cn(
-        'group flex shrink-0 items-center justify-between px-2 transition-colors duration-200',
+        'music-song-row group flex shrink-0 items-center justify-between px-2 transition-colors duration-200',
         cover ? 'h-[56px]' : 'h-[42px]',
         'hover:bg-[color-mix(in_srgb,var(--md-sys-color-on-surface)_5%,transparent)]',
         active &&
@@ -122,6 +122,7 @@ export function SongRow({
       onClick={onRowClick}
       onDoubleClick={onRowDoubleClick}
       title={rowTitle}
+      data-active={active}
     >
       {/* ===== 左区（55%）：序号列 + 歌名 ===== */}
       <div className="flex w-[55%] min-w-0 flex-none items-center">

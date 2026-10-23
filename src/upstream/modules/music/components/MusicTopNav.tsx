@@ -531,7 +531,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
   )
 
   return (
-    <header className="relative flex shrink-0 items-center gap-4 px-6 pt-4 pb-2 md:px-8 max-md:gap-2 max-md:px-3 max-md:pt-3 max-md:pb-1.5">
+    <header className="music-top-nav relative flex shrink-0 items-center gap-4 px-6 pt-4 pb-2 md:px-8 max-md:gap-2 max-md:px-3 max-md:pt-3 max-md:pb-1.5">
       {/* ===== 宽屏：常驻搜索框，背景增加不透明度；不依赖悬停。
           外层与账户区对称；中等宽度收窄，大屏聚焦时 220→260px 加宽。
           窄屏改用下方搜索图标 + 全宽搜索层 ===== */}
@@ -539,11 +539,11 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
         <div className="relative h-10 w-44 shrink-0 lg:w-56">
           <div
             className={cn(
-              'glass absolute left-0 top-1/2 flex h-9 -translate-y-1/2 items-center overflow-hidden transition-[width,border-color] duration-300 ease-[cubic-bezier(0.24,0.97,0.59,1)]',
+              'music-search-field glass absolute left-0 top-1/2 flex h-9 -translate-y-1/2 items-center overflow-hidden transition-[width,border-color] duration-300 ease-[cubic-bezier(0.24,0.97,0.59,1)]',
               focused ? 'w-44 lg:w-[260px]' : 'w-44 lg:w-[220px]'
             )}
             style={{
-              borderRadius: 'calc(var(--md-sys-shape-corner) / 2)',
+              borderRadius: 'var(--md-sys-shape-corner)',
               backgroundColor:
                 'color-mix(in srgb, var(--md-sys-color-surface) 88%, transparent)',
               borderColor: focused
@@ -567,7 +567,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
               onBlur={handleSearchBlur}
               onCompositionStart={() => setIsComposing(true)}
               onCompositionEnd={() => setIsComposing(false)}
-              placeholder={page === 'bilibili' ? 'SEARCH BILIBILI' : 'SEARCH'}
+              placeholder={page === 'bilibili' ? '搜索 B 站视频' : '搜索歌曲、歌手'}
               aria-label="搜索音乐"
               spellCheck={false}
               className="h-full w-full bg-transparent px-[10px] text-center text-[13px] font-bold outline-none placeholder:text-[11px] placeholder:font-normal placeholder:tracking-[2px]"
@@ -588,7 +588,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
       {isMobile && (
         <button
           type="button"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-opacity active:scale-90"
+          className="music-nav-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-opacity active:scale-90"
           style={{
             border:
               '1px solid color-mix(in srgb, var(--md-sys-color-on-surface) 40%, transparent)',
@@ -617,9 +617,9 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
           }}
         >
           <div
-            className="glass flex h-9 min-w-0 flex-1 items-center overflow-hidden"
+            className="music-search-field glass flex h-9 min-w-0 flex-1 items-center overflow-hidden"
             style={{
-              borderRadius: 'calc(var(--md-sys-shape-corner) / 2)',
+              borderRadius: 'var(--md-sys-shape-corner)',
               borderColor: focused
                 ? 'var(--md-sys-color-primary)'
                 : 'var(--glass-border)',
@@ -683,14 +683,14 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
           桌面展开态：完整五按钮 + 末尾折叠按钮；原生端和窄屏固定折叠 ===== */}
       <nav
         ref={navRef}
-        className="relative flex min-w-0 flex-1 items-center justify-center gap-[clamp(18px,3vw,40px)] max-md:gap-3"
+        className="music-nav-tabs relative flex min-w-0 flex-1 items-center justify-center gap-[clamp(18px,3vw,40px)] max-md:gap-3"
         aria-label="音乐页面导航"
       >
         {/* 下划线（Hydrogen .router-tracker）：14×2px 短条，跟随当前页
             按钮居中滑动；无对应按钮（搜索/设置页）时淡出隐藏 */}
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute bottom-0 z-[2]"
+          className="music-nav-tracker pointer-events-none absolute bottom-0 z-[2]"
           style={{
             left: trackerLeft,
             width: TRACKER_WIDTH,
@@ -711,15 +711,16 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
                 // 阻断外点关闭捕获层：保证按钮本身可正常开/关面板
                 onPointerDown={(e) => e.stopPropagation()}
                 className={cn(
-                  'inline-flex items-center gap-1 md:text-xl shrink-0 font-medium transition-opacity hover:opacity-70 max-md:text-[14px]',
+                  'music-nav-tab inline-flex items-center gap-1 md:text-xl shrink-0 font-medium transition-opacity hover:opacity-70 max-md:text-[14px]',
                   NCM_NAV_KEYS.has(page) ? 'opacity-100' : 'opacity-60'
                 )}
                 style={{
                   color: NCM_NAV_KEYS.has(page)
-                    ? 'var(--md-sys-color-on-surface)'
+                    ? 'var(--md-sys-color-on-primary-container)'
                     : 'var(--md-sys-color-on-surface-variant)',
                 }}
                 aria-haspopup="menu"
+                data-active={NCM_NAV_KEYS.has(page)}
                 aria-expanded={ncmMenuOpen}
                 aria-label="网易云音乐分区导航"
               >
@@ -832,16 +833,17 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
               type="button"
               onClick={() => setPage('bilibili')}
               className={cn(
-                'md:text-xl shrink-0 font-medium transition-opacity hover:opacity-70 max-md:text-[14px]',
+                'music-nav-tab md:text-xl shrink-0 font-medium transition-opacity hover:opacity-70 max-md:text-[14px]',
                 page === 'bilibili' ? 'opacity-100' : 'opacity-60'
               )}
               style={{
                 color:
                   page === 'bilibili'
-                    ? 'var(--md-sys-color-on-surface)'
+                    ? 'var(--md-sys-color-on-primary-container)'
                     : 'var(--md-sys-color-on-surface-variant)',
               }}
               aria-current={page === 'bilibili' ? 'page' : undefined}
+              data-active={page === 'bilibili'}
             >
               哔哩哔哩
             </button>
@@ -859,15 +861,16 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
                   type="button"
                   onClick={() => setPage(item.key)}
                   className={cn(
-                    'md:text-xl shrink-0 font-medium transition-opacity hover:opacity-70 max-md:text-[14px]',
+                    'music-nav-tab md:text-xl shrink-0 font-medium transition-opacity hover:opacity-70 max-md:text-[14px]',
                     active ? 'opacity-100' : 'opacity-60'
                   )}
                   style={{
                     color: active
-                      ? 'var(--md-sys-color-on-surface)'
+                      ? 'var(--md-sys-color-on-primary-container)'
                       : 'var(--md-sys-color-on-surface-variant)',
                   }}
                   aria-current={active ? 'page' : undefined}
+                  data-active={active}
                 >
                   {item.label}
                 </button>
@@ -899,7 +902,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
       >
         <button
           type="button"
-          className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full transition-opacity hover:opacity-80"
+          className="music-nav-icon flex h-9 w-9 items-center justify-center overflow-hidden rounded-full transition-opacity hover:opacity-80"
           style={{
             border:
               '1px solid color-mix(in srgb, var(--md-sys-color-on-surface) 40%, transparent)',

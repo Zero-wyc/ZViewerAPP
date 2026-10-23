@@ -117,11 +117,17 @@ ArkWeb 与 Android 共用 `src/upstream/hooks/useFullMediaNames.ts` 和 `compone
 
 实际番剧入口为 `AnimeSourceBrowser.tsx → EmbyBrowser.tsx`，覆盖 Kazumi、ani-subs 与 CMS 的搜索结果和进入后的选集；Emby/Jellyfin 媒体库复用同一浏览器。B站搜索入口 `BiliSearchModal.tsx` 的搜索卡片、详情标题和分 P 名称，以及 `MoviePushPanel.tsx` 解析影片后的“选择分集”弹窗，都读取相同完整名称偏好。已添加影片的实际切集入口位于 `MovieListPanel.tsx`，仅为该处 `Select` 启用 `wrapLabels={showFullNames}`，使选中项与展开选项均可换行；普通来源、画质等下拉框保持原来的紧凑规则。`AnimeEpisodePicker.tsx` 当前未作为实际选集组件挂载。
 
-共享 `hooks/useEpisodeViewMode.ts` 与 `components/EpisodeViewToggle.tsx` 提供显式“列表 / 网格”按钮，默认列表，按 `zviewer-episode-view-mode` 保存本机偏好并在各实际选集入口间共享。列表固定每集一行；网格通过共享 episodeGridColumns 按选集区域实际宽度自动计算列数，以 120px 为卡片宽度下限参考，极窄容器允许缩小至容器宽度，无四列上限；手机、平板、横屏、分屏和展开后的面板使用相同规则。番剧浏览器、Emby/Jellyfin 季内纯分集目录、B站搜索后的分 P 页面和解析后的“选择分集”均提供切换，名称仍服从完整名称开关，编号和选择控件保留独立宽度。媒体库网格卡片的图标与选择控件在上行，名称占下行全宽。选集显示方式与搜索结果的列表/海报墙偏好相互独立，不因切换搜索海报墙改变选集布局。
+共享 `hooks/useEpisodeViewMode.ts` 与 `components/EpisodeViewToggle.tsx` 提供显式“列表 / 网格”按钮，默认列表，按 `zviewer-episode-view-mode` 保存本机偏好并在各实际选集入口间共享。2026-10-23 将网格下限从 120px 调整为 5.5rem（默认字号约 88px），由实际选集区域宽度计算列数，常规手机可排三列，窄屏或大字号自动减少，平板/横屏继续增加且无四列上限。列表仍每集一行，完整名称偏好继续控制换行，搜索结果的列表/海报墙偏好保持独立。
+
+分集统一使用 `components/EpisodeCard.tsx` 与 `EpisodeCard.css`：主题色描边、至少 44px 触摸高度，选中为 primary 实心、对比文字和勾号；没有封面或图片最终加载失败时收起图片区，只显示集名，不显示 Film/Play 占位图标。自定义源使用已有封面及原图片代理回退，Emby/Jellyfin 使用各自挂载图片代理，B站搜索分 P 使用已取得的视频封面；解析结果没有封面字段时不额外请求。保留多选、全选、批量添加、失败项保留和原页面切换行为。覆盖 Kazumi、ani-subs、CMS、Emby、Jellyfin、B站搜索分 P 和解析分集，也同步备用 `AnimeEpisodePicker`；WebDAV/OpenList/FTP 和服务器文件页仍采用其文件浏览布局。
 
 房间设置、外观与本机B站入口保持独立。Portal使用当前主题，视频画布保持黑色；主题或字体变化不重建播放器。完整名称、网格偏好只保存在本机。添加影片保留说明卡加滑动Switch，运行期片级设置使用图标、粗体中文、实心选中态和勾号；两处不能混成同一界面。窄屏、横屏短高度、130%字体、安全区、键盘及返回键须单独检查。更多菜单使用实际按钮位置和菜单高度定位，操作不穿透到视频手势。
 
 ## 音乐、队列与语音
+
+2026-10-23 一起听视觉统一：`modules/music/music-ui.css` 仅作用于 `.music-app-shell` 内的显式组件类，导航改主题胶囊，搜索/账户入口、首页推荐卡、歌曲行、登录卡、底部播放条和侧坞统一圆角与描边；完整播放器更新封面、歌词外框及工具栏，去除方块/括号装饰。顶部导航、底部播放键和侧边工具位置保持原结构，轮播下一张保留在右下角。286 个 JSX 事件及回调经 AST 对比保持一致；store、音频引擎、房间同步、播放权限、队列与背景偏好均不改。
+
+本次验证：TypeScript/Vite 生产构建、双端网页资源同步、Android Debug APK 与 HarmonyOS Debug HAP 编译通过。真实共享组件使用本机模拟数据检查，选集覆盖 320/393/768px、深浅主题和 100%/130% 根字号共 12 组，均无横向溢出且触摸高度不小于 44px；393px 默认三列、320px 默认两列，极窄大字可降为一列。另检查有封面、无封面、图片最终失败收起、列表/网格切换及全选 45 集确认回调。一起听首页/底栏覆盖三个宽度与深浅主题共 6 组，另打开队列、完整播放器并检查按钮可达。上述为浏览器组件与编译证据，不是联网播放或真机验收；当时 adb/hdc 无设备连接。安装包位于忽略目录 `release/ui-refresh-20261023/`：Android 为独立 `.debug` 包，鸿蒙为未签名 HAP；维持版本 2.1.10 / 220，未发布 GitHub Release。
 
 音乐协议区分服务器权威时钟、房主存活和本机播放意图。`music:sync-heartbeat` 的 position 已由服务器外推，客户端不能重复加上旧 updatedAt 的同一段时间；0 秒有效。迟到 get-state、切曲、切服和旧连接 ACK 不能覆盖新媒体。队列写入权限与播放控制权限独立，失败不先切歌；服务器确认排序后才更新权威片单。
 

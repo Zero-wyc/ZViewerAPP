@@ -1,6 +1,10 @@
 import { useState } from 'react'
-import { CheckSquare, Plus, Play } from 'lucide-react'
+import { CheckSquare, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { EpisodeCard } from '@/components/EpisodeCard'
+import { EpisodeViewToggle } from '@/components/EpisodeViewToggle'
+import { episodeGridColumns, useEpisodeViewMode } from '@/hooks/useEpisodeViewMode'
+import { useFullMediaNames } from '@/hooks/useFullMediaNames'
 import type { AniSubsEpisode } from '@/modules/anisubs'
 
 export interface AnimeEpisodeSelection {
@@ -30,6 +34,8 @@ export function AnimeEpisodePicker({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [adding, setAdding] = useState(false)
   const busy = disabled || adding
+  const { episodeViewMode } = useEpisodeViewMode()
+  const { showFullNames } = useFullMediaNames()
 
   const toggle = (id: string) => {
     setSelected((previous) => {
@@ -65,6 +71,7 @@ export function AnimeEpisodePicker({
   return (
     <div className="mt-2">
       <div className="mb-2 flex flex-wrap items-center gap-2">
+        <EpisodeViewToggle />
         <Button
           size="sm"
           variant={multiSelect ? 'primary' : 'secondary'}
@@ -100,32 +107,17 @@ export function AnimeEpisodePicker({
           </>
         )}
       </div>
-      <div className="grid max-h-[200px] grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
+      <div className="grid max-h-[200px] items-start gap-1.5 overflow-y-auto" style={{ gridTemplateColumns: episodeGridColumns(episodeViewMode) }}>
         {episodes.map((episode) => (
-          <div key={episode.id}>
-            {multiSelect ? (
-              <label className="flex min-h-9 cursor-pointer items-center gap-2 rounded border p-2 text-xs has-[:checked]:border-[var(--md-sys-color-primary)] has-[:checked]:bg-[var(--md-sys-color-primary-container)]">
-                <input
-                  type="checkbox"
-                  className="shrink-0 accent-[var(--md-sys-color-primary)]"
-                  checked={selected.has(episode.id)}
-                  disabled={busy}
-                  onChange={() => toggle(episode.id)}
-                />
-                <span className="min-w-0 break-words">{episode.title}</span>
-              </label>
-            ) : (
-              <button
-                type="button"
-                className="flex min-h-9 w-full items-center gap-2 rounded border border-transparent p-2 text-left text-xs hover:border-[var(--md-sys-color-primary)] disabled:opacity-60"
-                disabled={busy}
-                onClick={() => onSelect(episode)}
-              >
-                <Play className="h-3 w-3 shrink-0" />
-                <span className="min-w-0 break-words">{episode.title}</span>
-              </button>
-            )}
-          </div>
+          <EpisodeCard
+            key={episode.id}
+            title={episode.title}
+            mode={episodeViewMode}
+            showFullName={showFullNames}
+            selected={multiSelect ? selected.has(episode.id) : undefined}
+            disabled={busy}
+            onClick={() => multiSelect ? toggle(episode.id) : onSelect(episode)}
+          />
         ))}
       </div>
       {multiSelect && (

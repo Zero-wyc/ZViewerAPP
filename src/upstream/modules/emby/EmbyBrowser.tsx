@@ -26,6 +26,7 @@ import { Modal } from '@/components/ui/Modal'
 import { FullMediaNameToggle } from '@/components/FullMediaNameToggle'
 import { useFullMediaNames, mediaNameClass } from '@/hooks/useFullMediaNames'
 import { EpisodeViewToggle } from '@/components/EpisodeViewToggle'
+import { EpisodeCard, type EpisodeCoverProps } from '@/components/EpisodeCard'
 import { episodeGridColumns, useEpisodeViewMode } from '@/hooks/useEpisodeViewMode'
 import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
@@ -79,7 +80,9 @@ export interface MediaLibraryBrowserProps {
   rootLabel?: string
   searchPlaceholder?: string
   emptyText?: string
-  renderPoster?: (entry: EmbyDirectoryEntry) => React.ReactNode
+  renderPoster?: (entry: EmbyDirectoryEntry, imageProps?: EpisodeCoverProps) => React.ReactNode
+  /** Adapters provide their real cover URL so unavailable covers take no space. */
+  getEpisodeCover?: (entry: EmbyDirectoryEntry) => string | undefined
   disabled?: boolean
 }
 
@@ -130,6 +133,7 @@ export default function EmbyBrowser({
   searchPlaceholder = '搜索媒体库（电影 / 剧集 / 单集）',
   emptyText = '当前目录为空',
   renderPoster,
+  getEpisodeCover,
   disabled = false,
 }: MediaLibraryBrowserProps) {
   const { showFullNames } = useFullMediaNames()
@@ -167,9 +171,24 @@ export default function EmbyBrowser({
 
   const currentPath =
     crumbs.length > 0 ? crumbs[crumbs.length - 1].path : undefined
-  const compactEpisodes = !!currentPath && !searchActive && (
-    episodeGrid || (entries.length > 0 && entries.every(entry => entry.type === 'file' && entry.embyType === 'Episode'))
-  )
+  /** 当前展示的条目：搜索态 = 搜索结果，否则 = 当前目录 */
+  const displayEntries = searchActive ? searchResults : entries
+  const isEpisodeEntry = (entry: EmbyDirectoryEntry) => {
+    const filename = entry.filePath?.split(/[\\/]/).pop() || ''
+    // Only explicit episode markers promote mistagged media to this layout.
+    // The display-name parser also accepts [2026] / bare numbers, which could
+    // otherwise turn an ordinary movie library into an episode picker.
+    const hasEpisodeMarker = /S\d{1,2}\s*E\d{1,3}|第\s*\d{1,4}\s*[话話集]|(?:^|[\s._\-[\]])(?:EP|E)\d{1,4}(?=$|[\s._\-\]])/i.test(filename)
+    return entry.type === 'file' && (
+      entry.embyType === 'Episode' || hasEpisodeMarker ||
+      (episodeGrid && !!currentPath && !searchActive)
+    )
+  }
+  // Typed or filename-recognized episodes also use the compact picker at the
+  // library root and in search results; mixed folders/movies retain navigation.
+  const compactEpisodes = displayEntries.length > 0
+    ? displayEntries.every(isEpisodeEntry)
+    : episodeGrid && !!currentPath && !searchActive
 
   const load = useCallback(
     async (nextCrumbs: Crumb[]) => {
@@ -296,9 +315,6 @@ export default function EmbyBrowser({
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => () => { ++loadRequest.current; ++searchRequest.current; ++addRequest.current }, [open, mountId, load])
-
-  /** 当前展示的条目：搜索态 = 搜索结果，否则 = 当前目录 */
-  const displayEntries = searchActive ? searchResults : entries
 
   const openDirectory = (entry: EmbyDirectoryEntry) => {
     // 搜索结果进入目录：清搜索态并重置面包屑（搜索结果与浏览路径无层级关系）
@@ -487,11 +503,32 @@ export default function EmbyBrowser({
     entry.embyType !== 'Movie' &&
     entry.embyType !== 'Episode'
 
+  const renderEpisodeCard = (entry: EmbyDirectoryEntry, mode: 'list' | 'grid') => {
+    const cover = getEpisodeCover
+      ? getEpisodeCover(entry)
+      : buildEmbyImageUrl(mountId ?? 0, entry.path, entry.imageTag, imageApi, 300) || undefined
+    return <EpisodeCard
+      key={`episode-${entry.path}`}
+      data-media-entry={entry.path}
+      title={entryDisplayName(entry)}
+      cover={cover}
+      renderCover={renderPoster ? (imageProps) => renderPoster(entry, imageProps) : undefined}
+      mode={mode}
+      selected={selectedPaths.has(entry.path)}
+      showFullName={showFullNames}
+      disabled={busy || loading || searching}
+      onClick={() => toggleSelection(entry.path)}
+      className={!compactEpisodes && mode === 'list' ? 'my-1.5' : undefined}
+    />
+  }
+
   const renderEntry = (entry: EmbyDirectoryEntry, side: 'left' | 'right') => {
+    if (side === 'right' && isEpisodeEntry(entry)) {
+      return renderEpisodeCard(entry, compactEpisodes ? episodeViewMode : 'list')
+    }
     const isSelected = selectedPaths.has(entry.path)
     const isDirectory = entry.type === 'directory'
     const showCheckbox = multiSelectMode && side === 'right' && !isDirectory
-    const tiledEpisode = compactEpisodes && episodeViewMode === 'grid'
     const badge = compactEpisodes ? null : entryBadge(entry)
     const showActions = !!badge || !!entry.childCount || (side === 'right' && canQuickAdd(entry)) || (!isDirectory && (showCheckbox || isSelected))
     const folderIcon = (entry.embyType
@@ -507,7 +544,7 @@ export default function EmbyBrowser({
         onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.currentTarget.click() } }}
         className={cn(
           'group cursor-pointer rounded-lg p-2.5 transition-all',
-          tiledEpisode ? 'grid grid-cols-[1fr_auto] items-start gap-2' : 'flex items-center gap-3',
+          'flex items-center gap-3',
           showFullNames && canQuickAdd(entry) && 'flex-wrap',
           isSelected
             ? 'bg-[var(--md-sys-color-primary-container)] shadow-sm'
@@ -533,7 +570,7 @@ export default function EmbyBrowser({
         )}
 
         <span
-          className={cn('min-w-0 flex-1 text-[15px] font-medium leading-snug', tiledEpisode && 'col-span-2 row-start-2', mediaNameClass(showFullNames))}
+          className={cn('min-w-0 flex-1 text-[15px] font-medium leading-snug', mediaNameClass(showFullNames))}
           data-media-name
           title={entryDisplayName(entry)}
         >
@@ -541,7 +578,6 @@ export default function EmbyBrowser({
         </span>
 
         {showActions && <div className={cn('flex shrink-0 items-center gap-2',
-          tiledEpisode && 'col-start-2 row-start-1',
           showFullNames && canQuickAdd(entry) && 'ml-8 w-[calc(100%-2rem)] justify-end')}>
         {badge ? (
             <span
@@ -590,6 +626,7 @@ export default function EmbyBrowser({
 
   /** 海报墙卡片：封面(刮削 Primary 海报) + 名称 + 年份 */
   const renderWallCard = (entry: EmbyDirectoryEntry) => {
+    if (isEpisodeEntry(entry)) return renderEpisodeCard(entry, 'grid')
     const isSelected = selectedPaths.has(entry.path)
     const isDirectory = entry.type === 'directory'
     const badge = entryBadge(entry)
@@ -951,13 +988,13 @@ export default function EmbyBrowser({
             {compactEpisodes ? (
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface)]/80">
                 <div className="shrink-0 border-b border-[var(--md-sys-color-outline-variant)] px-4 py-2 text-sm font-semibold">
-                  集数（{entries.length}）
+                  集数（{displayEntries.length}）
                 </div>
                 <div data-media-directory className="zen-scroll min-h-0 flex-1 overflow-y-auto p-2">
                   <div data-media-grid={episodeViewMode} className="grid items-start gap-1.5" style={{ gridTemplateColumns: episodeGridColumns(episodeViewMode) }}>
-                    {entries.map((entry) => renderEntry(entry, 'right'))}
+                    {displayEntries.map((entry) => renderEntry(entry, 'right'))}
                   </div>
-                  {entries.length === 0 && (
+                  {displayEntries.length === 0 && (
                     <Text className="block py-8 text-center text-sm">
                       暂无集数信息
                     </Text>

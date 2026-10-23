@@ -332,7 +332,7 @@ export function MusicWidgetBar() {
 
   return (
     <div
-      className="glass-card relative flex h-[65px] items-center"
+      className="music-widget-bar glass-card relative flex h-[65px] items-center"
       style={
         {
           // 玻璃作用域文字色：条体是主题驱动的玻璃面（glass-card），文字/
@@ -344,9 +344,7 @@ export function MusicWidgetBar() {
             'var(--lt-glass-on-surface-variant)',
           '--md-sys-color-outline': 'var(--lt-glass-outline)',
           '--md-sys-color-outline-variant': 'var(--lt-glass-outline-variant)',
-          // 悬浮感核心（Hydrogen 暗色 --shadow 规格）：比 glass-card 默认阴影
-          // 更弥散更深，覆盖其内置 box-shadow
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+          boxShadow: '0 8px 28px color-mix(in srgb, var(--md-sys-color-shadow) 18%, transparent)',
         } as React.CSSProperties
       }
     >
@@ -421,7 +419,7 @@ export function MusicWidgetBar() {
           type="button"
           disabled={!cover}
           className={cn(
-            'group/cover relative h-[45px] w-[45px] shrink-0 overflow-hidden border',
+            'music-widget-cover group/cover relative h-[45px] w-[45px] shrink-0 overflow-hidden border',
             cover ? 'cursor-pointer' : 'cursor-default'
           )}
           style={{
@@ -480,7 +478,7 @@ export function MusicWidgetBar() {
           与次要图标，避免定宽溢出小屏） ===== */}
       <div className="flex w-[476px] max-w-[calc(100%-245px)] shrink-0 items-center max-md:w-auto max-md:max-w-none">
         {/* music-control（126px）：prev / play-pause / next（线条式 SVG） */}
-        <div className="flex w-[126px] shrink-0 items-center px-[18px] max-md:w-auto max-md:px-1">
+        <div className="music-widget-controls flex w-[126px] shrink-0 items-center px-[18px] max-md:w-auto max-md:px-1">
           <button
             type="button"
             className="flex h-6 w-6 items-center justify-center text-[var(--md-sys-color-on-surface)] transition-transform hover:opacity-70 active:scale-90"
@@ -492,7 +490,7 @@ export function MusicWidgetBar() {
           </button>
           <button
             type="button"
-            className="mx-[15px] flex h-6 w-6 items-center justify-center text-[var(--md-sys-color-on-surface)] transition-transform hover:opacity-70 active:scale-90 max-md:mx-[7px]"
+            className="music-primary-play mx-[15px] flex h-6 w-6 items-center justify-center transition-transform hover:opacity-70 active:scale-90 max-md:mx-[7px]"
             onClick={handlePlayPause}
             title={
               canControl

@@ -154,7 +154,7 @@ export function MusicQueuePopup({
   return (
     <div
       className={cn(
-        'zen-stagger-fade-up absolute z-50 flex h-96 w-80 flex-col overflow-hidden rounded-[var(--md-sys-shape-corner)]',
+        'music-queue-popup zen-stagger-fade-up absolute z-50 flex h-96 w-80 flex-col overflow-hidden rounded-[var(--md-sys-shape-corner)]',
         // 黑底皮肤：深投影替代浅色 glass-card 的柔和阴影
         darkGlass
           ? 'shadow-[0_24px_80px_rgba(0,0,0,0.6)]'

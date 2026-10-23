@@ -134,6 +134,7 @@ export function AnimeSourceBrowser({
             : episode.title,
           path: key,
           type: 'file',
+          embyType: 'Episode',
         }
       })
       episodes.current.set(path, entries)
@@ -247,7 +248,8 @@ export function AnimeSourceBrowser({
           )}
         </div>
       }
-      renderPoster={(entry) => {
+      getEpisodeCover={(entry) => posters.current.get(entry.path)?.cover}
+      renderPoster={(entry, imageProps) => {
         const poster = posters.current.get(entry.path)
         return (
           <AnimePoster
@@ -256,6 +258,7 @@ export function AnimeSourceBrowser({
             title={entry.name}
             referer={poster?.referer || entry.path}
             kind={kind}
+            {...imageProps}
           />
         )
       }}

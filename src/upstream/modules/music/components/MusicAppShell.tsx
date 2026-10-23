@@ -36,6 +36,7 @@ import { MusicSettingsPage } from '../pages/MusicSettingsPage'
 import { useNcmLogin } from '../hooks/useNcmLogin'
 import { useCliAgent } from '@/hooks/useCliAgent'
 import { useMediaSessionSync } from '../hooks/useMediaSession'
+import '../music-ui.css'
 
 export interface MusicAppShellProps {
   socket: Socket | null
@@ -281,7 +282,7 @@ function ShellInner({
     // 高度用 100dvh：移动浏览器地址栏收展时 h-screen(100vh) 会造成底部
     // 播放条被遮挡/跳动；不支持的旧浏览器声明无效，回退 h-screen 类
     <div
-      className="relative flex h-screen min-w-0 flex-col overflow-hidden"
+      className="music-app-shell relative flex h-screen min-w-0 flex-col overflow-hidden"
       style={
         {
           height: '100%',
@@ -388,7 +389,7 @@ function ShellInner({
 
       {/* ===== 内容页（flex-1 滚动，多页切换；底部让位给悬浮播放条，
           手机端底距收窄并叠加 iOS 安全区） ===== */}
-      <main className="zen-scroll min-h-0 flex-1 overflow-y-auto pb-[118px] max-md:pb-[calc(96px+env(safe-area-inset-bottom))]">
+      <main className="music-page-content zen-scroll min-h-0 flex-1 overflow-y-auto pb-[118px] max-md:pb-[calc(96px+env(safe-area-inset-bottom))]">
         {page === 'home' && <MusicHomePage {...pageProps} />}
         {page === 'search' && <MusicSearchPage {...pageProps} />}
         {page === 'fm' && (

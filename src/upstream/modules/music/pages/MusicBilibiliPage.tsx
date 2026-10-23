@@ -1875,12 +1875,10 @@ export function MusicBilibiliPage({
       {/* 页头（PageBlockHeader 同范式）+ 子页切换 */}
       <div className="flex items-center">
         <span
-          className="mr-1.5 w-[20vw] min-w-[140px] shrink-0 py-px pl-1 text-[12px] font-bold uppercase tracking-widest max-md:w-auto max-md:min-w-0 max-md:pr-2"
+          className="music-section-eyebrow mr-1.5 w-[20vw] min-w-[140px] shrink-0 py-px pl-1 text-[12px] font-bold uppercase tracking-widest max-md:w-auto max-md:min-w-0 max-md:pr-2"
           style={{
-            // 品牌标固定黑底白字（B站 品牌样式），不随深浅模式切换——
-            // 主题文字变量在壁纸作用域下会翻转，黑条会变成深字配深底
-            backgroundColor: '#1a1a1c',
-            color: '#ffffff',
+            backgroundColor: 'var(--md-sys-color-secondary-container)',
+            color: 'var(--md-sys-color-on-secondary-container)',
             whiteSpace: 'nowrap',
           }}
         >

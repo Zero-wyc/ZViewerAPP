@@ -723,7 +723,7 @@ function ListenTogetherInner({
           }
         >
           {/* ===== 左侧播放卡（Hydrogen .player-container 两层结构）：
-              外层承载入场动画与四角方块（不裁剪，方块出界 0.75vh 完整显示）；
+              外层承载入场动画与侧边工具栏（不裁剪，保留工具栏悬出区域）；
               内层 .player（100%×100% overflow hidden）承载半透明背景与内容。
               手机竖屏歌词视图开启时隐藏，歌词关闭时撑满剩余高度；
               key 随视图切换重挂，切回播放视图时重播入场动画 ===== */}
@@ -767,29 +767,6 @@ function ListenTogetherInner({
               } as React.CSSProperties
             }
           >
-            {/* 四角黑色实心方块装饰（Hydrogen .border：1.5vh，出界 0.75vh；
-                max() 保底避免横屏矮窗口下缩到不可见） */}
-            <span
-              className="pointer-events-none absolute -left-[max(0.75vh,4px)] -top-[max(0.75vh,4px)] z-[100] h-[max(1.5vh,8px)] w-[max(1.5vh,8px)]"
-              style={{ backgroundColor: 'var(--md-sys-color-on-surface)' }}
-              aria-hidden="true"
-            />
-            <span
-              className="pointer-events-none absolute -right-[max(0.75vh,4px)] -top-[max(0.75vh,4px)] z-[100] h-[max(1.5vh,8px)] w-[max(1.5vh,8px)]"
-              style={{ backgroundColor: 'var(--md-sys-color-on-surface)' }}
-              aria-hidden="true"
-            />
-            <span
-              className="pointer-events-none absolute -bottom-[max(0.75vh,4px)] -right-[max(0.75vh,4px)] z-[100] h-[max(1.5vh,8px)] w-[max(1.5vh,8px)]"
-              style={{ backgroundColor: 'var(--md-sys-color-on-surface)' }}
-              aria-hidden="true"
-            />
-            <span
-              className="pointer-events-none absolute -bottom-[max(0.75vh,4px)] -left-[max(0.75vh,4px)] z-[100] h-[max(1.5vh,8px)] w-[max(1.5vh,8px)]"
-              style={{ backgroundColor: 'var(--md-sys-color-on-surface)' }}
-              aria-hidden="true"
-            />
-
             <PlayerSongControl
               toolbarRef={toolbarRef}
               flashLandscapeToolbar={flashLandscapeToolbar}

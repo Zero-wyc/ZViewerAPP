@@ -207,7 +207,7 @@ export function PlayerSongControl({
       ref={toolbarRef}
       onPointerDown={flashLandscapeToolbar}
       className={cn(
-        'lt-icon-outline absolute bottom-[max(2vh,10px)] right-[-50px] z-[10] flex w-[50px] flex-col items-center gap-[max(3vh,14px)]',
+        'music-player-side-tools lt-icon-outline absolute bottom-[max(2vh,10px)] right-[-50px] z-[10] flex w-[50px] flex-col items-center gap-[max(3vh,14px)]',
         // 显隐模式：桌面 = Hydrogen 同款（基态常隐——专列空置 +
         // hover 信号灯动画定格可见 + 触屏常显兜底）；手机横屏 =
         // 默认隐藏（专列照样占位空置），触摸屏幕任意处亮起 3s 后

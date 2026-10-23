@@ -5,6 +5,7 @@ import { BiliSearchModal } from './BiliSearchModal'
 import { PlaybackOptionToggle } from './PlaybackOptionToggle'
 import { FullMediaNameToggle } from '@/components/FullMediaNameToggle'
 import { EpisodeViewToggle } from '@/components/EpisodeViewToggle'
+import { EpisodeCard } from '@/components/EpisodeCard'
 import { mediaNameClass, useFullMediaNames } from '@/hooks/useFullMediaNames'
 import { episodeGridColumns, useEpisodeViewMode } from '@/hooks/useEpisodeViewMode'
 import { isEmbeddedBilibiliHost, useEmbeddedProxyStatus } from '../../../../platform/bilibiliProxy'
@@ -2393,56 +2394,20 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
             {resolvedMovie.pages.map((page) => {
               const isSelected = page.page === (resolvedMovie.currentPage ?? 1)
               return (
-                <div
+                <EpisodeCard
                   key={page.page}
-                  className={cn(
-                    'flex min-w-0 cursor-pointer items-center gap-3 rounded-[var(--md-sys-shape-corner)] border p-3 transition-all hover:-translate-y-0.5 hover:shadow-md',
-                    isSelected
-                      ? 'border-[var(--md-sys-color-primary)] bg-[var(--md-sys-color-primary-container)]'
-                      : 'glass border-transparent hover:border-[var(--md-sys-color-outline-variant)]'
-                  )}
+                  title={page.part ? `P${page.page} · ${page.part}` : `P${page.page}`}
+                  mode={episodeViewMode}
+                  showFullName={showFullNames}
+                  selected={isSelected}
                   onClick={() => void handlePageSelect(page.page)}
                 >
-                  <div
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--md-sys-shape-corner)] text-xs font-medium"
-                    style={{
-                      backgroundColor: isSelected
-                        ? 'var(--md-sys-color-primary)'
-                        : 'color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent)',
-                      color: isSelected
-                        ? 'var(--md-sys-color-on-primary)'
-                        : 'var(--md-sys-color-primary)',
-                    }}
-                  >
-                    {page.page}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <Paragraph
-                      className={cn(
-                        'm-0 text-sm font-medium',
-                        mediaNameClass(showFullNames),
-                        isSelected &&
-                          'text-[var(--md-sys-color-on-primary-container)]'
-                      )}
-                      title={page.part}
-                    >
-                      {page.part}
-                    </Paragraph>
-                    {page.duration > 0 && (
-                      <Text
-                        type="secondary"
-                        className={cn(
-                          'text-[10px] uppercase tracking-wide',
-                          isSelected &&
-                            'text-[var(--md-sys-color-on-primary-container)]'
-                        )}
-                      >
-                        {formatDuration(page.duration)}
-                        {page.badge ? ` · ${page.badge}` : ''}
-                      </Text>
-                    )}
-                  </div>
-                </div>
+                  {(page.duration > 0 || page.badge) && (
+                    <span className="text-[10px] leading-snug opacity-80">
+                      {[page.duration > 0 ? formatDuration(page.duration) : '', page.badge].filter(Boolean).join(' · ')}
+                    </span>
+                  )}
+                </EpisodeCard>
               )
             })}
           </div>

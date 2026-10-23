@@ -92,7 +92,7 @@ export function MusicSideDock({
             setOpen((v) => !v)
           }
         }}
-        className="fixed right-0 top-1/2 z-[46] h-28 w-[5px] -translate-y-1/2 cursor-pointer rounded-l-md transition-colors duration-200 max-md:h-44 max-md:w-[14px]"
+        className="music-dock-handle fixed right-0 top-1/2 z-[46] h-28 w-[5px] -translate-y-1/2 cursor-pointer rounded-l-md transition-colors duration-200 max-md:h-44 max-md:w-[14px]"
         style={{
           backgroundColor: open
             ? 'var(--md-sys-color-primary)'
@@ -107,7 +107,7 @@ export function MusicSideDock({
         onPointerEnter={(event) => { if (event.pointerType === 'mouse') handleEnter() }}
         onPointerLeave={(event) => { if (event.pointerType === 'mouse') handleLeave() }}
         className={cn(
-          'lt-blur-surface fixed right-1.5 top-1/2 z-[45] flex w-[344px] max-w-[calc(100vw-1.5rem)] -translate-y-1/2 flex-col overflow-hidden',
+          'music-side-dock lt-blur-surface fixed right-1.5 top-1/2 z-[45] flex w-[344px] max-w-[calc(100vw-1.5rem)] -translate-y-1/2 flex-col overflow-hidden',
           'rounded-[var(--md-sys-shape-corner)] transition-all duration-300',
           open
             ? 'pointer-events-auto translate-x-0 opacity-100'
@@ -116,12 +116,12 @@ export function MusicSideDock({
         style={{
           maxHeight: 'min(760px, calc(100vh - 100px))',
           backgroundColor:
-            'color-mix(in srgb, var(--md-sys-color-surface-container) 55%, transparent)',
+            'color-mix(in srgb, var(--md-sys-color-surface-container) 90%, transparent)',
           backdropFilter: 'blur(16px)',
           WebkitBackdropFilter: 'blur(16px)',
           border:
             '1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 60%, transparent)',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
+          boxShadow: '0 8px 28px color-mix(in srgb, var(--md-sys-color-shadow) 18%, transparent)',
         }}
       >
         {/* 内容区：三面板纵向堆叠、常挂载（保持语音连接/房间监听）。

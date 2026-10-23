@@ -1,22 +1,22 @@
 /**
- * 首页（Hydrogen HomePage 范式）：Banner + 每日推荐 + 最新音乐 + 4 个推荐区块。
+ * 音乐首页：Banner + 每日推荐 + 最新音乐 + 4 个推荐区块。
+ * 共享 music-ui.css 使用客户端主题表面与圆角；数据和入口沿用原流程。
  *
  * 页面结构（page-header 三卡横排 + page-content 四区块纵排）：
  * - Banner（35vw×13.7vw 轮播）：BREAKING NEWS 黑条小标（M3 适配 on-surface 底
  *   + surface 字）+ 右侧计时圆点动画 + 下方横条选择器（active 变宽变高）；
  *   3s 自动轮播、hover 暂停；点击轮播图无动作
- * - Recommendation（27vw×13.6vw 半透明卡）：左侧描边空心大字「每日推荐」
- *   （-webkit-text-stroke 1px on-surface，透明填充）+ 上下 L 形角标装饰 +
- *   中间棋盘格播放按钮（点击 → 打开我的音乐页的每日推荐详情）+ 右侧大号日期（M.D）+ 右上小圆点
+ * - Recommendation（27vw×13.6vw 主题色卡）：左侧「每日推荐」标题、
+ *   中间播放标记（点击 → 打开我的音乐页的每日推荐详情）+ 右侧日期（M.D）。
  * - NewestSong（24.4vw 窄列表）：标题「最新音乐」+ 封面 3.45vw + 歌名/歌手 +
  *   行尾播放按钮（canManage 添加入队），行间 on-surface/10 底边线
- * - RecBlock ×4（推荐歌单/推荐歌手/最新专辑/排行榜）：区块头 = 黑底白字 EN 小标
- *   + 灰色延伸线 + CN 大标题；5 列网格卡片（歌手圆形封面），MVP 仅静态展示
+ * - RecBlock ×4（推荐歌单/推荐歌手/最新专辑/排行榜）：主题色 EN 小标
+ *   + CN 大标题；5 列网格卡片（歌手圆形封面），点击打开对应详情。
  *
  * 数据：进入页面并行拉取全部接口；任一失败静默降级（该区块空态），不打断整页。
  */
 import { useEffect, useRef, useState } from 'react'
-import { Play } from 'lucide-react'
+import { ChevronRight, Play } from 'lucide-react'
 import type { Socket } from 'socket.io-client'
 import { apiGet } from '@/lib/api'
 import { message } from '@/components/ui/message'
@@ -212,12 +212,12 @@ export function MusicHomePage({
   const [bnBanner, setBnBanner] = useState<NcmBannerItem | null>(null)
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="music-home-page flex min-h-full flex-col">
       <style>{BANNER_TIMER_STYLE}</style>
 
       {/* ===== page-header：Banner + 每日推荐 + 最新音乐（三卡横排；
           手机竖屏改单列堆叠，卡片全宽） ===== */}
-      <div className="flex flex-wrap items-start justify-between gap-6 px-6 pt-[2.8vw] md:px-8 max-md:flex-col max-md:gap-9 max-md:px-4 max-md:pt-8">
+      <div className="music-home-highlights flex flex-wrap items-start justify-between gap-6 px-6 pt-[2.8vw] md:px-8 max-md:flex-col max-md:gap-9 max-md:px-4 max-md:pt-8">
         <HomeBanner banners={banners} onOpen={setBnBanner} />
         <DailyRecommendation />
         <NewestSongList
@@ -229,7 +229,7 @@ export function MusicHomePage({
       </div>
 
       {/* ===== page-content：4 个推荐区块（手机端收窄留白与网格间距） ===== */}
-      <div className="mt-10 flex flex-col gap-10 px-6 pb-32 md:px-8 max-md:mt-8 max-md:gap-8 max-md:px-4 max-md:pb-28">
+      <div className="music-home-sections mt-10 flex flex-col gap-10 px-6 pb-32 md:px-8 max-md:mt-8 max-md:gap-8 max-md:px-4 max-md:pb-28">
         <RecBlock
           titleEN="RECOMMENDED SONG LIST"
           titleCN="推荐歌单"
@@ -364,7 +364,7 @@ function HomeBanner({
     // 空态占位（保持 35vw 版面避免布局跳动；手机端全宽 38vw 高）
     return (
       <div
-        className="h-[13.7vw] w-[35vw] min-w-[280px] shrink-0 rounded-sm max-md:h-[38vw] max-md:w-full max-md:min-w-0"
+        className="music-banner-frame h-[13.7vw] w-[35vw] min-w-[280px] shrink-0 rounded-sm max-md:h-[38vw] max-md:w-full max-md:min-w-0"
         style={{
           backgroundColor:
             'color-mix(in srgb, var(--md-sys-color-on-surface) 4%, transparent)',
@@ -376,14 +376,14 @@ function HomeBanner({
   const track = [...banners, banners[0]]
 
   return (
-    <div className="relative w-[35vw] min-w-[280px] shrink-0 max-md:w-full max-md:min-w-0">
+    <div className="music-home-banner relative w-[35vw] min-w-[280px] shrink-0 max-md:w-full max-md:min-w-0">
       {/* 头部：BREAKING NEWS 黑条 + 计时圆点 */}
-      <div className="absolute -top-[1.6vw] left-0 right-0 flex items-center justify-between">
+      <div className="music-banner-heading absolute -top-[1.6vw] left-0 right-0 flex items-center justify-between">
         <span
-          className="py-[2px] pl-[3px] pr-10 text-[10px] font-bold uppercase tracking-widest"
+          className="music-section-eyebrow py-[2px] pl-[3px] pr-10 text-[10px] font-bold uppercase tracking-widest"
           style={{
-            backgroundColor: 'var(--md-sys-color-on-surface)',
-            color: 'var(--md-sys-color-surface)',
+            backgroundColor: 'var(--md-sys-color-secondary-container)',
+            color: 'var(--md-sys-color-on-secondary-container)',
           }}
         >
           Breaking News
@@ -417,7 +417,7 @@ function HomeBanner({
       {/* 轮播图（hover 暂停；点击无动作）；位移用百分比（每张 = 容器 100%），
           桌面 35vw 与手机全宽通吃，不再绑死 35vw */}
       <div
-        className="relative h-[13.7vw] min-h-[110px] overflow-hidden max-md:h-[38vw] max-md:min-h-0"
+        className="music-banner-frame relative h-[13.7vw] min-h-[110px] overflow-hidden max-md:h-[38vw] max-md:min-h-0"
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >
@@ -442,14 +442,15 @@ function HomeBanner({
             />
           ))}
         </div>
-        {/* 右下角 L 形角标（Hydrogen banner-next 装饰，点击下一张） */}
+        {/* 下一张仍保留在轮播图右下角，圆形按钮保证触屏入口清晰。 */}
         <button
           type="button"
-          className="absolute -bottom-2 -right-2 h-8 w-8 border-b border-r transition-all duration-300 hover:-bottom-3 hover:-right-3"
-          style={{ borderColor: 'var(--md-sys-color-on-surface)' }}
+          className="music-banner-next absolute bottom-2 right-2 flex h-9 w-9 items-center justify-center rounded-full transition-opacity hover:opacity-85"
           onClick={() => setOffsetIndex((prev) => prev + 1)}
           aria-label="下一张"
-        />
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
       </div>
 
       {/* 下方横条选择器 */}
@@ -541,10 +542,10 @@ function DailyRecommendation() {
 
   return (
     <div
-      className="relative flex h-[13.6vw] min-h-[110px] w-[27vw] min-w-[240px] shrink-0 cursor-pointer items-center max-md:h-24 max-md:w-full max-md:min-w-0"
+      className="music-daily-card relative flex h-[13.6vw] min-h-[110px] w-[27vw] min-w-[240px] shrink-0 cursor-pointer items-center max-md:h-24 max-md:w-full max-md:min-w-0"
       style={{
         backgroundColor:
-          'color-mix(in srgb, var(--md-sys-color-on-surface) 4%, transparent)',
+          'color-mix(in srgb, var(--md-sys-color-primary-container) 78%, transparent)',
       }}
       onMouseEnter={() => setShowMore(true)}
       onMouseLeave={() => setShowMore(false)}
@@ -562,13 +563,13 @@ function DailyRecommendation() {
       <div className="relative ml-[2vw] flex w-[50%] min-w-0 items-center self-stretch justify-center px-[1.7vw] max-md:ml-5 max-md:px-3">
         {/* 上 L 形角标（rec-title-border1） */}
         <span
-          className="absolute left-0 top-[0.9vw] h-[1.8vw] w-[1.8vw] border-l-2 border-t-2 max-md:top-1.5 max-md:h-4 max-md:w-4"
+          className="music-legacy-decoration absolute left-0 top-[0.9vw] h-[1.8vw] w-[1.8vw] border-l-2 border-t-2 max-md:top-1.5 max-md:h-4 max-md:w-4"
           style={{ borderColor: 'var(--md-sys-color-on-surface)' }}
           aria-hidden="true"
         />
         {/* 下 L 形角标（rec-title-border2） */}
         <span
-          className="absolute bottom-[0.9vw] right-0 h-[1.8vw] w-[1.8vw] border-b-2 border-r-2 max-md:bottom-1.5 max-md:h-4 max-md:w-4"
+          className="music-legacy-decoration absolute bottom-[0.9vw] right-0 h-[1.8vw] w-[1.8vw] border-b-2 border-r-2 max-md:bottom-1.5 max-md:h-4 max-md:w-4"
           style={{ borderColor: 'var(--md-sys-color-on-surface)' }}
           aria-hidden="true"
         />
@@ -576,43 +577,32 @@ function DailyRecommendation() {
         <span
           key={showMore ? 'more' : 'rec'}
           className={cn(
-            'flex-1 select-none whitespace-pre-line text-center text-[3.2vw] font-bold leading-[1.22] max-md:text-[22px]',
+            'music-daily-title flex-1 select-none whitespace-pre-line text-center text-[3.2vw] font-bold leading-[1.22] max-md:text-[22px]',
             showMore && '[animation:zen-music-rec-titleswap_0.1s]'
           )}
           style={{
-            color: 'transparent',
-            WebkitTextStrokeWidth: '1px',
-            WebkitTextStrokeColor: 'var(--md-sys-color-on-surface)',
+            color: 'var(--md-sys-color-on-primary-container)',
           }}
         >
           {showMore ? REC_TITLE_MORE : REC_TITLE}
         </span>
         {/* 英文小字（居中于两行之间，Hydrogen rec-title-en 0.7vw→0.55vw 收紧） */}
-        <span className="absolute left-0 right-0 top-1/2 flex -translate-y-1/2 justify-center whitespace-nowrap font-bold text-[max(0.55vw,7px)] text-[var(--md-sys-color-on-surface-variant)]">
+        <span className="music-legacy-decoration absolute left-0 right-0 top-1/2 flex -translate-y-1/2 justify-center whitespace-nowrap font-bold text-[max(0.55vw,7px)] text-[var(--md-sys-color-on-surface-variant)]">
           DAILY RECOMMENDATION
         </span>
       </div>
 
-      {/* 中区：棋盘格播放按钮（黑棋盘 5px 平铺 + 白三角，8s 平移动画） */}
+      {/* 中区：主题色播放标记，整张卡继续打开每日推荐详情。 */}
       <div className="ml-[1vw] flex w-[15%] items-center">
         <span
-          className="relative flex h-[3.5vw] min-h-8 w-[3.5vw] min-w-8 items-center justify-center"
+          className="music-daily-play relative flex h-[3.5vw] min-h-8 w-[3.5vw] min-w-8 items-center justify-center"
           style={{
-            backgroundImage:
-              'linear-gradient(135deg, transparent 25%, color-mix(in srgb, var(--md-sys-color-on-surface) 70%, transparent) 0, color-mix(in srgb, var(--md-sys-color-on-surface) 70%, transparent) 50%, transparent 0, transparent 75%, color-mix(in srgb, var(--md-sys-color-on-surface) 70%, transparent) 0)',
-            backgroundSize: '5px 5px',
-            opacity: 0.85,
-            animation: 'zen-music-rec-checker 8s linear infinite',
+            backgroundColor: 'var(--md-sys-color-primary)',
           }}
         >
-          {/* 四角小方块装饰 */}
-          <span className="absolute -left-[3px] -top-[3px] h-1 w-1 bg-[var(--md-sys-color-on-surface)]" />
-          <span className="absolute -right-[3px] -top-[3px] h-1 w-1 bg-[var(--md-sys-color-on-surface)]" />
-          <span className="absolute -bottom-[3px] -right-[3px] h-1 w-1 bg-[var(--md-sys-color-on-surface)]" />
-          <span className="absolute -bottom-[3px] -left-[3px] h-1 w-1 bg-[var(--md-sys-color-on-surface)]" />
           <Play
             className="h-[1.6vw] min-h-4 w-[1.6vw] min-w-4 fill-current transition-transform duration-200 hover:scale-110"
-            style={{ color: 'var(--md-sys-color-surface)' }}
+            style={{ color: 'var(--md-sys-color-on-primary)' }}
           />
         </span>
       </div>
@@ -682,9 +672,9 @@ function NewestSongList({
   }
 
   return (
-    <div className="relative w-[24.4vw] min-w-[260px] shrink-0 max-md:w-full max-md:min-w-0">
+    <div className="music-newest-card relative w-[24.4vw] min-w-[260px] shrink-0 max-md:w-full max-md:min-w-0">
       {/* 标题（与 Banner 头部同高对齐；手机端堆叠后上移让出标题空间） */}
-      <span className="absolute -top-[2.2vw] left-0 text-2xl font-bold text-[var(--md-sys-color-on-surface)] max-md:-top-7">
+      <span className="music-newest-heading absolute -top-[2.2vw] left-0 text-2xl font-bold text-[var(--md-sys-color-on-surface)] max-md:-top-7">
         最新音乐
       </span>
       <div className="flex max-h-[13.7vw] min-h-[220px] flex-col overflow-y-auto [scrollbar-width:none] max-md:max-h-[248px] max-md:min-h-0">
@@ -790,14 +780,14 @@ function RecBlock({
   if (items.length === 0) return null
 
   return (
-    <section>
+    <section className="music-home-section">
       {/* 区块头：黑底白字 EN 小标 + 灰色延伸线（手机端黑条收缩为文字宽度） */}
       <div className="flex items-center">
         <span
-          className="mr-1.5 w-[20vw] min-w-[140px] shrink-0 py-px pl-1 text-[10px] font-bold uppercase tracking-widest max-md:w-auto max-md:min-w-0 max-md:pr-2"
+          className="music-section-eyebrow mr-1.5 w-[20vw] min-w-[140px] shrink-0 py-px pl-1 text-[10px] font-bold uppercase tracking-widest max-md:w-auto max-md:min-w-0 max-md:pr-2"
           style={{
-            backgroundColor: 'var(--md-sys-color-on-surface)',
-            color: 'var(--md-sys-color-surface)',
+            backgroundColor: 'var(--md-sys-color-secondary-container)',
+            color: 'var(--md-sys-color-on-secondary-container)',
             whiteSpace: 'nowrap',
           }}
         >
@@ -817,18 +807,18 @@ function RecBlock({
       </h3>
 
       {/* 5 列网格（小屏 3 列；手机端收窄栅格间距） */}
-      <div className="mt-3 grid grid-cols-3 gap-x-12 gap-y-8 xl:grid-cols-5 max-md:gap-x-4 max-md:gap-y-6">
+      <div className="music-recommendation-grid mt-3 grid grid-cols-3 gap-x-12 gap-y-8 xl:grid-cols-5 max-md:gap-x-4 max-md:gap-y-6">
         {items.map((item) => (
           <div
             key={item.id}
-            className="min-w-0 cursor-pointer"
+            className="music-recommendation-card min-w-0 cursor-pointer"
             onClick={() => openDetail(item)}
             title={`查看${titleCN}：${item.name}`}
           >
             {/* 封面（歌手圆形；hover 上浮阴影；MVP 静态展示） */}
             <div
               className={cn(
-                'overflow-hidden transition-all duration-200',
+                'music-recommendation-cover overflow-hidden transition-all duration-200',
                 item.circle && 'rounded-full'
               )}
               title={item.name}

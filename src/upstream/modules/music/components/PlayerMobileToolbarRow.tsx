@@ -133,7 +133,7 @@ export function PlayerMobileToolbarRow({
   return (
     <div
       className={cn(
-        'lt-icon-outline relative z-[10] flex shrink-0 flex-wrap items-center justify-center gap-1'
+        'music-player-mobile-tools lt-icon-outline relative z-[10] flex shrink-0 flex-wrap items-center justify-center gap-1'
       )}
       style={{
         color: 'var(--md-sys-color-on-surface)',

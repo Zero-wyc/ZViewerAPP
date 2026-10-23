@@ -88,7 +88,7 @@ export function PlayerLyricPanelShell({
   return (
     <div
       className={cn(
-        'relative flex min-h-0 min-w-0 flex-col overflow-hidden',
+        'music-player-lyrics relative flex min-h-0 min-w-0 flex-col overflow-hidden',
         isPortraitMobile ? 'w-full flex-1' : 'h-full flex-1'
       )}
       // 面板仅在「尚未就绪」时隐藏（visibility 而非 opacity/transform：

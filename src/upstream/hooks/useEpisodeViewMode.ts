@@ -2,9 +2,10 @@ import { useSyncExternalStore } from 'react'
 
 type EpisodeViewMode = 'list' | 'grid'
 
-/** Size columns from the available picker width, including expanded panels. */
+/** Use the picker width and root text size: typically three phone columns,
+ * two on narrow / large-text screens, and more in expanded panels. */
 export function episodeGridColumns(mode: EpisodeViewMode): string {
-  return mode === 'grid' ? 'repeat(auto-fill,minmax(min(100%,120px),1fr))' : 'minmax(0,1fr)'
+  return mode === 'grid' ? 'repeat(auto-fill,minmax(min(100%,5.5rem),1fr))' : 'minmax(0,1fr)'
 }
 const storageKey = 'zviewer-episode-view-mode'
 const listeners = new Set<() => void>()

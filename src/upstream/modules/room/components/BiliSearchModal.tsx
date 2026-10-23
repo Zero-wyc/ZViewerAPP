@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/Input'
 import { Text, Paragraph } from '@/components/ui/Typography'
 import { FullMediaNameToggle } from '@/components/FullMediaNameToggle'
 import { EpisodeViewToggle } from '@/components/EpisodeViewToggle'
+import { EpisodeCard } from '@/components/EpisodeCard'
 import { mediaNameClass, useFullMediaNames } from '@/hooks/useFullMediaNames'
 import { episodeGridColumns, useEpisodeViewMode } from '@/hooks/useEpisodeViewMode'
 import { message } from '@/components/ui/message'
@@ -257,34 +258,19 @@ export function BiliSearchModal({
                   data-episode-view={episodeViewMode}
                 >
                   {detailPages.map((p) => (
-                    <button
+                    <EpisodeCard
                       key={p.page}
-                      type="button"
+                      title={p.part ? `P${p.page} · ${p.part}` : `P${p.page}`}
+                      cover={detailItem.pic ? connectionUrl(buildBilibiliImageProxyUrl(detailItem.pic)) : undefined}
+                      mode={episodeViewMode}
+                      showFullName={showFullNames}
                       onClick={() => {
                         onSelect(
                           `https://www.bilibili.com/video/${detailItem.bvid}?p=${p.page}`
                         )
                         onClose()
                       }}
-                      className="flex min-w-0 items-center gap-2 rounded-[var(--md-sys-shape-corner)] border border-[var(--md-sys-color-outline-variant)] px-3 py-2.5 text-left transition-all hover:-translate-y-0.5 hover:border-[var(--md-sys-color-primary)] hover:shadow-sm"
-                    >
-                      <span
-                        className="shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-none"
-                        style={{
-                          backgroundColor:
-                            'var(--md-sys-color-primary-container)',
-                          color: 'var(--md-sys-color-on-primary-container)',
-                        }}
-                      >
-                        P{p.page}
-                      </span>
-                      <Text
-                        className={`min-w-0 flex-1 text-xs ${mediaNameClass(showFullNames)}`}
-                        title={p.part}
-                      >
-                        {p.part || `P${p.page}`}
-                      </Text>
-                    </button>
+                    />
                   ))}
                 </div>
               )}

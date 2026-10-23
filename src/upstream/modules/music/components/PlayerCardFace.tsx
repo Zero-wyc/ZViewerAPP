@@ -19,7 +19,7 @@
  * 淡出，文字会被稀释成灰、且露出更暗的模糊背景，反而更糊；tint 常驻才能
  * 托住文字对比度。竖屏 0.55 / 桌面横屏 0.45（桌面卡面更大，稍低不压背景）。
  *
- * 内容自上而下：封面（max-height 38vh + L 形角标内缩动画）/ 歌名（黑块
+ * 内容自上而下：封面（max-height 38vh + 主题圆角）/ 歌名（黑块
  * 滑入遮字 + 跑马灯，双击加入播放队列）/ 歌手（小方点 + 名，横屏矮窗口
  * 时行尾收纳迷你三键）/ 进度条 + 音频可视化 / 三键控制 / 音量横条。
  * vh 尺寸全部 max() 保底，保证横屏矮窗口下仍可读可点；滑条挂 touch-slider
@@ -109,7 +109,7 @@ export function PlayerCardFace({
   onVolumePointerDown,
 }: PlayerCardFaceProps) {
   return (
-    <div className="relative flex h-full w-full flex-col overflow-hidden">
+    <div className="music-player-card-face relative flex h-full w-full flex-col overflow-hidden">
       <div
         aria-hidden="true"
         className="lt-blur-surface pointer-events-none absolute inset-0"
@@ -133,11 +133,11 @@ export function PlayerCardFace({
         className="relative flex h-full w-full flex-col"
         style={uiFade < 1 ? { opacity: uiFade } : undefined}
       >
-        {/* 封面（max-height 38vh + 轻阴影）+ L 形角标内缩动画；
+        {/* 封面（max-height 38vh + 轻阴影与主题圆角）；
           竖屏手机限高防吃掉控制区 */}
         <div className="relative shrink-0 p-[max(1.5vh,10px)]">
           <div
-            className="relative overflow-hidden"
+            className="music-player-artwork relative overflow-hidden"
             style={{ boxShadow: '0 0 8px 0 rgba(0, 0, 0, 0.05)' }}
           >
             {cover ? (
@@ -170,29 +170,6 @@ export function PlayerCardFace({
               </div>
             )}
           </div>
-          {/* 封面四角括号（Hydrogen Player.vue .c-border1..4：L 形，
-            各角独立贴合动画；终态相对卡边内缩 1vh，与毛玻璃边缘留出间隙；
-            max() 保底横屏矮窗口可见性） */}
-          <span
-            className="c-border-in-tl pointer-events-none absolute left-[max(1vh,5px)] top-[max(1vh,5px)] h-[max(4vh,20px)] w-[max(4vh,20px)] border-l-2 border-t-2"
-            style={{ borderColor: 'var(--md-sys-color-on-surface)' }}
-            aria-hidden="true"
-          />
-          <span
-            className="c-border-in-tr pointer-events-none absolute right-[max(1vh,5px)] top-[max(1vh,5px)] h-[max(4vh,20px)] w-[max(4vh,20px)] border-r-2 border-t-2"
-            style={{ borderColor: 'var(--md-sys-color-on-surface)' }}
-            aria-hidden="true"
-          />
-          <span
-            className="c-border-in-br pointer-events-none absolute bottom-[max(1vh,5px)] right-[max(1vh,5px)] h-[max(4vh,20px)] w-[max(4vh,20px)] border-b-2 border-r-2"
-            style={{ borderColor: 'var(--md-sys-color-on-surface)' }}
-            aria-hidden="true"
-          />
-          <span
-            className="c-border-in-bl pointer-events-none absolute bottom-[max(1vh,5px)] left-[max(1vh,5px)] h-[max(4vh,20px)] w-[max(4vh,20px)] border-b-2 border-l-2"
-            style={{ borderColor: 'var(--md-sys-color-on-surface)' }}
-            aria-hidden="true"
-          />
         </div>
 
         {/* 歌曲信息：歌名（黑块滑入遮字 + 跑马灯）+ 歌手（小方点 + 名） */}
@@ -322,7 +299,7 @@ export function PlayerCardFace({
             <div className="flex shrink-0 items-center justify-evenly">
               <button
                 type="button"
-                className="flex h-[max(5vh,36px)] w-[max(5vh,36px)] items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity hover:opacity-70 active:scale-90"
+                className="music-player-transport flex h-[max(5vh,36px)] w-[max(5vh,36px)] items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity hover:opacity-70 active:scale-90"
                 onClick={onPrev}
                 title={canControl ? '上一首' : '向房主申请切换上一首'}
                 aria-label="上一首"
@@ -331,7 +308,7 @@ export function PlayerCardFace({
               </button>
               <button
                 type="button"
-                className="flex h-[max(5vh,36px)] w-[max(5vh,36px)] items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity hover:opacity-70 active:scale-90"
+                className="music-primary-play flex h-[max(5vh,36px)] w-[max(5vh,36px)] items-center justify-center transition-opacity hover:opacity-70 active:scale-90"
                 onClick={onPlayPause}
                 title={
                   canControl
@@ -352,7 +329,7 @@ export function PlayerCardFace({
               </button>
               <button
                 type="button"
-                className="flex h-[max(5vh,36px)] w-[max(5vh,36px)] items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity hover:opacity-70 active:scale-90"
+                className="music-player-transport flex h-[max(5vh,36px)] w-[max(5vh,36px)] items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity hover:opacity-70 active:scale-90"
                 onClick={onNext}
                 title={canControl ? '下一首' : '向房主申请切换下一首'}
                 aria-label="下一首"

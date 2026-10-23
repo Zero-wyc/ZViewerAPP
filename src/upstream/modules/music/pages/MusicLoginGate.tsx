@@ -10,7 +10,7 @@ import { useMusicStore } from '../store'
 export function MusicLoginGate({ hint }: { hint?: string }) {
   const setLoginModalOpen = useMusicStore((s) => s.setLoginModalOpen)
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-24">
+    <div className="music-login-card flex flex-col items-center justify-center gap-3 py-24">
       <div
         className="flex h-14 w-14 items-center justify-center rounded-full"
         style={{
@@ -33,8 +33,7 @@ export function MusicLoginGate({ hint }: { hint?: string }) {
       )}
       <button
         type="button"
-        className="mt-1 px-4 py-1.5 text-sm font-medium text-[var(--md-sys-color-surface)] transition-opacity hover:opacity-80"
-        style={{ backgroundColor: 'var(--md-sys-color-on-surface)' }}
+        className="music-login-action mt-1 px-4 py-1.5 text-sm font-medium transition-opacity hover:opacity-80"
         onClick={() => setLoginModalOpen(true)}
       >
         扫码登录
@@ -59,10 +58,10 @@ export function PageBlockHeader({
     <div>
       <div className="flex items-center">
         <span
-          className="mr-1.5 w-[20vw] min-w-[140px] shrink-0 py-px pl-1 text-[10px] font-bold uppercase tracking-widest max-md:w-auto max-md:min-w-0 max-md:pr-2"
+          className="music-section-eyebrow mr-1.5 w-[20vw] min-w-[140px] shrink-0 py-px pl-1 text-[10px] font-bold uppercase tracking-widest max-md:w-auto max-md:min-w-0 max-md:pr-2"
           style={{
-            backgroundColor: 'var(--md-sys-color-on-surface)',
-            color: 'var(--md-sys-color-surface)',
+            backgroundColor: 'var(--md-sys-color-secondary-container)',
+            color: 'var(--md-sys-color-on-secondary-container)',
             whiteSpace: 'nowrap',
           }}
         >

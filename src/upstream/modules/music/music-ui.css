@@ -1,0 +1,211 @@
+/* Shared Android / HarmonyOS music surfaces. Keep the existing player layout,
+   background preferences, tone switching and control hit areas in their owners. */
+.music-app-shell {
+  --music-radius: var(--md-sys-shape-corner);
+  --music-outline: color-mix(in srgb, var(--md-sys-color-outline-variant) 72%, transparent);
+}
+
+.music-app-shell .music-top-nav,
+.music-app-shell .music-home-section,
+.music-app-shell .music-newest-card,
+.music-app-shell .music-login-card,
+.music-app-shell .music-side-dock {
+  --md-sys-color-on-surface: var(--lt-glass-on-surface);
+  --md-sys-color-on-surface-variant: var(--lt-glass-on-surface-variant);
+  --md-sys-color-outline: var(--lt-glass-outline);
+  --md-sys-color-outline-variant: var(--lt-glass-outline-variant);
+}
+
+.music-app-shell .music-top-nav {
+  min-height: 64px;
+  padding-block: 10px;
+  border-bottom: 1px solid var(--music-outline);
+  background: color-mix(in srgb, var(--md-sys-color-surface-container) 90%, transparent);
+}
+
+.music-app-shell .music-nav-tabs { gap: clamp(4px, 1vw, 12px); }
+.music-app-shell .music-nav-tab {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--music-radius);
+  font-size: 15px;
+  line-height: 1.3;
+  opacity: 1;
+  transition: background-color 160ms, border-color 160ms;
+}
+.music-app-shell .music-nav-tab[data-active='true'] {
+  border-color: color-mix(in srgb, var(--md-sys-color-primary) 28%, transparent);
+  background: var(--md-sys-color-primary-container);
+  font-weight: 700;
+}
+.music-app-shell .music-nav-tab:hover {
+  background: color-mix(in srgb, var(--md-sys-color-primary) 10%, var(--md-sys-color-surface-container));
+}
+.music-app-shell .music-nav-tab[data-active='true']:hover {
+  background: var(--md-sys-color-primary-container);
+}
+.music-app-shell .music-nav-tracker { display: none; }
+.music-app-shell .music-nav-icon {
+  background: var(--md-sys-color-surface-container-high);
+}
+.music-app-shell .music-search-field { box-shadow: none; }
+
+.music-app-shell .music-page-content { scrollbar-gutter: stable; }
+.music-app-shell .music-home-highlights { padding-top: 24px; gap: 24px; }
+.music-app-shell .music-home-sections { margin-top: 24px; gap: 20px; }
+.music-app-shell .music-banner-heading {
+  position: relative;
+  inset: auto;
+  margin-bottom: 10px;
+}
+.music-app-shell .music-banner-frame {
+  border: 1px solid var(--music-outline);
+  border-radius: var(--music-radius);
+}
+.music-app-shell .music-banner-next {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--md-sys-color-shadow) 18%, transparent);
+}
+.music-app-shell .music-legacy-decoration { display: none; }
+.music-app-shell .music-daily-card {
+  --md-sys-color-on-surface: var(--md-sys-color-on-primary-container);
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 28%, transparent);
+  border-radius: var(--music-radius);
+  overflow: hidden;
+}
+.music-app-shell .music-daily-title { font-size: clamp(20px, 2.4vw, 32px); }
+.music-app-shell .music-daily-play { border-radius: 50%; }
+.music-app-shell .music-newest-card,
+.music-app-shell .music-home-section,
+.music-app-shell .music-login-card {
+  padding: 16px;
+  border: 1px solid var(--music-outline);
+  border-radius: var(--music-radius);
+  background: color-mix(in srgb, var(--md-sys-color-surface-container) 82%, transparent);
+}
+.music-app-shell .music-newest-heading {
+  position: static;
+  display: block;
+  margin-bottom: 10px;
+  font-size: 18px;
+}
+.music-app-shell .music-section-eyebrow {
+  width: auto;
+  min-width: 0;
+  padding: 4px 9px;
+  border-radius: calc(var(--music-radius) / 2);
+  font-size: 10px;
+  letter-spacing: .08em;
+}
+.music-app-shell .music-home-section h3 { font-size: 20px; margin-top: 8px; }
+.music-app-shell .music-recommendation-grid { gap: 20px; }
+.music-app-shell .music-recommendation-card {
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: var(--music-radius);
+  transition: background-color 160ms, border-color 160ms;
+}
+.music-app-shell .music-recommendation-card:hover {
+  border-color: var(--music-outline);
+  background: var(--md-sys-color-surface-container-high);
+}
+.music-app-shell .music-recommendation-cover:not(.rounded-full) {
+  border-radius: calc(var(--music-radius) * .75);
+}
+.music-app-shell .music-login-card {
+  width: min(100%, 520px);
+  margin: 28px auto;
+  padding: 36px 20px;
+  text-align: center;
+}
+.music-app-shell .music-login-action {
+  min-height: 44px;
+  padding: 10px 22px;
+  border-radius: var(--music-radius);
+  color: var(--md-sys-color-on-primary);
+  background: var(--md-sys-color-primary);
+}
+.music-app-shell .music-song-row {
+  min-height: 46px;
+  margin-block: 3px;
+  border: 1px solid transparent;
+  border-radius: calc(var(--music-radius) * .75);
+}
+.music-app-shell .music-song-row[data-active='true'] {
+  border-color: color-mix(in srgb, var(--md-sys-color-primary) 38%, transparent);
+  background: color-mix(in srgb, var(--md-sys-color-primary) 10%, transparent);
+}
+
+.music-app-shell .music-widget-bar {
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 24%, var(--md-sys-color-outline-variant));
+  border-radius: var(--music-radius);
+  background-color: color-mix(in srgb, var(--md-sys-color-surface-container) 94%, transparent);
+}
+.music-app-shell .music-widget-cover {
+  border-radius: calc(var(--music-radius) * .65);
+}
+.music-app-shell .music-widget-controls { padding-inline: 8px; }
+.music-app-shell .music-primary-play {
+  border-radius: 50%;
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--md-sys-color-primary) 18%, transparent);
+}
+.music-app-shell .music-widget-controls .music-primary-play {
+  width: 36px;
+  height: 36px;
+  margin-inline: 8px;
+  flex-shrink: 0;
+}
+.music-app-shell .music-queue-popup {
+  max-width: calc(100vw - 36px);
+}
+.music-app-shell .music-dock-handle { border-radius: var(--music-radius) 0 0 var(--music-radius); }
+.music-app-shell .music-side-dock { border-radius: var(--music-radius); }
+
+.music-app-shell .music-player-card-face,
+.music-app-shell .music-player-lyrics {
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-on-surface) 18%, transparent);
+  border-radius: var(--music-radius);
+}
+.music-app-shell .music-player-artwork { border-radius: calc(var(--music-radius) * .7); }
+.music-app-shell .music-player-transport { border-radius: 50%; }
+.music-app-shell .music-player-transport:hover {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
+}
+.music-app-shell .music-player-card-face .music-primary-play svg { width: 65%; height: 65%; }
+.music-app-shell .music-player-mobile-tools {
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-on-surface) 18%, transparent);
+  border-radius: var(--music-radius);
+  background: color-mix(in srgb, var(--lt-tone-inverse) 84%, transparent);
+}
+.music-app-shell .music-player-mobile-tools > button,
+.music-app-shell .music-player-side-tools > button {
+  border-radius: calc(var(--music-radius) / 2);
+}
+.music-app-shell .music-player-mobile-tools > button[aria-pressed='true'],
+.music-app-shell .music-player-side-tools > button[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
+}
+.music-app-shell .music-nav-tab:focus-visible,
+.music-app-shell .music-nav-icon:focus-visible,
+.music-app-shell .music-login-action:focus-visible,
+.music-app-shell .music-primary-play:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 3px;
+}
+
+@media (max-width: 767px) {
+  .music-app-shell .music-top-nav { min-height: 60px; padding-block: 8px; }
+  .music-app-shell .music-nav-tabs { gap: 4px; }
+  .music-app-shell .music-nav-tab { padding: 8px; font-size: 13px; }
+  .music-app-shell .music-home-highlights { padding-top: 18px; gap: 22px; }
+  .music-app-shell .music-home-section { padding: 12px; }
+  .music-app-shell .music-recommendation-grid { gap: 12px 8px; }
+  .music-app-shell .music-recommendation-card { padding: 3px; }
+  .music-app-shell .music-widget-controls { padding-inline: 4px; }
+  .music-app-shell .music-widget-controls .music-primary-play { margin-inline: 4px; }
+}
