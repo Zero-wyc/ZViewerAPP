@@ -121,7 +121,7 @@
   "knownCredentialLiteralHits": 0,
   "knownPrivateLiteralVariantsChecked": 22,
   "knownSecretScanScope": "Every uncompressed IPA entry; UTF-8 and UTF-16LE literals from the local NAS credential/session fixtures only. Not a universal unknown-secret detector.",
-  "deliveredPath": "/Users/chuzu/Downloads/ZViewer-ios/deliverables/ZViewer-1.9.0-27-20261022-unsigned.ipa",
+  "deliveredPath": "deliverables/ZViewer-1.9.0-27-20261022-unsigned.ipa",
   "bytes": 49276344,
   "sha256": "50d2fefce399827831e52cf20a6c4a0ca077e02f71f085a1efc031c3804c6671",
   "configuration": "Release",
@@ -144,7 +144,7 @@
   "simulatorPodsInstalled": true,
   "podfileLockUnchanged": true,
   "newNativeSwiftStillInPods": true,
-  "simulatorBackup": "/Users/chuzu/Downloads/ZViewer-ios/ZViewer-client/ZV-iOS/.native-tools/vendor-simulator-build27-before-device",
+  "simulatorBackup": "ZViewer-client/ZV-iOS/.native-tools/vendor-simulator-build27-before-device",
   "restoredAt": "2026-10-22T13:23:07.672629+00:00",
   "simulatorDebugBuildsSuccessful": 16,
   "deviceReleaseBuildsSuccessful": 2

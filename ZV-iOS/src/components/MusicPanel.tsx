@@ -44,7 +44,7 @@ type ControlRequest = { action: 'play' | 'pause' | 'seek' | 'next' | 'prev' | 'a
 const empty: MusicState = { trackSongId: null, trackKey: null, isPlaying: false, positionSec: 0, playMode: 'sequence', updatedAt: 0 };
 const lyricCache = new ScopedCache<MusicLyric[]>(20, 300_000);
 const keyFor = (song: Song) => song.biliBvid ? `bili:${song.biliBvid}:${song.biliCid || 0}` : `ncm:${song.songId}`;
-export function MusicPanel({ roomId, host, onExpandedLandscape }: { roomId: string; host: boolean; onExpandedLandscape: (expanded: boolean) => void }) {
+export function MusicPanel({ roomId, host, autoApprove, onExpandedLandscape }: { roomId: string; host: boolean; autoApprove: boolean; onExpandedLandscape: (expanded: boolean) => void }) {
   const theme = useAppearance();
   const musicStyles = theme.styles(baseMusicStyles);
   const ui = theme.styles(baseUi);
@@ -169,6 +169,8 @@ export function MusicPanel({ roomId, host, onExpandedLandscape }: { roomId: stri
   }, [socket, roomId, choose]);
   const roaming = usePersonalFm({ ncm, requestText, play: playFm, visible: page === 'fm', host, scope: JSON.stringify([session?.serverUrl, session?.user.id, roomId]), accountRevision });
   useEffect(() => { fmPort.current = roaming.fm; }, [roaming.fm]);
+  const approval = useRef({ enabled: autoApprove, control });
+  useEffect(() => { approval.current = { enabled: autoApprove, control }; }, [autoApprove, control]);
   const task = async (work: () => Promise<unknown>) => { setBusy(true); setError(''); try { await work(); } catch (failure) { setError(messageFor(failure)); } finally { setBusy(false); } };
   useEffect(() => {
     if (!socket) return; let active = true;
@@ -203,7 +205,18 @@ export function MusicPanel({ roomId, host, onExpandedLandscape }: { roomId: stri
     };
     const hostDisconnected = (payload: { roomId?: string }) => { if ((!payload.roomId || payload.roomId === roomId) && !hostRef.current) { hostSamples++; availability(hostStatus.current.disconnected(Date.now())); } };
     const hostReady = (payload: { roomId?: string }) => { if ((!payload.roomId || payload.roomId === roomId) && !hostRef.current) { hostSamples++; availability(hostStatus.current.ready(Date.now())); } };
-    const requested = (payload: ControlRequest) => { if (payload.roomId === roomId && hostRef.current) setRequests(old => [...old.slice(-19), payload]); };
+    const requested = (payload: ControlRequest) => {
+      if (payload.roomId !== roomId || !hostRef.current) return;
+      if (!approval.current.enabled) { setRequests(old => [...old.slice(-19), payload]); return; }
+      void (async () => {
+        try {
+          await approval.current.control(payload, true);
+          if (active && hostRef.current && socket.connected) await emitAck(socket, 'music:control-response', { roomId, action: payload.action, from: payload.from, approved: true });
+        } catch (failure) {
+          if (active) { setError(messageFor(failure)); setRequests(old => [...old.slice(-19), payload]); }
+        }
+      })();
+    };
     const response = (payload: { approved: boolean; from: string }) => { if (payload.from === socket.id) setError(payload.approved ? '房主已同意申请' : '房主拒绝了申请'); };
     socket.on('music:queue-changed', queueChanged); socket.on('music:sync-state', synced); socket.on('music:host-heartbeat', hostHeartbeat); socket.on('music:sync-heartbeat', serverHeartbeat); socket.on('music:control-request', requested); socket.on('music:control-response', response);
     socket.on('host-disconnected', hostDisconnected); socket.on('sharer-ready', hostReady);

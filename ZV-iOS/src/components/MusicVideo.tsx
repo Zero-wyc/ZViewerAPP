@@ -6,6 +6,7 @@ import { useSession } from '@/state/session';
 import { readPreference, writePreference } from '@/lib/preferences';
 import { defaultBiliPolicy, playbackSource } from '@/lib/biliNative';
 import { NativeMediaAdapter } from '@/lib/mediaAdapter';
+import { MusicVideoSync } from '@/lib/musicVideoSync';
 import type { VlcPlayer } from '@/lib/vlcPlayer';
 import { BiliVideoPicker } from './BiliVideoPicker';
 import { AppDialog } from './AppDialog';
@@ -24,6 +25,7 @@ export function MusicVideo({ trackKey, expanded, pure, setPure, audio, control, 
   const [decorationFailed, setDecorationFailed] = useState(false);
   const foregroundRef = useRef(AppState.currentState === 'active');
   const operation = useRef(0); const failed = useRef(false);
+  const synchronize = useRef<(() => void) | null>(null);
   const releaseDecoration = useCallback(() => {
     adapter.current?.cancelPending(); player.pause();
     if (session) void adapter.current?.apply(null, session.serverUrl, session.accessToken).catch(() => {});
@@ -60,16 +62,22 @@ export function MusicVideo({ trackKey, expanded, pure, setPure, audio, control, 
     const current = () => active && version === operation.current && foregroundRef.current && !failed.current;
     // Null replaces release the source and reset ready markers. The same URL
     // added later therefore crosses the native load path again.
-    const next = foreground && foregroundRef.current && expanded && loaded && sourceUrl ? { sourceUrl, sourceType: 'bilibili', format: 'muted-video', isPlaying: audio.playing, currentTime: audio.currentTime, biliPolicy: { ...defaultBiliPolicy, qn: qn || 0, cliEnabled: cli !== false, preferMp4: !dash, dashAllowed } } : null;
+    // Resolve without capturing a stale audio position. The synchronizer takes
+    // the latest confirmed audio clock once the native input has prepared.
+    const next = foreground && foregroundRef.current && expanded && loaded && sourceUrl ? { sourceUrl, sourceType: 'bilibili', format: 'muted-video', isPlaying: audio.playing, currentTime: 0, biliPolicy: { ...defaultBiliPolicy, qn: qn || 0, cliEnabled: cli !== false, preferMp4: !dash, dashAllowed } } : null;
     player.configure({ volume: 0 });
-    void media.apply(next, session.serverUrl, session.accessToken).then(() => { if (current() && next) { player.currentTime = audio.currentTime; } }).catch(() => { if (current()) { failed.current = true; setDecorationFailed(true); releaseDecoration(); setReadyRevision(-1); setPure(false); setError('视频背景加载失败，主音频继续播放'); } });
+    void media.apply(next, session.serverUrl, session.accessToken).then(() => { if (current() && next) synchronize.current?.(); }).catch(() => { if (current()) { failed.current = true; setDecorationFailed(true); releaseDecoration(); setReadyRevision(-1); setPure(false); setError('视频背景加载失败，主音频继续播放'); } });
     return () => { active = false; media.cancelPending(); };
-  }, [sourceUrl, qn, cli, dash, dashAllowed, expanded, loaded, session, audio, player, foreground, resume, releaseDecoration, setPure]);
+  }, [trackKey, sourceUrl, qn, cli, dash, dashAllowed, expanded, loaded, session, audio, player, foreground, resume, releaseDecoration, setPure]);
   useEffect(() => {
-    const sync = () => { if (!foregroundRef.current || !foreground || failed.current || !expanded || !sourceUrl || player.preparing || player.duration <= 0) return; if (!player.seeking && Math.abs(player.currentTime - audio.currentTime) > 1) player.currentTime = audio.currentTime; if (audio.playing) player.play(); else player.pause(); };
-    const time = audio.addListener('timeUpdate', sync); const playing = audio.addListener('playingChange', sync); const loaded = player.addListener('sourceLoad', sync);
-    return () => { time.remove(); playing.remove(); loaded.remove(); };
-  }, [audio, player, expanded, sourceUrl, foreground]);
+    const follower = new MusicVideoSync(audio, player);
+    const sync = () => { if (foregroundRef.current && foreground && !failed.current && expanded && loaded && sourceUrl && !adapter.current?.busy) follower.sync(); };
+    const seek = () => { follower.requestSeek(); sync(); };
+    synchronize.current = sync;
+    const listeners = [audio.addListener('timeUpdate', sync), audio.addListener('playingChange', sync), audio.addListener('playbackRateChange', sync), audio.addListener('seekChange', seek), audio.addListener('seekSettled', sync), audio.addListener('sourceLoad', seek), player.addListener('sourceLoad', sync)];
+    sync();
+    return () => { if (synchronize.current === sync) synchronize.current = null; listeners.forEach(listener => listener.remove()); };
+  }, [audio, player, trackKey, expanded, sourceUrl, qn, cli, dash, dashAllowed, loaded, foreground, resume, session]);
   useEffect(() => () => { if (exitTimer.current) clearTimeout(exitTimer.current); }, []);
   const revealExit = () => { setShowExit(true); if (exitTimer.current) clearTimeout(exitTimer.current); exitTimer.current = setTimeout(() => setShowExit(false), 3000); };
   const save = async (next: Binding | null) => {
@@ -77,7 +85,7 @@ export function MusicVideo({ trackKey, expanded, pure, setPure, audio, control, 
     while (Object.keys(entries).length > 12) delete entries[Object.keys(entries)[0]];
     await writePreference(prefKey, { entries }); setBindings(entries); setDisabled(old => next ? old.filter(key => key !== trackKey) : [...old.filter(key => key !== trackKey), trackKey]); if (!next) { await adapter.current?.apply(null, session!.serverUrl, session!.accessToken); } setPicker(false);
   };
-  return <><View pointerEvents={pure ? 'auto' : 'none'} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>{showVideo ? <VlcVideo video={video} background style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} /> : null}{pure ? <VideoGestures player={audio} fullscreen show={revealExit} control={control} /> : null}{pure && showExit ? <SafeAreaView pointerEvents="box-none" style={{ flex: 1 }}><View style={{ alignSelf: 'flex-end', padding: 12 }}><RoomButton label="退出纯净视频" secondary onPress={() => setPure(false)} /></View></SafeAreaView> : null}</View>
+  return <><View pointerEvents={pure ? 'auto' : 'none'} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: pure ? '#000' : 'transparent' }}>{showVideo ? <VlcVideo video={video} background style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} /> : null}{pure ? <VideoGestures player={audio} fullscreen show={revealExit} control={control} /> : null}{pure && showExit ? <SafeAreaView pointerEvents="box-none" style={{ flex: 1 }}><View style={{ alignSelf: 'flex-end', padding: 12 }}><RoomButton label="退出纯净视频" secondary onPress={() => setPure(false)} /></View></SafeAreaView> : null}</View>
     {/* The render prop only builds controls; its handlers access timers after a press. */}
     {/* eslint-disable-next-line react-hooks/refs -- refs are accessed only inside deferred press handlers. */}
     {children({ hasVideo: !!binding, videoReady, openPicker: () => { setPicker(true); }, enterPure: () => { if (binding && videoReady) { revealExit(); setPure(true); } }, error })}

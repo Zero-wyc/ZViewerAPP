@@ -26,6 +26,8 @@ test('native compilation guard detects missing slave retry and background patche
     assert.throws(() => verify(root), /unowned view during deinit/);
     writeFileSync(file, original);
     for (const [relative, marker] of [
+      ['ExpoLibVlcPlayer.podspec', 'ZViewerVlcAudioClock'],
+      ['ExpoLibVlcPlayer.podspec', 's.dependency "VLCKit", "4.0.0a25"'],
       ['Managers/MediaPlayerManager.swift', 'ZViewerDecorationBackground'],
       ['Managers/AudioSessionManager.swift', 'func prepareForBackgroundAudio()'],
       ['LibVlcPlayerModule.swift', 'Prop("backgroundAudio", false)'],

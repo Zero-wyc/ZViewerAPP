@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import { NativeMediaAdapter } from '../src/lib/mediaAdapter.ts';
+import { MusicVideoSync } from '../src/lib/musicVideoSync.ts';
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const compile = ts.transpileModule(readFileSync(new URL('../src/components/MusicVideo.tsx', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText;
 function hooks() {
@@ -28,7 +29,7 @@ async function mount(resolveWait) {
   const app={get currentState(){return phase;},addEventListener(_event,fn){listener=fn;return {remove(){listener=null;}};}};
   const jsx=(type,props)=>({type,props});
   const fallback=new Proxy({},{get:(_target,key)=>key==='ui'?{}:String(key)});
-  const modules={react:runtime.react,'react/jsx-runtime':{jsx,jsxs:jsx,Fragment:'Fragment'},'react-native':{AppState:app,Text:'Text',View:'View'},'@/state/appearance':{useAppearance:()=>({styles:value=>value})},'@/state/session':{useSession:()=>({session,request})},'@/lib/preferences':{readPreference:async()=>({entries:{}}),writePreference:async()=>{}},'@/lib/mediaAdapter':{NativeMediaAdapter},'@/lib/biliNative':{defaultBiliPolicy:{},playbackSource:async state=>{resolutions++;if(resolveWait)await resolveWait(state);return {uri:state.sourceUrl,identity:state.sourceUrl,options:[],headers:{},slaves:[],contentType:'progressive'};}},'./VlcVideo':{useVlcVideo:()=>video,VlcVideo:'NativeDecoration'}};
+  const modules={react:runtime.react,'react/jsx-runtime':{jsx,jsxs:jsx,Fragment:'Fragment'},'react-native':{AppState:app,Text:'Text',View:'View'},'@/state/appearance':{useAppearance:()=>({styles:value=>value})},'@/state/session':{useSession:()=>({session,request})},'@/lib/preferences':{readPreference:async()=>({entries:{}}),writePreference:async()=>{}},'@/lib/mediaAdapter':{NativeMediaAdapter},'@/lib/musicVideoSync':{MusicVideoSync},'@/lib/biliNative':{defaultBiliPolicy:{},playbackSource:async state=>{resolutions++;if(resolveWait)await resolveWait(state);return {uri:state.sourceUrl,identity:state.sourceUrl,options:[],headers:{},slaves:[],contentType:'progressive'};}},'./VlcVideo':{useVlcVideo:()=>video,VlcVideo:'NativeDecoration'}};
   const exports={};vm.runInNewContext(compile,{exports,require:name=>modules[name]||fallback,setTimeout,clearTimeout});
   let tree, trackKey='bili:BVfirst:1', expanded=true;const setPure=()=>{};
   const render=()=>{tree=runtime.render(()=>exports.MusicVideo({trackKey,expanded,pure:false,setPure,audio,control(){},children:()=>null}));};
@@ -79,5 +80,30 @@ test('collapsed full player or missing binding removes the surface and releases 
   video.expand(true);await video.settle();assert(contains(video.tree,'NativeDecoration'));
   video.track('ncm:371362');await video.settle();
   assert(!contains(video.tree,'NativeDecoration'));assert.equal(video.replacements.at(-1),null);assert.equal(video.audio.playing,true);
+ }finally{video.dispose();}
+});
+
+test('prepared decoration aligns once and clock updates never issue repeated play or small-drift seeks',async()=>{
+ const video=await mount();try{
+  assert.equal(video.seeks.filter(value=>value===5).length,1,'initial attachment must not seek the same audio target twice');
+  const plays=video.plays,pauses=video.pauses;
+  for(let n=0;n<100;n++){
+   video.audio.currentTime=10+n*.25;video.player.currentTime=video.audio.currentTime-1.5;
+   const before=video.seeks.length;video.audio.emit('timeUpdate',{currentTime:video.audio.currentTime});
+   assert.equal(video.seeks.length,before,'normal drift uses rate correction');
+  }
+  assert.equal(video.plays,plays);assert.equal(video.pauses,pauses);assert.equal(video.resolutions,1);
+ }finally{video.dispose();}
+});
+
+test('a slow resolver aligns to the latest confirmed audio position rather than its captured starting time',async()=>{
+ let resolve;const pending=new Promise(done=>{resolve=done;});const video=await mount(()=>pending);try{
+  video.audio.currentTime=37;video.audio.emit('timeUpdate',{currentTime:37});
+  resolve();await video.settle();
+  assert.equal(video.seeks.at(-1),37);assert(!video.seeks.includes(5),'the position before resolution is obsolete');
+  video.audio.seeking=true;video.audio.currentTime=60;video.audio.emit('seekChange',{currentTime:60});
+  const before=video.seeks.length;assert.notEqual(video.seeks.at(-1),60);
+  video.audio.seeking=false;video.audio.currentTime=60.2;video.audio.emit('seekSettled',{currentTime:60.2});
+  assert.equal(video.seeks.length,before+1);assert.equal(video.seeks.at(-1),60.2);
  }finally{video.dispose();}
 });

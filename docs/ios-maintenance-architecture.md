@@ -1,15 +1,45 @@
 # iOS 客户端维护文档
 
-更新日期：2026-10-22。三端维护文档统一使用 `<platform>-maintenance-architecture.md` 命名。本文件面向日常开发和故障定位；本轮状态以[开发与验收记录](ios-macos-development-status.md)及[609 行分项矩阵](ios-acceptance-checklist.md)为准，旧发行包和阶段测试有独立边界。
+更新日期：2026-10-23。三端维护文档统一使用 `<platform>-maintenance-architecture.md` 命名。本文件面向日常开发和故障定位；本轮状态以[开发与验收记录](ios-macos-development-status.md)及[609 行分项矩阵](ios-acceptance-checklist.md)为准，旧发行包和阶段测试有独立边界。
+
+## 2026-10-23 Windows 回传同步
+
+已补齐 GitHub main 漏同步的一起听修复、测试与 build29–31 证据，重写 README 和 2.1.10 发行说明。Windows 的 VLC 补丁、lint、TypeScript 与 12 个共享 Go 来源文件核验通过；测试为 422 项通过、8 项跳过、3 项因缺少 Xcode `xcrun` 无法执行。macOS 的 433 项通过记录单独保留。本次未重新构建 IPA；完整范围见 [源码同步记录](ios-windows-source-sync-20261023.md)。
+
+## 2026-10-23 统一 V2.1.10 发布（build31）
+
+- 用户已明确反馈第30包“测试通过”，并要求同步源码及更新现有 `client-v2.1.10` Release，iOS 对外版本也统一为 2.1.10。
+- `app.json`、`package.json` 和 lockfile 根版本统一为 **2.1.10**，iOS buildNumber 递增为 **31**；本轮没有改动第30包已验收的播放或房间逻辑。版本31继续使用 VLCKit a25 和原有 device ARM64 Go / Opus Vendor。
+- 重新执行原生持久补丁检查、lint、TypeScript 和 **433 / 433** 项测试；重新编译未签名 ARM64 device Release，49,315,848B，内置 Hermes 6,631,097B，SHA256 `9d98f800d4cb3fa80537a5ced8d7bbc76a014b4c40aaa8601bfdd6ee9204b79a`；离线验包及构建时唯一一次 SHA 见 [第31包证据](evidence/ios-device-ipa-31-2026-10-23.json)。用户测试结果只对应其实际测试范围，不把未逐项核对的历史609条要求全部关闭。
+- 源码更新 main；IPA 与独立 SHA 文件发布到现有 Release。原 Android / HarmonyOS 附件、SHA 文件和 tag 保留，现有 Release 附件清单以 GitHub 页面为准；Release 正文明确推荐新 iOS 2.1.10 / build31。GitHub 自动 tag 源码归档仍对应原 tag，最新 iOS 源码从正文的 main / 发布提交链接获取，不另打源码包。
+
+## 2026-10-23 一起听复验与交付（build30）
+
+- build29 未完全解决真实房间中的卡顿。复现使用更新后的 NAS 地址、网页 root 房主和 iPad Pro 11-inch (M5) / iOS26.5 Simulator 观众。网页只展开歌曲播放器；iOS 分别测试展开播放器和纯净视频。验收包括两首 B站视频 A→B→A、播放中大跨度定位、暂停定位后恢复，以及歌曲中段冷启动重新入房。
+- 根因证据：同一 AAC fMP4 在本地文件中定位到 162.5 秒后正常推进，HTTP Range 返回正确字节，但 VLC 默认 MP4 流式 demux 路径定位后出现 clock gap 并停在 162.512 秒。使用 VLC 自带的 `avformat` demux 后同一 HTTP 输入持续推进。`biliNative.ts` 仅为一起听的 B站 `audio` / `muted-video` 输入指定 `demux=avformat`；继续使用 VLC 作为唯一播放内核，一起看维持原有 demux 选择。没有保留试验性的 AudioUnit、延迟释放或重建输入方案，也没有放宽 seek 的真实时钟确认。
+- `VlcVideo.tsx` 为持久音乐输入的原生命令替换补齐与初始挂载一致的 Simulator 软件解码参数，并保留原生 view 方法接收者。画面继续使用 `contain`；4:3 和 16:9 视频在纯净页面完整显示，比例不匹配时留黑边。
+- VLCKit 固定为实际编译及复验的 `4.0.0a25`，由持久 config plugin 和构建前守卫共同校验。升级本身不是根因修复的依据，demux 对照复现和实际房间播放是本轮证据。
+- 新房间默认打开“自动通过”。一起听房主自动执行当前房间的控制申请，操作成功后再确认；关闭开关后继续人工审批。观众及其他房间的申请不自动处理。Simulator 创建房间的开关默认开启、手动关闭已实测。
+- 自动检查 **433 / 433**、原生补丁守卫、lint、TypeScript 通过。真实房间验收记录见 [build30 一起听证据](evidence/ios-listen-build30-2026-10-23.json)。Simulator 的实际播放证据不等同于物理 iPad 的声音听感、长期播放或所有网络条件验收。
+
+## 2026-10-23 前轮一起听修复（build29，保留历史边界）
+
+- `MusicVideo.tsx` 原先在每次音频进度回调中重复发送 play/pause，并在音画偏差超过 1 秒时直接跳转。可选视频走暂停后静止 2 秒的定位确认路径，音频在此期间继续前进，因此可能反复进入追赶、暂停和重新缓冲。初次解析还会使用解析前的位置并重复定位。
+- 新增 `musicVideoSync.ts`：主音频保持房间时钟，视频只在播放意图改变时发送 play/pause；普通偏差使用相对主音频倍速 ±10% 的速度校正，250ms 限频，误差小于 250ms 后恢复。首次准备和显式拖动使用最新已确认音频位置；音频/视频定位未完成时不叠加跳转；6 秒以上断层的自动重新定位至少间隔 10 秒。切换曲目、画质、账号、前后台或完整播放器时重建同步状态，继续保留后台立即释放、过期解析隔离和视频失败不影响主音频的边界。
+- `vlc-seek.cjs` 的持久补丁将播放中的渐进式静音视频接入现有连续时钟确认路径，定位时不再为静止确认主动暂停视频。暂停意图和旧操作取消仍生效；一起看及 HLS 的精确暂停定位路径保留。`biliNative.ts` 为本机和服务器解析的静音视频添加 `no-audio`，避免在独立主音频之外再次解码 MP4 内的音轨。
+- `VlcVideo.tsx` 统一按 `contain` 显示完整帧，后台装饰标识只负责生命周期和音频会话，不再隐含 `cover` 裁切。一起听纯净视频区域使用黑底承接横竖比例不匹配时的留边。
+- 验证：原生持久补丁检查、lint、TypeScript 通过；全部 **431 / 431** 项测试通过，其中本次专项 **34 / 34** 项通过。新增同步收敛、重复命令、迟到解析、确认后拖动和完整画面配置回归；Swift 夹具执行实际补丁方法，验证静音视频连续定位不触发 pause、最新暂停意图生效，原有 HLS / 取消验证继续通过。
+- 随后按用户明确指示构建 **1.9.0 / build29** 未签名 ARM64 device Release IPA，原生编译及离线验包通过，修复已进入生产 JS 和实际编译的 VLC Swift 源码。未构建新 Simulator app，既有模拟器二进制仍不能作为新原生补丁的播放验收。第三代 iPad Pro 真机持续播放、音画同步、横竖屏和后台恢复待用户签名安装第29包测试。
 
 ## 当前版本和发布边界
 
-- iOS 为 `ZV-iOS/` 独立 Expo SDK57 / React Native0.86 工程；当前交付为 **1.9.0 / build28**，Bundle ID `com.zviewer.mobile`，最低 iOS16.4，支持 iPhone / iPad。
-- 最新完成 Simulator Debug19 与 device ARM64 Release；`npm run check` 的补丁、lint、TypeScript 和 **421 / 421** 项通过。20 个 AVC / HEVC 横竖尺寸关键帧原生解码夹具及 Swift / TS 连接专项通过；不与自动检查重复相加。
-- [第28包证据](evidence/ios-device-ipa-28-2026-10-22.json)：未签名 device ARM64 Release，49,284,918B，SHA256 `d0f65fd17efee9144d39ac458b79ad21a6611c7dfda5f42ee4583d00c1b36e20`，离线 Hermes 6,626,589B；IOS2、无签名 / profile、全部 CRC、原生符号、debug 排除及已知私密字面量检查通过。构建末尾计算一次 IPA SHA，后续复用。
+- iOS 为 `ZV-iOS/` 独立 Expo SDK57 / React Native0.86 工程；当前发布版本为 **2.1.10 / build31**，Bundle ID `com.zviewer.mobile`，最低 iOS16.4，支持 iPhone / iPad。
+- 已验收的前轮 device ARM64 Release 为 build30，49,315,846B，离线 Hermes 6,631,097B；[第30包离线验包](evidence/ios-device-ipa-30-2026-10-23.json)确认 device IOS2、无签名 / profile、CRC、原生功能、debug 排除和已知凭据字面量检查通过。SHA256 `3cc0acbfcb0fabd64eb7994f9c2ba60b687ba18c65671d2a8f37d503746158db` 仅在构建末尾计算一次，后续复用。该第30包包含 demux 修复与默认自动通过，只作本地测试交付；现已按用户验收结果以 2.1.10 / build31 重新构建发布。
+- 本轮 Simulator 原生 Debug 已重新构建，包含 VLCKit a25 和实际生产源码；补丁、lint、TypeScript 和 **433 / 433** 项测试通过。20 个 AVC / HEVC 横竖尺寸关键帧原生解码夹具及 Swift / TS 连接专项沿用前轮证据；不与自动检查重复相加。
+- [第29包证据](evidence/ios-device-ipa-29-2026-10-23.json)：未签名 device ARM64 Release，49,286,813B，SHA256 `d1d3c0e209f78f5633993e95628cf1d525ae1a04cf2b4a137d6922ca8ce9fbfb`，离线 Hermes 6,628,923B；IOS2、无签名 / profile、全部 CRC、原生符号、debug 排除及已知私密字面量检查通过。构建末尾计算一次 IPA SHA，后续复用。本包含一起听同步及完整画面修复，只作本地测试交付，尚未更新公开 Release。
 - 本轮修复 CLI 匿名 ready 状态阻止 Keychain 恢复、过期登录响应覆盖与错误分类；[Debug19 实测](evidence/bili-cli-build28-2026-10-22.json)冷启动保持登录，自动 / 360P / 480P / 720P 解析成功，480P→720P UI 切换与播放推进通过，超出模拟器策略的画质准确报轨道限制并保留原画质和进度。
 - 真机通过 VideoToolbox 精确格式、硬件会话、接受格式及真实关键帧解码探测后，开放 AVC High / HEVC Main、8bit420 SDR、最高 4K30，横竖尺寸分别验证；Simulator / 软件仍为 AVC720P30 / 480P30。60fps、AV1、HDR、杜比继续过滤。探测不证明高码率长时间实时播放或音画同步；用户第三代 iPad Pro 尚未由 agent 真机验收。
-- 第26 / 27包原文件与历史证据保留。第26包用户反馈真机一起听及系统音乐控件正常，未提供 OS / 时长；不能外推第28包全部功能。609条原生要求和历史负例未被421项自动检查批量关闭。
+- 第26 / 27 / 28 / 29包原文件与历史证据保留。第26包用户反馈真机一起听及系统音乐控件正常，未提供 OS / 时长；不能外推第30包全部功能。609条原生要求和历史负例未被433项自动检查批量关闭。
 - 用户授权将源码提交 main，并将 `ZViewer-iOS-1.9.0-28-unsigned.ipa` 与独立 SHA 文件合并发布到现有 `client-v2.1.10` Release，保留 Android / HarmonyOS 附件及原 tag。tag 自动源码归档仍指向原 tag；新增 iOS 源码以正文 main 提交链接为准。未使用 EAS、TestFlight 或 App Store。
 
 设备准备使用显式 `ZVIEWER_USE_SYSTEM_GO=1`，严格核对 Go1.27.1；默认下载摘要路径保留。device / Simulator ARM64 Vendor 分开保存，构建后恢复 Simulator Vendor 与 Pods，不能混用。
@@ -37,7 +67,7 @@ iOS 不是 Android Capacitor 工程的移植，也不是 Web 页面包装。`ZV-
 
 ## 当前功能入口与历史发行来源
 
-公开1.9.0 / build26来自原独立iOS发行；以下表格按本轮build28源码维护，不能把历史三端1.9.0 / 190发行描述当当前Android / HarmonyOS版本。
+公开1.9.0 / build26来自原独立iOS发行；以下表格按当前 2.1.10 / build31 源码维护，不能把历史三端1.9.0 / 190发行描述当当前Android / HarmonyOS版本。
 
 | 能力 | 入口 | 维护规则 |
 | --- | --- | --- |
@@ -102,7 +132,7 @@ Emby/Jellyfin 使用真实 Item ID、Episode ID 与 MediaSourceId；访问图片
 ### 日常源码与预览
 
 ```sh
-cd /Users/chuzu/Downloads/ZViewer-ios/ZViewer-client/ZV-iOS
+cd ZV-iOS
 npm run check
 npm start
 ```

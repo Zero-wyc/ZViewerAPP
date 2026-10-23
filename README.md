@@ -1,104 +1,94 @@
-# ZViewer Mobile Client
-
-**Android / HarmonyOS 2.1.10 / 220**：修复内网 HTTP 地址已识别却无法登录，以及自动模式开启证书例外后误报 502。HTTP 登录、接口和房间连接统一使用当前服务器专用的原生通道；纯 IP:端口可自动识别 HTTP / HTTPS。正式签名安装包已发布，最终包检查与发布状态见 [2.1.10 验证记录](docs/lan-connection-fix-20261022.md)。
-
-此前公开版本为 **2.1.9 / 219**，本版保留其服务端 v4.7.4 对齐、播放设置、源解析同步、B站与语音修复。既有播放验证见 [2.1.9 记录](docs/client-2.1.9-validation.md)。
-
-**iOS 2.1.10 / build 31**：修复一起听 B站视频切歌、定位停钟与画面裁切，创建房间默认开启自动通过。网页房主展开播放器与 iPad Simulator 观众联动已复验，用户反馈 build30 测试通过；build31 统一版本后重新构建，433项检查及离线验包通过。[下载未签名 IPA](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.1.10/ZViewer-iOS-2.1.10-31-unsigned.ipa)，需自行签名侧载。[第31包构建证据](docs/evidence/ios-device-ipa-31-2026-10-23.json)及[iOS维护文档](docs/ios-maintenance-architecture.md)记录实际范围。
+# ZViewer 客户端
 
 <img src="public/favicon.jpg" alt="ZViewer" width="88" height="88" />
 
-面向手机和平板的 ZViewer 客户端，支持一起看、一起听、投屏接收、房间语音、弹幕与字幕。三端均将界面与播放器打包进安装包，填写服务器地址后连接 [ZViewer 服务端](https://github.com/Zero-wyc/ZViewer)。本仓库提供 Android/HarmonyOS 共享前端、原生宿主及独立 iOS 工程源码。
+ZViewer 是一款手机和平板客户端，用来和朋友一起看视频、一起听音乐、接收投屏和进行房间语音。使用前需要准备可访问的 [ZViewer 服务端](https://github.com/Zero-wyc/ZViewer)，再在 App 中填写地址并登录。
 
-[安卓/鸿蒙 2.1.10 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.10) · [下载 iOS 2.1.10 / build31](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.10) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md)
+[下载当前版本](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.10) · [发行说明](docs/releases/client-2.1.10.md) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [历史更新](CHANGELOG.md)
 
-## 2.1.10 发行状态
+## 下载与安装
 
-当前 Android/HarmonyOS 发行版本为 **2.1.10 / 220**。按验收标准，本地从真实服务端源码启动 HTTP 与自签名 HTTPS；安卓、鸿蒙在自动模式勾选证书例外、仅输入 IP:端口，均完成登录、Socket.IO 连接和实际进房。两端同时在线时服务端报告房主在线、观众 1 人。发行说明见 [2.1.10](docs/releases/client-2.1.10.md)，原生运行、正式包静态检查与真机边界见 [交付验证](docs/lan-connection-fix-20261022.md)。源码、标签、APK、HAP 与校验文件已发布为 GitHub Latest 正式版本。
+当前三端版本统一为 **2.1.10**，安装包都在同一个 Release 中：
 
-## 发行版本与三端状态
-
-| 平台 | 版本 | 交付和目前状态 |
+| 平台 | 版本与下载 | 安装方式与系统要求 |
 | --- | --- | --- |
-| Android | **2.1.10 / 220** | 正式签名 APK 已发布；内网连接与进房验证见验证记录。 |
-| HarmonyOS | **2.1.10 / 220** | 正式签名 HAP 已发布；最低 SDK 6.1.0(23)，内网连接与进房验证见验证记录。 |
-| iOS | **2.1.10 / build 31** | 未签名 IPA；433项自动检查、一起听切歌 / 定位 / 中途入房复验及用户测试反馈通过。 |
+| Android | **2.1.10（220）** · [APK](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.1.10/ZViewer-Android-2.1.10-release.apk) | 允许安装该来源的应用后安装。要求 Android 7.0 / API 24 或更高版本、64 位设备；APK 包含 ARM64 / x86_64。 |
+| HarmonyOS | **2.1.10（220）** · [HAP](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.1.10/ZViewer-HarmonyOS-2.1.10-release.hap) | 要求 HarmonyOS 6.1 / API 23 或更高版本。通过 DevEco Studio、HDC 等设备支持的开发者安装方式安装，签名及设备授权需匹配；当前不是应用商店安装包。 |
+| iOS / iPadOS | **2.1.10（build 31）** · [未签名 IPA](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.1.10/ZViewer-iOS-2.1.10-31-unsigned.ipa) | 要求 iOS / iPadOS 16.4 或更高版本，支持 iPhone 和 iPad。需使用自己的有效证书及设备授权签名后侧载，不能直接点击 IPA 安装。 |
 
-[ZViewer-Client V2.1.10](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.10) 保留 Android APK、HarmonyOS HAP 与原 `SHA256SUMS.txt`，新增 `ZViewer-iOS-2.1.10-31-unsigned.ipa` 和 `SHA256SUMS-iOS-2.1.10-31.txt`（旧 iOS28附件保留作历史）。每个最终包只在构建末尾计算一次SHA256，发布复用。原tag保持不变，自动源码归档仍对应原Android / HarmonyOS提交；新增iOS源码以Release正文中的main提交链接为准。
+iOS 安装包已经内置运行所需的 JavaScript，安装后无需 Expo Go、Metro 或连接开发电脑。Android 和 HarmonyOS 也将界面、播放器打包在 App 内，仍需连接服务端获取房间和媒体。
 
-Android/HarmonyOS 2.0.0 保留服务端 v4.5.3 对齐及既有 HLS 直连/代理策略。投屏观看端去掉批注，全屏隐藏连接与分辨率；一起看更多菜单优先向下展开并避开按钮。B站图标按本机登录态着色，账号弹窗仅“已登录”标粉；关于入口悬浮在外观按钮上方，创建房间时二者均被面板覆盖。维护状态与模块入口见对应的平台维护文档；完整历史版本见 [更新记录](CHANGELOG.md) 和 [GitHub Releases](https://github.com/Zero-wyc/ZViewerAPP/releases)。
+Android / HarmonyOS 沿用既有发布签名；签名一致时可按平台规则覆盖旧正式版。iOS 更新需保持兼容的个人签名身份。卸载前请保存服务器地址和设置，卸载会清除本机数据。
 
-## 安装与连接
+## 2.1.10 更新了什么
 
-| 平台 | 安装包与方法 | 系统要求 |
-| --- | --- | --- |
-| Android | 下载 `ZViewer-Android-2.1.10-release.apk`，允许安装该来源的应用后安装；相同发布签名可覆盖旧正式版。 | Android 7.0 / API 24 起；APK 含 ARM64 / x86_64，需要 64 位设备；保持 System WebView / Chrome 更新。 |
-| HarmonyOS | 下载 `ZViewer-HarmonyOS-2.1.10-release.hap`，按设备支持的开发者安装/调试流程安装；可通过 DevEco Studio 或已连接设备的 HDC 安装。此 HAP 不是应用商店分发包。 | 工程最低 SDK `6.1.0(23)`，目标 SDK 26；本机发布 Profile 和设备授权限制以安装结果为准。 |
-| iOS | 当前下载为 `ZViewer-iOS-2.1.10-31-unsigned.ipa`。需用自己的证书及设备授权工具签名后侧载；内置Release JS，无需Expo Go、Metro或开发电脑。 | iOS / iPadOS 16.4 起，iPhone / iPad；签名有效期与安装设备资格由自己的签名方式决定。 |
+- **Android / HarmonyOS：内网连接更可靠。** 修复地址检测成功却无法登录的问题，以及自动模式开启证书例外后误报 502。只填写 `IP:端口` 即可自动识别 HTTP / HTTPS，并完成登录和进房。
+- **iOS：一起听播放更顺畅。** 修复 B站歌曲切换、拖动进度后卡住，以及关联视频反复暂停追赶的问题；视频按原比例完整显示，比例不同时留黑边。
+- **iOS：房间控制更方便。** 新建房间默认开启“自动通过播放控制申请”，一起看和一起听均可在房间设置中关闭。它与“加入房间是否需要审批”是两项独立设置。
+- **三端继续对齐服务端 v4.7.4。** 保留已有的播放设置、来源解析、片单、B站账号与语音能力；具体功能由服务端配置、账号权限和设备能力决定。
 
-三端首次启动的操作相同：
+Android / HarmonyOS 本次安装包沿用 10 月 22 日发布的 220 构建；iOS build 31 于 10 月 23 日补充到同一 Release。iOS build 30 已收到用户“测试通过”的反馈，build 31 在相同播放与房间逻辑上统一版本号并重新构建。各场景的验证范围见 [安卓/鸿蒙连接记录](docs/lan-connection-fix-20261022.md) 和 [iOS 开发与验收记录](docs/ios-macos-development-status.md)。
 
-1. 准备可访问的 ZViewer 服务端。Android/HarmonyOS 可填写纯 `IP:端口` 并使用自动模式，或填写完整 HTTP/HTTPS 地址；iOS 使用完整地址。自签名 HTTPS 需在 Android/HarmonyOS 勾选当前服务器的证书例外。
-2. 使用服务端账号登录；服务器允许游客时可选择游客身份。
-3. 从大厅进入房间，按提示输入密码或等待房主审批；有创建权限时可新建房间。
-4. 在房间中使用一起看、一起听或接收桌面端投屏；添加媒体、控制播放和管理成员按服务端角色/房主权限开放。
+## 第一次连接
 
-推荐使用 HTTPS；三端允许局域网 HTTP。三端支持针对所选服务器的证书例外通道，不全局关闭TLS校验。iOS第28包连接页的“允许服务器使用不受信任的证书”默认关闭，按规范origin保存；开启仅映射该NAS请求，独立语音 / CDN仍走系统严格验证，可撤销并断开。第16轮Simulator的23项合成原生传输检查通过，不等于真机或实际媒体解码通过。反向代理需要允许客户端来源的 API 与 Socket.IO 连接。
+1. 准备一个可访问的 ZViewer 服务端地址。Android / HarmonyOS 可输入 `IP:端口` 并选择自动模式，也可填写完整 HTTP / HTTPS 地址；iOS 请填写完整地址。
+2. 如果自己的 HTTPS 服务器使用自签名证书，在连接页允许该服务器使用不受信任的证书。此选项默认关闭，只对选定服务器生效。
+3. 使用服务端账号登录；服务端允许游客时，也可以选择游客登录。
+4. 在大厅加入房间，或在拥有权限时创建房间。有密码或入房审批的房间需要按提示完成准入。
+5. 进入房间后选择一起看、一起听或投屏。添加媒体、控制播放和管理成员仍由房主身份与服务端权限决定。
 
-Android 正式包名为 `com.zviewer.mobile`，调试包为 `com.zviewer.mobile.debug`。Android/HarmonyOS 沿用既有发布签名；其他人自行构建或使用不同签名的安装包不保证可以覆盖安装。iOS 更新时需沿用适当的个人签名身份。需要卸载时请先保存服务器地址和设置，卸载会清除应用本地数据。
+建议使用 HTTPS。局域网 HTTP 也受支持；使用反向代理时，需要让 API 和 Socket.IO 连接正常通过。
 
-## 三端房间操作
+## 可以做什么
 
-| 操作 | Android / HarmonyOS | iOS |
-| --- | --- | --- |
-| 房间信息、成员与设置 | 点右上角房间按钮；房主在此切换一起看/一起听，并管理名称、密码、审批、成员和分享。视频下方只保留聊天/片单，音乐头像菜单保留音乐功能。 | 点全局房间设置；模式统一显示“一起看 / 投屏 / 一起听”，房间信息、在线成员、加入条件与审批集中在此。一起看/投屏不再有重复房间设置。 |
-| 添加和选择视频 | 在片单/添加影片中选择 B站、媒体库或其他来源；搜索、分 P、分集、多选/全选与添加按来源提供。 | 在添加影片中选来源；B站、媒体库、目录及番剧使用独立弹窗，可搜索、展开、选择 P/集及批量添加；一起听和关联视频复用同一套 B站选择器。 |
-| 视频全屏与旋转 | 点全屏默认锁定横屏；需要跟随设备时点“打开的锁”解除锁定，与重载视频的圆箭头区分；退出全屏恢复自动旋转。 | iPhone按实际视频尺寸选择全屏方向，可手动解除锁定；iPad填满当前系统窗口且不假报锁向。投屏手动全屏隐藏聊天，退出恢复。 |
-| 聊天和评论 | 视频下方进入聊天；一起听右侧把手展开评论侧栏，点把手收起。 | 一起看在聊天 / 片单主区切换；投屏竖屏下方、横屏右侧显示聊天，手动全屏隐藏。一起听右侧把手打开评论侧栏；歌曲评论仍在播放器内独立弹窗。 |
-| 语音 | 点顶部耳机按钮进入房间语音，首次授予麦克风权限；可以静音/取消静音、收起面板。 | 通过房间语音入口使用 LiveKit，首次授予麦克风权限；按角色权限控制静音与成员。 |
-| 离房 | 使用顶部返回或房间面板的离开入口，确认后停止本机播放。 | 使用房间离开入口，确认后清理本机播放、系统媒体信息和语音会话。 |
+| 功能 | 使用方式 |
+| --- | --- |
+| 一起看 | 从 B站、Emby / Jellyfin、目录、番剧或 CMS 等已配置来源添加视频；按来源提供搜索、分 P、分集和批量添加。房主控制播放，观众按权限操作。 |
+| 一起听 | 选择网易云或 B站歌曲，管理队列、查看歌词和评论、拖动进度；提供顺序循环、按顺序播放、单曲循环和随机播放。账号授权内容需要登录对应音乐账号。 |
+| 投屏与屏幕共享 | 接收网页或桌面端的 WebRTC / OBS 投屏。Android / HarmonyOS 还可在系统授权及设备支持时共享本机屏幕；iOS 当前提供接收功能。 |
+| 房间语音与聊天 | 在房间中打开语音入口，按需授予麦克风权限；支持聊天、成员列表和房间设置。播放控制申请与入房审批分别管理。 |
+| 弹幕与字幕 | 支持弹幕显示、类型过滤及字幕；入口和格式支持因平台不同，iOS 设置中提供字幕 / 弹幕页和在线弹幕管理。 |
+| 外观与横竖屏 | 支持深浅主题、背景和布局设置。视频全屏按实际画面方向适配；iPad 方向与窗口由系统管理。 |
 
-投屏是接收桌面/网页端发起的屏幕共享；手机客户端不提供屏幕采集。观众播放控制按房主审批与服务端权限执行，不因客户端显示按钮而绕过授权。
+媒体内容和来源由使用者及服务端提供。本项目不附带服务端账号、影片或音乐资源；Kazumi 来源需在设置中手动启用。
 
-## 一起听操作
+### 一起听常用操作
 
-1. 进入一起听后选择网易云或哔哩哔哩。网易云可搜索歌曲、导入歌单、浏览“我的”和推荐，登录后使用账号授权内容；B站可搜索/输入视频并选择 P。iOS 的搜索和“我的”采用弹出页，歌单页“搜索音乐”左侧的返回按钮可回到上一级。
-2. 由房主播放或加入歌曲。展开底部播放器可查看封面、完整歌词和进度，拖动进度定位；可打开播放列表和歌曲评论。iOS 打开这些弹窗会保留歌曲全屏页，关闭后回到原播放页。
-3. 点播放顺序图标直接循环切换 **顺序循环 → 按顺序播放 → 单曲循环 → 随机播放**；房主负责切换。按顺序播放到队列末尾会停止，除非当前开启了对应漫游/推荐续播；单曲循环重复当前歌曲。
-4. 在音乐账户/设置里登录、选择音质；iOS设置首项为网易云音质，已移除默认来源选择。首次音量读取服务端默认值，有效本地音量优先；私人漫游和 B站末尾推荐按设置及账号权限工作。
-5. iOS 一起听可返回桌面或锁屏继续播放当前曲，并使用系统播放信息与控件；第26包用户报告真机一起听及原生音乐控件全部正常；未提供型号、OS和时长，第27包尚待用户验证。后台音频继续播放与后台房间业务是不同能力：JS 被系统挂起时，尚无独立原生房间 Socket/自动切歌管线，不保证后台自动跨曲或完整房间同步。
+1. 从音乐面板搜索歌曲、导入歌单或选择 B站视频，加入队列后播放。
+2. 展开底部播放器查看完整歌词和进度；歌曲评论与播放列表可单独打开，关闭后回到播放器。
+3. 点击播放顺序图标，依次切换“顺序循环 → 按顺序播放 → 单曲循环 → 随机播放”。按顺序播放到队列末尾会停止，已开启的推荐续播按其设置处理。
+4. 从音乐账号 / 设置入口登录并调整音质。iOS 的房间评论位于右侧抽屉，歌曲评论在播放器内独立打开。
 
-## 视频来源与移动体验
+### iOS 使用说明
 
-- **B站**：支持关键词、分享链接、分 P、番剧/影视及本机账号授权；Android 内置 Go 代理，HarmonyOS 使用 ArkTS 解析桥，iOS 使用原生 Go/Objective-C 桥与 VLC。账号凭据保存在原生侧，画质按账号、影片与设备能力选择，默认排除 HDR/杜比视界。当前服务端一起听队列接收 BV/CID，PGC 可用于一起看及关联视频。
-- **Emby/Jellyfin**：列表/海报墙、搜索、年份、剧集/季/单集导航、多版本、整季与按顺序批量添加；支持缺图占位和扩展目录。iOS 本轮 Jellyfin 点击播放卡死问题已修复并经用户测试。
-- **片单**：完整标题、搜索、排序、删除/清空与权限控制；房主可开启默认关闭的自动连播，按完整片单播放至末尾。
-- **弹幕/字幕**：连续选集、已添加标记、本地 XML/JSON、文本和 PGS 字幕；字号可调。iOS 支持在线弹幕搜索、显示区域 25%–100% 和固定 / 滚动 / 彩色 / 高级类型过滤，移除手动文件导入及 JSON 编辑。
-- **外观/布局**：深浅/系统主题、全局背景、手机和平板横竖屏、二级面板滚动与返回层级。Kazumi 仍需在设置中手动启用，公告继续排除。
+- B站可选画质同时受账号权限和设备解码能力限制；通过硬件解码探测的设备最高可提供 4K 30fps SDR，HDR、杜比、AV1 和 60fps 当前未开放。模拟器的画质限制更低。
+- 一起听支持当前曲目的后台音频和系统媒体控制。系统长时间挂起 App 后的自动切歌、房间同步及后台恢复仍受限制，不能保证所有设备与网络场景都连续运行。
+- 模拟器、自动检查和安装包检查各有验证范围，具体记录及尚待验收的场景见 [iOS 维护文档](docs/ios-maintenance-architecture.md)。
 
-## iOS 1.9.0 界面与操作更新
+## 获取源码
 
-播放设置仅保留字幕 / 弹幕页，移除音轨选择；四类弹幕可独立显示或屏蔽。iPhone方向按钮切换锁向并可解除，进入全屏按实际视频尺寸选择方向、退出恢复自动；iPad方向由系统窗口管理。投屏提供全屏、刷新、暂停接收与内嵌聊天。房间面板集中展示模式、状态、分享、在线成员与审批；房间语音补充音量与成员状态。网易云导航和头像菜单互斥，采用不透明背景，“音乐设置”统一从头像进入。
+当前完整三端源码以 [main 分支](https://github.com/Zero-wyc/ZViewerAPP/tree/main) 为准，可直接 [下载 main 源码 ZIP](https://github.com/Zero-wyc/ZViewerAPP/archive/refs/heads/main.zip)。
 
-源码维护边界、构建流程与验证范围见 [iOS 维护文档](docs/ios-maintenance-architecture.md)；发行资产见 [iOS 1.9.0 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v1.9.0)。
+`client-v2.1.10` 标签保留 Android / HarmonyOS 最初发布时的快照，因此 Release 底部自动生成的标签源码压缩包不包含后来补齐的 iOS 修复。继续开发三端时请使用 main；无需另行下载手工打包的 Source Code 附件。
 
-## 本地开发与检查
+## 本地开发
 
-使用 Node.js 24 和 npm；Android 原生构建还需要 Go 1.26.8、JDK 21、Android SDK Platform / Build Tools 36 和 NDK r30。HarmonyOS 使用 DevEco Studio 及对应 SDK，详见 [开发指南](CONTRIBUTING.md) 和平台维护文档。
+使用 Node.js 24 和 npm。先在仓库根目录安装依赖：
 
 ```sh
 npm ci
 npm run dev -- --host 127.0.0.1
+```
+
+共享前端检查：
+
+```sh
 npm run test:adaptation
 npm run test:media
 npm run build
 ```
 
-浏览器调试需要自己的 ZViewer 服务端。共享适配、媒体回归和原生验收边界见 [Android](docs/android-maintenance-architecture.md)、[HarmonyOS](docs/harmonyos-maintenance-architecture.md) 和 [iOS](docs/ios-maintenance-architecture.md) 维护文档。
-
-### Android 构建
-
-配置 `JAVA_HOME`、`ANDROID_HOME`（或本机 `ZV-Android/local.properties`）与 `ANDROID_NDK_HOME`，确保 Go 和 Node 在 PATH：
+Android 原生构建需要 JDK、Android SDK / NDK 和 Go，版本要求见 [Android 维护文档](docs/android-maintenance-architecture.md)。生成网页资源并同步宿主后构建：
 
 ```powershell
 npm run android:sync
@@ -106,47 +96,36 @@ cd ZV-Android
 .\gradlew.bat assembleDebug
 ```
 
-Gradle 自动从 `native/bilicore/` 构建 AAR，输出 `ZV-Android/app/build/outputs/apk/debug/app-debug.apk`；macOS/Linux 使用 `sh gradlew assembleDebug`。
+HarmonyOS 先运行 `npm run harmony:web`，再用 DevEco Studio 打开 `ZV-HarmonyOS/`，配置本机 SDK、设备授权和签名后构建。不要手改自动生成的网页资源，详见 [HarmonyOS 维护文档](docs/harmonyos-maintenance-architecture.md)。
 
-正式签名包需要在当前构建进程注入：
-
-| 变量 | 内容 |
-| --- | --- |
-| `ZVIEWER_KEYSTORE` | 仓库外发布密钥库的绝对路径 |
-| `ZVIEWER_STORE_PASSWORD` | 密钥库密码 |
-| `ZVIEWER_KEY_ALIAS` | 签名别名 |
-| `ZVIEWER_KEY_PASSWORD` | 密钥密码 |
-
-随后运行 `assembleRelease`，输出 `ZV-Android/app/build/outputs/apk/release/app-release.apk`。缺少签名配置时构建失败；发布前使用 `apksigner verify` 并记录 SHA-256。不要提交密钥、密码、SDK 本地配置或登录令牌。
-
-### HarmonyOS 构建
+iOS 需要在子目录单独安装依赖：
 
 ```sh
-npm run harmony:web
+cd ZV-iOS
+npm ci
+npm run check
+npm start
 ```
 
-随后在 DevEco Studio 打开 `ZV-HarmonyOS/`，配置本机 SDK 与签名并构建 HAP。网页资源由脚本同步至 `entry/src/main/resources/rawfile/web/`，不手改生成文件。发布私钥和 Profile 不包含在公开源码中，详见 [HarmonyOS 维护文档](docs/harmonyos-maintenance-architecture.md)。
+`npm run check` 包含 VLC 补丁、lint、TypeScript 和回归测试；完整原生测试需要 macOS / Xcode，Windows 缺少 `xcrun` 时无法执行其中的 Swift 测试。Expo Go / Web 可用于预览界面，VLC、Go、LiveKit 等自定义原生能力需要原生 App。IPA 构建在 macOS 上按 [iOS 维护流程](docs/ios-maintenance-architecture.md)另行安排。
 
-## 代码与维护边界
+正式签名需要自己的密钥、证书及授权材料。不要将密码、Cookie、令牌、签名文件或本机 SDK 配置提交到仓库。安装包的 SHA-256 在构建结束时计算一次，发布时复用对应校验文件。
+
+## 代码与维护入口
 
 | 路径 | 用途 |
 | --- | --- |
-| `src/App.tsx`、`src/mobile/` | 连接、登录、大厅和移动房间布局 |
-| `src/upstream/` | 从 ZViewer 导入并适配的共享业务 |
-| `src/platform/` | Capacitor / ArkWeb 原生能力契约与适配器 |
-| `ZV-Android/`、`native/bilicore/` | Android 宿主与内置 Go 播放代理 |
-| `ZV-HarmonyOS/` | ArkTS / ArkWeb 原生宿主 |
-| `ZV-iOS/` | 独立 Expo / React Native / VLC 工程 |
-| `scripts/` | 构建、资源同步与回归检查 |
-| `public/`、`vendor/mediabunny/` | 静态资源与媒体库本地补丁 |
-| `docs/` | Android、HarmonyOS、iOS 三端维护架构文档 |
+| `src/mobile/`、`src/upstream/`、`src/platform/` | Android / HarmonyOS 的界面、共享业务和原生能力适配 |
+| `ZV-Android/`、`native/bilicore/` | Android 原生宿主与共享 Go 解析核心 |
+| `ZV-HarmonyOS/` | HarmonyOS ArkTS / ArkWeb 宿主 |
+| `ZV-iOS/` | 独立 Expo / React Native / VLC 客户端 |
+| `scripts/`、`docs/` | 构建、资源同步、回归测试与维护记录 |
+| `public/`、`vendor/` | 静态资源、媒体库及其本地补丁 |
 
-共享业务通过 `src/platform/` 访问原生能力，不直接依赖 Capacitor 或 ArkTS。HarmonyOS 使用 `zviewerNative` 桥；iOS 独立移植业务和能力。Android/HarmonyOS 保留移动评论侧栏；iOS第27包使用一起听右侧评论抽屉、投屏横竖屏内嵌聊天及播放器内独立歌曲评论弹窗。桌面式修饰键快捷唤出不移植，公告继续排除。
-
-维护入口：[Android](docs/android-maintenance-architecture.md) · [HarmonyOS](docs/harmonyos-maintenance-architecture.md) · [iOS](docs/ios-maintenance-architecture.md) · [跨平台移植](PORTING.md)。`scripts/import-core.mjs` 为维护用上游导入工具，普通安装、构建和测试无需运行；更新媒体库时保留 [本地补丁](vendor/mediabunny/LOCAL-PATCHES.md)。历史变更见 [CHANGELOG](CHANGELOG.md) 和 [GitHub Releases](https://github.com/Zero-wyc/ZViewerAPP/releases)。
+维护文档：[Android](docs/android-maintenance-architecture.md) · [HarmonyOS](docs/harmonyos-maintenance-architecture.md) · [iOS](docs/ios-maintenance-architecture.md) · [跨平台移植](PORTING.md) · [贡献指南](CONTRIBUTING.md)。
 
 ## 致谢与许可
 
 原项目由 **Zero-wyc** 开发，本项目保留原作者署名与 [MIT 许可证](UPSTREAM-LICENSE)，感谢原作者提供播放器、同步、音乐与语音等基础功能。
 
-第三方组件遵循各自许可证；`vendor/mediabunny` 保留 MPL-2.0 声明和本地修改记录，详见 [第三方说明](THIRD-PARTY-NOTICES.md)。本项目不附带服务端账号、影片或音乐资源。
+第三方组件遵循各自许可证；`vendor/mediabunny` 保留 MPL-2.0 声明和 [本地修改记录](vendor/mediabunny/LOCAL-PATCHES.md)，详见 [第三方说明](THIRD-PARTY-NOTICES.md)。

@@ -26,7 +26,7 @@ const panelCode = ts.transpileModule(readFileSync(new URL('../src/components/Mus
 // Mount the real component's callbacks/effects with inert UI elements. The real
 // VLC controller, media adapter, FM session and queue code remain in the loop.
 // Native rendering, network replies and time are explicit ports in these tests.
-async function mountPanel({ host = false, trackKey = 'ncm:420', playMode = 'sequence', request, upsertWait, restoreReply, hostOnline, sourceResolver, canQueue = host } = {}) {
+async function mountPanel({ host = false, autoApprove = false, trackKey = 'ncm:420', playMode = 'sequence', request, upsertWait, restoreReply, hostOnline, sourceResolver, canQueue = host } = {}) {
   const initial = { trackKey, trackSongId: trackKey.startsWith('ncm:') ? Number(trackKey.slice(4)) : null, isPlaying: false, positionSec: 0, playMode, updatedAt: 10_000 };
   let queue = trackKey.startsWith('ncm:') ? [song(initial.trackSongId)] : [{ ...song(0), biliBvid: trackKey.split(':')[1], biliCid: Number(trackKey.split(':')[2]) }];
   const effects = [], cleanups = [], sent = [], timers = [], renders = [], listeners = new Map();
@@ -84,7 +84,7 @@ async function mountPanel({ host = false, trackKey = 'ncm:420', playMode = 'sequ
     Date: class extends Date { static now() { return clock; } },
     setInterval: callback => { timers.push(callback); return callback; }, clearInterval: noop, setTimeout, clearTimeout,
   });
-  const tree = exports.MusicPanel({ roomId: 'room', host, onExpandedLandscape: noop, switchMode: noop });
+  const tree = exports.MusicPanel({ roomId: 'room', host, autoApprove, onExpandedLandscape: noop, switchMode: noop });
   const findLibrary = node => {
     if (!node || typeof node !== 'object') return null;
     if (node.props?.play && node.props?.add) return node.props;
@@ -113,6 +113,21 @@ async function mountPanel({ host = false, trackKey = 'ncm:420', playMode = 'sequ
     dispose: () => { for (const cleanup of cleanups.reverse()) cleanup(); fm.dispose(); player.dispose(); },
   };
 }
+
+test('host auto approval applies a room control before acknowledging it; disabled, foreign room and viewer requests stay unapproved', async () => {
+  for (const [host, autoApprove, roomId, expected] of [[true, true, 'room', true], [true, false, 'room', false], [false, true, 'room', false], [true, true, 'other', false]]) {
+    const panel = await mountPanel({ host, autoApprove });
+    try {
+      panel.sent.length = 0;
+      panel.receive('music:control-request', { roomId, from: 'viewer', action: 'play' });
+      await tick();
+      const sync = panel.sent.findIndex(item => item.event === 'music:sync-state' && item.payload.isPlaying);
+      const response = panel.sent.findIndex(item => item.event === 'music:control-response' && item.payload.approved);
+      if (expected) { assert(sync >= 0 && response > sync); assert.equal(panel.sent[response].payload.from, 'viewer'); }
+      else assert.equal(response, -1);
+    } finally { panel.dispose(); }
+  }
+});
 
 test('Netease playback acknowledgement matches VLC absolute identity for relative server media', () => {
   const source = { sourceUrl: '/api/music/stream?songId=42&level=lossless&roomId=room', sourceType: 'url' };

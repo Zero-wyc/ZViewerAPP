@@ -138,6 +138,13 @@ export async function resolveInputBili(url: string, server: string, token: strin
   if (resolved.epId || resolved.seasonId) throw new Error('此番剧需要在本机登录有播放权限的 B站账号');
   return { ...media, title: media.title || selection.url, currentQn: media.currentQn || policy.qn || 64, sessionVersion: 0 };
 }
+// VLC's MP4 streaming demuxer can stop its clock after seeking Bili fMP4.
+// Keep the music audio and its muted video on the bundled avformat demuxer;
+// watch playback and adaptive sources retain their existing demux selection.
+function biliMusicOptions(format: PlaybackSource['format']): string[] {
+  return format === 'audio' ? ['demux=avformat']
+    : format === 'muted-video' ? ['demux=avformat', 'no-audio'] : [];
+}
 export async function playbackSource(source: PlaybackSource, server: string, token: string, signal?: AbortSignal): Promise<NativeVideoSource> {
   if (source.sourceType !== 'bilibili') {
     if (['anime', 'kazumi', 'cms'].includes(source.sourceType || '')) source = await resolveAggregateSource(source, async <T,>(path: string, init?: RequestInit) => fetchLimited(`${server.replace(/\/+$/, '')}${path}`, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } }, 45000, async response => {
@@ -160,7 +167,7 @@ export async function playbackSource(source: PlaybackSource, server: string, tok
   if (status?.ready && status.loggedIn) {
     const media = await resolveLocalBili(source.sourceUrl, `${server}:${source.movieId ?? 'music'}:${source.cid ?? 0}`, policy);
     if (signal?.aborted) throw new Error('播放任务已取消');
-    const track = (uri: string): NativeVideoSource => ({ uri, identity: source.sourceUrl, headers: {}, serverApi: false, options: ['network-caching=1500'], contentType: 'progressive', slaves: [] });
+    const track = (uri: string): NativeVideoSource => ({ uri, identity: source.sourceUrl, headers: {}, serverApi: false, options: ['network-caching=1500', ...biliMusicOptions(source.format)], contentType: 'progressive', slaves: [] });
     const video = source.format === 'audio' ? track(media.audioUrl || media.videoUrl) : track(media.videoUrl);
     if (media.audioUrl && source.format !== 'audio' && source.format !== 'muted-video') video.slaves = [track(media.audioUrl)];
     reportPlaybackSource(source.sourceUrl, media, 'local-cli', video); return video;
@@ -169,6 +176,7 @@ export async function playbackSource(source: PlaybackSource, server: string, tok
   if (signal?.aborted) throw new Error('播放任务已取消');
   if (isUnverifiedBiliHdr(media)) throw new Error('当前 HDR / 杜比档位尚未通过本机验证，请选择 SDR 画质');
   const video = { ...nativeVideoSource(serverBiliSource(source, media), server, token), identity: source.sourceUrl };
+  video.options.push(...biliMusicOptions(source.format));
   reportPlaybackSource(source.sourceUrl, media, 'server', video); return video;
 }
 

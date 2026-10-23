@@ -1,6 +1,10 @@
 # HarmonyOS 客户端维护文档
 
-更新日期：2026-10-22。本文与同目录的 Android、iOS 维护文档采用统一命名 `平台-maintenance-architecture.md`。
+## 2026-10-23 三端发行说明与源码同步
+
+Android / HarmonyOS 继续使用 2.1.10 / 220 的原发布安装包；本次只补齐 iOS 2.1.10 / build31 源码与维护资料，不修改双端程序或重新构建。三端共用现有 `client-v2.1.10` Release，完整源码从 main 获取，原标签保留双端最初发布时的快照。当前版本与下载方式见 [README](../README.md) 和 [2.1.10 发行说明](releases/client-2.1.10.md)。
+
+更新日期：2026-10-23。本文与同目录的 Android、iOS 维护文档采用统一命名 `平台-maintenance-architecture.md`。
 
 ## 当前状态与范围
 

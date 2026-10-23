@@ -1,6 +1,8 @@
 # ZViewer iOS
 
-`ZV-iOS/` 是独立的 Expo SDK 57 / React Native 0.86 客户端，使用 Expo Router、VLCKit、LiveKit 与项目自有原生模块；它不通过 Capacitor 加载根目录客户端。当前发布版本为 **2.1.10 / build 31**，修复一起听 B站流式定位停钟、持久音乐替换解码参数，保留完整画面并默认开启房间自动通过；合并发布到 `client-v2.1.10` Release。对应设备 Release IPA 未签名，安装前需使用个人证书和设备授权侧载；IPA 内置生产 JS，不依赖 Metro。网页 root 房主展开播放器与 iPad Simulator 观众的切歌、定位和中途入房已复验，用户已反馈 build30 测试通过；build31 仅统一版本元数据后重新构建和离线验包，不扩大到其他未逐项验收场景。
+`ZV-iOS/` 是独立的 Expo SDK 57 / React Native 0.86 客户端，使用 Expo Router、VLCKit、LiveKit 与项目自有原生模块。当前版本为 **2.1.10 / build 31**，可在 [2.1.10 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.10) 下载未签名 IPA；需要自行签名后侧载，最低 iOS / iPadOS 16.4，安装后无需 Metro 或开发电脑。
+
+本版修复一起听 B站切歌、拖动进度后卡住和关联视频反复暂停的问题，视频按原比例完整显示；新建房间默认自动通过播放控制申请，可在设置中关闭。build 30 已收到用户“测试通过”的反馈，build 31 在相同逻辑上统一版本号并重新构建。完整三端源码请使用 main；Windows 源码同步与检查范围见 [同步记录](../docs/ios-windows-source-sync-20261023.md)。
 
 本版主要更新播放器栏与字幕/弹幕设置、方向切换、投屏全屏/刷新/聊天、房间设置和 LiveKit 音量操作。媒体内核仍为 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 实例；投屏只接收 WebRTC 画面，不采集屏幕。维护入口、模块边界、运行限制和故障定位见 [iOS 维护文档](../docs/ios-maintenance-architecture.md)。
 
@@ -9,10 +11,11 @@
 ```sh
 npm ci
 npm run check
+node scripts/stage-native-core.cjs --verify-only
 npm start
 ```
 
-`npm run check` 运行原生来源及 VLC 补丁检查、lint、TypeScript 和 `tests/*.test.mjs`。普通界面改动先用 Expo Go 或 Expo Web 预览；这些环境没有项目的 VLC、Go、LiveKit、Keychain 和 Swift 模块，结果只代表 JS/UI 流程。关闭开发服务后，确认 Expo 使用的 8081 端口已释放。
+`npm run check` 运行 VLC 补丁检查、lint、TypeScript 和 `tests/*.test.mjs`；`stage-native-core.cjs --verify-only` 单独核对共享 Go 来源。完整原生测试需要 macOS / Xcode，Windows 缺少 `xcrun` 时不能执行其中的 Swift 测试。普通界面改动先用 Expo Go 或 Expo Web 预览；这些环境没有项目的 VLC、Go、LiveKit、Keychain 和 Swift 模块，结果只代表 JS/UI 流程。关闭开发服务后，确认 Expo 使用的 8081 端口已释放。
 
 ## 原生工程与 IPA
 

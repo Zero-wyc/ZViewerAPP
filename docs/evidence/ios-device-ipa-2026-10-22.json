@@ -103,7 +103,7 @@
   "configuration": "Release",
   "sdk": "iphoneos",
   "unsignedRequestedByUser": true,
-  "deliveredPath": "/Users/chuzu/Downloads/ZViewer-ios/deliverables/ZViewer-1.9.0-26-20261022-unsigned.ipa",
+  "deliveredPath": "deliverables/ZViewer-1.9.0-26-20261022-unsigned.ipa",
   "nativeDebugEntryPointsAbsent": true,
   "knownCredentialLiteralHits": 0,
   "hermesBundleSha256": "8ca10f3bd6eb6effa6647c8f15b1a9b9a7b8fd6851468a45746d14b116024a00",

@@ -1,12 +1,20 @@
 # macOS iOS 开发与验收记录
 
-日期：2026-10-22。开发仓库为本文件所在 ZViewer-client；需求、交接和界面参考位于上一级目录。本记录覆盖本轮本地开发及 NAS 联调，不能据此认定全部交付验收完成。按用户要求已停止重复投屏测试，后续逐项检查见 [01 / 03 / 05 验收清单](ios-acceptance-checklist.md)；材料一致性、计数边界与剩余优先级见[交付审计](evidence/ios-simulator-2026-10-22/acceptance-audit.md)。
+日期：2026-10-23。开发仓库为本文件所在 ZViewer-client；需求、交接和界面参考位于上一级目录。本记录覆盖本轮本地开发及 NAS 联调，不能据此认定全部交付验收完成。按用户要求已停止重复投屏测试，后续逐项检查见 [01 / 03 / 05 验收清单](ios-acceptance-checklist.md)；材料一致性、计数边界与剩余优先级见[交付审计](evidence/ios-simulator-2026-10-22/acceptance-audit.md)。
 
-最新为 **Simulator Debug19 / iOS 1.9.0 build28** 与 device ARM64 Release，补丁、lint、TypeScript 和 **421 / 421** 自动检查通过。最新包 49,284,918B，离线 Hermes 6,626,589B；[离线验包](evidence/ios-device-ipa-28-2026-10-22.json)确认 device IOS2、无签名 / profile、CRC、native / debug / 已知私密字面量检查通过。
+当前发布源码为 **iOS 2.1.10 build31**。用户已反馈第30包“测试通过”；第31包仅统一 iOS / npm / lockfile 版本元数据后重新构建，播放和房间逻辑沿用第30包。源码同步 main，IPA 和独立 SHA 发布到现有 `client-v2.1.10` Release；原 Android / HarmonyOS 附件和 tag 保留。第31包详见[离线验包](evidence/ios-device-ipa-31-2026-10-23.json)。
+
+第30包本轮已重建 Simulator 原生 Debug，实际测试更新后的 NAS 房间：网页 root 房主保持歌曲展开，iOS 观众展开及纯净视频中完成 A→B→A 切歌、中段定位、暂停恢复和中途重新入房。补丁、lint、TypeScript 和 **433 / 433** 自动检查通过。详细边界见 [build30 一起听复验](evidence/ios-listen-build30-2026-10-23.json)。2026-10-23 用户反馈测试通过；未提供具体物理设备 OS、测试时长与逐项清单，不扩大该反馈范围。
+
+已构建并交付未签名 device ARM64 Release build30：49,315,846B、离线 Hermes 6,631,097B，SHA256 `3cc0acbfcb0fabd64eb7994f9c2ba60b687ba18c65671d2a8f37d503746158db`（复用构建时唯一一次计算）。[离线验包](evidence/ios-device-ipa-30-2026-10-23.json)通过设备平台、CRC、原生功能、debug 排除及已知私密字面量检查；未公开发布。
+
+build30 对默认 VLC MP4 流式 demux 的 B站 AAC 定位停钟使用内置 `avformat` 路径修复，仅作用于一起听 B站音视频；保留真实时钟确认，不用 ACK 或请求位置冒充成功。持久音乐替换补齐 Simulator 解码策略，VLCKit 固定 a25。创建房间“自动通过”默认开启，一起听控制申请成功执行后才回执。第29包的卡顿修复不完整，以下记录只保留历史，不作本轮交付结论。
+
+第29包修复一起听 B站视频每次进度回调重复 play/pause、偏差超过1秒即反复暂停定位的问题；采用音频确认时钟、普通偏差平滑倍速校正、显式跳转及大偏差冷却，播放中的渐进式静音视频保持连续原生定位。可选视频禁用音频解码，并按 `contain` 显示完整帧，纯净视频留黑边。34项专项和431项总测试通过；新 Swift 逻辑已在device Release实际编译，生产Hermes包含新同步代码。真机持续播放、音画同步、横竖完整画面及前后台恢复待用户安装第29包验收；未新增Simulator app构建。
 
 [本轮 CLI 与画质实测](evidence/bili-cli-build28-2026-10-22.json)：新进程从 Keychain 恢复扫码登录，自动 / 360P / 480P / 720P 原生解析成功；真实 UI 480P→720P 显示 QN32→64，画面及进度从1:02推进至2:34。1080P在Simulator按策略拒绝，保留720P与播放进度，未误报登录。真机改为逐 codec / 横竖尺寸硬件关键帧解码探测，探测通过才开放最高4K30的AVC / HEVC SDR；第三代iPad Pro真机持续播放、音画同步尚未验收。
 
-本轮按授权将源码同步 main，iOS build28 IPA及独立SHA追加到现有 `client-v2.1.10` Release，保留原Android / HarmonyOS包与tag；下文Debug16及更早构建计数、失败和待验项均为历史阶段记录，不作最新包全项通过结论。
+前轮按授权将源码同步 main，iOS build28 IPA及独立SHA追加到现有 `client-v2.1.10` Release，保留原Android / HarmonyOS包与tag；第29包仅本地交付。下文Debug16及更早构建计数、失败和待验项均为历史阶段记录，不作最新包全项通过结论。
 
 [Debug16反馈专项](evidence/ios-simulator-2026-10-22/feedback-build16.md)及20–27图记录phone实际UI：投屏横屏聊天在右侧、竖屏下方，手动全屏隐藏再恢复草稿；音乐设置首项网易云音质，房间评论右侧抽屉横竖屏及键盘避让，实际发送后关闭 / 重开保留；More竖屏在按钮下方，横屏底部不足时按真实内容高度贴按钮上方8pt。iPad另已实见连接页证书默认off及portrait系统窗口More按钮下方（[26](evidence/ios-simulator-2026-10-22/26-ipad-server-certificate.png) / [27](evidence/ios-simulator-2026-10-22/27-ipad-watch-more-below.png)）；RotateLeft attempt后实际窗口仍portrait，不算横屏通过，所有宽度和609项未全部通过。
 
@@ -23,7 +31,7 @@ B站自动弹幕与来源隔离23项专项通过，实际NAS P1 / P2素材取得
 历史第12包失败保留崩溃事实：[crash](evidence/ios-simulator-2026-10-22/music-background-build12-crash.json)及[观察](evidence/ios-simulator-2026-10-22/music-background-build12-observation.json)确认自然切NCM仅opening后，PID92636于19:12:55.1079 SIGABRT，栈为`swift_abortRetainUnowned → MediaPlayer.destroyPlayer → LibVlcPlayerView.deinit`；AppSwitcher重开为新PID93622，不能记同进程恢复。后续销毁修复有实际Swift正 / 负对照，第14包已完成上述同PID后台跨曲与恢复，未再重现本次崩溃；这不是所有生命周期和物理设备场景通过。第10包历史Home / Lock正向也只证明其原时段。
 
 
-前轮设备包见[第27包IPA证据](evidence/ios-device-ipa-27-2026-10-22.json)：应用1.9.0(27)、`com.zviewer.mobile`、最低iOS16.4、iPhone / iPad，已交付[未签名IPA](/Users/chuzu/Downloads/ZViewer-ios/deliverables/ZViewer-1.9.0-27-20261022-unsigned.ipa)。49,276,344B，SHA256 `50d2fefce399827831e52cf20a6c4a0ca077e02f71f085a1efc031c3804c6671`，离线Hermes6,622,435B；device arm64 / IOS2、无签名及profile，native / debug / 已知私密字面量检查通过。真机安装与功能待用户验证。旧[第26包证据](evidence/ios-device-ipa-2026-10-22.json)、49,248,343B / Hermes6,589,210B及原IPA保留，不覆盖；该包用户报告真机一起听与原生音乐控件正常，仅为所述用户反馈，未扩大为agent全项物理设备验收。
+前轮设备包见[第27包IPA证据](evidence/ios-device-ipa-27-2026-10-22.json)：应用1.9.0(27)、`com.zviewer.mobile`、最低iOS16.4、iPhone / iPad，已交付[未签名IPA](evidence/ios-device-ipa-27-2026-10-22.json)。49,276,344B，SHA256 `50d2fefce399827831e52cf20a6c4a0ca077e02f71f085a1efc031c3804c6671`，离线Hermes6,622,435B；device arm64 / IOS2、无签名及profile，native / debug / 已知私密字面量检查通过。真机安装与功能待用户验证。旧[第26包证据](evidence/ios-device-ipa-2026-10-22.json)、49,248,343B / Hermes6,589,210B及原IPA保留，不覆盖；该包用户报告真机一起听与原生音乐控件正常，仅为所述用户反馈，未扩大为agent全项物理设备验收。
 
 ## 当前收口进度与阶段实测
 

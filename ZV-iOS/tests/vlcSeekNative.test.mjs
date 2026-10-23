@@ -102,7 +102,7 @@ final class Input {
   }
 }
 final class Probe {
-  var mediaPlayer: Input?; var autoplay = false; var backgroundAudio = true; var zviewerRevision = 1
+  var mediaPlayer: Input?; var autoplay = false; var backgroundAudio = true; var zviewerBackgroundDecoration = false; var zviewerRevision = 1
   var zviewerSeekSequence = 0; var zviewerSeeking = false
   var zviewerPreciseVideoSeek = false; var zviewerFrameSequence = 0
   var zviewerSeekCompletion: ((Double?) -> Void)?
@@ -185,6 +185,18 @@ func wait(_ seconds: Double) {
     probe.seek(55000) { _ in }
     probe.pause(); wait(0.15)
     precondition(replacement.state == .paused && replacement.pauses == 1 && !probe.zviewerSeeking && replacement.plays == 1)
+    // Muted Bili video must follow a moving audio clock through the same
+    // continuous path, instead of pausing two seconds for each correction.
+    let decoration = Input(); decoration.state = .playing; decoration.canPause = true
+    probe.mediaPlayer = decoration; probe.backgroundAudio = false; probe.zviewerBackgroundDecoration = true; probe.autoplay = true
+    var videoDone = false
+    probe.seek(60000) { actual in precondition(actual != nil && actual! > 60000); videoDone = true }
+    wait(0.5)
+    precondition(videoDone && decoration.jumps == 1 && decoration.pauses == 0 && decoration.plays == 0)
+    decoration.advances = false; var videoCancelled = false
+    probe.seek(70000) { actual in precondition(actual == 70000); videoCancelled = true }
+    probe.pause(); wait(0.15)
+    precondition(videoCancelled && decoration.state == .paused && decoration.pauses == 1 && !probe.zviewerSeeking)
     print("Opening intent, moving audio clock, cancellation and latest pause verified")
   }
 }`;
@@ -222,7 +234,7 @@ final class Input {
   }
 }
 final class Probe {
-  var mediaPlayer: Input?; var autoplay = false; var backgroundAudio = false; var zviewerRevision = 1
+  var mediaPlayer: Input?; var autoplay = false; var backgroundAudio = false; var zviewerBackgroundDecoration = false; var zviewerRevision = 1
   var zviewerSeekSequence = 0; var zviewerSeeking = false
   var zviewerPreciseVideoSeek = false; var zviewerFrameSequence = 0
   var zviewerSeekCompletion: ((Double?) -> Void)?
@@ -277,7 +289,7 @@ final class Input {
   }
 }
 final class Probe {
-  var mediaPlayer: Input?; var autoplay = false; var backgroundAudio = false; var zviewerRevision = 1
+  var mediaPlayer: Input?; var autoplay = false; var backgroundAudio = false; var zviewerBackgroundDecoration = false; var zviewerRevision = 1
   var zviewerSeekSequence = 0; var zviewerSeeking = false
   var zviewerPreciseVideoSeek = true; var zviewerFrameSequence = 0
   var zviewerSeekCompletion: ((Double?) -> Void)?

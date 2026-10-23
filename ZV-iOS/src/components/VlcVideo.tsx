@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react'
 import { Platform, type StyleProp, type ViewStyle } from 'react-native';
 import { isDevice } from 'expo-device';
 import type { LibVlcPlayerViewProps, LibVlcPlayerViewRef } from 'expo-libvlc-player';
-import { VlcPlayer, vlcEventRevision, type VlcSnapshot } from '@/lib/vlcPlayer';
+import { VlcPlayer, vlcEventRevision, type VlcSnapshot, type VlcViewPort } from '@/lib/vlcPlayer';
 import { readPreference } from '@/lib/preferences';
 import { connectionUrl } from '@/lib/connectionTransport';
 
@@ -12,6 +12,10 @@ import { connectionUrl } from '@/lib/connectionTransport';
 const VlcView: ComponentType<LibVlcPlayerViewProps & { backgroundAudio?: boolean }> | null = Platform.OS === 'ios' && requireOptionalNativeModule('ExpoLibVlcPlayer')
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- native capability detection must precede package loading.
   ? require('expo-libvlc-player').LibVlcPlayerView : null;
+
+function nativeOptions(options: string[]) {
+  return __DEV__ && !isDevice ? [...options, 'codec=avcodec', 'avcodec-threads=1'] : options;
+}
 
 export function useVlcVideo(silent = false, persistent = false) {
   const [snapshot, setSnapshot] = useState<VlcSnapshot | null>(null);
@@ -31,9 +35,17 @@ function VlcSurface({ player, snapshot, style, background, backgroundAudio }: { 
   const ref = useRef<LibVlcPlayerViewRef | null>(null);
   // Native options changes recreate VLC. Keep this array stable across clock,
   // seek and autoplay renders; Simulator VideoToolbox can produce blank frames.
-  const options = useMemo(() => __DEV__ && !isDevice ? [...snapshot.source.options, 'codec=avcodec', 'avcodec-threads=1'] : snapshot.source.options, [snapshot.source.options]);
+  const options = useMemo(() => nativeOptions(snapshot.source.options), [snapshot.source.options]);
   useEffect(() => {
-    player.attach(snapshot.id, ref.current as LibVlcPlayerViewRef & { replaceSource?(uri: string, options: string[], revision: number): Promise<void> }, true);
+    const view = ref.current as (LibVlcPlayerViewRef & Pick<VlcViewPort, 'replaceSource'>) | null;
+    // Persistent music switches bypass React props. Apply the same decoder
+    // options to those replacements as to the initial mounted input.
+    player.attach(snapshot.id, view && {
+      play: () => view.play(), pause: () => view.pause(), stop: () => view.stop(),
+      seek: (time, type) => view.seek(time, type),
+      replaceSource: view.replaceSource ? (uri, args, revision) => view.replaceSource!(uri, nativeOptions(args), revision) : undefined,
+      startPictureInPicture: () => view.startPictureInPicture(),
+    }, true);
     return () => player.attach(snapshot.id, null);
   }, [player, snapshot.id]);
   if (!VlcView) return null;
@@ -51,7 +63,7 @@ function VlcSurface({ player, snapshot, style, background, backgroundAudio }: { 
     pictureInPicture={isDevice && !background && !backgroundAudio}
     backgroundAudio={backgroundAudio}
     rate={snapshot.rate}
-    contentFit={background ? 'cover' : 'contain'}
+    contentFit="contain"
     audioMixingMode={background ? 'mixWithOthers' : 'doNotMix'}
     onFirstPlay={event => { const revision = vlcEventRevision(event, snapshot.id); player.videoSize(revision, event.video.width, event.video.height); player.loaded(revision, event.media.length); }}
     onTimeChanged={event => { const revision = vlcEventRevision(event, snapshot.id); const size = event as typeof event & { width?: number; height?: number; length?: number }; player.videoSize(revision, size.width || 0, size.height || 0); player.durationChanged(revision, size.length || 0); player.progress(revision, event.value); }}

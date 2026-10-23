@@ -1,6 +1,6 @@
 # 用户反馈修订与第16轮原生验收
 
-2026-10-22。源码在完整 check20（补丁、lint、TypeScript、409 / 409项）后冻结，仅将设备 build 元数据从26递增为27。第16次 Simulator Debug 构建成功，已安装并运行于 iPhone17Pro / iOS26.5及 iPadPro11M5 / iPadOS26.5。第二次 device ARM64 Release 生成[未签名IPA27](/Users/chuzu/Downloads/ZViewer-ios/deliverables/ZViewer-1.9.0-27-20261022-unsigned.ipa)；实际交付路径和检查以[设备证据](../ios-device-ipa-27-2026-10-22.json)为准。旧26包字节及摘要保持不变，没有 EAS、公开发布或 NAS 配置变更。
+2026-10-22。源码在完整 check20（补丁、lint、TypeScript、409 / 409项）后冻结，仅将设备 build 元数据从26递增为27。第16次 Simulator Debug 构建成功，已安装并运行于 iPhone17Pro / iOS26.5及 iPadPro11M5 / iPadOS26.5。第二次 device ARM64 Release 生成[未签名IPA27](../ios-device-ipa-27-2026-10-22.json)；实际交付路径和检查以[设备证据](../ios-device-ipa-27-2026-10-22.json)为准。旧26包字节及摘要保持不变，没有 EAS、公开发布或 NAS 配置变更。
 
 ## 用户真机反馈
 
@@ -20,7 +20,7 @@
 
 ## B站原生验收的未定位阻塞
 
-公开素材为BV19E411D78Q：P1 CID1475633911实际NAS弹幕接口1200条，P2 CID1475635389为2623条。独立testroot账号测试房准备三个影片：P1、P2和公共MP4，未改用户其他房间。
+公开素材为BV19E411D78Q：P1 CID1475633911实际NAS弹幕接口1200条，P2 CID1475635389为2623条。独立test-operator账号测试房准备三个影片：P1、P2和公共MP4，未改用户其他房间。
 
 phone测试房的REST及Node注册房主后Socket列表均包含数字ID75、76、77。原生真实UI发出的 `play-movie` 已记录为正确roomId及数字75；收到相应ACK `{success:false,message:"影片不存在"}`。Node注册同房后，标准数字75播放ACK成功且收到current-movie75。没有靠字符串重试或重复添加影片规避。此对照只证明两条实际路径表现不同，未定位成缓存、权限、cookie或具体服务端缺陷。
 

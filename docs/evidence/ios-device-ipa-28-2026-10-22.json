@@ -122,7 +122,7 @@
   "knownCredentialLiteralHits": 0,
   "knownPrivateLiteralVariantsChecked": 22,
   "knownSecretScanScope": "Every uncompressed IPA entry; UTF-8 and UTF-16LE literals from the local NAS credential/session fixtures only. Not a universal unknown-secret detector.",
-  "deliveredPath": "/Users/chuzu/Downloads/ZViewer-ios/deliverables/ZViewer-iOS-1.9.0-28-unsigned.ipa",
+  "deliveredPath": "deliverables/ZViewer-iOS-1.9.0-28-unsigned.ipa",
   "bytes": 49284918,
   "sha256": "d0f65fd17efee9144d39ac458b79ad21a6611c7dfda5f42ee4583d00c1b36e20",
   "configuration": "Release",

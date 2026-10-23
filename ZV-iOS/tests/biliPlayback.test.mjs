@@ -28,7 +28,29 @@ test('production Bili playback resolves split DASH to VLC slaves and audio-only 
   assert.equal(video.uri, media.videoUrl); assert.equal(video.slaves[0].uri, media.audioUrl); assert.deepEqual(video.headers, {});
   const audio = await playbackSource({ ...source, format: 'audio' }, 'https://site.invalid/prefix', 'secret');
   assert.equal(audio.uri, media.audioUrl); assert.deepEqual(audio.slaves, []);
+  assert(audio.options.includes('demux=avformat'));
+  assert(!video.options.includes('demux=avformat'), 'watch playback keeps its demux selection');
   assert(!JSON.stringify(video).includes('secret'));
+});
+test('muted music video disables audio decoding for local DASH and server muxed MP4', async () => {
+  const source = { sourceType: 'bilibili', sourceUrl: 'BV1xx411c7mD', format: 'muted-video' };
+  bridge(() => media);
+  const local = await playbackSource(source, 'https://site.invalid', 'fixture');
+  assert.equal(local.uri, media.videoUrl); assert.deepEqual(local.slaves, []); assert(local.options.includes('no-audio'));
+  assert(local.options.includes('demux=avformat'));
+  const audio = await playbackSource({ ...source, format: 'audio' }, 'https://site.invalid', 'fixture');
+  assert(!audio.options.includes('no-audio'), 'the primary room audio must remain enabled');
+  resetBiliPlayback(); operation = async () => ({ ...status, loggedIn: false });
+  const oldFetch = globalThis.fetch;
+  globalThis.fetch = async url => url.includes('public-settings') ? new Response(JSON.stringify({ settings: { dashDisabled: true } })) : new Response(JSON.stringify({ success: true, videoUrl: 'https://cdn.bilivideo.com/muxed.mp4', format: 'mp4' }));
+  try {
+    const server = await playbackSource(source, 'https://site.invalid', 'fixture');
+    assert(server.options.includes('no-audio')); assert.deepEqual(server.slaves, []);
+    assert(server.options.includes('demux=avformat'));
+    const serverAudio = await playbackSource({ ...source, format: 'audio' }, 'https://site.invalid', 'fixture');
+    assert(serverAudio.options.includes('demux=avformat'));
+    assert(!serverAudio.options.includes('no-audio'));
+  } finally { globalThis.fetch = oldFetch; }
 });
 test('explicit second P uses its CID and season selection carries the matching episode', async () => {
   bridge(options => ({ ...media, pages: [{ page: 1, cid: 1001, epId: 101, part: '1' }, { page: 2, cid: 1002, epId: 102, part: '2' }] }));
