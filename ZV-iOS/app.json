@@ -2,14 +2,14 @@
   "expo": {
     "name": "ZViewer",
     "slug": "zviewer-ios",
-    "version": "1.9.0",
+    "version": "2.1.10",
     "orientation": "default",
     "icon": "./assets/images/zviewer-icon.png",
     "scheme": "zviewer",
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.zviewer.mobile",
-      "buildNumber": "28",
+      "buildNumber": "31",
       "supportsTablet": true,
       "icon": "./assets/images/zviewer-icon.png",
       "infoPlist": {

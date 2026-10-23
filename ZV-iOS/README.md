@@ -1,6 +1,6 @@
 # ZViewer iOS
 
-`ZV-iOS/` 是独立的 Expo SDK 57 / React Native 0.86 客户端，使用 Expo Router、VLCKit、LiveKit 与项目自有原生模块；它不通过 Capacitor 加载根目录客户端。当前版本为 **1.9.0 / build 26**，发布标签为 [`ios-v1.9.0`](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/ios-v1.9.0)。对应设备 Release IPA 未签名，安装前需使用个人证书和设备授权侧载；IPA 内置生产 JS，不依赖 Metro。
+`ZV-iOS/` 是独立的 Expo SDK 57 / React Native 0.86 客户端，使用 Expo Router、VLCKit、LiveKit 与项目自有原生模块；它不通过 Capacitor 加载根目录客户端。当前发布版本为 **2.1.10 / build 31**，修复一起听 B站流式定位停钟、持久音乐替换解码参数，保留完整画面并默认开启房间自动通过；合并发布到 `client-v2.1.10` Release。对应设备 Release IPA 未签名，安装前需使用个人证书和设备授权侧载；IPA 内置生产 JS，不依赖 Metro。网页 root 房主展开播放器与 iPad Simulator 观众的切歌、定位和中途入房已复验，用户已反馈 build30 测试通过；build31 仅统一版本元数据后重新构建和离线验包，不扩大到其他未逐项验收场景。
 
 本版主要更新播放器栏与字幕/弹幕设置、方向切换、投屏全屏/刷新/聊天、房间设置和 LiveKit 音量操作。媒体内核仍为 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 实例；投屏只接收 WebRTC 画面，不采集屏幕。维护入口、模块边界、运行限制和故障定位见 [iOS 维护文档](../docs/ios-maintenance-architecture.md)。
 
