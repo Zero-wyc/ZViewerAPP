@@ -88,10 +88,33 @@ export function getVideoFullscreenLandscape(video?: { videoWidth: number; videoH
   return !video || video.videoWidth <= 0 || video.videoHeight <= 0 || video.videoWidth >= video.videoHeight
 }
 
-export function setPlayerFullscreen(enabled: boolean, isLandscape = true): Promise<void> {
+function queueDisplayTransition(apply: () => Promise<void>): Promise<void> {
   const revision = ++fullscreenRevision
   const transition = fullscreenQueue.then(async () => {
     if (revision !== fullscreenRevision) return
+    await apply()
+  })
+  fullscreenQueue = transition.catch(() => {})
+  return transition
+}
+
+/** Hide only system bars; a stale owner must not restore over a newer player. */
+export function acquirePlayerImmersive(): { ready: Promise<void>; release: () => Promise<void> } {
+  const ready = queueDisplayTransition(() => playerDisplay.setImmersive(true))
+  const revision = fullscreenRevision
+  let released = false
+  return {
+    ready,
+    release() {
+      if (released || revision !== fullscreenRevision) return Promise.resolve()
+      released = true
+      return queueDisplayTransition(() => playerDisplay.setImmersive(false))
+    },
+  }
+}
+
+export function setPlayerFullscreen(enabled: boolean, isLandscape = true): Promise<void> {
+  return queueDisplayTransition(async () => {
     const operations = [playerDisplay.setImmersive(enabled)]
     const platform = getRuntimePlatform()
     if (!enabled) operations.push(playerDisplay.unlockOrientation())
@@ -102,8 +125,6 @@ export function setPlayerFullscreen(enabled: boolean, isLandscape = true): Promi
     const failed = results.find(result => result.status === 'rejected')
     if (failed?.status === 'rejected') throw failed.reason
   })
-  fullscreenQueue = transition.catch(() => {})
-  return transition
 }
 
 export async function restorePlayerDisplay(): Promise<void> {

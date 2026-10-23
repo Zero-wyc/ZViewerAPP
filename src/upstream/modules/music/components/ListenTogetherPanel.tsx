@@ -588,11 +588,16 @@ function ListenTogetherInner({
   // 无歌词时若仍按开关值隐藏播放卡，而歌词面板又因 lyricPanelVisible
   // 被卸载 → 整页空白。故播放卡的显隐也跟随本值（无歌词自动回到播放卡）
   const mobileLyricViewActive = mobileLyricView && lyricPanelVisible
+  const toggleMobileCommentPanel = () => {
+    setRightPanelMode((v) => (v === 0 ? 1 : 0))
+    setMobileLyricView(true)
+  }
 
   return (
     <div
       className="music-player-panel relative flex h-full min-w-0 flex-col overflow-hidden"
       data-music-immersive={immersive}
+      data-player-ui-tone={uiTone}
       // 提示条黑底 alpha 跟随滑块（zen-notice-bar 内 calc 引用）；
       // --lt-ui-blur 为冰霜层模糊半径（设置：UI 模糊浓度）；
       // 文字系变量局部引用到 --lt-glass-*（按「含玻璃层的有效背景」判定
@@ -836,6 +841,18 @@ function ListenTogetherInner({
                 进度-三键-音量控制区）：整块已抽为 PlayerCardFace（分层原理
                 与 38d19ec 指针遮挡回归注释见该组件头） */}
             <PlayerCardFace
+              canLike={canLike}
+              liked={liked}
+              onLike={handleLike}
+              canComment={canComment}
+              rightPanelMode={rightPanelMode}
+              commentBadge={commentBadge}
+              onToggleCommentPanel={toggleMobileCommentPanel}
+              isHost={isHost}
+              playMode={playMode}
+              onTogglePlayMode={handleTogglePlayMode}
+              queuePopupOpen={queuePopupOpen && queuePopupOwner === 'player'}
+              onToggleQueuePopup={() => toggleQueuePopup('player')}
               uiTone={uiTone}
               uiFade={uiFade}
               isPortraitMobile={isPortraitMobile}
@@ -873,6 +890,7 @@ function ListenTogetherInner({
               整块已抽为 PlayerMobileToolbarRow） ===== */}
           {isPortraitMobile && (
             <PlayerMobileToolbarRow
+              showPlaybackActions={mobileLyricViewActive}
               toolbarTone={toolbarTone}
               mobileLyricViewActive={mobileLyricViewActive}
               onToggleMobileLyricView={() => setMobileLyricView((v) => !v)}
@@ -893,10 +911,7 @@ function ListenTogetherInner({
               canComment={canComment}
               rightPanelMode={rightPanelMode}
               commentBadge={commentBadge}
-              onToggleCommentPanel={() => {
-                setRightPanelMode((v) => (v === 0 ? 1 : 0))
-                setMobileLyricView(true)
-              }}
+              onToggleCommentPanel={toggleMobileCommentPanel}
               songId={songId}
               onAddMusicVideo={() => setShowMusicVideo(true)}
               getBiliSourceUrl={buildBiliSourceUrl}

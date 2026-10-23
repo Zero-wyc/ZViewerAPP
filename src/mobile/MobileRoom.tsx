@@ -15,6 +15,7 @@ import { useRoomModeSwitch } from '@/modules/room/components/useRoomModeSwitch'
 import { CommentPanel } from '@/components/CommentPanel'
 import { MusicAppShell } from '@/modules/music/components/MusicAppShell'
 import { MusicPlayerProvider } from '@/modules/music/MusicPlayerContext'
+import { useMusicStore } from '@/modules/music/store'
 import WebrtcWatchPage from '@/modules/screen-sharing/components/WebrtcWatchPage'
 import StreamPushViewer from '@/modules/screen-sharing/components/StreamPushViewer'
 import { useStreamStatus } from '@/modules/screen-sharing/hooks/useStreamStatus'
@@ -115,6 +116,11 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
       else if (settingsOpen) setSettingsOpen(false)
       else if (voiceOpen) setVoiceOpen(false)
       else if (leaveOpen) setLeaveOpen(false)
+      else if (useRoomStore.getState().mode === 'listen-together' && useMusicStore.getState().playerOverlayOpen) {
+        // Expanded music owns the screen; Back returns to the room before leaving.
+        const music = useMusicStore.getState()
+        if (!music.playerOverlayClosing) music.closePlayerOverlay()
+      }
       else setLeaveOpen(true)
     }
     window.addEventListener('mobile-room-back', back)

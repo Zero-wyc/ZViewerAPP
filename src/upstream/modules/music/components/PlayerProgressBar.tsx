@@ -92,7 +92,7 @@ export function PlayerProgressBar({
 
   return (
     <>
-      <div className="flex items-center justify-between text-[max(1.5vh,11px)] font-bold tabular-nums text-[var(--md-sys-color-on-surface)]">
+      <div className="music-player-progress-times flex items-center justify-between text-[max(1.5vh,11px)] font-bold tabular-nums text-[var(--md-sys-color-on-surface)]">
         <span>{formatDuration(progressDisplaySec)}</span>
         <span>{formatDuration(durationSec)}</span>
       </div>

@@ -26,7 +26,9 @@
  * 禁触屏滚动。
  */
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
-import { Music } from 'lucide-react'
+import { Music, Repeat, Repeat1, Shuffle, ListOrdered, MessageCircle } from 'lucide-react'
+import type { PlayMode } from '../types'
+import { PLAY_MODE_META } from '../constants'
 import { cn } from '@/lib/utils'
 import { OverflowMarquee } from './OverflowMarquee'
 import { AudioVisualizer } from './AudioVisualizer'
@@ -36,6 +38,8 @@ import {
   ControlPauseIcon,
   ControlPlayIcon,
   ControlPrevIcon,
+  LikeFilledIcon,
+  LikeOutlineIcon,
 } from './PlayerControlIcons'
 import { CARD_TINT, type PlayerUiTone } from '../utils/playerTone'
 
@@ -61,6 +65,18 @@ export interface PlayerCardFaceProps {
   onPrev: () => void
   onPlayPause: () => void
   onNext: () => void
+  isHost: boolean
+  playMode: PlayMode
+  onTogglePlayMode: () => void
+  queuePopupOpen: boolean
+  onToggleQueuePopup: () => void
+  canLike: boolean
+  liked: boolean
+  onLike: () => void
+  canComment: boolean
+  rightPanelMode: 0 | 1
+  commentBadge: string
+  onToggleCommentPanel: () => void
   canControl: boolean
   isPlaying: boolean
   durationSec: number
@@ -94,6 +110,18 @@ export function PlayerCardFace({
   onPrev,
   onPlayPause,
   onNext,
+  isHost,
+  playMode,
+  onTogglePlayMode,
+  queuePopupOpen,
+  onToggleQueuePopup,
+  canLike,
+  liked,
+  onLike,
+  canComment,
+  rightPanelMode,
+  commentBadge,
+  onToggleCommentPanel,
   canControl,
   isPlaying,
   durationSec,
@@ -108,6 +136,7 @@ export function PlayerCardFace({
   volumeTrackRef,
   onVolumePointerDown,
 }: PlayerCardFaceProps) {
+  const ModeIcon = playMode === 'repeat-one' ? Repeat1 : playMode === 'shuffle' ? Shuffle : playMode === 'order' ? ListOrdered : Repeat
   return (
     <div className="music-player-card-face relative flex h-full min-h-0 w-full flex-col overflow-hidden">
       <div
@@ -122,7 +151,7 @@ export function PlayerCardFace({
           （分层原理见组件头注释）；浅色 UI = 白玻璃、深色 UI = 黑玻璃 */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
+        className="music-player-card-tint pointer-events-none absolute inset-0"
         style={{
           backgroundColor: isPortraitMobile
             ? CARD_TINT[uiTone].portrait
@@ -137,7 +166,7 @@ export function PlayerCardFace({
             工具栏继续占据卡片外独立的高度，避免被底部裁切。 */}
         <div
           className="music-player-artwork-region relative p-[max(1.5vh,10px)]"
-          style={{ maxHeight: isPortraitMobile ? 'min(34dvh, 320px)' : '38vh' }}
+          style={isPortraitMobile ? undefined : { maxHeight: '38vh' }}
         >
           <div
             className="music-player-artwork relative overflow-hidden"
@@ -178,14 +207,14 @@ export function PlayerCardFace({
           {/* 歌名行（Hydrogen .info-music:first-child：pb 1.2vh + overflow 隐藏；
             双击加入播放队列——网易云歌弹顶部提示/确认） */}
           <div
-            className="relative min-w-0 overflow-hidden pb-[max(1.2vh,7px)]"
+            className="music-player-song-heading relative min-w-0 overflow-hidden pb-[max(1.2vh,7px)]"
             onDoubleClick={onSongNameDoubleClick}
             title="双击添加到播放队列"
           >
             <div className={cn('min-w-0', songSwitching && 'opacity-0')}>
               <OverflowMarquee
                 text={songName}
-                className="pl-[max(1.5vh,10px)] text-[max(2.4vh,15px)] font-bold leading-[max(2.9vh,20px)] text-[var(--md-sys-color-on-surface)]"
+                className="music-player-song-title pl-[max(1.5vh,10px)] text-[max(2.4vh,15px)] font-bold leading-[max(2.9vh,20px)] text-[var(--md-sys-color-on-surface)]"
               />
             </div>
             {/* 黑色滑块：默认藏在左侧（露 5px 竖条，Hydrogen music-name-lable
@@ -205,7 +234,7 @@ export function PlayerCardFace({
             套 4px 中心点 rgb(105,105,105)；文本 10px 左距 10px）。
             横屏矮窗口（isLandscapeShort）：迷你三键收纳到行尾右端——
             高度不足时下方独立三键行取消，控件区不再臃肿 */}
-          <div className="relative flex min-w-0 items-center">
+          <div className="music-player-artist-row relative flex min-w-0 items-center">
             <span
               className="pointer-events-none absolute -left-[2px] top-[1px] block h-2 w-2 shrink-0"
               style={{ border: '0.5px solid rgb(105, 105, 105)' }}
@@ -263,6 +292,18 @@ export function PlayerCardFace({
               </div>
             )}
           </div>
+          {isPortraitMobile && <div className="music-player-song-actions">
+            {canLike && <button type="button" onClick={() => void onLike()}
+              aria-label={liked ? '取消喜欢' : '喜欢'} title={liked ? '取消喜欢' : '喜欢这首歌'}
+              style={{ color: liked ? 'var(--md-sys-color-error)' : 'var(--md-sys-color-on-surface)' }}>
+              {liked ? <LikeFilledIcon className="h-6 w-6" /> : <LikeOutlineIcon className="h-6 w-6" />}
+            </button>}
+            {canComment && <button type="button" onClick={onToggleCommentPanel}
+              aria-label="切换歌词/评论区" title={rightPanelMode === 1 ? '查看歌词' : '查看评论'}>
+              <MessageCircle className="h-6 w-6" strokeWidth={1.6} />
+              {commentBadge !== '0' && <span className="music-player-comment-count">{commentBadge}</span>}
+            </button>}
+          </div>}
         </div>
 
         {/* 控制区（Hydrogen .player-control：进度 / 三键 / 音量 纵向分布；
@@ -292,12 +333,19 @@ export function PlayerCardFace({
             )}
           </div>
 
-          {/* 三键控制（5vh，原版线条式 SVG：< 形箭头 / 描边三角 / 双竖线；
-            active 缩放 0.9；max(5vh,36px) 保底触屏可点）。
+          {/* 主控制：竖屏按模式 / 上一首 / 播放暂停 / 下一首 / 队列排列，
+            使用实心播放图标，主题色突出中央主按钮。
             横屏矮窗口时隐藏——三键已收纳到歌手行右端（见上方
             isLandscapeShort 分支），避免控件区纵向臃肿 */}
           {!isLandscapeShort && (
             <div className="music-player-transport-row flex shrink-0 items-center justify-evenly">
+              {isPortraitMobile && (isHost ? (
+                <button type="button" className="music-player-transport music-player-mode flex items-center justify-center"
+                  onClick={onTogglePlayMode} aria-label={`播放模式：${PLAY_MODE_META[playMode].label}`}
+                  title={`${PLAY_MODE_META[playMode].label}（点击${PLAY_MODE_META[playMode].next}）`}>
+                  <ModeIcon className="h-6 w-6" strokeWidth={1.6} />
+                </button>
+              ) : <span aria-hidden="true" className="music-player-mode" />)}
               <button
                 type="button"
                 className="music-player-transport flex h-[max(5vh,36px)] w-[max(5vh,36px)] items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity hover:opacity-70 active:scale-90"
@@ -337,6 +385,16 @@ export function PlayerCardFace({
               >
                 <ControlNextIcon className="h-[max(5vh,36px)] w-[max(5vh,36px)]" />
               </button>
+              {isPortraitMobile && (
+                <button type="button" className="music-player-transport music-player-queue flex items-center justify-center"
+                  onClick={onToggleQueuePopup} aria-label="切换播放队列" aria-expanded={queuePopupOpen}
+                  title={queuePopupOpen ? '收起播放队列' : '播放队列'}>
+                  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                    <path d="M11 6h10M3 12h18M3 18h18" strokeLinecap="round" />
+                    <path d="m3 3 5 3-5 3Z" fill="currentColor" stroke="none" />
+                  </svg>
+                </button>
+              )}
             </div>
           )}
 
@@ -366,7 +424,7 @@ export function PlayerCardFace({
                 />
               </div>
               <div className="mt-[max(1vh,6px)] flex items-center justify-between text-[max(1.5vh,11px)] font-bold text-[var(--md-sys-color-on-surface)]">
-                <span className="tracking-widest">VOLUME</span>
+                <span className="tracking-widest">音量</span>
                 <span className="tabular-nums">{Math.round(volume * 100)}</span>
               </div>
             </div>

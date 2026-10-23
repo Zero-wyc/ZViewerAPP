@@ -36,6 +36,7 @@ import { MusicSettingsPage } from '../pages/MusicSettingsPage'
 import { useNcmLogin } from '../hooks/useNcmLogin'
 import { useCliAgent } from '@/hooks/useCliAgent'
 import { useMediaSessionSync } from '../hooks/useMediaSession'
+import { useMusicOverlayImmersive } from '../../../../mobile/useMusicOverlayImmersive'
 import '../music-ui.css'
 
 export interface MusicAppShellProps {
@@ -133,6 +134,7 @@ function ShellInner({
 }) {
   const page = useMusicStore((s) => s.page)
   const playerOverlayOpen = useMusicStore((s) => s.playerOverlayOpen)
+  useMusicOverlayImmersive(playerOverlayOpen)
   const playerOverlayClosing = useMusicStore((s) => s.playerOverlayClosing)
   const queuePopupOpen = useMusicStore((s) => s.queuePopupOpen)
   const queuePopupOwner = useMusicStore((s) => s.queuePopupOwner)
@@ -142,9 +144,8 @@ function ShellInner({
   const closePlayerOverlay = useMusicStore((s) => s.closePlayerOverlay)
 
   // ===== 播放器覆盖层右上角收起按钮：触摸显形（3s 后隐藏） =====
-  // 触屏无 hover，原 lt-touch-visible 常显会让按钮常驻压在歌词首行上
-  // （手机横屏歌词页占满时尤其明显）；桌面鼠标悬停右上角区域的
-  // group-hover/hide 显形逻辑保留
+  // 桌面保留触摸/悬停显形；移动客户端的全视口播放器由 music-ui.css
+  // 预留顶部空间并常显收起入口，不与歌词首行重叠。
   const [overlayCloseVisible, setOverlayCloseVisible] = useState(false)
   const overlayCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
@@ -413,8 +414,9 @@ function ShellInner({
           队列弹窗仍相对本容器从播放条上方弹出。打开完整播放器时整条下滑消失
           （Hydrogen .widget-leave：bottom → -70px） ===== */}
       <div
+        data-expanded={playerOverlayOpen}
         className={cn(
-          'fixed left-1/2 z-30 w-[722px] max-w-[calc(100%-2rem)] -translate-x-1/2 transition-[bottom] duration-500 ease-[cubic-bezier(0.14,0.91,0.58,1)]',
+          'music-widget-host fixed left-1/2 z-30 w-[722px] max-w-[calc(100%-2rem)] -translate-x-1/2 transition-[bottom] duration-500 ease-[cubic-bezier(0.14,0.91,0.58,1)]',
           // 手机端：底距收窄贴边 + iOS 安全区（原 35px 悬浮距小屏浪费空间）
           playerOverlayOpen
             ? 'bottom-[-70px]'
@@ -461,6 +463,7 @@ function ShellInner({
               : 'music-player-overlay player-slide-in absolute inset-0 z-40'
           }
         >
+          <div className="music-player-overlay-heading" aria-hidden="true">一起听 · 正在播放</div>
           <ListenTogetherPanel
             socket={socket}
             roomId={roomId}
@@ -468,9 +471,8 @@ function ShellInner({
             username={username}
             canManage={canManage}
           />
-          {/* 右上角收起按钮（滑出动画结束后卸载）：手机上默认完全隐藏
-              （触摸屏幕任意处亮起 3s——触屏无 hover 且常显会压在歌词
-              首行上），桌面保持 hover 区域显形；浅色底板保证黑色视频上的对比度 */}
+          {/* 右上角收起按钮（滑出动画结束后卸载）：移动客户端常显，
+              桌面保持触摸/悬停显形；纯净 MV 使用自己的退出入口。 */}
           <div className="music-player-collapse group/hide absolute right-3 top-3 z-[70] h-16 w-16 max-md:right-2 max-md:top-2">
             <button
               type="button"

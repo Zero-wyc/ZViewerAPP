@@ -59,6 +59,9 @@ import { prefetchUserPlaylists } from '../userPlaylists'
 import { prefetchBiliFavFolders } from '@/modules/bilibili/bilibiliApi'
 import { cn, formatDuration } from '@/lib/utils'
 import { PLAY_MODE_ORDER } from '../constants'
+import { useMusicTrackSwipe } from '../hooks/useMusicTrackSwipe'
+import { useIsMobile } from '@/hooks/useMediaQuery'
+import { isGlobalAppearanceRuntime } from '../../../../platform/runtime'
 
 export function MusicWidgetBar() {
   const {
@@ -329,9 +332,13 @@ export function MusicWidgetBar() {
         : playMode === 'order'
           ? ListEnd
           : Repeat
+  const narrow = useIsMobile()
+  const compactBar = narrow || isGlobalAppearanceRuntime()
+  const swipe = useMusicTrackSwipe(handlePrev, handleNext, compactBar && !!currentSong)
 
   return (
     <div
+      data-compact={compactBar}
       className="music-widget-bar glass-card relative flex h-[65px] items-center"
       style={
         {
@@ -413,11 +420,11 @@ export function MusicWidgetBar() {
       </div>
 
       {/* ===== 左：封面缩略图 + 歌曲信息（Hydrogen .music-info） ===== */}
-      <div className="ml-[17px] flex min-w-0 flex-1 items-center max-md:ml-3">
+      <div className="music-widget-info ml-[17px] flex min-w-0 flex-1 items-center max-md:ml-3">
         {/* 封面：点击打开完整播放器覆盖层；hover 黑色遮罩 + 箭头从底部滑入 */}
         <button
           type="button"
-          disabled={!cover}
+          disabled={!currentSong}
           className={cn(
             'music-widget-cover group/cover relative h-[45px] w-[45px] shrink-0 overflow-hidden border',
             cover ? 'cursor-pointer' : 'cursor-default'
@@ -427,9 +434,9 @@ export function MusicWidgetBar() {
               'color-mix(in srgb, var(--md-sys-color-on-surface) 10%, transparent)',
             backgroundColor: 'var(--md-sys-color-surface-container-high)',
           }}
-          onClick={cover ? () => setPlayerOverlayOpen(true) : undefined}
-          title={cover ? '打开完整播放器' : undefined}
-          aria-label={cover ? '打开完整播放器' : undefined}
+          onClick={currentSong ? () => setPlayerOverlayOpen(true) : undefined}
+          title="打开完整播放器"
+          aria-label="打开完整播放器"
         >
           {cover ? (
             <img src={cover} alt="" className="h-full w-full object-cover" />
@@ -462,7 +469,10 @@ export function MusicWidgetBar() {
         </button>
         {/* 歌名（OverflowMarquee 跑马灯，Hydrogen .music-name 14px bold）+ 歌手；
             手机端自适应宽度（固定 175px 会挤压右侧控制区） */}
-        <div className="ml-2 w-[175px] min-w-0 select-text max-md:w-auto max-md:flex-1 max-md:max-w-[150px]">
+        <div className="music-widget-title-region ml-2 w-[175px] min-w-0 select-text max-md:w-auto max-md:flex-1 max-md:max-w-[150px]"
+          {...swipe} tabIndex={compactBar && currentSong ? 0 : undefined}
+          role={compactBar ? 'group' : undefined}
+          aria-label={compactBar ? `${songName}，左右滑动切换歌曲` : undefined}>
           <OverflowMarquee
             text={songName}
             className="block h-[18px] text-[14px] font-bold leading-[18px] text-[var(--md-sys-color-on-surface)]"
@@ -476,10 +486,10 @@ export function MusicWidgetBar() {
       {/* ===== 右：控制键 + 音量 + 功能图标（Hydrogen .music-right 476px 定宽；
           手机端改自适应：隐藏音量条（手机用系统音量/完整播放器内调节）
           与次要图标，避免定宽溢出小屏） ===== */}
-      <div className="flex w-[476px] max-w-[calc(100%-245px)] shrink-0 items-center max-md:w-auto max-md:max-w-none">
+      <div className="music-widget-actions flex w-[476px] max-w-[calc(100%-245px)] shrink-0 items-center max-md:w-auto max-md:max-w-none">
         {/* music-control（126px）：prev / play-pause / next（线条式 SVG） */}
         <div className="music-widget-controls flex w-[126px] shrink-0 items-center px-[18px] max-md:w-auto max-md:px-1">
-          <button
+          {!compactBar && <button
             type="button"
             className="flex h-6 w-6 items-center justify-center text-[var(--md-sys-color-on-surface)] transition-transform hover:opacity-70 active:scale-90"
             onClick={handlePrev}
@@ -487,7 +497,7 @@ export function MusicWidgetBar() {
             aria-label="上一首"
           >
             <ControlPrevIcon className="h-5 w-5" />
-          </button>
+          </button>}
           <button
             type="button"
             className="music-primary-play mx-[15px] flex h-6 w-6 items-center justify-center transition-transform hover:opacity-70 active:scale-90 max-md:mx-[7px]"
@@ -509,7 +519,7 @@ export function MusicWidgetBar() {
               <ControlPlayIcon className="h-5 w-5" />
             )}
           </button>
-          <button
+          {!compactBar && <button
             type="button"
             className="flex h-6 w-6 items-center justify-center text-[var(--md-sys-color-on-surface)] transition-transform hover:opacity-70 active:scale-90"
             onClick={handleNext}
@@ -517,12 +527,12 @@ export function MusicWidgetBar() {
             aria-label="下一首"
           >
             <ControlNextIcon className="h-5 w-5" />
-          </button>
+          </button>}
         </div>
 
         {/* music-volume（120px）：7px 描边滑条 + 上方 VOLUME 标签与数字；
             手机端隐藏（小屏放不下，音量经系统/完整播放器调节） */}
-        <div className="w-[120px] shrink-0 max-md:hidden">
+        <div className="music-widget-volume w-[120px] shrink-0 max-md:hidden">
           <div className="relative h-[7px]">
             <div
               ref={volumeTrackRef}
@@ -562,7 +572,7 @@ export function MusicWidgetBar() {
 
         {/* music-other（230px，space-evenly）：喜欢 / 加入队列 / 专辑 / 模式 / 队列；
             手机端仅保留喜欢/队列，并给右缘留出呼吸间距（原贴边太挤） */}
-        <div className="flex w-[230px] shrink-0 items-center justify-evenly max-md:w-auto max-md:gap-3 max-md:pr-3.5">
+        <div className="music-widget-other flex w-[230px] shrink-0 items-center justify-evenly max-md:w-auto max-md:gap-3 max-md:pr-3.5">
           {/* 喜欢（描边心 / 红心，NCM 登录且有歌可见） */}
           {canLike && (
             <button

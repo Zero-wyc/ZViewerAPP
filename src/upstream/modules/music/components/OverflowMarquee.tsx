@@ -55,6 +55,9 @@ export function OverflowMarquee({
     const wrap = wrapRef.current
     const ro = new ResizeObserver(measure)
     if (wrap) ro.observe(wrap)
+    // Custom system fonts can finish loading after the initial layout.
+    const firstSpan = innerRef.current?.children[0]
+    if (firstSpan) ro.observe(firstSpan)
     return () => {
       cancelAnimationFrame(raf1)
       cancelAnimationFrame(raf2)

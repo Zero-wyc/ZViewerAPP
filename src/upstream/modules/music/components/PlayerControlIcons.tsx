@@ -1,77 +1,48 @@
 /**
  * 播放器原版 SVG 图标集（Hydrogen Player.vue / MusicWidget.vue 的 path 原样移植）。
  *
- * 与 lucide 近似版的差异：三键控制为「线条式」（< 形箭头 + 描边三角 +
- * 双竖线，stroke 8/200 viewBox）；song-control 的歌词类型切换（罗马音 A /
+ * 播放控制使用实心三角、端点切歌和双竖条；song-control 的歌词类型切换（罗马音 A /
  * 翻译 译字 / 原词 方框T）、喜欢（描边心 ↔ 红心实心 #E5404F）、播放模式
  * 三态均来自 Hydrogen iconfont 的原始 path。颜色统一 currentColor，
  * active/inactive 由父级文字色控制（Hydrogen 原版为 #000 / #8a8a8a）。
  */
 import type { PlayMode } from '../types'
 
-/** 上一首（< 形线条箭头，viewBox 200） */
+/** 上一首：实心三角与起点竖条。 */
 export function ControlPrevIcon({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 200 200" className={className} aria-hidden="true">
-      <path
-        d="M133.56,105.98L66.78,0L0,106 "
-        transform="translate(35.22 44.36) rotate(-90 66.78 53)"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={8}
-      />
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <rect x="5" y="5" width="3" height="14" rx="1" />
+      <path d="M18 5.8a1 1 0 0 0-1.5-.86L8 11.14a1 1 0 0 0 0 1.72l8.5 6.2a1 1 0 0 0 1.5-.86Z" />
     </svg>
   )
 }
 
-/** 下一首（> 形线条箭头，viewBox 200） */
+/** 下一首：实心三角与终点竖条。 */
 export function ControlNextIcon({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 200 200" className={className} aria-hidden="true">
-      <path
-        d="M133.56,105.98L66.78,0L0,106 "
-        transform="translate(35.22 44.36) rotate(90 66.78 53)"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={8}
-      />
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <rect x="16" y="5" width="3" height="14" rx="1" />
+      <path d="M6 5.8a1 1 0 0 1 1.5-.86l8.5 6.2a1 1 0 0 1 0 1.72l-8.5 6.2A1 1 0 0 1 6 18.2Z" />
     </svg>
   )
 }
 
-/** 播放（描边三角 ▷，viewBox 200） */
+/** 播放：实心三角。 */
 export function ControlPlayIcon({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 200 200" className={className} aria-hidden="true">
-      <path
-        d="M11.79,132L164.21,132L88,0L11.79,132Z "
-        transform="translate(0 12) rotate(90 88 88)"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={8}
-      />
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M7 4.7a1.4 1.4 0 0 1 2.1-1.2l11 7.3a1.4 1.4 0 0 1 0 2.4l-11 7.3A1.4 1.4 0 0 1 7 19.3Z" />
     </svg>
   )
 }
 
-/** 暂停（双竖线，viewBox 200） */
+/** 暂停：两条圆角实心竖条。 */
 export function ControlPauseIcon({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 200 200" className={className} aria-hidden="true">
-      <path
-        d="M0,0L0,152 "
-        transform="translate(48 24)"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={8}
-      />
-      <path
-        d="M0,0L0,152 "
-        transform="translate(152 24)"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={8}
-      />
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <rect x="5" y="3" width="5" height="18" rx="1.3" />
+      <rect x="14" y="3" width="5" height="18" rx="1.3" />
     </svg>
   )
 }

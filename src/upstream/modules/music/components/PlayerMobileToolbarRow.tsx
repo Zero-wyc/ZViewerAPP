@@ -8,6 +8,8 @@
  * B站 原视频跳转 / 播放队列（弹窗固定底部 sheet）/ 设置 / UI 深浅色 /
  * 全屏。B站 条目专属的弹幕开关、网易云搜索、收藏红心仅桌面 song-control
  * 提供（竖屏行宽有限，保留高频入口）。
+ * 播放视图中喜欢/评论移到歌名旁，模式/队列移到主控制行；歌词视图
+ * 中由本工具栏接回这些入口，权限与弹窗所有者保持一致。
  */
 import type { Socket } from 'socket.io-client'
 import {
@@ -83,6 +85,8 @@ export interface PlayerMobileToolbarRowProps {
   roomId: string
   /** 队列管理权限（父级已按 canManage ?? isHost 归一） */
   canManage: boolean
+  /** Playback view places mode and queue alongside the main transport controls. */
+  showPlaybackActions?: boolean
 
   // ===== 设置 / UI 深浅色 / 全屏 =====
   onOpenSettings: () => void
@@ -123,6 +127,7 @@ export function PlayerMobileToolbarRow({
   socket,
   roomId,
   canManage,
+  showPlaybackActions = true,
   onOpenSettings,
   uiTone,
   onToggleUiTone,
@@ -204,7 +209,7 @@ export function PlayerMobileToolbarRow({
           <MonitorPlay className="h-5 w-5" />
         </button>
       )}
-      {canLike && (
+      {canLike && showPlaybackActions && (
         <button
           type="button"
           onClick={() => void onLike()}
@@ -224,7 +229,7 @@ export function PlayerMobileToolbarRow({
           )}
         </button>
       )}
-      {isHost && (
+      {isHost && showPlaybackActions && (
         <button
           type="button"
           onClick={onTogglePlayMode}
@@ -239,7 +244,7 @@ export function PlayerMobileToolbarRow({
           与桌面端同语义——歌词视图收起时，查看评论/歌词的意图
           即带出面板，否则 mobileLyricView=false 时面板不渲染，
           手机端永远看不到评论区 */}
-      {canComment && (
+      {canComment && showPlaybackActions && (
         <button
           type="button"
           onClick={onToggleCommentPanel}
@@ -290,7 +295,7 @@ export function PlayerMobileToolbarRow({
       )}
       {/* 播放队列（弹窗固定底部居中弹出；点击展开、
           再次点击同一按钮收回，展开态按钮高亮） */}
-      <button
+      {showPlaybackActions && <button
         type="button"
         onClick={onToggleQueuePopup}
         className={cn(
@@ -304,7 +309,7 @@ export function PlayerMobileToolbarRow({
         aria-expanded={queuePopupOpen}
       >
         <ListMusic className="h-5 w-5" />
-      </button>
+      </button>}
       {queuePopupOpen && (
         <MusicQueuePopup
           socket={socket}
