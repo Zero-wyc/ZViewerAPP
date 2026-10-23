@@ -520,8 +520,8 @@ export default function RoomScreen() {
     ]);
   };
 
-  const [autoApproveSetting, setAutoApproveSetting] = useState({ scope: continuationScope, enabled: false });
-  const autoApproveRequests = autoApproveSetting.scope === continuationScope && autoApproveSetting.enabled;
+  const [autoApproveSetting, setAutoApproveSetting] = useState({ scope: continuationScope, enabled: true });
+  const autoApproveRequests = autoApproveSetting.scope !== continuationScope || autoApproveSetting.enabled;
   const watch = useWatchControl(socket, roomId, host, player, publishNativeState, mode === 'watch-together' && autoApproveRequests);
   const control = watch.control;
   useSystemMedia(player, phase === 'ready' && mode === 'watch-together' && source ? { mediaId: `${roomId}:${source.movieId ?? source.sourceUrl}:${source.cid ?? 0}`, kind: 'video', sourceIdentity: source.sourceUrl.startsWith('/') && session ? `${session.serverUrl}${source.sourceUrl}` : source.sourceUrl, title: movies.find(item => item.id === source.movieId)?.title || roomName, host, actions: ['play', 'pause', 'seek'] } : null, (action, value) => { if (['play', 'pause', 'seek'].includes(action)) control(action as 'play' | 'pause' | 'seek', value); });
@@ -656,7 +656,7 @@ export default function RoomScreen() {
     {phase !== 'ready' && !retainMusicPlayback(joined, mode, phase) ? <View style={styles.join}><ActivityIndicator color="#65d59b" animating={phase === 'joining' || phase === 'connecting' || phase === 'waiting'} /><Text style={styles.title}>{phase === 'password' ? '请输入房间密码' : phase === 'waiting' ? '等待房主批准' : phase === 'closed' ? '房间已关闭' : phase === 'error' ? '无法加入房间' : '正在加入房间'}</Text>{error ? <Text style={styles.error}>{error}</Text> : null}{phase === 'password' ? <><TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholder="房间密码" placeholderTextColor="#a8b3b6" /><Button label="进入房间" disabled={!connected} onPress={() => { passwordRef.current = password; attempted.current = true; void join(hostRef.current); }} /></> : null}{phase === 'error' ? <Button label="重试" disabled={!connected} onPress={() => void join(hostRef.current)} /> : null}<Button label="返回房间列表" onPress={leave} /></View> : <>
       <View testID="room-body" onLayout={event => setBodySize(event.nativeEvent.layout)} style={[roomLayout.body, { gap: stacked ? 0 : 12 }, wide && roomLayout.wide, fullScreen && { gap: 0 }]}>
         <View testID="room-media-frame" onLayout={event => setMediaSize(event.nativeEvent.layout)} style={[roomLayout.mediaFrame, wide && sideVisible && columns.media, stacked && roomLayout.stackedMedia, stacked && { height: playerHeight }]}>
-        {mode === 'listen-together' ? <MusicPanel roomId={roomId} host={host} onExpandedLandscape={setMusicImmersive} /> : <ScrollView ref={mediaColumn} scrollEnabled={!fullScreen} style={roomLayout.mediaScroll} contentContainerStyle={[styles.mediaContent, mode === 'screen-share' && { flexGrow: 1 }, fullScreen && { flexGrow: 1, paddingBottom: 0, gap: 0 }]}>
+        {mode === 'listen-together' ? <MusicPanel roomId={roomId} host={host} autoApprove={autoApproveRequests} onExpandedLandscape={setMusicImmersive} /> : <ScrollView ref={mediaColumn} scrollEnabled={!fullScreen} style={roomLayout.mediaScroll} contentContainerStyle={[styles.mediaContent, mode === 'screen-share' && { flexGrow: 1 }, fullScreen && { flexGrow: 1, paddingBottom: 0, gap: 0 }]}>
           {mode === 'watch-together' ? <View style={[styles.playerBox, { borderRadius: 0 }, !fullScreen && !stacked && { borderRadius: 16 }, fullScreen && { flex: 1, borderRadius: 0, minHeight: 0 }]}>
             <View testID="video-container" onLayout={event => setVideoSize(event.nativeEvent.layout)} style={[styles.videoViewport, fullScreen ? { flex: 1 } : { height: playerHeight }]}>
               {source?.sourceUrl && !playbackError ? <VlcVideo video={video} style={styles.video} /> : <View style={styles.placeholder}>
