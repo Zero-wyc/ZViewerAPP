@@ -681,10 +681,7 @@ export function PlayerLyricPanel({
         )}
       </div>
 
-      {/* 音质角标（Hydrogen .song-quality：1.5vh Bender-Bold 黑字；
-          抬到右下角边框盒上方（框 bottom-1 高 max(1.5vh,9px)，角标
-          bottom max(2.4vh,16px) 恒高于框顶），原 bottom-1 与框同线，
-          横屏矮窗口下文字压框错位；max() 保底横屏矮窗口可读） */}
+      {/* 音质标签留在右下安全间距内，四角定位装饰已移除。 */}
       {qualityLabel && (
         <span
           className="pointer-events-none absolute bottom-[max(2.4vh,16px)] right-[max(2.2vh,12px)] z-[6] text-[max(1.5vh,10px)] leading-none tracking-wide"
@@ -696,31 +693,6 @@ export function PlayerLyricPanel({
           {qualityLabel}
         </span>
       )}
-
-      {/* 四角定位边框装饰（Hydrogen .border border1~4 1:1：
-          1.5vh 方框贴四角，右下角框多一颗中心点；max() 保底矮窗口可见） */}
-      {(
-        [
-          ['top-1 left-1', false],
-          ['top-1 right-1', false],
-          ['bottom-1 right-1', true],
-          ['bottom-1 left-1', false],
-        ] as const
-      ).map(([posClass, withDot]) => (
-        <span
-          key={posClass}
-          aria-hidden="true"
-          className={`pointer-events-none absolute z-[5] h-[max(1.5vh,9px)] w-[max(1.5vh,9px)] ${posClass}`}
-          style={{ border: '1px solid var(--md-sys-color-on-surface)' }}
-        >
-          {withDot && (
-            <span
-              className="absolute left-1/2 top-1/2 block h-[33%] w-[33%] -translate-x-1/2 -translate-y-1/2"
-              style={{ backgroundColor: 'var(--md-sys-color-on-surface)' }}
-            />
-          )}
-        </span>
-      ))}
 
       {/* 歌词行右键偏移菜单（Hydrogen .lyric-line-offset-menu 1:1） */}
       {offsetMenu && onUpdateLineOffset && (

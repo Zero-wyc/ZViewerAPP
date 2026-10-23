@@ -38,7 +38,7 @@ import {
 } from '../hooks/usePlaybackPosition'
 import { Music } from 'lucide-react'
 import type { Socket } from 'socket.io-client'
-import { useIsPortraitMobile, useIsLandscapeShort } from '@/hooks/useMediaQuery'
+import { useMediaQuery, useIsLandscapeShort } from '@/hooks/useMediaQuery'
 import { useMusicVideoBackground } from '../hooks/useMusicVideoBackground'
 import { useQueueAdd, songToUpsertItem } from '../hooks/useQueueAdd'
 import { useMusicStore } from '../store'
@@ -89,7 +89,6 @@ import { useImmersiveMode } from '../hooks/useImmersiveMode'
 import { useMusicVideoGestures } from '../hooks/useMusicVideoGestures'
 import { useSeekLock } from '../hooks/useSeekLock'
 import { usePlayerUiTone } from '../hooks/usePlayerUiTone'
-import { useLandscapeToolbarFlash } from '../hooks/useLandscapeToolbarFlash'
 import { useToolbarScrollable } from '../hooks/useToolbarScrollable'
 import { useFullscreenToggle } from '../hooks/useFullscreenToggle'
 import { isGlobalAppearanceRuntime } from '../../../../platform/runtime'
@@ -189,18 +188,12 @@ function ListenTogetherInner({
   const toggleQueuePopup = useMusicStore((s) => s.toggleQueuePopup)
   const loginStatus = useMusicStore((s) => s.loginStatus)
 
-  // 手机竖屏：完整播放器切上下单列（封面+控制在上、歌词在下）；
-  // 手机横屏仍走双栏（卡片宽由 --lt-card-w clamp 保底）
-  const isPortraitMobile = useIsPortraitMobile()
+  // 完整播放器按方向排版：手机/平板/大窗口竖屏共用单列卡片，横屏双栏。
+  const isPortraitMobile = useMediaQuery('(orientation: portrait)')
   // 横屏矮窗口（手机横屏全屏 / 桌面矮窗口）：桌面布局的固定大 padding
   // 在矮视口下吃掉近 40% 高度，切紧凑间距
   const isLandscapeShort = useIsLandscapeShort()
 
-  // ===== 手机横屏 song-control 工具栏：默认隐藏，触摸屏幕任意处亮起 3s
-  //  （触屏无 hover，常显会常驻压在歌词面板上；桌面矮窗口走 group-hover
-  //  分支不受影响）——整簇已抽为 useLandscapeToolbarFlash =====
-  const { landscapeToolbarVisible, flashLandscapeToolbar } =
-    useLandscapeToolbarFlash(isLandscapeShort)
   // 手机竖屏歌词视图开关（工具行「歌词」按钮切换）：默认关 = 只显示播放卡
   // （卡片撑满剩余高度）；开启 = 隐藏播放卡、歌词区独占整页
   const [mobileLyricView, setMobileLyricView] = useState(false)
@@ -707,7 +700,6 @@ function ListenTogetherInner({
             手机竖屏切上下单列（卡片全宽居上、歌词居下）；桌面/横屏保持两栏，
             卡宽经 --lt-card-w clamp 保底（横屏矮窗口不至于压成细线） ===== */
         <div
-          onPointerDown={isLandscapeShort ? flashLandscapeToolbar : undefined}
           data-player-layout={isPortraitMobile ? 'portrait' : isLandscapeShort ? 'compact-landscape' : 'wide'}
           className={cn(
             'music-player-content relative z-[1] flex h-full min-h-0 items-stretch justify-start',
@@ -717,8 +709,7 @@ function ListenTogetherInner({
               'flex-col justify-start gap-2.5 px-3 pb-[max(12px,env(safe-area-inset-bottom))] pt-16',
             // 横屏矮窗口（手机横屏全屏歌词页）：固定 pt-95px/pb-60px 会吃掉
             // 近 40% 高度——收紧为固定小间距，把空间还给卡片与歌词面板；
-            // song-control 的 50px 专列由播放卡右侧恒定 mr 预留（见卡片
-            // 注释），不依赖本容器 gap（触摸屏幕任意处亮起工具栏 3s）
+            // 工具栏纳入播放卡内部专列，歌词区只占卡片之外的剩余宽度
             isLandscapeShort && 'px-4 pb-5 pt-9',
             immersive && 'invisible'
           )}
@@ -728,9 +719,8 @@ function ListenTogetherInner({
             } as React.CSSProperties
           }
         >
-          {/* ===== 左侧播放卡（Hydrogen .player-container 两层结构）：
-              外层承载入场动画与侧边工具栏（不裁剪，保留工具栏悬出区域）；
-              内层 .player（100%×100% overflow hidden）承载半透明背景与内容。
+          {/* ===== 左侧播放卡：横屏的播放内容与工具栏共用背板和深浅色，
+              内部双列分别滚动，卡外歌词保持独立。
               手机竖屏歌词视图开启时隐藏，歌词关闭时撑满剩余高度；
               key 随视图切换重挂，切回播放视图时重播入场动画 ===== */}
           <div
@@ -748,19 +738,11 @@ function ListenTogetherInner({
                     'w-full max-w-[420px] self-center',
                     mobileLyricViewActive ? 'hidden' : 'flex-1'
                   )
-                : cn(
-                    // 右侧恒定 mr-[50px] = song-control 工具栏专列：无论
-                    // 工具栏显隐，这 50px 都结构化保留空置（工具栏 absolute
-                    // 悬出区恰好落在列内），歌词面板 flex-1 只占剩余宽度，
-                    // 任何模式下都不与歌词文本重叠（旧版依赖面板 ml/gap
-                    // 间接让位，桌面 ml 丢失后整列压在歌词上）
-                    'mr-[50px] w-[var(--lt-card-w)] max-w-[calc(100%-50px-2rem)]'
-                  )
+                : 'music-player-combined-card'
             )}
             style={
               {
-                padding: isPortraitMobile ? '0' : '16px 12px',
-                paddingBottom: isPortraitMobile ? '0' : '4vh',
+                padding: isPortraitMobile ? '0' : undefined,
                 // 播放卡信息层文字（时间/歌手/VOLUME/进度/三键）与卡底 tint
                 // 同源、随播放页 UI 深浅色开关整体翻转：卡底是毛玻璃（tint +
                 // 模糊采样），采样内容亮度不定——文字若按主题 scheme 分支，
@@ -775,12 +757,8 @@ function ListenTogetherInner({
           >
             <PlayerSongControl
               toolbarRef={toolbarRef}
-              flashLandscapeToolbar={flashLandscapeToolbar}
-              isLandscapeShort={isLandscapeShort}
-              landscapeToolbarVisible={landscapeToolbarVisible}
               toolbarScrollable={toolbarScrollable}
               isPortraitMobile={isPortraitMobile}
-              toolbarTone={toolbarTone}
               desktopLyricView={desktopLyricView}
               lyricPanelVisible={lyricPanelVisible}
               onToggleDesktopLyricView={() => setDesktopLyricView((v) => !v)}

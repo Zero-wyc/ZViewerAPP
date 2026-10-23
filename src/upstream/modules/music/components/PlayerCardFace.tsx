@@ -230,26 +230,13 @@ export function PlayerCardFace({
               }}
             />
           </div>
-          {/* 歌手行（Hydrogen .music-author-lable：top1px/left-2px 小方框
-            套 4px 中心点 rgb(105,105,105)；文本 10px 左距 10px）。
-            横屏矮窗口（isLandscapeShort）：迷你三键收纳到行尾右端——
-            高度不足时下方独立三键行取消，控件区不再臃肿 */}
+          {/* 歌手和横屏迷你三键沿同一行居中；长歌手名在剩余宽度内省略。 */}
           <div className="music-player-artist-row relative flex min-w-0 items-center">
-            <span
-              className="pointer-events-none absolute -left-[2px] top-[1px] block h-2 w-2 shrink-0"
-              style={{ border: '0.5px solid rgb(105, 105, 105)' }}
-              aria-hidden="true"
-            >
-              <span
-                className="absolute left-1/2 top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2"
-                style={{ backgroundColor: 'rgb(105, 105, 105)' }}
-              />
-            </span>
-            <span className="ml-[10px] min-w-0 truncate text-[10px] text-[var(--md-sys-color-on-surface-variant)]">
+            <span className="music-player-artist-name min-w-0 truncate text-[10px] text-[var(--md-sys-color-on-surface-variant)]">
               {artist || ' '}
             </span>
             {isLandscapeShort && (
-              <div className="ml-auto flex shrink-0 items-center gap-0.5">
+              <div className="music-player-mini-transport ml-auto flex shrink-0 items-center gap-0.5">
                 <button
                   type="button"
                   className="flex h-[max(3.6vh,28px)] w-[max(3.6vh,28px)] items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity hover:opacity-70 active:scale-90"
@@ -261,7 +248,7 @@ export function PlayerCardFace({
                 </button>
                 <button
                   type="button"
-                  className="flex h-[max(3.6vh,28px)] w-[max(3.6vh,28px)] items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity hover:opacity-70 active:scale-90"
+                  className="music-primary-play flex h-[max(3.6vh,28px)] w-[max(3.6vh,28px)] items-center justify-center transition-opacity hover:opacity-70 active:scale-90"
                   onClick={onPlayPause}
                   title={
                     canControl

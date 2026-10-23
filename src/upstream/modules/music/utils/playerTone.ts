@@ -75,11 +75,13 @@ export const CARD_TONE_VARS = {
     '--md-sys-color-on-surface': '#000000',
     '--md-sys-color-on-surface-variant': '#000000',
     '--md-sys-color-surface-container-high': 'rgba(255, 255, 255, 0.6)',
+    '--lt-tone-inverse': '#ffffff',
   },
   dark: {
     '--md-sys-color-on-surface': '#ffffff',
     '--md-sys-color-on-surface-variant': '#ffffff',
     '--md-sys-color-surface-container-high': 'rgba(255, 255, 255, 0.12)',
+    '--lt-tone-inverse': '#141418',
   },
 } as Record<PlayerUiTone, CSSProperties>
 

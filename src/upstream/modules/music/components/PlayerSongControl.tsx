@@ -1,21 +1,13 @@
 /**
- * song-control 悬浮工具栏（Hydrogen .song-control）：绝对定位悬出播放卡
- * 右侧 50px，落进播放卡恒定 mr-[50px] 预留的专列内——该列无论工具栏显隐
- * 都结构化保留空置，歌词面板永不与其重叠。
- *
- * 显示模式同 Hydrogen——基态 opacity:0 常隐（列空置），鼠标悬停卡片/
- * 工具栏区域时重播「信号灯」闪烁动画并以 both 定格在可见，移开即隐
- * （列恢复空置）。挂载点在播放卡**外层**（内层 overflow-hidden 会裁掉
- * 悬出部分），由 ListenTogetherPanel 的播放卡 JSX 挂载。
+ * 横屏/桌面播放卡内的工具专列，与播放内容共用背板和 UI 深浅色。
+ * 常显且保持原顺序；矮窗口内部滚动，侧挂队列在此时改为 sheet。
  *
  * 图标集为原版 SVG：歌词显隐 / 罗马音 / 翻译开关（歌词三项有对应数据才
  * 显示）+ 纯净模式（背景视频就绪时）+ 喜欢 + 播放模式（房主）+ 播放队列 +
  * 设置 + 播放页 UI 深浅色 + 全屏 + 收起，以及 B站 条目专属的弹幕开关 /
  * 网易云搜索 / 收藏红心 / 添加到收藏夹。
  *
- * 手机竖屏隐藏（卡片全宽后右侧 50px 悬出区会出屏），改为卡片下方的水平
- * 工具行（PlayerMobileToolbarRow）；手机横屏默认隐藏、触摸亮起 3s
- * （useLandscapeToolbarFlash）。
+ * 手机竖屏隐藏，仍使用卡片下方的水平工具行（PlayerMobileToolbarRow）。
  */
 import type { RefObject } from 'react'
 import type { Socket } from 'socket.io-client'
@@ -45,7 +37,7 @@ import {
   RomanLyricIcon,
   TransLyricIcon,
 } from './PlayerControlIcons'
-import { TOOLBAR_TONE_VARS, type PlayerUiTone } from '../utils/playerTone'
+import { CARD_TONE_VARS, type PlayerUiTone } from '../utils/playerTone'
 import { PLAY_MODE_META } from '../constants'
 import { badgeWidth } from '../utils/commentBadge'
 import type { PlayMode } from '../types'
@@ -60,16 +52,10 @@ export interface BiliCollectedMark {
 export interface PlayerSongControlProps {
   /** 容器 ref（useToolbarScrollable 的限高滚动测量目标） */
   toolbarRef: RefObject<HTMLDivElement>
-  /** 指针按下时亮起横屏工具栏（手机横屏触摸 3s 显隐） */
-  flashLandscapeToolbar: () => void
-  isLandscapeShort: boolean
-  landscapeToolbarVisible: boolean
   /** 限高滚动激活（overflow-y-auto；队列弹窗随之切 fixed sheet） */
   toolbarScrollable: boolean
-  /** 手机竖屏整列隐藏（卡片全宽后 50px 悬出区会出屏） */
+  /** 手机竖屏整列隐藏，改用水平工具行 */
   isPortraitMobile: boolean
-  /** 工具栏色调（跟随主题深浅，不跟播放页 UI 开关） */
-  toolbarTone: PlayerUiTone
 
   // ===== 歌词三开关（原词恒显示无开关） =====
   desktopLyricView: boolean
@@ -147,12 +133,8 @@ export interface PlayerSongControlProps {
 
 export function PlayerSongControl({
   toolbarRef,
-  flashLandscapeToolbar,
-  isLandscapeShort,
-  landscapeToolbarVisible,
   toolbarScrollable,
   isPortraitMobile,
-  toolbarTone,
   desktopLyricView,
   lyricPanelVisible,
   onToggleDesktopLyricView,
@@ -205,35 +187,15 @@ export function PlayerSongControl({
   return (
     <div
       ref={toolbarRef}
-      onPointerDown={flashLandscapeToolbar}
       className={cn(
-        'music-player-side-tools lt-icon-outline absolute bottom-[max(2vh,10px)] right-[-50px] z-[10] flex w-[50px] flex-col items-center gap-[max(3vh,14px)]',
-        // 显隐模式：桌面 = Hydrogen 同款（基态常隐——专列空置 +
-        // hover 信号灯动画定格可见 + 触屏常显兜底）；手机横屏 =
-        // 默认隐藏（专列照样占位空置），触摸屏幕任意处亮起 3s 后
-        // 淡出（触屏无 hover，常显会常驻压在歌词面板注意力上）
-        isLandscapeShort
-          ? cn(
-              'transition-opacity duration-300',
-              landscapeToolbarVisible
-                ? 'opacity-100'
-                : 'pointer-events-none opacity-0'
-            )
-          : cn(
-              'lt-touch-visible opacity-0 focus-within:opacity-100',
-              'group-hover:animate-[song-control-in_0.3s_both]'
-            ),
-        // 限高常挂 + 滚动态开放 overflow（原因见 toolbarScrollable
-        // 声明处注释）；hide-scrollbar 隐藏滚动条保留触摸滑动
-        'max-h-full',
+        'music-player-side-tools relative z-[10] flex min-h-0 max-h-full flex-col items-center',
         toolbarScrollable && 'overflow-y-auto hide-scrollbar',
         isPortraitMobile && 'hidden'
       )}
       style={{
         color: 'var(--md-sys-color-on-surface)',
-        // 工具栏色调跟随主题深浅（不跟 UI 开关）：文字三色容器级
-        // 统一覆盖，按钮的 var() 引用跟随
-        ...TOOLBAR_TONE_VARS[toolbarTone],
+        // 与背板一起翻转，避免页面主题和视频画面使图标失去对比。
+        ...CARD_TONE_VARS[uiTone],
       }}
     >
       {/* 隐藏/显示歌词（桌面）：隐藏右侧歌词面板、播放卡居中；
@@ -270,6 +232,7 @@ export function PlayerSongControl({
           }}
           title={lyricRoma ? '隐藏罗马音' : '显示罗马音'}
           aria-label="切换罗马音显示"
+          aria-pressed={lyricRoma}
         >
           <RomanLyricIcon className="h-[max(2.5vh,20px)] w-[max(2.5vh,20px)]" />
         </button>
@@ -286,6 +249,7 @@ export function PlayerSongControl({
           }}
           title={lyricTrans ? '隐藏翻译' : '显示翻译'}
           aria-label="切换翻译显示"
+          aria-pressed={lyricTrans}
         >
           <TransLyricIcon className="h-[max(2.5vh,20px)] w-[max(2.5vh,20px)]" />
         </button>
@@ -348,6 +312,7 @@ export function PlayerSongControl({
           style={{ color: 'var(--md-sys-color-on-surface)' }}
           title={rightPanelMode === 1 ? '查看歌词' : '查看评论'}
           aria-label="切换歌词/评论区"
+          aria-pressed={rightPanelMode === 1}
         >
           <svg
             viewBox="0 0 24 24"
@@ -442,10 +407,7 @@ export function PlayerSongControl({
         <button
           type="button"
           onClick={onToggleDanmaku}
-          className={cn(
-            'flex h-[max(2.5vh,20px)] w-[max(2.5vh,20px)] items-center justify-center transition-opacity hover:opacity-70 active:scale-90',
-            !biliDanmakuEnabled && 'opacity-50'
-          )}
+          className="flex h-[max(2.5vh,20px)] w-[max(2.5vh,20px)] items-center justify-center transition-opacity hover:opacity-70 active:scale-90"
           style={{
             color: biliDanmakuEnabled
               ? 'var(--md-sys-color-on-surface)'
@@ -556,10 +518,7 @@ export function PlayerSongControl({
       >
         <Settings className="h-[max(2.5vh,20px)] w-[max(2.5vh,20px)]" />
       </button>
-      {/* 播放页 UI 深浅色切换：一键翻转播放卡文字/卡底 tint 与
-          歌词面板底色文字（见 uiTone 声明处），localStorage 持久化。
-          工具栏不在其列——工具栏悬在卡外画面背景上，随主题深浅翻转
-          （见 toolbarTone） */}
+      {/* UI 深浅色同时切换播放卡、卡内工具栏及歌词面板，偏好本机保存。 */}
       <button
         type="button"
         onClick={onToggleUiTone}
