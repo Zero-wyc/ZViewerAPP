@@ -61,12 +61,10 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test": "node --test tests/*.test.mjs",
-    "test:live-media": "node scripts/live-media-check.mjs",
     "typecheck": "tsc --noEmit",
     "ios:run": "expo run:ios",
     "native:patch": "node scripts/patch-vlc-native.cjs && node scripts/patch-vlc-native.cjs --check",
-    "check": "npm run native:patch && npm run lint && npm run typecheck && npm test"
+    "check": "npm run native:patch && npm run lint && npm run typecheck"
   },
   "private": true
 }

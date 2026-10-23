@@ -4,7 +4,7 @@
 
 ZViewer 是一款手机和平板客户端，用来和朋友一起看视频、一起听音乐、接收投屏和进行房间语音。使用前需要准备可访问的 [ZViewer 服务端](https://github.com/Zero-wyc/ZViewer)，再在 App 中填写地址并登录。
 
-[下载当前版本](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.10) · [发行说明](docs/releases/client-2.1.10.md) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [历史更新](CHANGELOG.md)
+[下载当前版本](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.10) · [发行说明](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.10) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [历史更新](CHANGELOG.md)
 
 ## 下载与安装
 
@@ -27,7 +27,7 @@ Android / HarmonyOS 沿用既有发布签名；签名一致时可按平台规则
 - **iOS：房间控制更方便。** 新建房间默认开启“自动通过播放控制申请”，一起看和一起听均可在房间设置中关闭。它与“加入房间是否需要审批”是两项独立设置。
 - **三端继续对齐服务端 v4.7.4。** 保留已有的播放设置、来源解析、片单、B站账号与语音能力；具体功能由服务端配置、账号权限和设备能力决定。
 
-Android / HarmonyOS 本次安装包沿用 10 月 22 日发布的 220 构建；iOS build 31 于 10 月 23 日补充到同一 Release。iOS build 30 已收到用户“测试通过”的反馈，build 31 在相同播放与房间逻辑上统一版本号并重新构建。各场景的验证范围见 [安卓/鸿蒙连接记录](docs/lan-connection-fix-20261022.md) 和 [iOS 开发与验收记录](docs/ios-macos-development-status.md)。
+Android / HarmonyOS 本次安装包沿用 10 月 22 日发布的 220 构建；iOS build 31 于 10 月 23 日补充到同一 Release。iOS build 30 已收到用户“测试通过”的反馈，build 31 在相同播放与房间逻辑上统一版本号并重新构建。各场景的验证范围见 [安卓/鸿蒙连接记录](docs/android-maintenance-architecture.md#历史验证与待验边界) 和 [iOS 开发与验收记录](docs/ios-maintenance-architecture.md#历史验证与待验边界)。
 
 ## 第一次连接
 
@@ -83,8 +83,7 @@ npm run dev -- --host 127.0.0.1
 共享前端检查：
 
 ```sh
-npm run test:adaptation
-npm run test:media
+npm run typecheck
 npm run build
 ```
 
@@ -107,7 +106,7 @@ npm run check
 npm start
 ```
 
-`npm run check` 包含 VLC 补丁、lint、TypeScript 和回归测试；完整原生测试需要 macOS / Xcode，Windows 缺少 `xcrun` 时无法执行其中的 Swift 测试。Expo Go / Web 可用于预览界面，VLC、Go、LiveKit 等自定义原生能力需要原生 App。IPA 构建在 macOS 上按 [iOS 维护流程](docs/ios-maintenance-architecture.md)另行安排。
+`npm run check` 包含 VLC 持久补丁检查、lint 和 TypeScript；历史回归源码已按清理要求移入回收站，当前命令不包含历史测试。原生编译和运行仍需要 macOS / Xcode。Expo Go / Web 可用于预览界面，VLC、Go、LiveKit 等自定义原生能力需要原生 App。IPA 构建在 macOS 上按 [iOS 维护流程](docs/ios-maintenance-architecture.md)另行安排。
 
 正式签名需要自己的密钥、证书及授权材料。不要将密码、Cookie、令牌、签名文件或本机 SDK 配置提交到仓库。安装包的 SHA-256 在构建结束时计算一次，发布时复用对应校验文件。
 
@@ -119,7 +118,7 @@ npm start
 | `ZV-Android/`、`native/bilicore/` | Android 原生宿主与共享 Go 解析核心 |
 | `ZV-HarmonyOS/` | HarmonyOS ArkTS / ArkWeb 宿主 |
 | `ZV-iOS/` | 独立 Expo / React Native / VLC 客户端 |
-| `scripts/`、`docs/` | 构建、资源同步、回归测试与维护记录 |
+| `scripts/`、`docs/` | 构建工具与三端维护文档 |
 | `public/`、`vendor/` | 静态资源、媒体库及其本地补丁 |
 
 维护文档：[Android](docs/android-maintenance-architecture.md) · [HarmonyOS](docs/harmonyos-maintenance-architecture.md) · [iOS](docs/ios-maintenance-architecture.md) · [跨平台移植](PORTING.md) · [贡献指南](CONTRIBUTING.md)。

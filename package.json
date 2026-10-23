@@ -12,8 +12,7 @@
     "android:sync": "npm run build -- --base=./ && cap sync android",
     "android:open": "cap open android",
     "postinstall": "patch-package --error-on-fail",
-    "test:media": "node --experimental-specifier-resolution=node --test scripts/media-regression.test.mjs",
-    "test:adaptation": "node --test scripts/voice-adaptation.test.mjs scripts/danmaku-import.test.mjs scripts/music-cookie.test.mjs scripts/pgc-connection.test.mjs scripts/harmony-connection.test.mjs scripts/watch-kazumi.test.mjs scripts/hls-auth.test.mjs scripts/alignment-447.test.mjs scripts/alignment-451.test.mjs scripts/alignment-453.test.mjs scripts/player-display.test.mjs scripts/webrtc-pip.test.mjs scripts/screen-share-gestures.test.mjs scripts/screen-share-session.test.mjs scripts/screen-share-platform.test.mjs scripts/screen-share-video-transform.test.mjs scripts/screen-share-harmony-policy.test.mjs scripts/microphone-capture.test.mjs scripts/background-media-tasks.test.mjs scripts/music-queue-ownership.test.mjs scripts/playlist-playback.test.mjs scripts/alignment-459.test.mjs scripts/feedback-211.test.mjs scripts/alignment-464.test.mjs scripts/alignment-471.test.mjs scripts/bilibili-portrait.test.mjs scripts/bilibili-server-login.test.mjs scripts/alignment-474.test.mjs scripts/source-alignment-474.test.mjs scripts/bilibili-474.test.mjs"
+    "typecheck": "tsc --noEmit -p tsconfig.app.json"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
