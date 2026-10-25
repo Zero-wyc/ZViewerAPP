@@ -47,6 +47,8 @@ import { useMusicPlayer } from '../hooks/useMusicPlayer'
 import { usePlaybackPosition } from '../hooks/usePlaybackPosition'
 import { useVolumeSliderDrag } from '../hooks/useVolumeSliderDrag'
 import { OverflowMarquee } from './OverflowMarquee'
+import { musicCoverUrl } from '../utils/neteaseImage'
+import { MusicCoverImage } from './MusicCoverImage'
 import { BiliFavCollectModal } from './BiliFavCollectModal'
 import {
   ControlNextIcon,
@@ -319,7 +321,7 @@ export function MusicWidgetBar() {
     }
   }, [currentSong, setPendingAlbumDetail, setPage])
 
-  const cover = currentSong?.cover
+  const cover = musicCoverUrl(currentSong?.cover, 120)
   const songName = currentSong?.name ?? '一起听'
   const artist = currentSong?.artist ?? ''
 
@@ -438,14 +440,12 @@ export function MusicWidgetBar() {
           title="打开完整播放器"
           aria-label="打开完整播放器"
         >
-          {cover ? (
-            <img src={cover} alt="" className="h-full w-full object-cover" />
-          ) : (
+          <MusicCoverImage key={cover} src={cover} alt="" className="h-full w-full object-cover" fallback={
             <ListMusic
               className="m-auto h-4 w-4 opacity-40"
               style={{ color: 'var(--md-sys-color-on-surface-variant)' }}
             />
-          )}
+          } />
           {/* hover 遮罩 + 上箭头从底部滑入（Hydrogen .open-player：top 120% → 50%） */}
           {cover && (
             <span

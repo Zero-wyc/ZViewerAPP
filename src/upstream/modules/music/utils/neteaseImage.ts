@@ -12,6 +12,16 @@ export function neteaseImageUrl(source: string | null | undefined, size: number)
 
 export const NCM_AVATAR_FALLBACK = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="#dce4ea"/><circle cx="20" cy="14" r="7" fill="#71808e"/><path d="M7 38v-4a13 13 0 0 1 26 0v4" fill="#71808e"/></svg>')}`
 
+/** 只规范网易云 CDN；B站代理、签名参数及本机媒体地址原样保留。 */
+export function musicCoverUrl(source: string | null | undefined, size = 600): string {
+  if (!source) return ''
+  try {
+    const url = new URL(source.startsWith('//') ? `https:${source}` : source)
+    if (url.hostname === 'music.126.net' || url.hostname.endsWith('.music.126.net')) return neteaseImageUrl(source, size)
+  } catch { /* 本地相对资源由宿主解析 */ }
+  return source
+}
+
 export function fallbackNcmAvatar(event: { currentTarget: HTMLImageElement }): void {
   if (event.currentTarget.getAttribute('src') !== NCM_AVATAR_FALLBACK) event.currentTarget.src = NCM_AVATAR_FALLBACK
 }

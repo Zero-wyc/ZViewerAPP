@@ -84,6 +84,7 @@ import { PlayerNoticeOverlay } from './PlayerNoticeOverlay'
 import { PlayerSongControl } from './PlayerSongControl'
 import { PlayerMobileToolbarRow } from './PlayerMobileToolbarRow'
 import { PlayerCardFace } from './PlayerCardFace'
+import { musicCoverUrl } from '../utils/neteaseImage'
 import { PlayerLyricPanelShell } from './PlayerLyricPanelShell'
 import { useImmersiveMode } from '../hooks/useImmersiveMode'
 import { useMusicVideoGestures } from '../hooks/useMusicVideoGestures'
@@ -209,7 +210,7 @@ function ListenTogetherInner({
   const currentKey = useMusicStore((s) => s.currentKey)
 
   const songId = currentSong?.songId
-  const cover = currentSong?.cover
+  const cover = musicCoverUrl(currentSong?.cover)
 
   // ===== 自定义视频背景（Hydrogen PlayerVideo 复刻）：当前歌曲有 B站 视频
   // 关联时，解析（默认 720P 直链 / CLI 开启时高画质 DASH）后作为静音背景

@@ -4,31 +4,30 @@
 
 ZViewer 是一款手机和平板客户端，用来和朋友一起看视频、一起听音乐、接收投屏和进行房间语音。使用前需要准备可访问的 [ZViewer 服务端](https://github.com/Zero-wyc/ZViewer)，再在 App 中填写地址并登录。
 
-[下载当前版本](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.2.0) · [发行说明](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.2.0) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [历史更新](CHANGELOG.md)
+[下载当前版本](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.2.1) · [发行说明](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.2.1) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [历史更新](CHANGELOG.md)
 
 ## 下载与安装
 
-Android / HarmonyOS 当前版本为 **2.2.0（221）**；iOS / iPadOS 保持 **2.1.10（build 31）**。
+Android / HarmonyOS 当前版本为 **2.2.1（222）**；iOS / iPadOS 保持 **2.1.10（build 31）**。
 
 | 平台 | 版本与下载 | 安装方式与系统要求 |
 | --- | --- | --- |
-| Android | **2.2.0（221）** · [APK](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.2.0/ZViewer-Android-2.2.0-release.apk) | 允许安装该来源的应用后安装。要求 Android 7.0 / API 24 或更高版本、64 位设备；APK 包含 ARM64 / x86_64。 |
-| HarmonyOS | **2.2.0（221）** · [HAP](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.2.0/ZViewer-HarmonyOS-2.2.0-release.hap) | 要求 HarmonyOS 6.1 / API 23 或更高版本。通过 DevEco Studio、HDC 等设备支持的开发者安装方式安装，签名及设备授权需匹配；当前不是应用商店安装包。 |
+| Android | **2.2.1（222）** · [APK](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.2.1/ZViewer-Android-2.2.1-release.apk) | 允许安装该来源的应用后安装。要求 Android 7.0 / API 24 或更高版本、64 位设备；APK 包含 ARM64 / x86_64。 |
+| HarmonyOS | **2.2.1（222）** · [HAP](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.2.1/ZViewer-HarmonyOS-2.2.1-release.hap) | 要求 HarmonyOS 6.1 / API 23 或更高版本。通过 DevEco Studio、HDC 等设备支持的开发者安装方式安装，签名及设备授权需匹配；当前不是应用商店安装包。 |
 | iOS / iPadOS | **2.1.10（build 31）** · [未签名 IPA](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.1.10/ZViewer-iOS-2.1.10-31-unsigned.ipa) | 要求 iOS / iPadOS 16.4 或更高版本，支持 iPhone 和 iPad。需使用自己的有效证书及设备授权签名后侧载，不能直接点击 IPA 安装。 |
 
 iOS 安装包已经内置运行所需的 JavaScript，安装后无需 Expo Go、Metro 或连接开发电脑。Android 和 HarmonyOS 也将界面、播放器打包在 App 内，仍需连接服务端获取房间和媒体。
 
 Android / HarmonyOS 沿用既有发布签名；签名一致时可按平台规则覆盖旧正式版。iOS 更新需保持兼容的个人签名身份。卸载前请保存服务器地址和设置，卸载会清除本机数据。
 
-## 2.2.0 更新了什么
+## 2.2.1 更新了什么
 
-- **选集更清楚。** 分集卡片使用主题色外框，有封面时展示封面，无封面时直接显示集数；列数按可用空间自适应，选中文字保持居中，选源菜单宽度受限。
-- **一起听重新排版。** 展开后覆盖房间顶栏，保留方形封面；手机和平板竖屏采用单列布局，大屏放大封面、铺开控制区，横屏播放卡与工具栏共用背板并均衡居中。按钮跟随深浅背板配色，播放键使用主题色。
-- **收起态更简洁。** 长歌名循环滚动，保留播放与列表，左右滑动文字区域切歌；完整播放器将红心和评论放到歌名旁，原有功能与权限保持。
-- **播放控制更顺手。** 一起看横屏直接显示原“更多”菜单中的操作，倍速向上弹出，选中态使用主题色；竖屏控制栏保持原布局。
-- **后台音频修复。** 一起听 B站条目优先使用独立音轨，修正后台可见性与静音背景视频同步处理。
+- 歌单详情移除前进／后退切换箭头，保留“返回列表”，清除封面下方的异常留白。
+- 歌单和每日推荐点击“播放全部”后，首曲确认入队即自动起播，其余歌曲按顺序加入；首曲不会重复入队或被切成暂停。
+- 每日推荐封面在列表、队列和播放器中统一使用 HTTPS，替换已有裁剪参数；图片加载失败时显示占位，切曲后可重新加载。
+- 私人漫游增加候选耗尽兜底、有界重试和坏源跳过；共享观看静音状态同步，并修复房间分享链接误带本机会话地址的问题。
 
-本轮 Android / HarmonyOS 改动已收到用户“真机验证通过”的反馈，2.2.0 提供重新构建的正式签名 APK / HAP。iOS 本次未更新或构建，继续使用原 2.1.10 Release。维护与验证记录见 [Android](docs/android-maintenance-architecture.md)、[HarmonyOS](docs/harmonyos-maintenance-architecture.md) 和 [iOS](docs/ios-maintenance-architecture.md)。
+本次提供 Android / HarmonyOS 2.2.1 / 222 正式签名包，66 项回归、共享组件界面检查和双端构建通过。用户此前已反馈维护功能播放测试无问题，并授权自行验收界面后发布；本轮新增修复未补写实体设备验收。iOS 保持 2.1.10 / build 31。详细记录见 [Android](docs/android-maintenance-architecture.md)、[HarmonyOS](docs/harmonyos-maintenance-architecture.md) 维护文档。
 
 ## 第一次连接
 
@@ -70,7 +69,7 @@ Android / HarmonyOS 沿用既有发布签名；签名一致时可按平台规则
 
 当前完整三端源码以 [main 分支](https://github.com/Zero-wyc/ZViewerAPP/tree/main) 为准，可直接 [下载 main 源码 ZIP](https://github.com/Zero-wyc/ZViewerAPP/archive/refs/heads/main.zip)。
 
-`client-v2.2.0` 标签保留本版源码快照；继续开发请使用 main。iOS 工程保持 2.1.10 / build 31，本轮安卓/鸿蒙界面改动不代表已移植到 iOS。无需额外下载手工打包的 Source Code 附件。
+`client-v2.2.1` 标签保留本版源码快照；继续开发请使用 main。iOS 工程保持 2.1.10 / build 31，本轮安卓/鸿蒙界面改动不代表已移植到 iOS。无需额外下载手工打包的 Source Code 附件。
 
 ## 本地开发
 

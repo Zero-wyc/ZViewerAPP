@@ -19,6 +19,7 @@ import { useState, type ReactNode } from 'react'
 import { Play } from 'lucide-react'
 import { useIsTouch } from '@/hooks/useMediaQuery'
 import { cn } from '@/lib/utils'
+import { musicCoverUrl } from '../utils/neteaseImage'
 
 /** EQ 频谱动画（4 根 3px 竖条交错跳动，primary 色由父级 currentColor 决定） */
 export function EqBars({ paused }: { paused?: boolean }) {
@@ -74,8 +75,7 @@ const STATE_TRANSITION = 'transition-opacity duration-100 ease-in-out'
 
 /** 网易云 CDN 封面缩略地址：https 化 + 80x80 裁剪参数（40px 显示 @2x） */
 function coverThumb(url: string): string {
-  const https = url.replace('http://', 'https://')
-  return `${https}${https.includes('?') ? '&' : '?'}param=80y80`
+  return musicCoverUrl(url, 80)
 }
 
 export function SongRow({

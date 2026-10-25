@@ -35,6 +35,8 @@ import { songToUpsertItem, useQueueAdd } from '../hooks/useQueueAdd'
 import type { NcmSong } from '../types'
 import { SongRow } from '../components/SongRow'
 import { MusicLoginGate } from './MusicLoginGate'
+import { musicCoverUrl } from '../utils/neteaseImage'
+import { usePlaylistPlayback } from '../hooks/usePlaylistPlayback'
 
 export interface MusicDailyPanelProps {
   socket: Socket | null
@@ -74,7 +76,7 @@ function mapSong(song: CommonSongItem): NcmSong {
       .filter(Boolean)
       .join(' / '),
     album: song.al?.name ?? '',
-    cover: song.al?.picUrl ?? '',
+    cover: musicCoverUrl(song.al?.picUrl, 300),
     durationMs: song.dt ?? 0,
     vip: song.fee === 1 || song.fee === 4,
   }
@@ -301,6 +303,7 @@ export function MusicDailyPanel({
 
   const [historyDates, setHistoryDates] = useState<string[]>([])
   const [selectedDate, setSelectedDate] = useState('')
+  const { playAll, busy: playAllBusy } = usePlaylistPlayback(socket, roomId, canManage, selectedDate)
   const [loadingDates, setLoadingDates] = useState(false)
   const [loadingSongs, setLoadingSongs] = useState(false)
   const [songs, setSongs] = useState<NcmSong[]>([])
@@ -542,20 +545,8 @@ export function MusicDailyPanel({
     })
   }
 
-  /** 播放全部（Hydrogen playAll('rec') 的 ZViewer 语义：全量入队 → 首首播放） */
-  const handlePlayAll = () => {
-    if (!canManage) {
-      message.info('仅房主 / 房管可添加队列')
-      return
-    }
-    if (!roomId) {
-      message.error('未连接房间')
-      return
-    }
-    if (songs.length === 0) return
-    songs.forEach((s) => add(songToUpsertItem(s)))
-    handlePlayRow(songs[0])
-  }
+  /** 与歌单页共用 ACK 后起播，避免重复加入首曲或把当前曲切成暂停。 */
+  const handlePlayAll = () => { void playAll(songs) }
 
   if (!loginStatus.loggedIn) {
     return (
@@ -632,7 +623,8 @@ export function MusicDailyPanel({
 
       {/* 播放全部（Hydrogen .play-all，中心扩展填充 hover） */}
       <div className="zrec-option-action">
-        <button type="button" className="zrec-play-all" onClick={handlePlayAll}>
+        <button type="button" className="zrec-play-all" onClick={handlePlayAll}
+              disabled={playAllBusy || loadingSongs || songs.length === 0}>
           播放全部
         </button>
       </div>

@@ -4,6 +4,7 @@ import {
   isBilibiliImageUrl,
 } from '@/modules/room/watch-together/resolveSource'
 import type { MusicQueueItem, PlayMode, NcmLoginStatus } from './types'
+import { musicCoverUrl } from './utils/neteaseImage'
 import {
   useMusicSettingsStore,
   normalizeDefaultSourcePage,
@@ -306,7 +307,7 @@ export const useMusicStore = create<MusicState>((set) => ({
         .map((it) =>
           it.cover && isBilibiliImageUrl(it.cover)
             ? { ...it, cover: buildBilibiliImageProxyUrl(it.cover) }
-            : it
+            : it.cover ? { ...it, cover: musicCoverUrl(it.cover, 300) } : it
         ),
     }),
   setCurrentKey: (key) => {

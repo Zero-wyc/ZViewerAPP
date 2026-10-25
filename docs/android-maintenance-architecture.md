@@ -2,6 +2,19 @@
 
 更新日期：2026-10-25（Asia/Shanghai）。本文是日常维护入口，已整合原发布、连接修复、服务端对齐与屏幕共享文档。历史运行证据和当前源码检查分开记录。
 
+## 2.2.1 歌单布局、自动起播与封面修复（2026-10-25）
+
+用户已反馈上一轮维护功能“经播放测试无问题”，并授权由助手自行验收界面后发布。本次 Android / HarmonyOS 统一为 **2.2.1 / 222**，目标 Release 为 [ZViewer-Client V2.2.1](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.2.1)，发行说明见 [2.2.1](releases/client-2.2.1.md)。不将浏览器检查记为实体设备验收；iOS 保持 2.1.10 / build 31，没有启动构建。
+
+- `music/pages/MusicMyPage.tsx` 删除详情历史栈和前进／后退箭头，保留“返回列表”。封面信息区不再保留收藏／下载占位，手机端缩短播放全部区和列表的上间距；触摸按钮最小 44px。返回列表、重新选歌单、长标题、列表滚动和歌曲操作继续可用。
+- `music/hooks/usePlaylistPlayback.ts` 与 `music/playlistPlayback.ts` 共用歌单／每日推荐的播放全部链路：每首按顺序发送 `music:queue-upsert`，首曲收到成功 ACK 后调用既有 `playSong`，其余歌曲继续加入。首曲只入队一次，首次确认前不抢播；8 秒 ACK 超时或拒绝时停止并报告已加入数量。连续点击受 busy 锁保护，换歌单、换推荐日期、身份/房间/socket 变化、卸载或断连时不再开始后续操作。每日推荐不再调用可能暂停当前曲且重复入队的 `handlePlayRow`。
+- 封面诊断：每日推荐 `mapSong` 原样保留了网易云的 HTTP 图片，而 SongRow 在列表展示时自行改为 HTTPS；完整播放器与底部条直接读队列原值，导致安全资源页的加载路径不一致。公开歌曲元数据查询确认截图对应歌曲返回 HTTP CDN 地址；同一图片 HTTPS 响应 200，浏览器实际解码尺寸 600×600。
+- `music/utils/neteaseImage.ts` 的 `musicCoverUrl` 只规范网易云 CDN，升级 HTTPS 并替换已有 `param`，保留其他查询参数。每日推荐映射、队列入口、完整播放器、底部条与 SongRow 共用；B站图片代理、鉴权查询和本地资源不改写。`MusicCoverImage.tsx` 在失败后显示音乐占位，按封面 key 重挂载，避免破图与旧错误污染新曲；仅网易云图片使用 no-referrer，不放宽宿主混合内容或证书策略。
+
+验证记录：`npm run test:maintenance` **66/66**，TypeScript/Vite 与双端资源同步通过。真实 MusicMyPage 在 320 / 393 / 768 / 1024px 视口下无横向溢出，历史切换箭头为零；播放全部按钮至少 44px，普通手机布局中封面底至按钮顶约 14px。夹具 ACK 验证 54 首按序入队、首曲起播一次；每日推荐夹具也验证了实际 HTTP 元数据经映射、入队、起播回调到 HTTPS 封面组件的链路，以及破图占位和重新加载。远端队列 ACK 由夹具模拟，浏览器图片请求为真实 CDN 请求；这些结果不证明新增功能已在实体设备听音验收。
+
+正式构建：Android `assembleRelease`、HarmonyOS Release `assembleHap` 均通过，APK/HAP 签名检查成功并与 2.2.0 保持相同身份。Android 为 `com.zviewer.mobile` / API 24 / target 36；鸿蒙 debug=false、最低 6.1.0(23)。两包分别为 **76,769,577 / 14,335,026 字节**，各 31 项 Vite 资源核对一致（鸿蒙按注入桥接后的 HTML）；源码及包内未发现账户凭据、Agents.md 或私有签名源文件。临时鸿蒙签名配置已恢复，每包仅构建后计算一次 SHA256，后续上传复用摘要。安装包及本机检查输出保存在忽略目录 `release/client-v2.2.1/`。
+
 ## 2026-10-25 日常维护与上游更新
 
 相邻服务端源码已从 `0af85d0954bb5a71bd0b6225b5a1322c1f8815fb` 快进更新至上游 main `6f1e092920f4826e6296b25e42e5296d1379a53c`，共 17 个提交。原工作区干净，通过指定服务端目录中的 `git fetch --no-tags upstream main` 与 `git merge --ff-only upstream/main` 更新；本地配置、数据库及运行数据未替换，未创建旧版本备份。此记录只代表本地源码，不代表 NAS 部署。
@@ -45,7 +58,7 @@
 
 | 项目 | 当前基线与使用规则 |
 | --- | --- |
-| Android / HarmonyOS | 2.2.0 / versionCode 221；本轮界面和后台播放修复已获用户“真机验证通过”反馈，Debug 验证、用户验收与正式包检查分别记录。 |
+| Android / HarmonyOS | 2.2.1 / versionCode 222；当前维护与发布证据见文首，用户播放反馈、浏览器检查与正式包验签分别记录。 |
 | iOS | 独立 `ZV-iOS/` 工程，2.1.10 / build31；详见 [iOS 维护文档](ios-maintenance-architecture.md)。 |
 | 客户端仓库 | 所有客户端源码、文档与 Git 操作均在本仓库；共享前端为 `src/`，平台分派为 `src/platform/`。 |
 | 服务端源码 | 相邻 `ZViewer-source code/` 已更新至上游 main `6f1e092920f4826e6296b25e42e5296d1379a53c`。本轮双端修复、未接入功能与验证边界见文首日常维护记录；源码更新不代表 NAS 已部署。 |

@@ -23,7 +23,7 @@
  *   数量经 /likelist 覆盖 trackCount），左栏首批数据就绪即在 effect 内触发
  *
  * 右侧内容区（Hydrogen LibraryDetail 1:1）：
- * - 前进/后退双箭头（32px，实心 chevron，无历史 opacity-45）
+ * - 手机端返回歌单列表；不再提供详情历史切换箭头
  * - 歌单头：150px 大封面（0.5px 边框 + 弥散阴影）+ 右侧信息列
  *   （名称 22px 加粗两行截断 / 创建者 12px / 「共N首」11px）
  * - 右上角列（130px）：创建时间描边框（10px）+ 「查看详情」黑底白字按钮
@@ -51,6 +51,7 @@ import { SongRow } from '../components/SongRow'
 import { cn } from '@/lib/utils'
 import { MusicLoginGate, PageBlockHeader } from './MusicLoginGate'
 import { MusicDailyPanel } from './MusicDailyPage'
+import { usePlaylistPlayback } from '../hooks/usePlaylistPlayback'
 
 export interface MusicMyPageProps {
   socket: Socket | null
@@ -299,11 +300,7 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
   /** 右侧歌曲列表滚动容器（切详情时归零） */
   const listScrollRef = useRef<HTMLDivElement>(null)
 
-  // ===== 详情历史导航（Hydrogen view-control 前进/后退） =====
-  const [history, setHistory] = useState<{
-    list: DetailState[]
-    index: number
-  }>({ list: [], index: -1 })
+  const { playAll, busy: playAllBusy } = usePlaylistPlayback(socket, roomId, canManage, detail ? `${detail.kind}:${detail.id}` : '')
 
   // ===== 歌曲过滤（Hydrogen SongFilterInput SEARCH 框） =====
   const [filterKeyword, setFilterKeyword] = useState('')
@@ -655,18 +652,7 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
     [createdPlaylists, subscribedPlaylists]
   )
 
-  /** 用户点击左栏条目打开详情：截断前进分支并压入历史栈 */
-  const openDetail = useCallback(
-    (d: DetailState) => {
-      setHistory((prev) => {
-        const list = prev.list.slice(0, prev.index + 1)
-        list.push(d)
-        return { list, index: list.length - 1 }
-      })
-      loadDetail(d)
-    },
-    [loadDetail]
-  )
+  const openDetail = loadDetail
 
   // 播放条「查看专辑」跨页跳转：消费待打开的专辑详情
   //（Hydrogen toAlbum 路由跳转的等价实现：WidgetBar 写入 store 并切页，
@@ -710,22 +696,6 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
       info: `${target.trackCount ?? 0} 首`,
     })
   }, [favoritePlaylist, openDetail])
-
-  /** 后退（view-control 左箭头）：加载历史上一条，不压栈 */
-  const goBack = useCallback(() => {
-    if (history.index <= 0) return
-    const index = history.index - 1
-    setHistory({ ...history, index })
-    loadDetail(history.list[index])
-  }, [history, loadDetail])
-
-  /** 前进（view-control 右箭头）：加载历史下一条，不压栈 */
-  const goForward = useCallback(() => {
-    if (history.index >= history.list.length - 1) return
-    const index = history.index + 1
-    setHistory({ ...history, index })
-    loadDetail(history.list[index])
-  }, [history, loadDetail])
 
   /** 缓加载：滚动到列表底部追加下一页（每批 PLAYLIST_PAGE_SIZE；红心歌单
    *  走 likedIdsRef 缓存的 id 片段 + song/detail，普通歌单走 offset 分页） */
@@ -831,16 +801,10 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
     if (el) el.scrollTop = 0
   }, [detail?.id])
 
-  /** 全部加入队列（Hydrogen 播放全部的 ZViewer 语义） */
-  const handlePlayAll = useCallback(() => {
-    if (!canManage) {
-      message.info('仅房主 / 房管可添加队列')
-      return
-    }
-    if (detailSongs.length === 0) return
-    detailSongs.forEach((s) => add(songToUpsertItem(s)))
-    message.success(`已加入 ${detailSongs.length} 首到队列`)
-  }, [canManage, detailSongs, add])
+  const handlePlayAll = () => {
+    const token = detailTokenRef.current
+    return playAll(detailSongs, () => token === detailTokenRef.current)
+  }
 
   if (!loginStatus.loggedIn) {
     return (
@@ -874,66 +838,23 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
       <MusicDailyPanel socket={socket} roomId={roomId} canManage={canManage} />
     ) : detail ? (
       <div className="flex min-h-0 flex-1 flex-col">
-        {/* ===== view-control：后退 / 前进双箭头（实心 chevron 32px）；
-            手机端追加「返回列表」——两视图切换模式下回到库列表，
-            不受详情历史栈限制 ===== */}
-        <div className="ml-[-8px] flex h-8 shrink-0 items-center">
-          <button
-            type="button"
-            onClick={goBack}
-            disabled={history.index <= 0}
-            className="mr-5 flex h-8 w-8 items-center justify-center p-2 text-[var(--md-sys-color-on-surface)] transition-opacity hover:opacity-70 active:scale-90 disabled:opacity-45 disabled:hover:opacity-45 disabled:active:scale-100"
-            title="后退"
-            aria-label="后退"
-          >
-            <svg viewBox="0 0 1024 1024" className="h-4 w-4" aria-hidden="true">
-              <path
-                d="M716.608 1010.112L218.88 512.384 717.376 13.888l45.248 45.248-453.248 453.248 452.48 452.48z"
-                fill="currentColor"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            onClick={goForward}
-            disabled={history.index >= history.list.length - 1}
-            className="flex h-8 w-8 items-center justify-center p-2 text-[var(--md-sys-color-on-surface)] transition-opacity hover:opacity-70 active:scale-90 disabled:opacity-45 disabled:hover:opacity-45 disabled:active:scale-100"
-            title="前进"
-            aria-label="前进"
-          >
-            <svg viewBox="0 0 1024 1024" className="h-4 w-4" aria-hidden="true">
-              <path
-                d="M264.896 1010.112l497.728-497.728L264.128 13.888 218.88 59.136l453.248 453.248-452.48 452.48z"
-                fill="currentColor"
-              />
-            </svg>
-          </button>
-          {isMobile && (
-            <button
-              type="button"
-              onClick={() => setDetail(null)}
-              className="ml-3 flex items-center gap-1 text-xs font-bold text-[var(--md-sys-color-on-surface)] transition-opacity active:opacity-60"
-              title="返回歌单列表"
-            >
-              <svg
-                viewBox="0 0 1024 1024"
-                className="h-3 w-3"
-                aria-hidden="true"
-              >
-                <path
-                  d="M716.608 1010.112L218.88 512.384 717.376 13.888l45.248 45.248-453.248 453.248 452.48 452.48z"
-                  fill="currentColor"
-                />
+        {isMobile && (
+          <div className="flex h-11 shrink-0 items-center">
+            <button type="button" onClick={() => setDetail(null)}
+              className="flex min-h-11 items-center gap-1 text-xs font-bold text-[var(--md-sys-color-on-surface)] transition-opacity active:opacity-60"
+              title="返回歌单列表">
+              <svg viewBox="0 0 1024 1024" className="h-3 w-3" aria-hidden="true">
+                <path d="M716.608 1010.112L218.88 512.384 717.376 13.888l45.248 45.248-453.248 453.248 452.48 452.48z" fill="currentColor" />
               </svg>
               返回列表
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* ===== library-introduce：大封面 + 信息列 + 右上角列。
             手机端：右上 130px 列（创建时间/查看详情/SEARCH 过滤）隐藏，
             信息列占满全宽，封面缩至 96px ===== */}
-        <div className="flex w-full shrink-0 justify-between">
+        <div className="music-library-header flex w-full shrink-0 justify-between">
           <div className="flex w-[calc(100%-130px)] min-w-0 items-start max-md:w-full">
             {/* 大封面（150px，0.5px 边框 + 弥散阴影） */}
             <div
@@ -954,7 +875,7 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
               )}
             </div>
             {/* 信息列（名称 22px 两行 / 创建者 12px / 数量行 11px / 操作行占位） */}
-            <div className="flex min-w-0 flex-1 flex-col items-start justify-around self-stretch py-1">
+            <div className="flex min-w-0 flex-1 flex-col items-start justify-around self-stretch py-1 max-md:justify-start max-md:gap-1 max-md:py-0">
               <h2
                 className="line-clamp-2 w-[90%] break-all text-[22px] font-bold leading-tight text-[var(--md-sys-color-on-surface)]"
                 title={detail.name}
@@ -970,8 +891,6 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
                 <div className="truncate text-[11px] font-bold text-[var(--md-sys-color-on-surface-variant)]">
                   {numText}
                 </div>
-                {/* 操作行占位（Hydrogen 收藏/下载行；ZViewer 仅保留 SEARCH） */}
-                <div className="mt-2.5 min-h-[34px] w-full" />
               </div>
             </div>
           </div>
@@ -1027,12 +946,13 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
         </div>
 
         {/* ===== library-option：播放全部分隔行 ===== */}
-        <div className="shrink-0 px-1 pt-[15px]">
-          <div className="my-2.5 flex items-center">
+        <div className="music-library-play-all shrink-0 px-1 pt-[15px] max-md:pt-2">
+          <div className="my-2.5 flex items-center max-md:my-1.5">
             <button
               type="button"
-              className="flex shrink-0 items-center transition-opacity hover:opacity-60"
-              onClick={handlePlayAll}
+              className="flex min-h-11 shrink-0 items-center transition-opacity hover:opacity-60 disabled:opacity-50"
+              disabled={playAllBusy || detailLoading || detailSongs.length === 0}
+              onClick={() => { void handlePlayAll() }}
               title="播放全部（加入队列）"
             >
               {/* 描边三角播放图标（17px，Hydrogen playall 同款） */}
@@ -1051,7 +971,7 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
                 />
               </svg>
               <span className="mx-[5px] whitespace-nowrap text-xs font-bold text-[var(--md-sys-color-on-surface)]">
-                播放全部
+                {playAllBusy ? '正在加入…' : '播放全部'}
               </span>
             </button>
             <div
@@ -1070,7 +990,7 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
         {/* ===== 歌曲列表（内滚，scrollbar-gutter stable 防宽度抖动） ===== */}
         <div
           ref={listScrollRef}
-          className="zen-scroll min-h-0 flex-1 overflow-y-auto pt-3"
+          className="zen-scroll min-h-0 flex-1 overflow-y-auto pt-3 max-md:pt-1"
           style={{ scrollbarGutter: 'stable' }}
         >
           {detailLoading && (

@@ -31,6 +31,7 @@ import type { PlayMode } from '../types'
 import { PLAY_MODE_META } from '../constants'
 import { cn } from '@/lib/utils'
 import { OverflowMarquee } from './OverflowMarquee'
+import { MusicCoverImage } from './MusicCoverImage'
 import { AudioVisualizer } from './AudioVisualizer'
 import { PlayerProgressBar } from './PlayerProgressBar'
 import {
@@ -173,32 +174,23 @@ export function PlayerCardFace({
             data-square-cover={!cover || (isBiliSong && biliCoverShape === 'square')}
             style={{ boxShadow: '0 0 8px 0 rgba(0, 0, 0, 0.05)' }}
           >
-            {cover ? (
-              <img
-                src={cover}
-                alt={coverAlt}
-                className={cn(
-                  'music-player-cover-image block w-full object-cover',
-                  // B站歌 + 正方形设置：封面居中裁剪呈正方形显示
-                  //（网易云封面本就是正方形，不受此项影响）
-                  isBiliSong && biliCoverShape === 'square' && 'aspect-square'
-                )}
-              />
-            ) : (
-              <div
-                className="music-player-cover-placeholder flex aspect-square w-full items-center justify-center"
-                style={{
-                  backgroundColor: 'var(--md-sys-color-surface-container-high)',
-                }}
-              >
-                <Music
-                  className="h-10 w-10 opacity-40"
-                  style={{
-                    color: 'var(--md-sys-color-on-surface-variant)',
-                  }}
-                />
-              </div>
-            )}
+            <MusicCoverImage
+              key={cover}
+              src={cover}
+              alt={coverAlt}
+              className={cn(
+                'music-player-cover-image block w-full object-cover',
+                isBiliSong && biliCoverShape === 'square' && 'aspect-square'
+              )}
+              fallback={
+                <div
+                  className="music-player-cover-placeholder flex aspect-square w-full items-center justify-center"
+                  style={{ backgroundColor: 'var(--md-sys-color-surface-container-high)' }}
+                >
+                  <Music className="h-10 w-10 opacity-40" style={{ color: 'var(--md-sys-color-on-surface-variant)' }} />
+                </div>
+              }
+            />
           </div>
         </div>
 
