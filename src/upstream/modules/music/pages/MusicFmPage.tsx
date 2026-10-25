@@ -402,7 +402,7 @@ export function MusicFmPage({ roomId, isHost }: MusicFmPageProps) {
   // ===== 数据获取 =====
 
   /** 拉取一批 FM 候选（DEFAULT → /personal_fm；其余 → /personal/fm/mode） */
-  const fetchPool = useCallback(async (opts?: { silent?: boolean }) => {
+  const fetchPool = useCallback(async (opts?: { silent?: boolean; allowRepeats?: boolean }) => {
     setLoading(true)
     try {
       await fetchPersonalFmPool(async (url) => {
@@ -411,7 +411,7 @@ export function MusicFmPage({ roomId, isHost }: MusicFmPageProps) {
           throw new Error(data?.message || '漫游候选获取失败，请检查网易云登录或网络后重试')
         }
         return Array.isArray(data?.data) ? data.data : []
-      })
+      }, { allowRepeats: opts?.allowRepeats })
       const fm = usePersonalFmStore.getState()
       setLoadFailed(!opts?.silent && fm.pool.length === 0 && !fm.current)
     } catch (err) {
@@ -464,6 +464,11 @@ export function MusicFmPage({ roomId, isHost }: MusicFmPageProps) {
       next = usePersonalFmStore
         .getState()
         .pool.find((s) => s.songId !== current?.songId)
+    }
+    if (!next) {
+      await fetchPool({ silent: true, allowRepeats: true })
+      if (usePersonalFmStore.getState().generation !== generation) return
+      next = usePersonalFmStore.getState().pool.find((s) => s.songId !== current?.songId)
     }
     if (!next) {
       message.info('暂时没有新的漫游歌曲')

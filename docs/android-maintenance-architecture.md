@@ -1,6 +1,35 @@
 # Android 客户端维护文档
 
-更新日期：2026-10-23（Asia/Shanghai）。本文是日常维护入口，已整合原发布、连接修复、服务端对齐与屏幕共享文档。历史运行证据和当前源码检查分开记录。
+更新日期：2026-10-25（Asia/Shanghai）。本文是日常维护入口，已整合原发布、连接修复、服务端对齐与屏幕共享文档。历史运行证据和当前源码检查分开记录。
+
+## 2026-10-25 日常维护与上游更新
+
+相邻服务端源码已从 `0af85d0954bb5a71bd0b6225b5a1322c1f8815fb` 快进更新至上游 main `6f1e092920f4826e6296b25e42e5296d1379a53c`，共 17 个提交。原工作区干净，通过指定服务端目录中的 `git fetch --no-tags upstream main` 与 `git merge --ff-only upstream/main` 更新；本地配置、数据库及运行数据未替换，未创建旧版本备份。此记录只代表本地源码，不代表 NAS 部署。
+
+### 双端共用修复与入口
+
+- 私人漫游：`src/upstream/modules/music/personal-fm.ts` 改为回避最近 12 首历史，而非整个历史；候选耗尽时额外补拉一次，允许历史重复，仍排除当前曲和池内重复。`MusicFmPage.tsx` 的手动下一首也采用该兜底，并保留每次异步后的会话代次校验。
+- 恢复与取消：`music/fm-recovery.ts` 与 `hooks/useListenTogether.ts` 在补拉或入队确认失败后按 2 / 5 / 10 秒重试，用尽后显示失败。仅当前房间、当前曲、当前房主和有效代次可恢复；暂停、seek、换曲、换模式、离房或换 socket 后的旧任务不能恢复播放。入队必须先收到成功 ACK，失败不提前消耗候选。媒体加载错误可自动跳过，滚动一分钟最多 4 次；连续坏源达到上限后退出自动续播。用户播放意图单独保存，手动暂停后的迟到媒体错误不会跳歌或重新起播。
+- 屏幕共享观众：`screen-sharing/components/WebrtcWatchPage.tsx` 监听真实 video 的 `volumechange`，把自动播放回退和播放器静音变化同步到控制栏；存在远端音轨且静音时显示“点击开启声音”。按钮在用户手势内取消静音并尝试播放，失败时提示重试。挂载、换 video 与换流时重新订阅，清理旧监听。Android 原生 MediaProjection/系统音频采集仍由既有平台桥管理。
+- 房间分享：`room/roomShareLink.ts` 先经 `logicalConnectionUrl` 还原真实服务器，再拼接房间路径；保留服务器路径前缀，编码房间 ID，移除账号、查询参数和 hash。`RoomInfoPanel.tsx` 以这个地址检测内网，并保留“仍然复制”选项。不得直接复制 `getApiUrl()` 的原生回环端口或私有能力路径，也不能用移动端资源页的 `window.location.hostname` 判断服务器地址。
+- 地址提示：`lib/netAddress.ts` 覆盖 IPv4 私网、回环、链路本地、CGNAT、IPv6 ULA/链路本地/IPv4-mapped 和常见本地域名。URL 规范化同时覆盖展开写法和十六进制 IPv4-mapped。此分类只提示字面地址范围，不做 DNS 查询，也不保证域名公网可达。
+
+上游的 B站 CLI 决策去重、Anime 浏览器目录搬迁和桌面组网改造本轮未机械覆盖移动端定制代码。后端 CMS 缓存及 URL 辅助重构未改变所查 REST/Socket 请求合同；移除的 `embeddedSubtitleEnabled` / `voiceTransportMode` 历史字段未被当前双端源码读取。上游新“音量均衡”依赖 captureStream 旁路测量与元素音量增益，双端本轮尚未接入；后续须分别验证 WebView/ArkWeb 支持、锁屏后台、用户音量和实际听感，不能标为全量功能对齐。
+
+### 本轮验证、安装包与后续验收
+
+| 检查 | 实际结果与边界 |
+| --- | --- |
+| 服务端本地隔离回归 | backend TypeScript 编译、15 项媒体、10 项音乐回归通过；临时数据库下 89 项基础、16 项边界、23 项额外同步检查全部通过，代理及持久化服务测试通过。测试脚本已结束本地服务，不连接 NAS。 |
+| 客户端回归 | `npm run test:maintenance` 54/54 通过，覆盖 FM 候选与 ACK、恢复上限及取消、暂停后的迟到错误、逻辑分享地址、B站独立音轨、后台可见性、沉浸租约和滑动切歌；TypeScript/Vite 生产构建通过。 |
+| Android 构建 | `npm run android:sync` 后 `ZV-Android/gradlew.bat assembleDebug` 通过。2.2.0-debug / 221，应用 ID `com.zviewer.mobile.debug`，最低 API 24、目标 API 36，APK v2 签名验证通过；不是正式 Release 包。 |
+| HarmonyOS 构建 | 同一 Vite 输出经 `ZV-HarmonyOS/scripts/sync-web.mjs` 同步，Hvigor Debug assembleHap 通过；2.2.0 / 221，debug=true，最低 6.1.0(23)，本次未配置签名，HAP 为 unsigned。 |
+| 浏览器组件检查 | 本机夹具使用真实共享组件，验证内网提示及确认复制、公网服务器经原生回环映射后仍复制逻辑地址、外部 video 静音变化更新控制栏和开声提示。远端轨道由夹具模拟，未验证真实媒体解码或听音。 |
+| 设备与发布 | 本次 adb / hdc 均无设备；没有新增真机验收，没有部署 NAS、推送源码、发布 Release 或构建 iOS。2.2.0 发布时的历史用户验收不覆盖本轮新增修复。 |
+
+本轮本地包集中在忽略目录 `release/daily-maintenance-20261025/`：`ZViewer-Android-2.2.0-maintenance-debug.apk` 与 `ZViewer-HarmonyOS-2.2.0-maintenance-debug-unsigned.hap`。包内网页资源按本轮生成目录逐字节比对，鸿蒙以同步后 HTML 为准；每个最终包仅构建后计算一次 SHA256，摘要保存在同目录，不在后续发布时重复计算。维护代码完成后在指定客户端仓库本地提交。
+
+真机补验顺序：房主启动漫游并离开漫游页，持续播放至补拉；模拟短暂网络失败和坏曲；在重试前暂停、seek、换曲、切房，确认不自动复活。随后验证锁屏后台与通知栏操作、共享观看自动静音及开声、HTTP/HTTPS 和带路径前缀服务器的跨设备分享。鸿蒙 unsigned 包需本机有效签名后才能安装；API 26 模拟器不能替代 API 23 实体验收。
 
 ## 2.2.0 发布与真机验收记录
 
@@ -19,7 +48,7 @@
 | Android / HarmonyOS | 2.2.0 / versionCode 221；本轮界面和后台播放修复已获用户“真机验证通过”反馈，Debug 验证、用户验收与正式包检查分别记录。 |
 | iOS | 独立 `ZV-iOS/` 工程，2.1.10 / build31；详见 [iOS 维护文档](ios-maintenance-architecture.md)。 |
 | 客户端仓库 | 所有客户端源码、文档与 Git 操作均在本仓库；共享前端为 `src/`，平台分派为 `src/platform/`。 |
-| 服务端源码 | 相邻 `ZViewer-source code/` 已覆盖更新至上游 main `0af85d0954bb5a71bd0b6225b5a1322c1f8815fb`。源码更新不代表 NAS 已部署或客户端已对齐新增变化。 |
+| 服务端源码 | 相邻 `ZViewer-source code/` 已更新至上游 main `6f1e092920f4826e6296b25e42e5296d1379a53c`。本轮双端修复、未接入功能与验证边界见文首日常维护记录；源码更新不代表 NAS 已部署。 |
 | CLI 源码 | 相邻 `ZViewerCLI-4.1.2/` 保留原目录名，内容已更新至上游 v4.5.5 / main `101659b01a3a9248cea8b32c7eb18b6f76d842f1`，目录名不代表内容版本。 |
 | 已完成的双端协议对齐 | 最近实现基于服务端 v4.7.4 `e3af086c7bd98ee0d4697386b69678f92ea54d81`；本次更新只拉取源码，未新增兼容性或设备验收结论。 |
 

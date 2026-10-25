@@ -1,6 +1,37 @@
 # HarmonyOS 客户端维护文档
 
-更新日期：2026-10-23（Asia/Shanghai）。本文是日常维护入口，已整合原发布、连接修复、服务端对齐与屏幕共享文档。历史运行证据和当前源码检查分开记录。
+更新日期：2026-10-25（Asia/Shanghai）。本文是日常维护入口，已整合原发布、连接修复、服务端对齐与屏幕共享文档。历史运行证据和当前源码检查分开记录。
+
+## 2026-10-25 日常维护与上游更新
+
+相邻服务端源码已从 `0af85d0954bb5a71bd0b6225b5a1322c1f8815fb` 快进更新至上游 main `6f1e092920f4826e6296b25e42e5296d1379a53c`，共 17 个提交。原工作区干净，在指定服务端目录中执行 `git fetch --no-tags upstream main`、`git merge --ff-only upstream/main`；保留本地配置、数据库和运行数据，不另建旧源码备份。本地源码更新不代表 NAS 已部署。
+
+### 双端共享代码与鸿蒙边界
+
+- `src/upstream/modules/music/personal-fm.ts` 将历史去重缩为最近 12 首；候选耗尽后补拉一次并允许历史重复，继续排除当前曲和池内重复。`MusicFmPage.tsx` 的手动下一首同步使用此兜底，异步返回仍校验 generation，旧模式或旧房间不能提交。
+- `music/fm-recovery.ts`、`hooks/useListenTogether.ts` 对补拉/入队确认失败实行 2 / 5 / 10 秒有界重试；房间、房主、当前曲、generation 任一失效即不恢复。暂停、seek、换曲、换模式、离房、换 socket 会取消旧任务；成功 ACK 前不消耗候选。媒体错误可自动跳过，一分钟最多 4 次，连续失败达到上限后关闭自动续播。播放意图独立于媒体事件，手动暂停后的迟到错误不能跳歌或起播。现有 ArkWeb 元素挂载、后台播放租约、原生 AVSession 与通知栏逻辑保留。
+- `screen-sharing/components/WebrtcWatchPage.tsx` 订阅真实 video 的 `volumechange` 并在换元素/换流时重绑，防止实际静音与控制栏不同步。有远端音轨且静音时显示“点击开启声音”，在点击手势内尝试取消静音与播放；旧监听随元素退役清除。此为观众共享前端修复；宿主屏幕采集、系统音频、麦克风协调及 `MobileScreenShareHost` 的原生能力提示继续沿用既有平台桥。
+- `room/roomShareLink.ts` 先经 `logicalConnectionUrl` 从随机本机回环通道还原真实服务器，保留路径前缀、编码 roomId，并清除账号、查询参数及 hash。`RoomInfoPanel.tsx` 对该逻辑链接提示内网范围，可选择“仍然复制”。鸿蒙资源宿主 `https://zviewer.local` 和 `ServerConnection.ets` 的私有回环端口均不得进入对外分享链接。
+- `lib/netAddress.ts` 分类 IPv4 私网、回环、链路本地、CGNAT、IPv6 ULA/链路本地/IPv4-mapped 及常见本地域名；URL 规范化覆盖展开 IPv6 和十六进制映射。只做地址字面提示，不执行 DNS 探测，不承诺域名已可从公网访问。
+
+上游的 B站 CLI 去重、Anime 组件目录重构和桌面组网代码本轮未整体覆盖双端定制实现。后端 CMS ResolveCache / URL 辅助整理未改变所查 REST/Socket 合同；删除的 `embeddedSubtitleEnabled`、`voiceTransportMode` 历史字段不被当前共享源码读取。上游新音量均衡使用 captureStream 旁路测量和音量增益，本轮双端未接入；需要另行验证 ArkWeb/WebView 支持、锁屏后台、用户音量及听感，不能把本轮称为上游全部新功能移植。
+
+### 本轮验证与可复现构建
+
+| 检查 | 结果与边界 |
+| --- | --- |
+| 服务端 | backend 编译、15 项媒体、10 项音乐回归通过；隔离临时数据库下 89 项基础、16 项边界、23 项额外同步检查全部通过，代理和持久化服务测试通过。本地服务已由测试脚本关闭，未修改 NAS。 |
+| 共享回归 | `npm run test:maintenance` 54/54 通过：FM 去重与 ACK、恢复/取消、暂停后的迟到错误、逻辑分享链接、B站音轨、后台可见性、沉浸租约及手势；TypeScript/Vite 构建通过。 |
+| 双端包 | Android Debug assembleDebug、HarmonyOS Debug assembleHap 均通过，网页资源来自同一 Vite 输出；鸿蒙 HTML 按 sync-web 注入桥接后检查。Android 为 `com.zviewer.mobile.debug` / API 24，鸿蒙为 `com.zviewer.mobile` / 6.1.0(23)。两端保持 2.2.0 / 221。 |
+| 鸿蒙签名 | 本轮没有注入签名材料，输出 debug=true 的 unsigned HAP；未经有效签名不能直接安装。编译成功不能代替 ArkWeb 运行或实体设备验收。 |
+| 浏览器 | 真实 RoomInfoPanel/WebrtcWatchPage 在本机夹具中完成内网提醒及确认复制、公网与原生回环地址还原、video 静音事件更新按钮和开声提示检查；远端轨道为模拟状态，无真实解码或听音结论。 |
+| 尚未完成 | adb / hdc 无设备；本轮未新增真机验收、未推送/发布 Release、未部署 NAS、未修改或构建 iOS。旧 2.2.0 用户验收只覆盖当时发布代码。 |
+
+命令入口：共享代码执行 `npm run test:maintenance`、`npm run android:sync`；同一次 Vite 输出再运行 `node ZV-HarmonyOS/scripts/sync-web.mjs`。在 `ZV-HarmonyOS/` 工作目录中使用本机 DevEco 工具，执行 `hvigorw --mode module -p product=default -p module=entry@default -p buildMode=debug assembleHap --no-daemon`。本机通过 `DEVECO_SDK_HOME`、`NODE_HOME` 指定已安装的 SDK/Node，不把路径或签名材料写入工程；在客户端根目录执行 Hvigor 会因缺少 `hvigor/hvigor-config.json5` 失败。
+
+本轮包集中在忽略目录 `release/daily-maintenance-20261025/`，文件为 `ZViewer-Android-2.2.0-maintenance-debug.apk`、`ZViewer-HarmonyOS-2.2.0-maintenance-debug-unsigned.hap`。最终包内网页资源与宿主生成目录逐字节比对，鸿蒙使用转换后的 HTML；每个最终包构建后只计算一次 SHA256 并保存摘要。完成后在指定客户端仓库本地提交。
+
+实体补验：房主漫游跨页面持续补拉、临时断网恢复、无版权/坏源自动跳过；在重试前暂停/seek/换曲/换模式/离房，确认不被迟到回调恢复；验证锁屏后台及通知栏控制。再测共享观看静音/开声，以及 HTTP、证书通道、路径前缀下对外复制真实服务器链接。最低系统仍为 API 23，API 26 模拟器结果须单独记录。
 
 ## 2.2.0 发布与真机验收记录
 
@@ -19,7 +50,7 @@
 | Android / HarmonyOS | 2.2.0 / versionCode 221；本轮界面和后台播放修复已获用户“真机验证通过”反馈，Debug 验证、用户验收与正式包检查分别记录。 |
 | iOS | 独立 `ZV-iOS/` 工程，2.1.10 / build31；详见 [iOS 维护文档](ios-maintenance-architecture.md)。 |
 | 客户端仓库 | 所有客户端源码、文档与 Git 操作均在本仓库；共享前端为 `src/`，平台分派为 `src/platform/`。 |
-| 服务端源码 | 相邻 `ZViewer-source code/` 已覆盖更新至上游 main `0af85d0954bb5a71bd0b6225b5a1322c1f8815fb`。源码更新不代表 NAS 已部署或客户端已对齐新增变化。 |
+| 服务端源码 | 相邻 `ZViewer-source code/` 已更新至上游 main `6f1e092920f4826e6296b25e42e5296d1379a53c`。双端维护内容、待接入功能和证据边界见文首；源码同步不代表 NAS 已部署。 |
 | CLI 源码 | 相邻 `ZViewerCLI-4.1.2/` 保留原目录名，内容已更新至上游 v4.5.5 / main `101659b01a3a9248cea8b32c7eb18b6f76d842f1`，目录名不代表内容版本。 |
 | 已完成的双端协议对齐 | 最近实现基于服务端 v4.7.4 `e3af086c7bd98ee0d4697386b69678f92ea54d81`；本次更新只拉取源码，未新增兼容性或设备验收结论。 |
 

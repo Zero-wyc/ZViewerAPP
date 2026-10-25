@@ -33,6 +33,8 @@ import {
 } from '@/store/systemSettingsStore'
 import { cn } from '@/lib/utils'
 import { getApiUrl } from '@/lib/api'
+import { getAddressScope } from '@/lib/netAddress'
+import { buildRoomShareUrl } from '../roomShareLink'
 import { canReorderPlaylist } from './playlistOrder'
 
 interface RoomInfoPanelProps {
@@ -106,6 +108,7 @@ export function RoomInfoPanel({
   const [isEditingName, setIsEditingName] = useState(false)
   const [editingNameValue, setEditingNameValue] = useState(roomName)
   const [savingName, setSavingName] = useState(false)
+  const [pendingShareLink, setPendingShareLink] = useState<string | null>(null)
 
   // 房间设置表单
   const [passwordValue, setPasswordValue] = useState('')
@@ -146,7 +149,7 @@ export function RoomInfoPanel({
     }
   }, [showSettings, roomSettings])
 
-  const shareUrl = `${getApiUrl()}/room/${encodeURIComponent(roomId)}`
+  const shareUrl = buildRoomShareUrl(getApiUrl(), roomId)
 
   // 监听权限相关事件
   useEffect(() => {
@@ -262,13 +265,21 @@ export function RoomInfoPanel({
     }
   }
 
-  const handleCopyLink = async () => {
+  const copyShareLink = async (url: string) => {
     try {
-      await navigator.clipboard.writeText(shareUrl)
+      await navigator.clipboard.writeText(url)
       message.success('分享链接已复制')
     } catch {
       message.error('复制失败')
     }
+  }
+
+  const handleCopyLink = () => {
+    if (getAddressScope(new URL(shareUrl).hostname) !== 'public') {
+      setPendingShareLink(shareUrl)
+      return
+    }
+    void copyShareLink(shareUrl)
   }
 
   const handleSaveName = async () => {
@@ -1195,6 +1206,24 @@ export function RoomInfoPanel({
             </div>
           )}
         </div>
+      </Modal>
+
+      <Modal open={pendingShareLink !== null} onClose={() => setPendingShareLink(null)}
+        title="当前链接使用本机或内网地址"
+        footer={<>
+          <Button variant="secondary" onClick={() => setPendingShareLink(null)}>取消</Button>
+          <Button variant="primary" onClick={() => {
+            const url = pendingShareLink
+            setPendingShareLink(null)
+            if (url) void copyShareLink(url)
+          }}>仍然复制</Button>
+        </>}>
+        <Paragraph className="text-sm break-words">
+          {pendingShareLink && getAddressScope(new URL(pendingShareLink).hostname) === 'loopback'
+            ? '该链接使用本机回环地址，其他设备无法打开。'
+            : '该链接使用内网地址，通常只有同一网络中的设备能打开。'}
+          跨网络分享时，请改用可访问的公网地址或已配置的内网穿透入口。
+        </Paragraph>
       </Modal>
 
       {/* 房主转交确认 Modal */}

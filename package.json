@@ -12,7 +12,8 @@
     "android:sync": "npm run build -- --base=./ && cap sync android",
     "android:open": "cap open android",
     "postinstall": "patch-package --error-on-fail",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json"
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "test:maintenance": "node --experimental-vm-modules --test scripts/daily-maintenance.test.mjs scripts/music-personal-fm.test.mjs scripts/music-background-audio.test.mjs scripts/music-overlay-immersive.test.mjs scripts/music-track-swipe.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

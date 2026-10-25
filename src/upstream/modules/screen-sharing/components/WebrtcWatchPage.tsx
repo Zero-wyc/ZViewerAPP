@@ -17,7 +17,7 @@ import {
   isIOSDevice,
   supportsContainerFullscreen,
 } from '@/lib/fullscreen-utils'
-import { Maximize2, X } from 'lucide-react'
+import { Maximize2, Volume2, X } from 'lucide-react'
 import { getRuntimePlatform } from '../../../../platform/runtime'
 import { enterNativePictureInPicture, hasPictureInPictureFrame, supportsNativePictureInPicture } from '../../../../platform/webrtcPictureInPicture'
 import { ROOM_MEDIA_TEARDOWN_EVENT } from '@/lib/mediaTeardown'
@@ -317,6 +317,24 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
     video.muted = isMuted
   }, [isMuted])
 
+  // 自动播放回退和播放器可能直接修改元素静音状态，同步到移动端控制栏。
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    const syncMuted = () => setIsMuted(video.muted)
+    syncMuted()
+    video.addEventListener('volumechange', syncMuted)
+    return () => video.removeEventListener('volumechange', syncMuted)
+  }, [hasRemoteStream, videoVersion])
+
+  const handleUnmute = useCallback(() => {
+    const video = videoRef.current
+    if (!video) return
+    video.muted = false
+    setIsMuted(false)
+    void video.play().catch(() => { message.warning('声音未能开启，请再次点击播放') })
+  }, [])
+
   // 监听 video play/pause 事件同步 isPlaying 状态
   useEffect(() => {
     const video = videoRef.current
@@ -425,6 +443,14 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
         hasRemoteStream={hasRemoteStream}
         peerConnection={pc}
       />
+      {hasRemoteStream && hasRemoteAudio && isMuted && (
+        <button type="button" onClick={handleUnmute}
+          className="absolute left-1/2 top-4 z-20 flex min-h-11 max-w-[90%] -translate-x-1/2 items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white shadow-lg"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.72)' }}>
+          <Volume2 className="h-4 w-4 shrink-0" />
+          点击开启声音
+        </button>
+      )}
       {inlinePiP && <div className="webrtc-pip-heading"
         onPointerDown={event => {
           if ((event.target as HTMLElement).closest('button')) return

@@ -85,14 +85,34 @@ export function mapFmSong(item: FmSongItem): NcmSong {
   }
 }
 
+/**
+ * 历史去重窗口：只避开最近播放过的少数曲目。
+ *
+ * 去重曾经覆盖整段 history（上限 100 首），长时间漫游后每次补拉都会被
+ * 「都是听过的」挡成 0 首新候选，候选池耗尽即停播。改为只回避最近
+ * RECENT_AVOID 首——既避免切歌后马上重复，又不会让会话越久越容易断流。
+ */
+const RECENT_AVOID = 12
+
+export interface FetchFmPoolOptions {
+  /**
+   * 允许与历史重复（仅避开池内与当前曲）。
+   * 候选池已经耗尽时的兜底：宁可再听一首老歌，也不要把自动续播停死。
+   */
+  allowRepeats?: boolean
+}
+
 /** 请求按代次去重；切模式、换曲、离房后的旧响应不能覆盖新候选。 */
-let pending: { generation: number; promise: Promise<void> } | null = null
+let pending: { key: string; promise: Promise<void> } | null = null
 export function fetchPersonalFmPool(
-  request: (url: string) => Promise<FmSongItem[]>
+  request: (url: string) => Promise<FmSongItem[]>,
+  options?: FetchFmPoolOptions
 ): Promise<void> {
   const state = usePersonalFmStore.getState()
   const generation = state.generation
-  if (pending?.generation === generation) return pending.promise
+  // 兜底请求与常规请求语义不同，不能互相复用（否则拿到被历史挡空的结果）
+  const key = `${generation}:${options?.allowRepeats ? 'repeat' : 'fresh'}`
+  if (pending?.key === key) return pending.promise
   const promise = (async () => {
     const params = new URLSearchParams({ mode: state.mode, limit: '6' })
     if (state.mode === 'SCENE_RCMD') params.set('submode', state.submode)
@@ -101,7 +121,6 @@ export function fetchPersonalFmPool(
         ? '/api/music/ncm/personal_fm'
         : `/api/music/ncm/personal/fm/mode?${params}`
     )
-    if (usePersonalFmStore.getState().generation !== generation) return
     if (list.length === 0 && state.mode !== 'DEFAULT') {
       list = await request('/api/music/ncm/personal_fm')
     }
@@ -109,10 +128,15 @@ export function fetchPersonalFmPool(
     const mapped = list.map(mapFmSong).filter((song) => song.songId > 0)
     usePersonalFmStore.setState((s) => {
       const seen = new Set(
-        [...s.pool, ...s.history, ...(s.current ? [s.current] : [])].map(
+        [...s.pool, ...(s.current ? [s.current] : [])].map(
           (song) => song.songId
         )
       )
+      if (!options?.allowRepeats) {
+        for (const song of s.history.slice(-RECENT_AVOID)) {
+          seen.add(song.songId)
+        }
+      }
       const fresh = mapped.filter((song) => {
         if (seen.has(song.songId)) return false
         seen.add(song.songId)
@@ -126,7 +150,7 @@ export function fetchPersonalFmPool(
   })().finally(() => {
     if (pending?.promise === promise) pending = null
   })
-  pending = { generation, promise }
+  pending = { key, promise }
   return promise
 }
 
@@ -135,7 +159,7 @@ export async function advancePersonalFm(
   roomId: string,
   currentKey: string | null,
   deps: {
-    refill: () => Promise<void>
+    refill: (options?: FetchFmPoolOptions) => Promise<void>
     enqueue: (song: NcmSong) => Promise<void>
     play: (song: NcmSong) => void
     isCurrent: () => boolean
@@ -151,14 +175,24 @@ export async function advancePersonalFm(
       deps.isCurrent()
     )
   }
+  const pick = (): NcmSong | undefined =>
+    usePersonalFmStore
+      .getState()
+      .pool.find((song) => `ncm:${song.songId}` !== currentKey)
   if (!valid()) return
-  let next = snapshot.pool.find((song) => `ncm:${song.songId}` !== currentKey)
+  let next = pick()
   if (!next) {
     await deps.refill()
     if (!valid()) return
-    next = usePersonalFmStore
-      .getState()
-      .pool.find((song) => `ncm:${song.songId}` !== currentKey)
+    next = pick()
+  }
+  if (!next) {
+    // 仍无候选：只避开池内与当前曲再拉一批（允许与历史重复）。
+    // 推荐批次偶尔全是近期听过的歌，此前会直接判定「没有新歌」并把
+    // 自动续播停死——续播断开才是真问题，重复听一首可以接受。
+    await deps.refill({ allowRepeats: true })
+    if (!valid()) return
+    next = pick()
   }
   if (!next) throw new Error('暂时没有新的漫游歌曲，请稍后重试')
   if (!valid()) return

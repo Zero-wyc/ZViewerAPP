@@ -4,7 +4,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useSystemSettingsStore } from '@/store/systemSettingsStore'
 import { initialMusicVolume } from '../utils/volume'
 import { resolveBilibiliAudioWithFallback, selectBilibiliAudioStream } from '../utils/bilibiliAudioStream'
-import { advancePersonalFm, fetchPersonalFmPool, usePersonalFmStore } from '../personal-fm'
+import { advancePersonalFm, fetchPersonalFmPool, usePersonalFmStore, type FetchFmPoolOptions } from '../personal-fm'
+import { FmRecovery } from '../fm-recovery'
 import type { FmSongItem } from '../personal-fm'
 import type { Socket } from 'socket.io-client'
 import { useShallow } from 'zustand/react/shallow'
@@ -509,11 +510,23 @@ export function useListenTogether({
   const [volume, setVolumeState] = useState(loadPersistedVolume)
   const volumeAdjustedRef = useRef(false)
   const fmPlayRequestRef = useRef(0)
+  const [fmRecovery] = useState(() => new FmRecovery())
+  const tryFmContinueRef = useRef<() => boolean>(() => false)
+  const audioErrorHandlerRef = useRef<() => boolean>(() => false)
 
   useLayoutEffect(() => {
+    fmRecovery.reset()
     usePersonalFmStore.getState().reset()
-    return () => { usePersonalFmStore.getState().reset(); fmPlayRequestRef.current++ }
-  }, [roomId, socket])
+    const unsubscribe = usePersonalFmStore.subscribe((state, previous) => {
+      if (state.generation !== previous.generation) fmRecovery.cancel()
+    })
+    return () => {
+      unsubscribe()
+      fmRecovery.reset()
+      usePersonalFmStore.getState().reset()
+      fmPlayRequestRef.current++
+    }
+  }, [roomId, socket, fmRecovery])
 
   // ===== Refs =====
   /** 音频元素（惰性创建，不挂 DOM） */
@@ -894,11 +907,13 @@ export function useListenTogether({
       // 流加载失败（无版权/纯 VIP 未登录/解析失败等后端结构化错误；
       // 直链模式下 CDN 链接过期/失效同样在此报错，不回退代理流）
       const el = e.currentTarget as HTMLAudioElement
+      if (el !== audioRef.current) return
       console.error(
         '[useListenTogether] 音频流加载失败:',
         el.error?.code,
         el.error?.message
       )
+      if (audioErrorHandlerRef.current()) return
       message.error('音频加载失败，请稍后重试或切换其他曲目')
     },
   }))
@@ -1160,14 +1175,14 @@ export function useListenTogether({
 
   const fmAdvancingRef = useRef(false)
   const refillFm = useCallback(
-    () =>
+    (options?: FetchFmPoolOptions) =>
       fetchPersonalFmPool(async (url) => {
         const { data, ok } = await apiGet<{ data?: FmSongItem[]; message?: string; code?: number }>(url)
         if (!ok || (data?.code != null && data.code !== 200)) {
           throw new Error(data?.message || '漫游候选获取失败，请检查网易云登录或网络后重试')
         }
         return Array.isArray(data?.data) ? data.data : []
-      }),
+      }, options),
     []
   )
   const enqueueFm = useCallback(
@@ -1199,6 +1214,7 @@ export function useListenTogether({
   )
   const playFmItem = useCallback(
     (song: NcmSong, targetRoom: string) => {
+      fmRecovery.setPlaying(true)
       const item: MusicQueueItem = {
         ...song,
         roomId: targetRoom,
@@ -1213,7 +1229,7 @@ export function useListenTogether({
         positionSec: 0,
       })
     },
-    [loadAndPlaySong, broadcastSyncState]
+    [loadAndPlaySong, broadcastSyncState, fmRecovery]
   )
   const tryFmContinue = useCallback((): boolean => {
     const state = useMusicStore.getState()
@@ -1230,6 +1246,14 @@ export function useListenTogether({
       return false
     if (fmAdvancingRef.current) return true
     fmAdvancingRef.current = true
+    const generation = fm.generation
+    const isCurrent = () => {
+      const latest = usePersonalFmStore.getState()
+      return roomIdRef.current === targetRoom && isHostRef.current &&
+        latest.generation === generation && latest.activeRoomId === targetRoom &&
+        latest.activeKey === state.currentKey &&
+        useMusicStore.getState().currentKey === state.currentKey
+    }
     void advancePersonalFm(targetRoom, state.currentKey, {
       refill: refillFm,
       enqueue: (song) => enqueueFm(song, targetRoom),
@@ -1238,19 +1262,38 @@ export function useListenTogether({
         if (usePersonalFmStore.getState().pool.length < 2)
           void refillFm().catch(() => {})
       },
-      isCurrent: () =>
-        roomIdRef.current === targetRoom &&
-        isHostRef.current &&
-        useMusicStore.getState().currentKey === state.currentKey,
+      isCurrent,
     })
+      .then(() => fmRecovery.cancel())
       .catch((err: unknown) => {
-        message.error(err instanceof Error ? err.message : '漫游续播失败')
+        fmRecovery.retry(isCurrent, () => { tryFmContinueRef.current() }, () => {
+          message.error(err instanceof Error ? err.message : '漫游续播失败')
+        })
       })
       .finally(() => {
         fmAdvancingRef.current = false
       })
     return true
-  }, [enqueueFm, playFmItem, refillFm])
+  }, [enqueueFm, playFmItem, refillFm, fmRecovery])
+
+  useEffect(() => {
+    tryFmContinueRef.current = tryFmContinue
+    audioErrorHandlerRef.current = () => {
+      const fm = usePersonalFmStore.getState()
+      if (!isHostRef.current || fmAdvancingRef.current ||
+        fm.activeRoomId !== roomIdRef.current || fm.activeKey == null ||
+        fm.activeKey !== useMusicStore.getState().currentKey) return false
+      const outcome = fmRecovery.skip(() => tryFmContinueRef.current())
+      if (outcome === 'exhausted') {
+        usePersonalFmStore.getState().deactivate()
+        message.error('连续多首漫游歌曲无法播放，已停止自动续播')
+      } else if (outcome === 'skipped') {
+        message.info(`「${fm.current?.name ?? '当前歌曲'}」无法播放，已自动跳过`)
+      }
+      return outcome !== 'inactive'
+    }
+    return () => { audioErrorHandlerRef.current = () => false }
+  }, [tryFmContinue, fmRecovery])
 
   const playFmSong = useCallback(
     async (song: NcmSong) => {
@@ -1408,6 +1451,7 @@ export function useListenTogether({
     usePersonalFmStore.getState().invalidate()
     const audio = getAudio()
     const wantPlay = audio.paused
+    fmRecovery.setPlaying(wantPlay)
     if (wantPlay) {
       // 通知栏 play 按钮在后台触发时同样可能被自动播放策略拒绝，走重试
       playAudioWithRetry(audio, () => {
@@ -1422,7 +1466,7 @@ export function useListenTogether({
         positionSec: audio.currentTime,
       })
     }
-  }, [getAudio, broadcastSyncState, hasControl])
+  }, [getAudio, broadcastSyncState, hasControl, fmRecovery])
 
   /**
    * 下一首（按播放模式计算目标）。按顺序播放已到末尾时不再回绕到列表
@@ -1619,6 +1663,7 @@ export function useListenTogether({
       }
       switch (action) {
         case 'pause':
+          fmRecovery.setPlaying(false)
           pauseAudioWithCancel(audio)
           broadcastSyncState({
             isPlaying: false,
@@ -1626,6 +1671,7 @@ export function useListenTogether({
           })
           break
         case 'play':
+          fmRecovery.setPlaying(true)
           if (useMusicStore.getState().currentKey == null) return
           // 房主可能在后台收到观众的播放申请，同样走重试
           playAudioWithRetry(audio)
@@ -1659,7 +1705,7 @@ export function useListenTogether({
         }
       }
     },
-    [getAudio, switchSong, broadcastSyncState, seek, playSong, next]
+    [getAudio, switchSong, broadcastSyncState, seek, playSong, next, fmRecovery]
   )
 
   /**
