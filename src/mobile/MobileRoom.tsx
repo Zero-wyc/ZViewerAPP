@@ -53,7 +53,6 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
   const { isModeSwitching, handleSwitchMode } = useRoomModeSwitch(socket, roomId, room.isHost)
   const streamStatus = useStreamStatus(socket, roomId)
   const { shareMethod } = useShareMethod(socket, roomId, room.isHost)
-  const streamKey = useRoomStore(s => s.streamKey)
   const playerKey = usePlayerRemountKey()
   const [tab, setTab] = useState<Tab>('chat')
   const [password, setPassword] = useState('')
@@ -214,7 +213,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
               ? room.isHost
                 ? <MobileScreenShareHost socket={socket} roomId={roomId} streamPush={shareMethod === 'stream-push'} />
                 : shareMethod === 'stream-push'
-                ? <StreamPushViewer roomId={roomId} streamKey={streamKey || ''} streamStatus={streamStatus} playerOnly />
+                ? <StreamPushViewer roomId={roomId} streamStatus={streamStatus} playerOnly />
                 : <WebrtcWatchPage roomId={roomId} playerOnly />
               : <WatchTogetherPanel key={`${room.isHost}:${playerKey}`} roomId={roomId} isHost={room.isHost}
                   isWebFullscreen={fullscreen} onToggleWebFullscreen={() => setFullscreen(value => !value)} initialPlayback={playerKey === 'init' ? room.playback : null} />}

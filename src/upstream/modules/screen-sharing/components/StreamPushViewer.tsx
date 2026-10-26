@@ -19,7 +19,6 @@ import { FlvPlayer } from './FlvPlayer'
 
 interface StreamPushViewerProps {
   roomId: string
-  streamKey: string
   streamStatus: StreamStatus
   playerOnly?: boolean
 }
@@ -31,7 +30,7 @@ function StreamPushViewer({
 }: StreamPushViewerProps) {
   const { socket } = useSocket()
   const [isWebFullscreen, setIsWebFullscreen] = useState(false)
-  const { url: flvUrl, error: watchError } = useWatchPlayback(roomId)
+  const { url: flvUrl, error: watchError, retry } = useWatchPlayback(roomId)
 
   // 网页全屏模式下按 ESC 退出
   useEffect(() => {
@@ -58,12 +57,13 @@ function StreamPushViewer({
     <div className="relative h-full w-full">
       {!flvUrl ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/90 p-6 text-center">
-          <div className="text-base font-medium text-[var(--md-sys-color-error)]">
-            {watchError || '正在获取观看权限'}
+          <div className="text-base font-medium text-[var(--md-sys-color-on-surface)]">
+            {watchError ? '观看连接失败' : '正在连接直播'}
           </div>
-          <div className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
-            请等待房主切换为 OBS 推流模式后重试
-          </div>
+          {watchError && <>
+            <div role="alert" className="text-sm text-[var(--md-sys-color-error)]">{watchError}</div>
+            <button type="button" className="primary-button" onClick={retry}>重新连接</button>
+          </>}
         </div>
       ) : streamStatus === 'offline' ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/90 p-6 text-center">

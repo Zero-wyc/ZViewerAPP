@@ -266,6 +266,8 @@ export function FlvPlayer({
       url: src,
       format: 'flv',
       isLive: true,
+      // The room viewing URL already points at the authenticated backend.
+      noProxyFallback: true,
       flvRuntimeEvents: runtimeEvents,
     }
 

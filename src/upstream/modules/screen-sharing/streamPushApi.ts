@@ -2,30 +2,45 @@
  * 推流模式（OBS RTMP + HTTP-FLV）API 层
  */
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { apiFetch, getApiUrl, getRtmpHost, getRtmpPort } from '@/lib/api'
 
 /** A room admission grants viewing only. Publishing secrets never build FLV URLs. */
 export async function getWatchPlaybackUrl(roomId: string, signal?: AbortSignal): Promise<string> {
- const res = await apiFetch(`/api/stream-push/watch/${encodeURIComponent(roomId)}`, { signal })
- const data = await res.json() as { success?: boolean; url?: string; message?: string }
- if (!res.ok || !data.success || !data.url) throw new Error(data.message || '无法获取观看权限')
- if (!data.url.startsWith('/live/') || !data.url.includes('ticket=')) throw new Error('服务器返回了无效的观看地址')
- return `${getApiUrl().replace(/\/$/, '')}${data.url}`
+  const server = getApiUrl().replace(/\/$/, '')
+  const res = await apiFetch(`/api/stream-push/watch/${encodeURIComponent(roomId)}`, { signal })
+  const data = await res.json().catch(() => null) as { success?: boolean; url?: string; message?: string } | null
+  if (!res.ok || !data?.success || typeof data.url !== 'string') {
+    throw new Error(data?.message || '无法获取观看权限，请确认客户端与服务端均已更新')
+  }
+  const path = `/live/${encodeURIComponent(roomId)}.flv`
+  const parsed = new URL(data.url, 'https://watch.invalid')
+  if (!data.url.startsWith(path + '?') || parsed.pathname !== path || !parsed.searchParams.get('ticket')) {
+    throw new Error('服务器返回了无效的观看地址')
+  }
+  if (signal?.aborted || getApiUrl().replace(/\/$/, '') !== server) {
+    throw new Error('服务器连接已变更，请重新连接直播')
+  }
+  return `${server}${data.url}`
 }
 
-export function useWatchPlayback(roomId: string, enabled = true): { url: string; error: string } {
- const [state, setState] = useState({ room: roomId, url: '', error: '' })
- useEffect(() => {
-  const controller = new AbortController()
-  setState({ room: roomId, url: '', error: '' })
-  if (!enabled || !roomId) return () => controller.abort()
-  void getWatchPlaybackUrl(roomId, controller.signal).then(url => {
-   if (!controller.signal.aborted) setState({ room: roomId, url, error: '' })
-  }).catch(error => { if (!controller.signal.aborted) setState({ room: roomId, url: '', error: error instanceof Error ? error.message : '获取观看权限失败' }) })
-  return () => controller.abort()
- }, [roomId, enabled])
- return state.room === roomId && enabled ? state : { url: '', error: '' }
+export function useWatchPlayback(roomId: string, enabled = true): { url: string; error: string; retry: () => void } {
+  const [attempt, setAttempt] = useState(0)
+  const server = getApiUrl()
+  const [state, setState] = useState({ room: roomId, server, attempt, url: '', error: '' })
+  const retry = useCallback(() => setAttempt(value => value + 1), [])
+  useEffect(() => {
+    const controller = new AbortController()
+    setState({ room: roomId, server, attempt, url: '', error: '' })
+    if (!enabled || !roomId) return () => controller.abort()
+    void getWatchPlaybackUrl(roomId, controller.signal).then(url => {
+      if (!controller.signal.aborted) setState({ room: roomId, server, attempt, url, error: '' })
+    }).catch(error => {
+      if (!controller.signal.aborted) setState({ room: roomId, server, attempt, url: '', error: error instanceof Error ? error.message : '获取观看权限失败' })
+    })
+    return () => controller.abort()
+  }, [roomId, enabled, server, attempt])
+  return { ...(state.room === roomId && state.server === server && state.attempt === attempt && enabled ? state : { url: '', error: '' }), retry }
 }
 
 /**
