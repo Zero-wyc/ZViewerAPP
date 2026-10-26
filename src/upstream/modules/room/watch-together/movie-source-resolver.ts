@@ -630,23 +630,14 @@ export async function resolveMovieSource({
   // openlist/webdav 直链影片：播放时向后端实时解析新鲜直链，不使用固化的
   // movie.url——签名直链会过期、源站地址/协议可能随时间变化（对齐 synctv
   // 的 play-time 解析语义；后端 5 分钟 TTL 缓存 + 单飞去重，附赠
-  // upgradeDirectUrlValidated 的 https 活性校验）。解析失败回退固化
-  // movie.url 保持旧行为（direct-engine 的 http 降级自愈仍然生效）。
+  // upgradeDirectUrlValidated 的 https 活性校验）。解析失败保留业务错误并停止；
+  // 禁止用过期签名或其他代理路径掩盖准入、凭证和挂载错误。
   let effectiveUrl = movie.url
   if (
     movie.directLink === true &&
-    (sourceType === 'openlist' || sourceType === 'webdav') &&
-    movie.serverUrl &&
-    movie.path
+    (sourceType === 'openlist' || sourceType === 'webdav')
   ) {
-    try {
-      effectiveUrl = await resolveMovieDirectUrl(movie.id)
-    } catch (err) {
-      console.warn(
-        '[movie-source-resolver] 实时直链解析失败，回退影片记录 URL:',
-        err
-      )
-    }
+    effectiveUrl = await resolveMovieDirectUrl(movie.id)
   }
   const inferredFormat = movie.format || detectMediaFormat(effectiveUrl)
   return {

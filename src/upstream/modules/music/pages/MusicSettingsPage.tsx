@@ -26,7 +26,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, User } from 'lucide-react'
 import { fallbackNcmAvatar, neteaseImageUrl } from '../utils/neteaseImage'
-import { apiPost } from '@/lib/api'
+import { apiPost } from '../musicApi'
 import { message } from '@/components/ui/message'
 import { useMusicStore } from '../store'
 import {

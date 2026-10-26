@@ -354,7 +354,9 @@ export async function apiFetch(
   })
 
   // 401 refreshes once; 403 is a business denial unless explicitly opted in.
-  if (generation === authGeneration && currentApiUrl === getApiUrl() && !rest.signal?.aborted && refreshAuth !== 'never' && (res.status === 401 || (refreshAuth === 'default' && res.status === 403)) && !_retried) {
+  const upstreamAuthFailure = res.status === 401 &&
+    (await res.clone().json().catch(() => null))?.code === 'AUTH_FAILED'
+  if (!upstreamAuthFailure && generation === authGeneration && currentApiUrl === getApiUrl() && !rest.signal?.aborted && refreshAuth !== 'never' && (res.status === 401 || (refreshAuth === 'default' && res.status === 403)) && !_retried) {
     const ok = await refreshAccessToken()
     if (ok && generation === authGeneration && currentApiUrl === getApiUrl() && !rest.signal?.aborted) {
       // 重试原请求，标记 _retried 避免再次进入 refresh 分支

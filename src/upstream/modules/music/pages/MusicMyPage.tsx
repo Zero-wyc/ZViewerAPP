@@ -40,7 +40,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2, ListMusic } from 'lucide-react'
 import type { Socket } from 'socket.io-client'
-import { apiGet } from '@/lib/api'
+import { apiGet } from '../musicApi'
 import { message } from '@/components/ui/message'
 import { useMusicStore } from '../store'
 import { songToUpsertItem, useQueueAdd } from '../hooks/useQueueAdd'

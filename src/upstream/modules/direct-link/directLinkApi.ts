@@ -98,18 +98,25 @@ export function resolvePlaybackUrl(
  * 单飞去重），前端每次播放解析时调用本接口而非复用固化 URL。
  *
  * @throws 后端返回失败（影片不存在/挂载缺失/源站不可达等）时抛错，
- *         调用方应回退固化 movie.url 保持旧行为
+ *         调用方停止本次解析并显示原因；旧的签名 URL 不保证仍有效
  */
+export class DirectResolveError extends Error {
+  readonly status: number
+  readonly code?: string
+  constructor(message: string, status: number, code?: string) { super(message); this.name = 'DirectResolveError'; this.status = status; this.code = code }
+}
+
 export async function resolveMovieDirectUrl(movieId: number): Promise<string> {
   const query = new URLSearchParams({ movieId: String(movieId) }).toString()
-  const res = await apiFetch(`/api/direct-resolve/movie?${query}`)
-  const data = (await res.json()) as {
+  const res = await apiFetch(`/api/direct-resolve/movie?${query}`, { refreshAuth: 'unauthorized' })
+  const data = (await res.json().catch(() => ({}))) as {
     success: boolean
     message?: string
+    code?: string
     directUrl?: string
   }
   if (!res.ok || !data.success || !data.directUrl) {
-    throw new Error(data.message || '实时解析直链失败')
+    throw new DirectResolveError(data.message || '实时解析直链失败', res.status, data.code)
   }
   return data.directUrl
 }

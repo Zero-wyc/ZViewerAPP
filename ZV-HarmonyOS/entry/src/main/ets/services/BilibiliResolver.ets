@@ -223,8 +223,11 @@ export async function resolveBilibili(bvid: string, requestedCid: number, reques
   const vip = vipStatus > 0;
   // Prefer the regular AVC 1080P track on phones. The high-bitrate VIP track
   // is available through the explicit quality selector but may stall in ArkWeb.
-  const defaultQn = cookie === '' ? 32 : 80;
-  const qn = mode === 'manual' && requestedQn > 0 ? requestedQn : fallbackQn > 0 ? fallbackQn : defaultQn;
+  const mp4 = !!pgcData && preferMp4;
+  const defaultQn = mp4 ? 64 : cookie === '' ? 32 : 80;
+  const selectedQn = mode === 'manual' && requestedQn > 0 ? requestedQn : fallbackQn > 0 ? fallbackQn : defaultQn;
+  // MP4 tops out at 720P; a manual or recovery request below 64 stays lower.
+  const qn = mp4 ? Math.min(64, selectedQn) : selectedQn;
   const play = pgcData ? await pgcPlay(pgcData.epId, cid, qn, cookie, preferMp4, vip) : await signedPlayUrl(bvid, cid, qn, cookie, vip);
   const qualities: QualityOption[] = (play.accept_quality || []).map((id: number): QualityOption => ({ id, label: qualityLabel(id) }));
   const fullDuration = page?.duration || info.duration;

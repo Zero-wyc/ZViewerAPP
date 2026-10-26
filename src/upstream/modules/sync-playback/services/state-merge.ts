@@ -39,6 +39,7 @@ export function restoreStateSnapshot(
     // Preserve them only within one source, never across different films.
     playsvideoEnabled: snapshot.playsvideoEnabled ?? (sameSource ? current.playsvideoEnabled : undefined),
     noProxyFallback: snapshot.noProxyFallback ?? (sameSource ? current.noProxyFallback : undefined),
+    hostCliEnabled: snapshot.hostCliEnabled ?? (sameSource ? current.hostCliEnabled : undefined),
   }
 }
 
@@ -66,6 +67,10 @@ export function buildStateFromVideo(
 ): WatchTogetherState {
   const hasLoadedSource = !!video && video.currentSrc !== ''
   return {
+    epId: storeState.epId,
+    seasonId: storeState.seasonId,
+    seasonTitle: storeState.seasonTitle,
+    preview: storeState.preview,
     sourceUrl: storeState.sourceUrl,
     sourceType: storeState.sourceType,
     audioUrl: storeState.audioUrl,

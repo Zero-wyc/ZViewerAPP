@@ -1,6 +1,6 @@
 {
   "name": "zviewer-client",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,7 +13,7 @@
     "android:open": "cap open android",
     "postinstall": "patch-package --error-on-fail",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "test:maintenance": "node --experimental-vm-modules --test scripts/daily-maintenance.test.mjs scripts/music-personal-fm.test.mjs scripts/music-background-audio.test.mjs scripts/music-overlay-immersive.test.mjs scripts/music-track-swipe.test.mjs scripts/playlist-play-all.test.mjs scripts/music-cover.test.mjs"
+    "test:maintenance": "node --experimental-vm-modules --test scripts/daily-maintenance.test.mjs scripts/music-personal-fm.test.mjs scripts/music-background-audio.test.mjs scripts/music-overlay-immersive.test.mjs scripts/music-track-swipe.test.mjs scripts/playlist-play-all.test.mjs scripts/music-cover.test.mjs scripts/server-alignment.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

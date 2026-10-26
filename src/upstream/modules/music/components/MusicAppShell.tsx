@@ -1,3 +1,4 @@
+import { useMusicService } from '../musicApi'
 /**
  * 一起听主区域新根（Hydrogen 完整应用框架）。
  *
@@ -132,6 +133,8 @@ function ShellInner({
   voiceManagedExternally: boolean
   commentsOnlyDock: boolean
 }) {
+  const serviceError = useMusicService(s => s.error)
+  const serviceRevision = useMusicService(s => s.revision)
   const page = useMusicStore((s) => s.page)
   const playerOverlayOpen = useMusicStore((s) => s.playerOverlayOpen)
   useMusicOverlayImmersive(playerOverlayOpen)
@@ -390,7 +393,10 @@ function ShellInner({
 
       {/* ===== 内容页（flex-1 滚动，多页切换；底部让位给悬浮播放条，
           手机端底距收窄并叠加 iOS 安全区） ===== */}
-      <main className="music-page-content zen-scroll min-h-0 flex-1 overflow-y-auto pb-[118px] max-md:pb-[calc(96px+env(safe-area-inset-bottom))]">
+      {serviceError && <div role="alert" className="mx-4 flex items-center justify-between gap-3 rounded-xl p-3 text-sm bg-[var(--md-sys-color-error-container)] text-[var(--md-sys-color-on-error-container)]">
+        <span>{serviceError}</span><button className="min-h-11 shrink-0 px-3" onClick={() => useMusicService.setState(s => ({ error: null, revision: s.revision + 1 }))}>重试</button>
+      </div>}
+      <main key={serviceRevision} className="music-page-content zen-scroll min-h-0 flex-1 overflow-y-auto pb-[118px] max-md:pb-[calc(96px+env(safe-area-inset-bottom))]">
         {page === 'home' && <MusicHomePage {...pageProps} />}
         {page === 'search' && <MusicSearchPage {...pageProps} />}
         {page === 'fm' && (

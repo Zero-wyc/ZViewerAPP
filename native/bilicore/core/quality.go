@@ -181,6 +181,11 @@ func ResolveMobile(ctx context.Context, opts ResolveOptions) (*ResolveResult, er
 	if opts.FallbackQn > 0 {
 		requestQn = opts.FallbackQn
 	}
+	// Only the PGC MP4 request uses this ceiling. UGC native playback and
+	// DASH retain account/device discovery and their existing permission limits.
+	if pgc != nil && opts.PreferMp4 && !opts.ForceDash && (requestQn <= 0 || requestQn > 64) {
+		requestQn = 64
+	}
 	get := func(qn int) (*BilibiliPlayUrlResult, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err

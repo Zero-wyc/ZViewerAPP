@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ExternalLink, MessagesSquare, MonitorSmartphone } from 'lucide-react'
-import { getApiUrl } from '@/lib/api'
+import { getApiUrl } from '../musicApi'
 import { CLI_DEFAULT_PORT, useCliAgent } from '@/hooks/useCliAgent'
 import { useAuthStore } from '@/store/authStore'
 import { DEFAULT_DANMAKU_STYLE, useDanmakuStore } from '@/store/danmakuStore'
@@ -482,7 +482,7 @@ export function PlayerSettingsModal({ onDismiss }: { onDismiss: () => void }) {
                         : '已启用 CLI 但未连接本地代理，回退服务器 MP4 直链；请启动本地 ZViewer CLI 获取高画质'
                       : musicVideoServerDash
                         ? 'DASH 分离流，清晰度由上方「分辨率」选择决定（自动=跟随账号）'
-                        : 'MP4 直链，seek 流畅，清晰度通常 480P/720P'}
+                        : 'MP4 直链，seek 流畅，默认请求 720P，实际画质以片源返回为准'}
                   </div>
                 </div>
               </div>

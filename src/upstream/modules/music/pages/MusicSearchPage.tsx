@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react'
 import { Loader2, Music, SearchX } from 'lucide-react'
 import type { Socket } from 'socket.io-client'
-import { apiGet } from '@/lib/api'
+import { apiGet } from '../musicApi'
 import { message } from '@/components/ui/message'
 import { useMusicStore } from '../store'
 import { useMusicPlayer } from '../hooks/useMusicPlayer'

@@ -1,4 +1,4 @@
-import { apiGet, getApiUrl } from '@/lib/api'
+import { apiGet, getApiUrl } from '../musicApi'
 import type { NcmLyricResponse } from '../types'
 
 interface SubtitleResponse { lines?: Array<{ from: number; to: number; content: string }> }

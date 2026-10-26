@@ -412,12 +412,16 @@ export function useWatchTogether({
         ++loadSeqRef.current
         downloadAbortRef.current?.abort()
         setCurrentMovieId(null)
-        useRoomStore.setState({ pendingQualityChange: null, viewerCliResolvedSource: null, autoContinueRevision: state.autoContinueRevision + 1, watchTogether: { ...state.watchTogether, isPlaying: false, sourceUrl: '' } })
+        useRoomStore.setState({ pendingQualityChange: null, viewerCliResolvedSource: null, autoContinueRevision: state.autoContinueRevision + 1, watchTogether: { sourceUrl: '', sourceType: 'url', currentTime: 0, duration: 0, playbackRate: 1, isPlaying: false } })
       }
     }
 
     const handleCurrentMovie = (payload: { movieId: number | null }) => {
-      if (payload.movieId === null) { initialPlaybackRef.current = null; ++loadSeqRef.current; downloadAbortRef.current?.abort() }
+      if (payload.movieId === null && !useRoomStore.getState().watchTogether.isPreview) {
+        initialPlaybackRef.current = null; ++loadSeqRef.current; downloadAbortRef.current?.abort()
+        useRoomStore.setState({ pendingQualityChange: null, viewerCliResolvedSource: null,
+          watchTogether: { sourceUrl: '', sourceType: 'url', currentTime: 0, duration: 0, playbackRate: 1, isPlaying: false } })
+      }
       setCurrentMovieId(payload.movieId)
     }
 
@@ -1227,7 +1231,7 @@ export function useWatchTogether({
   // currentMovieId 被清空（删除当前播放影片等场景）时，立即暂停视频并清理媒体资源，
   // 避免已删除的影片继续在播放器中播放。房主与观众端均生效。
   useEffect(() => {
-    if (currentMovieId !== null) return
+    if (currentMovieId !== null || useRoomStore.getState().watchTogether.isPreview) return
     ++loadSeqRef.current
     downloadAbortRef.current?.abort()
     const video = videoRef.current
@@ -1360,7 +1364,12 @@ export function useWatchTogether({
 
       // 预览即新的加载代际：使进行中的 loadMovie / reloadBilibili 过期，
       // 避免它们迟到完成后覆盖预览源
-      ++loadSeqRef.current
+      const seq = ++loadSeqRef.current
+      downloadAbortRef.current?.abort()
+      const session = useRoomStore.getState().roomSessionRevision
+      const server = getApiUrl()
+      const current = () => loadSeqRef.current === seq && useRoomStore.getState().roomSessionRevision === session &&
+        useRoomStore.getState().roomId === roomId && getApiUrl() === server && useRoomStore.getState().watchTogether.isPreview === true
       // 新代际重置旧抑制（计数清零防悬挂）
       resetSuppression(suppressEventsRef)
 
@@ -1390,6 +1399,7 @@ export function useWatchTogether({
       suppressEventsRef.current = true
       void applySourceToVideo(video, newState)
         .then(() => {
+          if (!current()) return
           video.currentTime = 0
           if (video.paused) {
             void safePlay(video)
@@ -1416,6 +1426,7 @@ export function useWatchTogether({
           })
         })
         .catch((err: unknown) => {
+          if (!current()) return
           console.error('[useWatchTogether] previewPlay 加载失败:', err)
           suppressEventsRef.current = false
           message.error(err instanceof Error ? err.message : '预览源加载失败')

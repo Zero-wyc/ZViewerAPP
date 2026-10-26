@@ -278,10 +278,13 @@ export function useViewerStateSync({
 
       // JSON 会省略 undefined；不能靠 diff 清空上一影片的 audioUrl/cid。
       // 完整 state 为权威快照，diff 缺省仍保留原来的强制同步语义。
-      const state = restoreStateSnapshot(
-        useRoomStore.getState().watchTogether,
-        payload.state
-      )
+      const room = useRoomStore.getState()
+      const movie = payload.state.isPreview ? undefined : room.movies.find(m => m.id === room.currentMovieId)
+      const state = restoreStateSnapshot(room.watchTogether, {
+        ...payload.state,
+        playsvideoEnabled: payload.state.playsvideoEnabled ?? movie?.playsvideoEnabled,
+        noProxyFallback: payload.state.noProxyFallback ?? (movie?.directLink === true ? true : undefined),
+      })
 
       // Store updates are desired state, never evidence that the loader applied a policy.
       receiver.revision++

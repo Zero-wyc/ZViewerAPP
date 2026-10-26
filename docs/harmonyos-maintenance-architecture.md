@@ -2,6 +2,21 @@
 
 更新日期：2026-10-26（Asia/Shanghai）。本文是日常维护入口，已整合原发布、连接修复、服务端对齐与屏幕共享文档。历史运行证据和当前源码检查分开记录。
 
+## 2.2.2 / 223 服务端 Go 合同对齐（2026-10-26，本地验证版）
+
+本轮按 [对齐方案](server-client-alignment-2026-10-26.md) 实施 S01/S02 配合与 A01/A02/A03/A05；服务端修改保留在本地，暂不提交 PR。GUI 音乐故障根因是 Go 迁移把 NCM 外部化后，打包和启动链路漏带组件，默认扫码接口 503。已记入服务端仓库的修复说明和后续 PR 待办。
+
+- music/musicApi.ts 统一保留音乐 HTTP/业务错误，服务不可用时显示提示与重试；重试重建内容页，首页一次加载门控可重新执行。503 不清 App/网易云登录，第三方音乐 401/403 不刷新 App 会话。扫码错误停止动画并提供重试，异步取消、轮询并发和有限失败保护生效。
+- 直链解析保留 status/code/message，失败停止，不使用固化旧签名或切服务器代理；上游挂载 AUTH_FAILED 不刷新 App 登录。保留 noProxyFallback。
+- 广播状态构建传递 epId/seasonId/seasonTitle/preview；观众以影片 DTO 明确策略兜底。服务端 Playback 指针布尔与可空 metadata JSON 列保证显式 false、心跳/ACK/恢复及换源清理；旧库只增列，不重建旧行。
+- 影片转预览时不执行 currentMovieId:null 的媒体清理；预览取消旧下载，迟到完成不播放/广播，删片清完整源快照。
+- Android ResolveMobile 与 HarmonyOS PGC MP4 默认请求 64，手动/恢复低档仍受尊重；本机 UGC 与 DASH 的账号/设备规则不一概改成 64。界面说明改为默认请求 720P，实际以片源返回为准。
+- 管理设置补 updateUseGitCode 可选类型；未新增移动后台或音量均衡，iOS 未修改/构建。
+
+验证：TypeScript/Vite、既有 66 项维护与新增 3 项对齐回归通过；Android Debug APK（独立 .debug）和 HarmonyOS 未签名 Debug HAP 编译通过。浏览器受控接口确认离线提示、账号保留、恢复后二维码图像加载；真实 useWatchTogether 配合受控媒体加载器确认影片转预览清理次数为 0。Ego 窗口最小化导致截图不可用，未登记截图验收。服务端 Go 全套测试、权限矩阵、旧库增量迁移、26 组合同检查通过；189 条路由探测只证明路径存在。随包 NCM 实际取得 key/PNG、轮询 801，未扫码登录。
+
+安装包位于忽略目录 release/alignment-20261026/，每个最终包仅计算一次 SHA256。没有设备安装/实体设备媒体验收，没有发布 Release、推送源码、提交服务端 PR 或连接 NAS。GUI 更新位置为 E:/Codex-bulid/zviewer-windows-x64-GUI，保留原数据库、配置与证书。
+
 ## 2026-10-26 服务端接口增量检查
 
 已完成 [服务端增量检查与客户端对齐方案](server-client-alignment-2026-10-26.md)：从上次完整适配的 v4.7.4 `e3af086` 检查至上游 main `a34db94`，并区分 2.2.1 已同步的后续功能。旧 HTTP/Socket 路径和事件名保留；隔离检查确认 Go 权威播放快照丢策略字段，以及继承自 Node 的 B站 movieId 代房主解析缺少房间准入校验。NCM 外部依赖、音乐不可用提示、直链错误分流、MP4 本机策略和预览清理列有后续方案。

@@ -541,7 +541,7 @@ export function BilibiliParseSettings({
                     ? isEmbeddedBilibiliHost() ? '使用本机 DASH 画质解析' : 'CLI 代理已启用，当前使用本地 DASH 高画质解析'
                     : isEmbeddedBilibiliHost() ? '本机解析不可用或未登录，回退服务器 MP4' : 'CLI 未连接，回退服务器 MP4 直链'
                   : displayPreferMp4
-                    ? 'MP4 直链，seek 流畅，清晰度通常 480P/720P'
+                    ? 'MP4 直链，seek 流畅，默认请求 720P，实际画质以片源返回为准'
                     : 'DASH 分离流，支持 1080P/4K，seek 需缓冲'}
             </div>
           </div>
