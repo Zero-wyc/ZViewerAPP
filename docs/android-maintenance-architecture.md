@@ -1,12 +1,12 @@
 # Android 客户端维护文档
 
-## 2.2.7 / 228 OBS 观众兼容修复（2026-10-26，本地复测版）
+## 2.2.7 / 228 OBS 观众兼容修复（2026-10-26，正式发布）
 
 旧客户端以发布码拼接 FLV 地址，服务端停止向观众下发发布码后会显示“推流密钥未获取”。发布码长度调整本身不影响观看；新版继续使用房间准入后的独立观看票据，MobileRoom 与 StreamPushViewer 移除遗留 streamKey 参数，观看不获取 OBS 发布配置。失败展示服务端原因和“重新连接”，重试废弃旧请求，切房/切服/禁用或退出后旧响应不能恢复播放；观看地址校验目标房间和非空票据，绑定请求开始时的连接及路径前缀。FLV 不降级到通用代理或发布码地址。
 
-83 项维护回归、类型检查/Vite、Android 与 HarmonyOS Release 签名构建通过，统一为 2.2.7 / 228。真实本地 Go 服务与 Socket.IO 验证无发布码观众的准入拒绝及批准；ego-browser 操作实际 StreamPushViewer 的重试按钮后解码 H.264/AAC 直播，640×360、readyState=4，帧数和播放时间持续增加。浏览器验证不等同于新增手机观看验收；用户已确认 OBS 发布端复测通过，双端新包仍待覆盖安装复测。iOS 未修改或构建。
+83 项维护回归、类型检查/Vite、Android 与 HarmonyOS Release 签名构建通过，统一为 2.2.7 / 228。真实本地 Go 服务与 Socket.IO 验证无发布码观众的准入拒绝及批准；ego-browser 操作实际 StreamPushViewer 的重试按钮后解码 H.264/AAC 直播，640×360、readyState=4，帧数和播放时间持续增加。用户先确认 OBS 发布端通过，随后确认 2.2.7 客户端复测通过并授权发布；该反馈不扩展为所有设备、公网或后台场景验收。iOS 未修改或构建。
 
-签名与 31 项网页资源逐项比对通过，沿用既有签名、非 Debug、无 Agents.md/私有签名源文件。安装包与各一次 SHA256 在忽略目录 release/client-obs-viewer-20261026/，未发布 GitHub Release。
+签名与 31 项网页资源逐项比对通过，沿用既有签名、非 Debug、无 Agents.md/私有签名源文件。安装包与各一次 SHA256 在忽略目录 release/client-obs-viewer-20261026/；正式发行见 [ZViewer-Client V2.2.7](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.2.7)，源码同步 main。
 
 ## 2.2.6 / 227 资源权限与图片合同修复（2026-10-26，本地验证版）
 
