@@ -12,12 +12,13 @@ export class MusicServiceError extends Error {
 async function inspect(url: string | URL, response: Response, data?: unknown) {
   if (!String(url).includes('/api/music/')) return
   if (response.ok && !response.headers.get('content-type')?.includes('json')) return
-  const body = (data === undefined ? await response.clone().json().catch(() => null) : data) as { code?: string | number; message?: string } | null
-  if (body?.code === 'NCM_UNAVAILABLE' || response.status === 503) {
+  const body = (data === undefined ? await response.clone().json().catch(() => null) : data) as { code?: string | number; message?: string; msg?: string } | null
+  // Keep explicit legacy-server compatibility; a transient upstream 503 is a request error.
+  if (body?.code === 'NCM_UNAVAILABLE') {
     useMusicService.setState({ error: NCM_UNAVAILABLE_MESSAGE })
     throw new MusicServiceError(NCM_UNAVAILABLE_MESSAGE, response.status, body?.code)
   }
-  if (!response.ok) throw new MusicServiceError(body?.message || '网易云请求失败，请重试', response.status, body?.code)
+  if (!response.ok) throw new MusicServiceError(body?.message || body?.msg || '网易云请求失败，请重试', response.status, body?.code)
   // A successful independent request must not hide another section's error.
 }
 export async function apiGet<T = unknown>(url: string, options?: Parameters<typeof api.apiGet>[1]) {
@@ -39,6 +40,6 @@ export const apiFetch: typeof api.apiFetch = async (url, options) => {
 function requestOptions(url: string | URL, options?: Parameters<typeof api.apiFetch>[1]) {
   // These optional-auth endpoints can return the upstream account's 401/403.
   // Such an error must never refresh or clear the ZViewer session.
-  const upstream = /\/api\/music\/(ncm\/|stream[?]|song-quality[?])/.test(String(url))
+  const upstream = /\/api\/music\/(ncm\/|stream[?]|song-quality[?]|cloud\/upload(?:[?]|$))/.test(String(url))
   return upstream ? { ...options, _retried: true } : options
 }

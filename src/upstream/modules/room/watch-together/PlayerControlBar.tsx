@@ -20,8 +20,6 @@ import {
   RotateCw,
   Check,
   MoreHorizontal,
-  Eye,
-  EyeOff,
   MessageSquare,
 } from 'lucide-react'
 import { PlayerDisplayControls } from '../../../../mobile/PlayerDisplayControls'
@@ -251,8 +249,6 @@ interface PlayerControlBarProps {
   pausePending?: boolean
   playPending?: boolean
   controlBarVisible?: boolean
-  controlBarHideMode?: boolean
-  onToggleHideMode?: () => void
 }
 
 export function PlayerControlBar({
@@ -282,8 +278,6 @@ export function PlayerControlBar({
   pausePending,
   playPending,
   controlBarVisible = true,
-  controlBarHideMode = false,
-  onToggleHideMode,
 }: PlayerControlBarProps) {
   const landscape = useLandscapeControls()
   const currentTime = useVideoCurrentTime(videoRef)
@@ -789,15 +783,6 @@ export function PlayerControlBar({
             </ControlButton>
           </div>
 
-          {/* 隐藏/显示控制栏 */}
-          <div className="player-secondary"><ControlButton
-            label={controlBarHideMode ? '显示控制栏' : '隐藏控制栏'}
-            active={controlBarHideMode}
-            onClick={onToggleHideMode}
-          >
-            {controlBarHideMode ? <Eye size={18} /> : <EyeOff size={18} />}
-          </ControlButton></div>
-
           {/* 设置 */}
           <ControlButton
             ref={settingsButtonRef}
@@ -852,17 +837,6 @@ export function PlayerControlBar({
                 >
                   <RotateCw size={14} />
                   重载视频
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onToggleHideMode?.()
-                    setMoreOpen(false)
-                  }}
-                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-[var(--md-sys-color-on-surface)] transition-colors hover:bg-[var(--md-sys-color-surface-container-highest)]"
-                >
-                  <Eye size={14} />
-                  {controlBarHideMode ? '显示控制栏' : '隐藏控制栏'}
                 </button>
               </PlayerMoreMenu>
             )}

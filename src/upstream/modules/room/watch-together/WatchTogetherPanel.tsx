@@ -4,7 +4,7 @@
  * Shell（本组件）职责：
  * - 创建 / 销毁 ArtPlayer 实例（引擎层 attach 由 Core 的 useWatchTogether 驱动 art.video）
  * - 构建图层 / 面板插槽（弹幕层、覆盖层、设置面板锚点）
- * - 观众端只读守卫：阻断视频区域单击 / 双击，双击接管为原生全屏
+ * - 观众端只读守卫：网页双击全屏，双端原生视频手势由 Core 接管
  * - 网页全屏状态管理（受控 / 非受控）与 ESC 退出
  *
  * Core（WatchTogetherCore.tsx）职责：
@@ -162,6 +162,9 @@ export function WatchTogetherPanel({
       miniProgressBar: false,
       // 禁用 ArtPlayer 默认快捷键；由项目自定义控制栏/快捷键处理
       hotkey: false,
+      // Core owns touch seeking and playback; avoid a second recognizer in ArtPlayer.
+      gesture: false,
+      fastForward: false,
       airplay: false,
       mutex: true,
       backdrop: true,

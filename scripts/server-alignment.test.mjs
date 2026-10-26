@@ -36,6 +36,23 @@ test('NCM unavailable survives consumed JSON, preserves account state and can re
   assert.equal(result.data.result[0], 1)
 })
 
+test('in-process NCM errors preserve msg/code, keep generic 503 local, and isolate cloud login failures', async () => {
+  for (const [status, body] of [[401, { code: 301, msg: '请先登录网易云账号' }], [502, { code: 'UPSTREAM_ERROR', message: 'NCM 请求失败' }], [503, { code: 'BUSY', msg: '上游繁忙，请重试' }]]) {
+    const requests = []
+    const api = await load('../src/upstream/modules/music/musicApi.ts', {
+      apiGet: async (url, options) => { requests.push(options); const response = Response.json(body, { status }); return { response, data: await response.json() } },
+      apiPost: async () => {},
+      apiFetch: async (url, options) => { requests.push(options); return Response.json(body, { status }) },
+    })
+    for (const [invoke, url] of [[api.apiGet, '/api/music/ncm/user/cloud'], [api.apiFetch, '/api/music/cloud/upload']]) {
+      await assert.rejects(invoke(url), error => error.status === status && error.code === body.code && error.message === (body.message || body.msg))
+    }
+    assert.equal(requests.length, 2)
+    assert.ok(requests.every(options => options._retried === true))
+    assert.equal(api.useMusicService.getState().error, null)
+  }
+})
+
 test('direct resolution retains HTTP and business errors rather than returning a stale URL', async () => {
   for (const [status, code] of [[403, 'ROOM_FORBIDDEN'], [401, 'AUTH_FAILED'], [404, 'MOUNT_NOT_FOUND'], [400, 'INTERNAL_NETWORK_FORBIDDEN'], [502, 'UNREACHABLE']]) {
     const api = await load('../src/upstream/modules/direct-link/directLinkApi.ts', {
