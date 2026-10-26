@@ -1,3 +1,4 @@
+import { neteaseImageUrl, fallbackNcmAvatar } from '../utils/neteaseImage'
 /**
  * 顶部导航（Hydrogen Home.vue header 范式）。
  *
@@ -913,7 +914,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
         >
           {loginStatus.loggedIn && loginStatus.avatarUrl ? (
             <img
-              src={loginStatus.avatarUrl}
+              src={neteaseImageUrl(loginStatus.avatarUrl, 80)} onError={fallbackNcmAvatar}
               alt={loginStatus.nickname ?? '网易云账号'}
               className="h-full w-full object-cover"
             />
@@ -950,7 +951,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
             >
               {loginStatus.loggedIn && loginStatus.avatarUrl ? (
                 <img
-                  src={loginStatus.avatarUrl}
+                  src={neteaseImageUrl(loginStatus.avatarUrl, 80)} onError={fallbackNcmAvatar}
                   alt={loginStatus.nickname ?? '网易云账号'}
                   className="h-8 w-8 shrink-0 rounded-full object-cover"
                 />

@@ -1,3 +1,4 @@
+import { serverResource } from './serverUrl'
 import { useEffect, useRef, useState } from 'react'
 import { getApiUrl } from '@/lib/api'
 import type { SystemMediaAction, SystemMediaCommand, SystemMediaState } from '../platform/contracts'
@@ -16,7 +17,8 @@ export function systemArtworkUrl(cover?: string | null): string {
   try {
     const base = getApiUrl() || location.origin
     const artwork = musicCoverUrl(cover, 600, base)
-    const url = new URL(artwork.startsWith('//') ? `https:${artwork}` : artwork, `${base}/`)
+    const resource = serverResource(base, artwork)
+    const url = new URL(resource.startsWith('//') ? `https:${resource}` : resource, `${base}/`)
     return ['http:', 'https:'].includes(url.protocol) ? url.href : ''
   } catch { return '' }
 }

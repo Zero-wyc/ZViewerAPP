@@ -79,7 +79,9 @@ async function loadSource(file, imports, globals = {}) {
 
 test('system media artwork uses the same current native connection and follows reconnection', async () => {
   let base
-  const api = await loadSource('../src/mobile/useSystemMediaSession.ts', {
+  const resource = await loadSource('../src/mobile/serverUrl.ts', { '../platform/connectionTransport': { connectionUrl } })
+  const api = await loadSource('../src/mobile/useSystemMediaSession.ts' , {
+    './serverUrl': resource,
     react: { useEffect() {}, useRef() {}, useState() {} },
     '@/lib/api': { getApiUrl: () => connectionUrl(base).replace(/\/$/, '') },
     '../platform/mediaSession': { clearSystemMedia() {}, listenSystemMedia() {}, updateSystemMedia() {} },
@@ -95,6 +97,7 @@ test('system media artwork uses the same current native connection and follows r
     bindConnectionTransport(base, 'http://127.0.0.1:47222/channel-b/prefix')
     assert.match(api.systemArtworkUrl(legacy), /^http:\/\/127\.0\.0\.1:47222\/channel-b\/prefix\//)
     assert.equal(new URL(api.systemArtworkUrl(source)).protocol, 'https:')
+    assert.equal(api.systemArtworkUrl('/api/emby/mounts/1/image?itemId=film&tag=cap'), 'http://127.0.0.1:47222/channel-b/prefix/api/emby/mounts/1/image?itemId=film&tag=cap')
   } finally { clearConnectionTransport() }
 })
 

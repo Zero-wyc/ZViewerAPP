@@ -2,23 +2,30 @@
  * 推流模式（OBS RTMP + HTTP-FLV）API 层
  */
 
-import { apiFetch, getFlvBaseUrl, getRtmpHost, getRtmpPort } from '@/lib/api'
+import { useEffect, useState } from 'react'
+import { apiFetch, getApiUrl, getRtmpHost, getRtmpPort } from '@/lib/api'
 
-/**
- * 构建拉流地址。
- * 使用 FLV_BASE_URL（支持用户自定义或环境变量 VITE_FLV_BASE_URL），
- * 默认按当前页面协议推断：
- * - HTTPS 页面默认使用相对路径 `/live`，假设生产环境通过 Nginx/Caddy 等反向代理
- *   将 `/live` 映射到 Node Media Server 的 HTTP-FLV 端口（默认 3335）。
- * - HTTP 页面默认直连 `http://host:3335`，用于本地开发。
- *
- * 最终地址格式为 `${base}/live/${streamKey}.flv`
- *
- * 注意：HTTP-FLV 拉流使用独立的 streamKey（与 roomId 分离），
- * 观众端需从 roomStore 或后端广播中获取 streamKey。
- */
-export function buildFlvUrl(streamKey: string): string {
-  return `${getFlvBaseUrl()}/live/${streamKey}.flv`
+/** A room admission grants viewing only. Publishing secrets never build FLV URLs. */
+export async function getWatchPlaybackUrl(roomId: string, signal?: AbortSignal): Promise<string> {
+ const res = await apiFetch(`/api/stream-push/watch/${encodeURIComponent(roomId)}`, { signal })
+ const data = await res.json() as { success?: boolean; url?: string; message?: string }
+ if (!res.ok || !data.success || !data.url) throw new Error(data.message || '无法获取观看权限')
+ if (!data.url.startsWith('/live/') || !data.url.includes('ticket=')) throw new Error('服务器返回了无效的观看地址')
+ return `${getApiUrl().replace(/\/$/, '')}${data.url}`
+}
+
+export function useWatchPlayback(roomId: string, enabled = true): { url: string; error: string } {
+ const [state, setState] = useState({ room: roomId, url: '', error: '' })
+ useEffect(() => {
+  const controller = new AbortController()
+  setState({ room: roomId, url: '', error: '' })
+  if (!enabled || !roomId) return () => controller.abort()
+  void getWatchPlaybackUrl(roomId, controller.signal).then(url => {
+   if (!controller.signal.aborted) setState({ room: roomId, url, error: '' })
+  }).catch(error => { if (!controller.signal.aborted) setState({ room: roomId, url: '', error: error instanceof Error ? error.message : '获取观看权限失败' }) })
+  return () => controller.abort()
+ }, [roomId, enabled])
+ return state.room === roomId && enabled ? state : { url: '', error: '' }
 }
 
 /**

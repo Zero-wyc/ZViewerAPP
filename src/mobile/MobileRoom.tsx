@@ -1,3 +1,4 @@
+import { usePosterRefresh } from '@/hooks/usePosterRefresh'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ArrowLeft, Cast, Check, Film, Headphones, MessageCircle, MonitorPlay, Music2, Palette, Plus, RefreshCw, UsersRound, WifiOff, X } from 'lucide-react'
@@ -37,6 +38,7 @@ import { useScreenShareCapabilities } from './useScreenShareCapabilities'
 type Tab = 'chat' | 'movies'
 
 export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeave: () => void }) {
+  usePosterRefresh(roomId)
   const { socket, connected, recoveryError } = useSocket()
   const screenShareCapability = useScreenShareCapabilities()
   const location = useLocation()
