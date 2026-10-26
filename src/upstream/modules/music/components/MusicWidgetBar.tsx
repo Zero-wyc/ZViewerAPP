@@ -1,3 +1,4 @@
+import { getApiUrl } from '@/lib/api'
 /**
  * 底部播放控制栏（Hydrogen MusicWidget 1:1 复刻，fixed 悬浮范式）。
  *
@@ -321,7 +322,7 @@ export function MusicWidgetBar() {
     }
   }, [currentSong, setPendingAlbumDetail, setPage])
 
-  const cover = musicCoverUrl(currentSong?.cover, 120)
+  const cover = musicCoverUrl(currentSong?.cover, 120, getApiUrl())
   const songName = currentSong?.name ?? '一起听'
   const artist = currentSong?.artist ?? ''
 

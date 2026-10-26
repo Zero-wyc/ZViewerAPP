@@ -1,3 +1,4 @@
+import { musicCoverUrl, portableMusicCoverUrl } from '../utils/neteaseImage'
 import { createAckGuard } from '@/modules/sync-playback/ackGuard'
 import { getEmbeddedProxyStatus, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -20,10 +21,6 @@ import { buildProxyUrl } from '@/modules/player/services/url-proxy'
 import { resolveBilibiliWithOptions } from '@/modules/bilibili/bilibiliApi'
 import { resolveBilibiliViaCli, buildCliProxyUrl } from '@/modules/bilibili/cliApi'
 import { getActiveCliProxyUrl } from '@/modules/room/watch-together/movie-source-resolver'
-import {
-  buildBilibiliImageProxyUrl,
-  isBilibiliImageUrl,
-} from '@/modules/room/watch-together/resolveSource'
 import { message } from '@/components/ui/message'
 import { compensatePositionSec } from '../utils/syncMath'
 import {
@@ -114,7 +111,7 @@ function biliRecToUpsertItem(r: BiliRelatedItem) {
     name: r.title,
     artist: r.upName || '哔哩哔哩',
     album: '',
-    cover: r.pic,
+    cover: portableMusicCoverUrl(r.pic),
     durationMs: Math.round((r.duration || 0) * 1000),
     vip: false,
     biliBvid: r.bvid,
@@ -966,7 +963,7 @@ export function useListenTogether({
     // 同 URL 重复预取由浏览器 HTTP 缓存兜底，不产生额外网络请求）
     if (target?.cover) {
       const img = new Image()
-      img.src = target.cover
+      img.src = musicCoverUrl(target.cover, 600, getApiUrl())
     }
     const targetUrl = target ? buildStreamUrl(target, roomIdRef.current) : null
     // 幂等复用（Hydrogen 同 key 同 quality 复用）：目标未变且预载元素健康时
@@ -1388,9 +1385,7 @@ export function useListenTogether({
       name: first.title,
       artist: first.upName || '哔哩哔哩',
       album: '',
-      cover: isBilibiliImageUrl(first.pic)
-        ? buildBilibiliImageProxyUrl(first.pic)
-        : first.pic,
+      cover: portableMusicCoverUrl(first.pic),
       durationMs: Math.round((first.duration || 0) * 1000),
       vip: false,
       order: 0,

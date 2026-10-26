@@ -1,3 +1,4 @@
+import { getApiUrl } from '@/lib/api'
 /**
  * 歌曲列表行共享组件（Hydrogen LibrarySongList.vue 范式）。
  *
@@ -75,7 +76,7 @@ const STATE_TRANSITION = 'transition-opacity duration-100 ease-in-out'
 
 /** 网易云 CDN 封面缩略地址：https 化 + 80x80 裁剪参数（40px 显示 @2x） */
 function coverThumb(url: string): string {
-  return musicCoverUrl(url, 80)
+  return musicCoverUrl(url, 80, getApiUrl())
 }
 
 export function SongRow({

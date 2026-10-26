@@ -3,6 +3,7 @@ import { getApiUrl } from '@/lib/api'
 import type { SystemMediaAction, SystemMediaCommand, SystemMediaState } from '../platform/contracts'
 import { clearSystemMedia, listenSystemMedia, updateSystemMedia } from '../platform/mediaSession'
 import { isGlobalAppearanceRuntime } from '../platform/runtime'
+import { musicCoverUrl } from '../upstream/modules/music/utils/neteaseImage'
 
 type MediaSnapshot = Omit<SystemMediaState, 'sessionId'>
 interface MediaBinding {
@@ -13,7 +14,9 @@ interface MediaBinding {
 export function systemArtworkUrl(cover?: string | null): string {
   if (!cover) return ''
   try {
-    const url = new URL(cover.startsWith('//') ? `https:${cover}` : cover, `${getApiUrl() || location.origin}/`)
+    const base = getApiUrl() || location.origin
+    const artwork = musicCoverUrl(cover, 600, base)
+    const url = new URL(artwork.startsWith('//') ? `https:${artwork}` : artwork, `${base}/`)
     return ['http:', 'https:'].includes(url.protocol) ? url.href : ''
   } catch { return '' }
 }
