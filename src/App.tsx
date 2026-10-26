@@ -114,7 +114,7 @@ export default function App() {
   const [selectedAddress, setSelectedAddress] = useState('')
   const connectionAttempt = useRef<AbortController | null>(null)
   const [mode, setMode] = useState<LoginMode>('account')
-  const [username, setUsername] = useState('')
+  const [username, setUsername] = useState(previousSession?.user.role === 'guest' ? '' : previousSession?.user.username || '')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [session, setSession] = useState<Session | null>(previousSession)
@@ -338,7 +338,6 @@ export default function App() {
         user: data.user,
       }
       persistSession(nextSession)
-      setPassword('')
       setScreen('rooms')
       await Promise.all([loadRooms(nextSession), loadPublicSettings(nextSession)])
     } catch (requestError) {
@@ -426,6 +425,7 @@ export default function App() {
     setRooms([])
     setError('')
     setSelectedAddress('')
+    setShowPassword(false)
     setScreen('connect')
     navigate('/', { replace: true })
   }
