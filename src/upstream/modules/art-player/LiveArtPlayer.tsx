@@ -45,6 +45,8 @@ export function LiveArtPlayer({
     // 禁用单击视频区域暂停：共享画面通过控制栏按钮控制
     click: false,
     hotkey: false,
+    gesture: false,
+    fastForward: false,
     pip: false,
     screenshot: false,
     setting: false,

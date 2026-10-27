@@ -24,6 +24,7 @@ async function player(t, canControl = true) {
     play() { this.paused = false; return Promise.resolve() }, pause() { this.paused = true },
   })
   const calls = [], effects = [], notice = { show: '' }
+  const brightness = { value: .5, base: .5, disposed: false }
   const context = createContext({ Node: Surface, console })
   const module = new SourceTextModule(stripTypeScriptTypes(await readFile(new URL('../src/upstream/modules/room/watch-together/useWatchGestures.ts', import.meta.url), 'utf8')), { context })
   const imports = {
@@ -32,6 +33,10 @@ async function player(t, canControl = true) {
     '@/modules/player/services/pause-intent': { clearUserPaused: () => calls.push('resume-intent'), markUserPaused: () => calls.push('pause-intent') },
     '../../../../platform/runtime': { isGlobalAppearanceRuntime: () => true },
     '../../../../mobile/watchVideoGestures': { attachWatchVideoGestures },
+    '../../../../mobile/playerBrightness': { createBrightnessGesture: () => ({
+      begin() { brightness.base = brightness.value }, move(fraction) { brightness.value = Math.max(.05, Math.min(1, brightness.base + fraction)) },
+      end() {}, dispose() { brightness.disposed = true },
+    }) },
   }
   await module.link(name => new SyntheticModule(Object.keys(imports[name]), function () {
     for (const [key, value] of Object.entries(imports[name])) this.setExport(key, value)
@@ -54,7 +59,7 @@ async function player(t, canControl = true) {
   const tap = x => { event('pointerdown', x); event('pointerup', x); event('click', x) }
   const tick = ms => { now += ms; t.mock.timers.tick(ms) }
   t.after(cleanup)
-  return { element, video, calls, notice, event, tap, tick, cleanup }
+  return { element, video, calls, notice, event, tap, tick, cleanup, brightness }
 }
 
 test('single taps toggle once after the double-tap window, including synthesized click', async t => {
@@ -153,4 +158,15 @@ test('toolbar input is not intercepted by the video recognizer', t => {
   const down = Object.assign(new Event('pointerdown', { cancelable: true }), { isPrimary: true, button: 0 })
   surface.dispatchEvent(down)
   assert.equal(down.defaultPrevented, false)
+})
+
+test('left vertical swipe changes brightness without seeking, pausing or changing volume', async t => {
+  const p = await player(t, false)
+  p.event('pointerdown', 80, 200); p.event('pointermove', 80, 50); p.event('pointerup', 80, 50)
+  assert.equal(p.brightness.value, 1)
+  p.event('pointerdown', 80, 100); p.event('pointerup', 80, 900)
+  assert.equal(p.brightness.value, .05)
+  assert.equal(p.video.volume, .5); assert.equal(p.video.currentTime, 100)
+  assert.deepEqual(p.calls, [])
+  p.cleanup(); assert.equal(p.brightness.disposed, true)
 })

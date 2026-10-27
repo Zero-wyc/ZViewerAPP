@@ -1,8 +1,9 @@
-export type WatchDrag = 'seek' | 'volume'
+export type WatchDrag = 'seek' | 'volume' | 'brightness'
 
 /** Capture only the video surface; toolbar buttons and panels keep their own input. */
 export function attachWatchVideoGestures(element: HTMLElement, options: {
   touchSurfaces?: HTMLElement[]
+  seek?: boolean
   surface(event: Event): boolean
   onSingleTap(): void
   onDoubleTap(zone: -1 | 0 | 1): void
@@ -61,8 +62,8 @@ export function attachWatchVideoGestures(element: HTMLElement, options: {
     if (!current.kind && Math.hypot(dx, dy) > 12) {
       current.moved = true
       clearTap()
-      if (Math.abs(dx) >= Math.abs(dy) * 1.2) current.kind = 'seek'
-      else if (current.right && Math.abs(dy) >= Math.abs(dx) * 1.2) current.kind = 'volume'
+      if (options.seek !== false && Math.abs(dx) >= Math.abs(dy) * 1.2) current.kind = 'seek'
+      else if (Math.abs(dy) >= Math.abs(dx) * 1.2) current.kind = current.right ? 'volume' : 'brightness'
       if (current.kind) options.onDragStart(current.kind)
     }
     if (current.kind) options.onDrag(current.kind,

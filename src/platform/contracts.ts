@@ -108,6 +108,8 @@ export interface HarmonyNativeBridge {
   updateMediaSession?(state: SystemMediaState): Promise<void>
   clearMediaSession?(sessionId: string): Promise<void>
   toggleOrientation?(isLandscape: boolean): void | Promise<void>
+  getBrightness?(): Promise<{ brightness: number; override: number }>
+  setBrightness?(brightness: number): Promise<void>
   setImmersive?(enabled: boolean): void | Promise<void>
   setSystemBarStyle?(dark: boolean): void | Promise<void>
   unlockOrientation?(): void | Promise<void>

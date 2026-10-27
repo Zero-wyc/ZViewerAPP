@@ -4,6 +4,7 @@ import { formatDuration } from '@/lib/utils'
 import { clearUserPaused, markUserPaused } from '@/modules/player/services/pause-intent'
 import { isGlobalAppearanceRuntime } from '../../../../platform/runtime'
 import { attachWatchVideoGestures, type WatchDrag } from '../../../../mobile/watchVideoGestures'
+import { createBrightnessGesture } from '../../../../mobile/playerBrightness'
 
 /** Commands keep the room's existing host/guest authorization and synchronization path. */
 export function useWatchGestures({ art, video, stage, mediaKey, canControl, toggleControls, requestPlay, requestPause, requestSeek }: {
@@ -17,6 +18,7 @@ export function useWatchGestures({ art, video, stage, mediaKey, canControl, togg
   useEffect(() => {
     const element = stage.current
     if (!element || !isGlobalAppearanceRuntime()) return
+    const brightness = createBrightnessGesture(text => { art.notice.show = text })
     let drag: { kind: WatchDrag; time: number; duration: number; volume: number; target: number | null } | null = null
     const seek = (position: number) => {
       if (commands.current.canControl) video.currentTime = position
@@ -41,12 +43,14 @@ export function useWatchGestures({ art, video, stage, mediaKey, canControl, togg
         }
       },
       onDragStart: kind => {
+        if (kind === 'brightness') brightness.begin()
         drag = { kind, time: video.currentTime, duration: video.duration,
           volume: video.muted ? 0 : video.volume, target: null }
       },
       onDrag: (kind, fraction) => {
         if (!drag || drag.kind !== kind) return
-        if (kind === 'volume') {
+        if (kind === 'brightness') brightness.move(fraction)
+        else if (kind === 'volume') {
           const volume = Math.max(0, Math.min(1, drag.volume + fraction))
           video.volume = volume
           video.muted = volume === 0
@@ -57,13 +61,14 @@ export function useWatchGestures({ art, video, stage, mediaKey, canControl, togg
           art.notice.show = `${commands.current.canControl ? '跳转' : '申请跳转'} ${formatDuration(drag.target)} / ${formatDuration(drag.duration)}`
         }
       },
-      onDragEnd: (_kind, cancelled) => {
+      onDragEnd: (kind, cancelled) => {
+        if (kind === 'brightness') brightness.end(cancelled)
         if (!cancelled && drag?.target != null) seek(drag.target)
         drag = null
         art.notice.show = ''
       },
     })
     video.addEventListener('emptied', remove.cancel)
-    return () => { video.removeEventListener('emptied', remove.cancel); remove() }
+    return () => { video.removeEventListener('emptied', remove.cancel); remove(); brightness.dispose() }
   }, [art, video, stage, mediaKey, canControl])
 }

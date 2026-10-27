@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useControlBarAutoHide } from '@/hooks/useControlBarAutoHide'
-import { getRuntimePlatform } from '../platform/runtime'
+import { getRuntimePlatform, isGlobalAppearanceRuntime } from '../platform/runtime'
+import { useScreenShareLevelGestures } from './useScreenShareLevelGestures'
 
 /** Delay a single tap until a potential second tap has been ruled out. */
 export function createScreenShareTapHandler(single: () => void, double: () => void) {
@@ -18,7 +19,9 @@ export function useScreenShareDisplay({ stage, video, fullscreen, enterFullscree
   stage: RefObject<HTMLElement>; video: RefObject<HTMLVideoElement>; fullscreen: boolean
   enterFullscreen: () => void; enabled?: boolean; autoHideDisabled?: boolean
 }) {
-  const ordinaryVisible = useControlBarAutoHide(stage, { disabled: fullscreen || !enabled || autoHideDisabled })
+  const native = isGlobalAppearanceRuntime()
+  const levels = useScreenShareLevelGestures({ stage, video, fullscreen, enabled, autoHideDisabled })
+  const ordinaryVisible = useControlBarAutoHide(stage, { disabled: native || fullscreen || !enabled || autoHideDisabled })
   const [fullscreenVisible, setFullscreenVisible] = useState(true)
   const latest = useRef({ fullscreen, enterFullscreen, enabled })
   latest.current = { fullscreen, enterFullscreen, enabled }
@@ -39,7 +42,7 @@ export function useScreenShareDisplay({ stage, video, fullscreen, enterFullscree
   }, [])
   useEffect(() => {
     setFullscreenVisible(true)
-    if (!fullscreen || !enabled || !stage.current) return
+    if (native || !fullscreen || !enabled || !stage.current) return
     const element = stage.current
     const taps = createScreenShareTapHandler(() => setFullscreenVisible(visible => !visible), () => {
       const player = video.current
@@ -70,6 +73,7 @@ export function useScreenShareDisplay({ stage, video, fullscreen, enterFullscree
       element.removeEventListener('pointerup', up, true)
       element.removeEventListener('pointercancel', cancel, true)
     }
-  }, [fullscreen, enabled, stage, video])
-  return fullscreen && enabled ? fullscreenVisible : ordinaryVisible
+  }, [fullscreen, enabled, stage, video, native])
+  return { controlBarVisible: native && enabled ? levels.visible : fullscreen && enabled ? fullscreenVisible : ordinaryVisible,
+    gestureNotice: levels.notice }
 }

@@ -3,6 +3,8 @@ import type { PlayerDisplayPort } from './contracts'
 import { getHarmonyBridge, getRuntimePlatform } from './runtime'
 
 interface CapacitorPlayerDisplay {
+  getBrightness(): Promise<{ brightness: number; override: number }>
+  setBrightness(options: { brightness: number }): Promise<void>
   toggleOrientation(options: { isLandscape: boolean }): Promise<void>
   setImmersive(options: { enabled: boolean }): Promise<void>
   unlockOrientation(): Promise<void>
@@ -10,6 +12,21 @@ interface CapacitorPlayerDisplay {
 }
 
 const capacitorDisplay = registerPlugin<CapacitorPlayerDisplay>('PlayerDisplay')
+
+export const windowBrightness = {
+  async get(): Promise<{ brightness: number; override: number }> {
+    if (getRuntimePlatform() === 'android') return capacitorDisplay.getBrightness()
+    const bridge = getHarmonyBridge()
+    if (!bridge?.getBrightness) throw new Error('Window brightness is unavailable')
+    return bridge.getBrightness()
+  },
+  async set(brightness: number): Promise<void> {
+    if (getRuntimePlatform() === 'android') return capacitorDisplay.setBrightness({ brightness })
+    const bridge = getHarmonyBridge()
+    if (!bridge?.setBrightness) throw new Error('Window brightness is unavailable')
+    await bridge.setBrightness(brightness)
+  },
+}
 
 let orientationLocked = false
 export const getOrientationLocked = () => orientationLocked

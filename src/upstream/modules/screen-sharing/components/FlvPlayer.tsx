@@ -37,6 +37,7 @@ import {
   onFullscreenChange,
 } from '@/lib/fullscreen-utils'
 import { useScreenShareDisplay } from '../../../../mobile/useScreenShareDisplay'
+import { PlayerGestureNotice } from '../../../../mobile/PlayerGestureNotice'
 import '@/modules/art-player/art-overrides.css'
 
 /** flv.js 统计信息
@@ -107,7 +108,7 @@ export function FlvPlayer({
   const [streamStatus, setStreamStatus] = useState<StreamStatus>('connecting')
 
   // 控制栏自动隐藏（逻辑仿照 WatchTogetherCore）
-  const controlBarVisible = useScreenShareDisplay({ stage: stageRef, video: videoRef,
+  const { controlBarVisible, gestureNotice } = useScreenShareDisplay({ stage: stageRef, video: videoRef,
     fullscreen: isWebFullscreen || isFullscreen,
     enterFullscreen: () => { if (!isWebFullscreen) onToggleWebFullscreen?.() },
     autoHideDisabled: loading || !!errorMsg,
@@ -182,6 +183,8 @@ export function FlvPlayer({
         playsInline: true,
       },
       // 禁用 ArtPlayer 原生控制栏
+      gesture: false,
+      fastForward: false,
       controls: [],
     } as Option)
     // 空 url 初始化会让 ArtPlayer 一直显示 loading，延迟隐藏
@@ -430,6 +433,7 @@ export function FlvPlayer({
         isWebFullscreen ? { width: '100dvw', height: '100dvh' } : undefined
       }
     >
+      <PlayerGestureNotice text={gestureNotice} />
       <div ref={containerRef} className="h-full w-full" />
 
       {loading && !errorMsg && (

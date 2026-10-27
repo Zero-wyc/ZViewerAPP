@@ -46,6 +46,8 @@
     clearMediaSession: (sessionId) => request('clearMediaSession', sessionId),
     minimizeApp: () => window.zviewerHost.minimizeApp(),
     toggleOrientation: (isLandscape) => request('toggleOrientation', isLandscape),
+    getBrightness: () => request('getBrightness', null),
+    setBrightness: (brightness) => request('setBrightness', brightness),
     unlockOrientation: () => request('unlockOrientation', null),
     setImmersive: (enabled) => request('setImmersive', enabled),
     setSystemBarStyle: (dark) => request('setSystemBarStyle', dark),

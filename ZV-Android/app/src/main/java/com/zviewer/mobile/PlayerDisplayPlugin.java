@@ -7,6 +7,8 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.util.Rational;
+import android.provider.Settings;
+import android.view.WindowManager;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -15,6 +17,34 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 @CapacitorPlugin(name = "PlayerDisplay")
 public class PlayerDisplayPlugin extends Plugin {
+    @PluginMethod
+    public void getBrightness(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            float override = getActivity().getWindow().getAttributes().screenBrightness;
+            float value = override >= 0 ? override : Settings.System.getInt(
+                getContext().getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, 128) / 255f;
+            JSObject result = new JSObject();
+            result.put("brightness", Math.max(0.05f, Math.min(1f, value)));
+            result.put("override", override);
+            call.resolve(result);
+        });
+    }
+
+    @PluginMethod
+    public void setBrightness(PluginCall call) {
+        Double value = call.getDouble("brightness");
+        if (value == null || !Double.isFinite(value) || (value != -1 && (value < 0 || value > 1))) {
+            call.reject("Invalid window brightness");
+            return;
+        }
+        getActivity().runOnUiThread(() -> {
+            WindowManager.LayoutParams attributes = getActivity().getWindow().getAttributes();
+            attributes.screenBrightness = value.floatValue();
+            getActivity().getWindow().setAttributes(attributes);
+            call.resolve();
+        });
+    }
+
     @PluginMethod
     public void getPictureInPictureSupport(PluginCall call) {
         JSObject result = new JSObject();

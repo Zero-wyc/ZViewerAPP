@@ -4,29 +4,27 @@
 
 ZViewer 是一款手机和平板客户端，用来和朋友一起看视频、一起听音乐、接收投屏和进行房间语音。使用前需要准备可访问的 [ZViewer 服务端](https://github.com/Zero-wyc/ZViewer)，再在 App 中填写地址并登录。
 
-[下载当前版本](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.2.7) · [发行说明](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.2.7) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [历史更新](CHANGELOG.md)
+[下载当前版本](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.3.0) · [发行说明](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.3.0) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [历史更新](CHANGELOG.md)
 
 ## 下载与安装
 
-Android / HarmonyOS 当前版本为 **2.2.7（228）**；iOS / iPadOS 保持 **2.1.10（build 31）**。
+Android / HarmonyOS 当前版本为 **2.3.0（230）**；iOS / iPadOS 保持 **2.1.10（build 31）**。
 
 | 平台 | 版本与下载 | 安装方式与系统要求 |
 | --- | --- | --- |
-| Android | **2.2.7（228）** · [APK](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.2.7/ZViewer-Android-2.2.7-release.apk) | 允许安装该来源的应用后安装。要求 Android 7.0 / API 24 或更高版本、64 位设备；APK 包含 ARM64 / x86_64。 |
-| HarmonyOS | **2.2.7（228）** · [HAP](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.2.7/ZViewer-HarmonyOS-2.2.7-release.hap) | 要求 HarmonyOS 6.1 / API 23 或更高版本。通过 DevEco Studio、HDC 等设备支持的开发者安装方式安装，签名及设备授权需匹配；当前不是应用商店安装包。 |
+| Android | **2.3.0（230）** · [APK](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.3.0/ZViewer-Android-2.3.0-release.apk) | 允许安装该来源的应用后安装。要求 Android 7.0 / API 24 或更高版本、64 位设备；APK 包含 ARM64 / x86_64。 |
+| HarmonyOS | **2.3.0（230）** · [HAP](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.3.0/ZViewer-HarmonyOS-2.3.0-release.hap) | 要求 HarmonyOS 6.1 / API 23 或更高版本。通过 DevEco Studio、HDC 等设备支持的开发者安装方式安装，签名及设备授权需匹配；当前不是应用商店安装包。 |
 | iOS / iPadOS | **2.1.10（build 31）** · [未签名 IPA](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.1.10/ZViewer-iOS-2.1.10-31-unsigned.ipa) | 要求 iOS / iPadOS 16.4 或更高版本，支持 iPhone 和 iPad。需使用自己的有效证书及设备授权签名后侧载，不能直接点击 IPA 安装。 |
 
 iOS 安装包已经内置运行所需的 JavaScript，安装后无需 Expo Go、Metro 或连接开发电脑。Android 和 HarmonyOS 也将界面、播放器打包在 App 内，仍需连接服务端获取房间和媒体。
 
 Android / HarmonyOS 沿用既有发布签名；签名一致时可按平台规则覆盖旧正式版。iOS 更新需保持兼容的个人签名身份。卸载前请保存服务器地址和设置，卸载会清除本机数据。
 
-## 2.2.7 更新了什么
+## 2.3.0 更新了什么
 
-- 修复 OBS 观众显示“推流密钥未获取”而无法观看的问题，改用独立观看票据；失败时显示具体原因并提供“重新连接”。
-- 对齐服务端资源权限：服务器影片按影片身份播放，字幕超限或权限失败保留原轨道；完善 Emby/Jellyfin 海报和网易云图片加载。
-- 切换房间、服务器或退出后，旧请求不再恢复播放；保留此前登录输入、B站封面、网易云错误提示和播放同步修复。
-
-本次提供 Android / HarmonyOS **2.2.7 / 228** 正式签名包，包含 2.2.6 本地验证版的资源合同修复。83 项维护回归、双端签名构建、实际观看组件直播解码通过；用户已确认 OBS 发布端与客户端复测通过。观看票据需配套更新后的服务端；OBS 发布密钥为八位，仅房主需要，长度不影响客户端观看。iOS 保持 2.1.10 / build 31。详细记录见 [Android](docs/android-maintenance-architecture.md)、[HarmonyOS](docs/harmonyos-maintenance-architecture.md) 维护文档。
+- 一起看和投屏左侧上下滑调亮度；投屏右侧上下滑调本机音量，普通窗口与全屏均支持。离开播放器恢复原有亮度。
+- 一起看单击显隐控制栏，左右双击跳转 15 秒、中部播放/暂停，横向拖动调整进度；移除隐藏按钮。
+- 保留观众申请控制和投屏直播播放逻辑，完善新 Go 网易云错误兼容。
 
 ## 第一次连接
 

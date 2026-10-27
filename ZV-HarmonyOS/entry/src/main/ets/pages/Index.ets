@@ -8,6 +8,7 @@ import { NativeMediaSession, MediaSessionState } from '../services/NativeMediaSe
 import { ServerConnection, ConnectionPolicy } from '../services/ServerConnection';
 import { screenShareCapturePolicy } from '../services/ScreenShareCapturePolicy';
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
+import settings from '@ohos.settings';
 
 const LOCAL_ORIGIN = 'https://zviewer.local';
 const LOCAL_PAGE = `${LOCAL_ORIGIN}/index.html`;
@@ -121,6 +122,22 @@ class HarmonyHost {
     if (action === 'bilibiliCancelQr') { bilibiliProxy.cancelQr(); return null; }
     if (action === 'bilibiliLogout') return JSON.stringify(await bilibiliProxy.logout());
     const mainWindow = await window.getLastWindow(this.context);
+    if (action === 'getBrightness') {
+      const override = mainWindow.getWindowProperties().brightness;
+      let value = override;
+      if (value < 0) {
+        try { value = Number(await settings.getValue(this.context, settings.display.SCREEN_BRIGHTNESS_STATUS)) / 255; }
+        catch (_) { value = 0.5; }
+      }
+      if (!Number.isFinite(value)) value = 0.5;
+      return JSON.stringify({ brightness: Math.max(0.05, Math.min(1, value)), override: override });
+    }
+    if (action === 'setBrightness') {
+      const value = JSON.parse(argument) as number;
+      if (typeof value !== 'number' || !Number.isFinite(value) || (value !== -1 && (value < 0 || value > 1))) throw new Error('Invalid window brightness');
+      await mainWindow.setWindowBrightness(value);
+      return null;
+    }
     if (action === 'toggleOrientation') {
       if (argument !== 'true' && argument !== 'false') throw new Error('Invalid orientation argument');
       await mainWindow.setPreferredOrientation(argument === 'true' ? window.Orientation.LANDSCAPE : window.Orientation.PORTRAIT);

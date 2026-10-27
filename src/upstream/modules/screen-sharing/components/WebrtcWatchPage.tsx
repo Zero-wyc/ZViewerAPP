@@ -26,6 +26,7 @@ import { CommentPanel } from '@/components/CommentPanel'
 import { RoomLayout } from '@/modules/room/components/RoomLayout'
 import { RoomInfoPanel } from '@/modules/room/components/RoomInfoPanel'
 import { useScreenShareDisplay } from '../../../../mobile/useScreenShareDisplay'
+import { PlayerGestureNotice } from '../../../../mobile/PlayerGestureNotice'
 import { useP2PTunnel } from '@/modules/p2p'
 import type { P2PStatus } from '@/modules/p2p/types'
 import { useViewerPeerConnection } from '../hooks/useViewerPeerConnection'
@@ -235,7 +236,7 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
   )
 
   // WebRTC 控制栏自动隐藏（逻辑仿照 WatchTogetherCore）
-  const webrtcControlBarVisible = useScreenShareDisplay({ stage: webrtcStageRef, video: videoRef,
+  const { controlBarVisible: webrtcControlBarVisible, gestureNotice } = useScreenShareDisplay({ stage: webrtcStageRef, video: videoRef,
     fullscreen: isWebFullscreen, enterFullscreen: () => setIsWebFullscreen(true), enabled: !inlinePiP && !isPictureInPicture })
 
   // WebRTC 网页全屏模式下按 ESC 退出
@@ -436,6 +437,7 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
         } : isWebFullscreen ? { width: '100dvw', height: '100dvh' } : undefined
       }
     >
+      <PlayerGestureNotice text={gestureNotice} />
       <RemoteVideoPlayer
         videoRef={videoRef}
         setVideoRef={setVideoRef}
