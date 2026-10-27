@@ -2,7 +2,9 @@
 
 ## 同步基线
 
-服务端指定目录 `E:/Codex-bulid/ZViewer/ZViewer-source code` 已通过 GitHub `upstream/main` 同步到 [`067b0fd466d4e62d6e9f737f0a6674cc366a2f4a`](https://github.com/Zero-wyc/ZViewer/commit/067b0fd466d4e62d6e9f737f0a6674cc366a2f4a)，本地分支为 `sync/upstream-20261027`，受 Git 管理的源码与该提交一致。更新前为 `e6bb441`；该 Emby/Jellyfin 修复已随 [PR #36](https://github.com/Zero-wyc/ZViewer/pull/36) 合入上游。本轮没有另改服务端运行代码或创建旧版备份。
+服务端指定目录 `E:/Codex-bulid/ZViewer/ZViewer-source code` 已通过 GitHub `upstream/main` 同步到 [`6d3c64b6d7c5f4a620f5c75517c4c251166b1f5a`](https://github.com/Zero-wyc/ZViewer/commit/6d3c64b6d7c5f4a620f5c75517c4c251166b1f5a)，本地分支为 `sync/upstream-20261027`，受 Git 管理的源码与该提交一致。更新前为 `e6bb441`；该 Emby/Jellyfin 修复已随 [PR #36](https://github.com/Zero-wyc/ZViewer/pull/36) 合入上游。本轮没有另改服务端运行代码或创建旧版备份。
+
+本轮相关 Go 测试和合同检查运行于 `067b0fd`；收尾同步新增 `e28b18f`、`6d3c64b`，差异仅为 GitCode 发布 workflow 与同步脚本，`backend-go/`、`frontend/src/` 和 `desktop/` 无变化，因此没有重复构建或执行不受影响的测试。
 
 客户端检查基线为指定仓库 `E:/Codex-bulid/ZViewer/ZViewer-client` 的 `main` / `9320991`（2.3.0 / 230）。按照用户补充要求，本次除检查外，还将 PR #36 的影片播放设置和相关解析链路移植到 Android / HarmonyOS 共享实现，版本更新为 2.3.1 / 231。
 

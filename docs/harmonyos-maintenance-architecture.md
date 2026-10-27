@@ -2,7 +2,7 @@
 
 ## 2.3.1 / 231 Emby/Jellyfin 播放设置对齐（2026-10-27）
 
-服务端指定目录同步至上游 `067b0fd`，PR #36 已合入。按用户提供的「浏览器转码」截图，在影片「播放设置」内复用同一个 PlaybackOptionButton 胶囊组件增加 Emby/Jellyfin「服务器中转」，仅内网挂载隐藏。切换保存 directLink、稳定条目/版本 URL、格式及音轨，兼容 ms / MediaSourceId；最终 CDN 地址仅用于起播，不持久化。起播及观众重载刷新 movie-source，修复旧 HLS 格式和过期地址路径；复用已有保存/应用、播放位置和迟到请求保护，失败重试保留原模式。
+服务端指定目录最终同步至上游 `6d3c64b`，PR #36 已合入；收尾相对测试基线 `067b0fd` 仅新增 GitCode 发布脚本。按用户提供的「浏览器转码」截图，在影片「播放设置」内复用同一个 PlaybackOptionButton 胶囊组件增加 Emby/Jellyfin「服务器中转」，仅内网挂载隐藏。切换保存 directLink、稳定条目/版本 URL、格式及音轨，兼容 ms / MediaSourceId；最终 CDN 地址仅用于起播，不持久化。起播及观众重载刷新 movie-source，修复旧 HLS 格式和过期地址路径；复用已有保存/应用、播放位置和迟到请求保护，失败重试保留原模式。
 
 详见 [最新服务端对齐记录](server-client-alignment-latest-2026-10-27.md)。120 项回归、TypeScript/Vite、双端签名 Release 构建及签名验证通过，临时鸿蒙签名配置已恢复；浏览器真实片单检查同款样式、320/420px 容器、双向保存与失败重试、版本保留、内网隐藏和观众禁用。安装包及各一次 SHA256 在忽略目录 release/client-v2.3.1/。本轮仅本地提交，未推送/发布、未部署 NAS、未新增 ArkWeb 实体设备听音验收，iOS 未修改或构建。音量均衡仍为可选未移植功能。
 
