@@ -3,7 +3,8 @@ import { createAckGuard } from '@/modules/sync-playback/ackGuard'
 import { getEmbeddedProxyStatus, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useSystemSettingsStore } from '@/store/systemSettingsStore'
-import { initialMusicVolume } from '../utils/volume'
+import { initialMusicVolume, applyMusicOutputVolume } from '../utils/volume'
+import { loudnessNormalizer } from '../audio/loudnessNormalizer'
 import { resolveBilibiliAudioWithFallback, selectBilibiliAudioStream } from '../utils/bilibiliAudioStream'
 import { advancePersonalFm, fetchPersonalFmPool, usePersonalFmStore, type FetchFmPoolOptions } from '../personal-fm'
 import { FmRecovery } from '../fm-recovery'
@@ -286,7 +287,7 @@ async function resolveBiliAudio(
       pageUrl,
       BILI_DEFAULT_QN,
       undefined,
-      options
+      { ...options, cid: item.biliCid }
     ))
     // Older servers may still return a muxed MP4; retain that compatibility,
     // but never mistake a video-only DASH representation for an audio stream.
@@ -395,6 +396,7 @@ export interface UseListenTogetherResult {
  * 幂等（已在 DOM 中时 appendChild 仅移动，无副作用）。
  */
 function mountMediaElement(el: HTMLAudioElement): void {
+  loudnessNormalizer.attach(el)
   if (el.parentElement) return
   el.setAttribute('aria-hidden', 'true')
   el.setAttribute('data-lt-media', '')
@@ -404,6 +406,7 @@ function mountMediaElement(el: HTMLAudioElement): void {
 
 /** 把音频元素从 DOM 移除（与 mountMediaElement 配对；防替换/卸载后残留） */
 function unmountMediaElement(el: HTMLAudioElement): void {
+  loudnessNormalizer.detach(el)
   el.remove()
 }
 
@@ -528,6 +531,8 @@ export function useListenTogether({
   // ===== Refs =====
   /** 音频元素（惰性创建，不挂 DOM） */
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  /** 无缝衔接预载元素；与主元素共用本机输出音量策略。 */
+  const preloadRef = useRef<HTMLAudioElement | null>(null)
   /** 换曲后的起始进度（loadedmetadata 时应用） */
   const pendingSeekRef = useRef(0)
   /** 随机模式洗牌序列（曲目 key 列表；null 表示待重建） */
@@ -543,6 +548,7 @@ export function useListenTogether({
   const pendingControlRef = useRef<MusicControlRequest | null>(null)
   /** 本地音量镜像（getAudio 创建元素时读取，避免依赖 state） */
   const volumeRef = useRef(volume)
+  const userVolumeRef = useRef(volume)
   // latest ref 模式：事件回调经 ref 读取最新身份
   const socketRef = useRef(socket)
   const roomIdRef = useRef(roomId)
@@ -554,15 +560,37 @@ export function useListenTogether({
     roomIdRef.current = roomId
     isHostRef.current = isHost
     usernameRef.current = username
-    volumeRef.current = volume
-  }, [socket, roomId, isHost, username, volume])
+  }, [socket, roomId, isHost, username])
+
+  const applyOutputVolume = useCallback(() => {
+    volumeRef.current = applyMusicOutputVolume(userVolumeRef.current, loudnessNormalizer.getGain(),
+      [audioRef.current, preloadRef.current])
+  }, [])
+
+  useEffect(() => {
+    loudnessNormalizer.setGainListener(applyOutputVolume)
+    return () => loudnessNormalizer.setGainListener(null)
+  }, [applyOutputVolume])
+
+  const volumeNormalize = useMusicSettingsStore(s => s.volumeNormalize)
+  useEffect(() => {
+    loudnessNormalizer.setEnabled(volumeNormalize === true)
+    loudnessNormalizer.beginTrack(useMusicStore.getState().currentKey)
+    applyOutputVolume()
+    return () => { loudnessNormalizer.setEnabled(false); loudnessNormalizer.beginTrack(null) }
+  }, [volumeNormalize, roomId, applyOutputVolume])
+
+  useEffect(() => {
+    userVolumeRef.current = volume
+    applyOutputVolume()
+  }, [volume, applyOutputVolume])
 
   /** 惰性获取 audio 元素（首次使用时创建并挂 DOM，创建时应用持久化音量） */
   const getAudio = useCallback(() => {
     if (!audioRef.current) {
       const audio = new Audio()
       audio.preload = 'auto'
-      audio.muted = volumeRef.current === 0
+      audio.muted = userVolumeRef.current === 0
       audio.volume = volumeRef.current
       mountMediaElement(audio)
       audioRef.current = audio
@@ -575,21 +603,14 @@ export function useListenTogether({
     const applyDefault = () => {
       if (volumeAdjustedRef.current) return
       const value = loadPersistedVolume()
-      volumeRef.current = value
+      userVolumeRef.current = value
       setVolumeState(value)
-      if (audioRef.current) {
-        audioRef.current.volume = value
-        audioRef.current.muted = value === 0
-      }
-      if (preloadRef.current) {
-        preloadRef.current.volume = value
-        preloadRef.current.muted = value === 0
-      }
+      applyOutputVolume()
     }
     const unsubscribe = useSystemSettingsStore.subscribe(applyDefault)
     void useSystemSettingsStore.getState().fetchSettings()
     return unsubscribe
-  }, [])
+  }, [applyOutputVolume])
 
   /**
    * 构造同步状态快照（broadcastSyncState 与房主心跳共用）。
@@ -853,8 +874,6 @@ export function useListenTogether({
     return queue.find((item) => musicItemKey(item) === nextKey) ?? null
   }, [resolveCurrentIndex])
 
-  /** 无缝衔接（设置：歌曲无缝衔接）的预缓冲 audio 元素 */
-  const preloadRef = useRef<HTMLAudioElement | null>(null)
   const gaplessPlayback = useMusicSettingsStore((s) => s.gaplessPlayback)
 
   // ===== 音频事件处理器（元素无关化，Hydrogen preparePlaybackSwitch 的等价基础） =====
@@ -1000,7 +1019,7 @@ export function useListenTogether({
     return () => {
       // 该元素已被升格为主播放元素时（preloadRef 不再指向它），绝不能暂停
       if (preloadRef.current === el) {
-        pauseAudioWithCancel(el)
+        resetAudioElement(el)
         preloadRef.current = null
       }
     }
@@ -1065,6 +1084,9 @@ export function useListenTogether({
           return
         }
       }
+      loudnessNormalizer.setEnabled(useMusicSettingsStore.getState().volumeNormalize === true)
+      loudnessNormalizer.beginTrack(musicItemKey(item))
+      applyOutputVolume()
       const audio = getAudio()
       const url = buildStreamUrl(item, roomIdRef.current)
       useMusicStore.getState().setCurrentKey(musicItemKey(item))
@@ -1138,7 +1160,7 @@ export function useListenTogether({
         pauseAudioWithCancel(audio)
       }
     },
-    [getAudio, attachAudioHandlers, detachAudioHandlers]
+    [getAudio, attachAudioHandlers, detachAudioHandlers, applyOutputVolume]
   )
   // latest-ref 同步（渲染后更新，规避 useCallback 自引用）
   useEffect(() => {
@@ -1567,22 +1589,17 @@ export function useListenTogether({
         Math.max(0, Number.isFinite(value) ? value : 0)
       )
       volumeAdjustedRef.current = true
-      const audio = getAudio()
-      audio.muted = clamped === 0
-      audio.volume = clamped
-      volumeRef.current = clamped
+      userVolumeRef.current = clamped
+      getAudio()
+      applyOutputVolume()
       setVolumeState(clamped)
-      if (preloadRef.current) {
-        preloadRef.current.volume = clamped
-        preloadRef.current.muted = clamped === 0
-      }
       try {
         localStorage.setItem(VOLUME_STORAGE_KEY, String(clamped))
       } catch {
         // ignore：隐私模式等场景写入失败可忽略
       }
     },
-    [getAudio]
+    [getAudio, applyOutputVolume]
   )
 
   /**
@@ -2482,6 +2499,8 @@ export function useListenTogether({
       loadRequestRef.current++
       const detail = (e as CustomEvent<RoomMediaTeardownDetail>).detail
       const full = detail?.full ?? true
+      loudnessNormalizer.setEnabled(false)
+      loudnessNormalizer.beginTrack(null)
       const stopEl = (el: HTMLAudioElement) => {
         pauseAudioWithCancel(el)
         if (full) {

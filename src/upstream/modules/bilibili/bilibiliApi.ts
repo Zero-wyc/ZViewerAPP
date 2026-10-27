@@ -392,7 +392,7 @@ export interface BilibiliVideoViewInfo {
   duration: number
   upName: string
   cid: number
-  pages: { page: number; part: string; cid: number }[]
+  pages: { page: number; part: string; cid: number; duration?: number }[]
 }
 
 /**
@@ -529,6 +529,7 @@ export async function resolveBilibili(
     /** Listening uses only audioUrl and does not require the discarded video codec. */
     audioOnly?: boolean
     page?: number
+    cid?: number
     /**
      * 按该影片所属房间房主的 B站 Cookie 身份解析（后端按 movieId 查房间房主）。
      * 用于观众端借用房主解析身份的场景：房主为大会员时，会员专享集拿到
@@ -547,6 +548,7 @@ export async function resolveBilibili(
   if (options?.forceDash) {
     fetchUrl += `&forceDash=true`
   }
+  if (options?.cid != null && Number.isSafeInteger(options.cid) && options.cid > 0) fetchUrl += `&cid=${options.cid}`
   if (
     options?.page != null &&
     Number.isFinite(options.page) &&
@@ -607,6 +609,7 @@ export async function resolveBilibiliWithOptions(
     forceDash?: boolean
     audioOnly?: boolean
     page?: number
+    cid?: number
     movieId?: number
   }
 ): Promise<ResolvedSource> {
@@ -615,6 +618,7 @@ export async function resolveBilibiliWithOptions(
     forceDash: extraOptions?.forceDash,
     audioOnly: extraOptions?.audioOnly,
     page: extraOptions?.page,
+    cid: extraOptions?.cid,
     movieId: extraOptions?.movieId,
   })
 }

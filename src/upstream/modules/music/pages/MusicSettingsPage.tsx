@@ -67,9 +67,11 @@ function SettingOption({
 function SettingToggle({
   on,
   onToggle,
+  label,
 }: {
   on: boolean
   onToggle: () => void
+  label?: string
 }) {
   return (
     <button
@@ -77,6 +79,7 @@ function SettingToggle({
       onClick={onToggle}
       className="relative block h-[34px] w-[200px] overflow-hidden transition-opacity hover:opacity-90"
       aria-pressed={on}
+      aria-label={label}
       title={on ? '点击关闭' : '点击开启'}
     >
       {/* 黑色层：开启时从左滑入盖满（translateX(-100%)→0，0.1s） */}
@@ -592,6 +595,16 @@ export function MusicSettingsPage() {
               }
             />
           </SettingOption>
+          <SettingOption name="音量均衡">
+            <SettingToggle
+              label="音量均衡"
+              on={settings.volumeNormalize}
+              onToggle={() => setSettings({ volumeNormalize: !settings.volumeNormalize })}
+            />
+          </SettingOption>
+          <p className="-mt-5 mb-8 text-xs leading-relaxed text-[var(--md-sys-color-on-surface-variant)]">
+            降低偏响歌曲的音量，减少切歌时的音量差异。仅对本机生效，不改变保存的音量；设备不支持时保持正常播放。
+          </p>
           {/* 音频可视化（性能类） */}
           <SettingOption name="音频可视化">
             <SettingToggle

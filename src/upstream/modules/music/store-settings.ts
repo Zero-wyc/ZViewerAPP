@@ -58,6 +58,8 @@ export interface MusicSettings {
   gaplessPlayback: boolean
   /** 音频可视化（播放器底部 EQ 频谱动画） */
   audioVisualizer: boolean
+  /** 本机音量均衡：只衰减偏响曲目，不修改保存音量，不参与房间同步。 */
+  volumeNormalize: boolean
   /** 搜索联想下拉条目数量 */
   searchAssistLimit: number
   /** 歌词字体大小（px） */
@@ -159,6 +161,7 @@ export const DEFAULT_MUSIC_SETTINGS: MusicSettings = {
   showSongTranslation: true,
   gaplessPlayback: false,
   audioVisualizer: false,
+  volumeNormalize: false,
   searchAssistLimit: 8,
   lyricSize: 20,
   tlyricSize: 14,
