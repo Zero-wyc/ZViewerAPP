@@ -23,6 +23,8 @@ import { useSystemSettingsStore } from '@/store/systemSettingsStore'
 import type { QualityOption } from './resolveSource'
 import { buildServerFileProxyUrl } from '@/modules/server-files/serverFilesApi'
 import { resolveMovieDirectUrl } from '@/modules/direct-link/directLinkApi'
+import { getEmbyApiMovieSource } from '@/modules/emby/embyApi'
+import { getEmbyMediaSourceId } from '@/modules/emby/playbackMode'
 import { getEmbeddedProxyStatus, isEmbeddedBilibiliHost, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
 import { getNativeQualityPolicy, getWebViewCapabilities, nativeQualityCacheKey, recordNativeQuality } from '@/modules/bilibili/nativeQualityPolicy'
 import {
@@ -520,6 +522,8 @@ export async function resolveViewerMovieSource(
   const resolvingMovie = {
     ...movie,
     ...(dataSource && typeof state.noProxyFallback === 'boolean' ? { serverProxy: !state.noProxyFallback } : {}),
+    ...((movie.sourceType === 'emby' || movie.sourceType === 'jellyfin') && typeof state.noProxyFallback === 'boolean'
+      ? { directLink: state.noProxyFallback } : {}),
     ...(typeof state.playsvideoEnabled === 'boolean' ? { playsvideoEnabled: state.playsvideoEnabled } : {}),
   }
   if (movie.sourceType === 'kazumi') return resolveKazumiOnline(resolvingMovie, state.sourceUrl)
@@ -621,7 +625,19 @@ export async function resolveMovieSource({
     }
   }
 
-  // 其余源（webdav / openlist / ftp / smb / emby / jellyfin / url 等）：
+  // Refresh capabilities, credentials and legacy HLS formats on every playback.
+  if (sourceType === 'emby' || sourceType === 'jellyfin') {
+    const source = await getEmbyApiMovieSource(sourceType, movie.id,
+      getEmbyMediaSourceId(movie.url), undefined, movie.directLink === true)
+    const sourceUrl = movie.directLink === true
+      ? source.resolvedDirectUrl || source.directUrl : source.streamUrl
+    if (!sourceUrl) throw new Error('未取得影片播放地址')
+    return { sourceUrl, format: source.format, audioCodec: source.audioCodec ?? undefined,
+      duration: source.duration || movie.duration || 0, reusedRecoveryUrl: false,
+      playsvideoEnabled: movie.playsvideoEnabled !== false, noProxyFallback: movie.directLink === true }
+  }
+
+  // 其余源（webdav / openlist / ftp / smb / url 等）：
   // format 兜底从 URL 扩展名自动推断。MKV 快速路径判定与 server-files
   // 一致：原生友好编码直通原生播放，跨域 URL 由 direct 引擎的代理策略
   // （直连失败回退服务器代理）兜底，原生失败再回退 playsvideo 管线。

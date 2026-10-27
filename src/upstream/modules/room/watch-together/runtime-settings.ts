@@ -3,6 +3,20 @@ import type { Movie } from '@/store/roomStore'
 export interface PlaybackPolicy {
   serverProxy?: boolean
   playsvideoEnabled?: boolean
+  sourceType?: string
+  directLink?: boolean
+  url?: string
+  format?: Movie['format']
+  audioCodec?: string
+  multiVersion?: boolean
+}
+
+export function moviePlaybackPolicy(movie: PlaybackPolicy): PlaybackPolicy {
+  return { serverProxy: movie.serverProxy, playsvideoEnabled: movie.playsvideoEnabled,
+    ...((movie.sourceType === 'emby' || movie.sourceType === 'jellyfin') ? {
+      sourceType: movie.sourceType, directLink: movie.directLink === true, url: movie.url,
+      format: movie.format, audioCodec: movie.audioCodec, multiVersion: movie.multiVersion,
+    } : {}) }
 }
 
 export interface MovieSettingsOperation {
@@ -10,11 +24,15 @@ export interface MovieSettingsOperation {
   status: 'saving' | 'applying' | 'idle' | 'error'
   confirmed?: PlaybackPolicy
   error?: string
+  requested?: { serverProxy?: boolean; playsvideoEnabled?: boolean }
 }
 
 export function samePlaybackPolicy(a: PlaybackPolicy, b: PlaybackPolicy): boolean {
   return (a.serverProxy === true) === (b.serverProxy === true) &&
-    (a.playsvideoEnabled !== false) === (b.playsvideoEnabled !== false)
+    (a.playsvideoEnabled !== false) === (b.playsvideoEnabled !== false) &&
+    ((b.sourceType !== 'emby' && b.sourceType !== 'jellyfin') ||
+      (a.sourceType === b.sourceType && (a.directLink === true) === (b.directLink === true) &&
+        a.url === b.url && a.format === b.format && a.audioCodec === b.audioCodec))
 }
 
 /** Socket snapshots have no revision. Hold a confirmed policy until a fresh GET
@@ -29,8 +47,7 @@ export function reconcilePlaybackPolicies<T extends PlaybackPolicy & { id: numbe
       ? previous.find(item => item.id === movie.id) : operation?.confirmed
     if (!retained || samePlaybackPolicy(movie, retained)) return movie
     conflict = true
-    return { ...movie, serverProxy: retained.serverProxy === true,
-      playsvideoEnabled: retained.playsvideoEnabled !== false }
+    return { ...movie, ...moviePlaybackPolicy(retained) }
   })
   return { movies, conflict }
 }

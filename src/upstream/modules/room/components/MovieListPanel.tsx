@@ -1,5 +1,6 @@
 import { beginMediaLibraryChange } from '@/modules/emby/mediaLibraryOperation'
 import { getEmbyApiMovieSource, resolveEmby } from '@/modules/emby/embyApi'
+import { getEmbyMediaSourceId, embyPlaybackUpdate } from '@/modules/emby/playbackMode'
 import { resolveJellyfin } from '@/modules/jellyfin/jellyfinApi'
 import type { EmbyVersionInfo } from '@/modules/emby/types'
 import { logicalConnectionUrl } from '../../../../platform/connectionTransport'
@@ -999,6 +1000,8 @@ interface EmbyVersionSelectProps {
 
 function EmbyVersionSelect({ movie, api }: EmbyVersionSelectProps) {
   const roomId = useRoomStore((s) => s.roomId)
+  const settingsOperation = useRoomStore((s) => s.movieSettingsOperations[movie.id])
+  const settingsBusy = settingsOperation?.status === 'saving' || settingsOperation?.status === 'applying'
   const generation = useRef(0)
   const switchingRef = useRef(false)
   useEffect(() => { setVersions(null); setSelectedId(null); setLoadFailed(false); setLoading(false); setSwitching(false); ++generation.current; return () => { ++generation.current } }, [roomId, movie.id, movie.path, movie.url])
@@ -1013,7 +1016,7 @@ function EmbyVersionSelect({ movie, api }: EmbyVersionSelectProps) {
     if (versions || loading || loadFailed) return
     setLoading(true)
     const request = generation.current
-    getEmbyApiMovieSource(api, movie.id, new URL(movie.url, "https://placeholder.invalid").searchParams.get("ms") || undefined)
+    getEmbyApiMovieSource(api, movie.id, getEmbyMediaSourceId(movie.url))
       .then((data) => { if (request === generation.current) { setVersions(data.versions); setSelectedId(data.mediaSourceId) } })
       .catch((err) => {
         console.error('[MovieListPanel] load emby versions error:', err)
@@ -1026,6 +1029,8 @@ function EmbyVersionSelect({ movie, api }: EmbyVersionSelectProps) {
 
   const handleChange = async (value: string) => {
     if (!roomId || switchingRef.current || switching || value === currentId) return
+    const settings = useRoomStore.getState().movieSettingsOperations[movie.id]
+    if (settings?.status === 'saving' || settings?.status === 'applying') return
     // 版本列表尚未加载完成时的占位项，不可选择
     if (value === '__loading__') return
     setSwitching(true)
@@ -1039,15 +1044,11 @@ function EmbyVersionSelect({ movie, api }: EmbyVersionSelectProps) {
       // MediaSourceId 的 Emby 直链。format/audioCodec 同步更新（切到的版本
       // 音轨可能不兼容，format 会变为 hls 触发服务端转码）。
       if (!mediaCurrent() || request !== generation.current || revision !== useRoomStore.getState().roomSessionRevision || !useRoomStore.getState().movies.some(item => item.id === movie.id && item.path === movie.path)) return
-      const nextUrl = movie.directLink
-        ? data.directUrl || data.streamUrl || data.videoUrl
-        : data.streamUrl || data.videoUrl
+      const playback = embyPlaybackUpdate(data, movie.directLink === true)
       await useRoomStore.getState().updateMovie(roomId, movie.id, {
-        url: logicalConnectionUrl(nextUrl),
-        format: data.format,
-        audioCodec: data.audioCodec || "",
+        ...playback,
+        url: logicalConnectionUrl(playback.url),
         duration: data.duration,
-        multiVersion: data.multiVersion,
       })
       setSelectedId(value)
       message.success('已切换清晰度')
@@ -1082,7 +1083,7 @@ function EmbyVersionSelect({ movie, api }: EmbyVersionSelectProps) {
                 },
               ]
         }
-        disabled={switching}
+        disabled={switching || settingsBusy}
         onChange={handleChange}
         aria-label="切换影片清晰度版本"
       />

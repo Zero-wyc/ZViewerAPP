@@ -468,7 +468,7 @@ export function useVideoSource({
       if (isHostRef.current || !state.sourceUrl || state.isPreview) return state
       const room = useRoomStore.getState()
       const movie = room.movies.find(m => m.id === room.currentMovieId)
-      if (movie && ['cms', 'anime', 'kazumi', 'ftp'].includes(movie.sourceType)) {
+      if (movie && ['cms', 'anime', 'kazumi', 'ftp', 'emby', 'jellyfin'].includes(movie.sourceType)) {
         const resolved = await resolveViewerMovieSource(movie, state)
         if (room.roomSessionRevision !== useRoomStore.getState().roomSessionRevision || room.currentMovieId !== useRoomStore.getState().currentMovieId) throw new DOMException('Playback session replaced', 'AbortError')
         return {...state, ...resolved,

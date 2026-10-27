@@ -225,7 +225,7 @@ export function WatchTogetherCore({
     if (!codec || BROWSER_SUPPORTED_AUDIO.has(codec)) return
 
     // 同一影片+编码只提示一次，避免每次 state 更新都弹
-    const key = `${currentMovieId ?? ''}:${codec}`
+    const key = `${currentMovieId ?? ''}:${codec}:${watchTogether.format}:${watchTogether.playsvideoEnabled !== false}`
     if (lastAudioNoticeRef.current === key) return
     lastAudioNoticeRef.current = key
 
@@ -234,7 +234,11 @@ export function WatchTogetherCore({
       currentMovieSourceType === 'jellyfin'
     ) {
       addPlayerNotice(
-        `音轨编码 ${codec.toUpperCase()} 不受浏览器支持，已由媒体服务器转码为 AAC`,
+        watchTogether.format === 'hls'
+          ? `音轨编码 ${codec.toUpperCase()} 不受浏览器支持，已请求媒体服务器转码为 AAC`
+          : watchTogether.playsvideoEnabled === false
+            ? `音轨编码 ${codec.toUpperCase()} 不受浏览器支持，浏览器转码已关闭，播放可能无声`
+            : `音轨编码 ${codec.toUpperCase()} 不受浏览器支持，将由浏览器转码引擎处理`,
         'info'
       )
     } else {
@@ -249,6 +253,8 @@ export function WatchTogetherCore({
   }, [
     watchTogether.sourceUrl,
     watchTogether.audioCodec,
+    watchTogether.format,
+    watchTogether.playsvideoEnabled,
     currentMovieId,
     currentMovieSourceType,
   ])

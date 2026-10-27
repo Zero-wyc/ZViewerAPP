@@ -2,7 +2,10 @@ import type { CmsSourceMeta } from '@/modules/cms/types'
 import { getEmbeddedProxyStatus } from '../../platform/bilibiliProxy'
 import { create } from 'zustand'
 import { unwrapCliProxyUrl } from '@/modules/bilibili/cliApi'
-import { reconcilePlaybackPolicies, type MovieSettingsOperation } from '@/modules/room/watch-together/runtime-settings'
+import { reconcilePlaybackPolicies, moviePlaybackPolicy, type MovieSettingsOperation } from '@/modules/room/watch-together/runtime-settings'
+import { getEmbyApiMovieSource } from '@/modules/emby/embyApi'
+import { canSwitchEmbyPlayback, getEmbyMediaSourceId, embyPlaybackUpdate } from '@/modules/emby/playbackMode'
+import { beginMediaLibraryChange } from '@/modules/emby/mediaLibraryOperation'
 import { useAuthStore } from './authStore'
 import { apiFetch, safeJson, getApiUrl } from '@/lib/api'
 import type {
@@ -678,7 +681,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
       for (const movie of incoming) {
         const operation = operations[movie.id]
         if (operation && operation.status !== 'saving') operations[movie.id] = { ...operation,
-          confirmed: { serverProxy: movie.serverProxy, playsvideoEnabled: movie.playsvideoEnabled } }
+          confirmed: moviePlaybackPolicy(movie) }
       }
       set({ movies: reconcilePlaybackPolicies(incoming, get().movies, operations).movies, movieSettingsOperations: operations })
     }
@@ -750,11 +753,25 @@ export const useRoomStore = create<RoomState>((set, get) => ({
     const previous = context.movieSettingsOperations[movieId]
     if (previous?.status === 'saving' || previous?.status === 'applying') return
     const token = ++movieSettingsToken
+    const mediaCurrent = beginMediaLibraryChange(movieId)
     const current = () => get().roomId === roomId && get().roomSessionRevision === revision && getApiUrl() === server &&
       get().movieSettingsOperations[movieId]?.token === token && get().movies.some(item => item.id === movieId)
-    set({ movieSettingsOperations: { ...context.movieSettingsOperations, [movieId]: { token, status: 'saving' } } })
+    set({ movieSettingsOperations: { ...context.movieSettingsOperations, [movieId]: { token, status: 'saving', requested: payload } } })
     try {
-      let confirmed = await get().updateMovie(roomId, movieId, payload)
+      let update: Parameters<RoomState['updateMovie']>[2] = payload
+      if ((movie.sourceType === 'emby' || movie.sourceType === 'jellyfin') && payload.serverProxy !== undefined) {
+        if (!canSwitchEmbyPlayback(movie)) throw new Error('内网挂载仅支持服务器中转')
+        const source = await getEmbyApiMovieSource(movie.sourceType, movieId, getEmbyMediaSourceId(movie.url))
+        if (!current()) return
+        if (!mediaCurrent()) throw new Error('影片版本已变更，请重试')
+        const latestUser = useAuthStore.getState().user
+        if (!latestUser || (latestUser.role !== 'root' && String(latestUser.id) !== String(get().roomOwnerUserId))) {
+          throw new Error('播放权限已变更，请刷新片单')
+        }
+        const { serverProxy, ...enginePolicy } = payload
+        update = { ...enginePolicy, ...embyPlaybackUpdate(source, !serverProxy) }
+      }
+      let confirmed = await get().updateMovie(roomId, movieId, update)
       if (!current()) return
       if (!confirmed) {
         // Old servers may omit the movie response. Confirm via REST, not Socket ordering.
@@ -774,7 +791,8 @@ export const useRoomStore = create<RoomState>((set, get) => ({
       set({ movies: get().movies.map(item => item.id === movieId ? confirmed! : item),
         movieSettingsOperations: { ...get().movieSettingsOperations, [movieId]: { token,
           status: get().currentMovieId === movieId ? 'applying' : 'idle',
-          confirmed: { serverProxy: confirmed.serverProxy, playsvideoEnabled: confirmed.playsvideoEnabled } } } })
+          requested: payload,
+          confirmed: moviePlaybackPolicy(confirmed) } } })
       void get().fetchMovies(roomId).catch(() => {})
     } catch (error) {
       if (!current()) return
