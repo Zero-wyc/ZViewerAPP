@@ -17,7 +17,7 @@ import {
   useMusicSettingsStore,
 } from '../store-settings'
 import { cn } from '@/lib/utils'
-import { CloudModal } from './CloudModal'
+import { MusicSheet } from './MusicSheet'
 import { TinySlider } from './TinySlider'
 
 /** 黑底弹窗内嵌 MD3 弹幕设置面板的变量作用域覆盖：DanmakuStylePanel /
@@ -142,28 +142,12 @@ export function PlayerSettingsModal({ onDismiss }: { onDismiss: () => void }) {
   return (
     /* 遮罩 + 面板 + 进出动画（宽→高展开/反向收起、渐进压暗、Esc、
        内容延后挂载闸门 unfoldDone）统一由 CloudModal 承载，此处只写内容 */
-    <CloudModal
-      width="min(340px, calc(100vw - 32px))"
-      height="min(674px, calc(100vh - 120px))"
-      onClose={onDismiss}
-    >
-      {(unfoldDone) => (
+    <MusicSheet title="外观与高级设置" onClose={onDismiss} className="music-settings-sheet">
         <>
-          {/* 标题行：超大 SETTING 水印压在「设置」后面（左对齐、允许溢出裁剪） */}
-          <div className="relative border-b border-white/70 px-5 pb-3 pt-4">
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute -left-1 top-2 select-none text-[56px] font-black leading-none tracking-tight text-[rgba(255,255,255,0.08)]"
-            >
-              SETTING
-            </span>
-            <p className="relative text-center text-[15px] font-bold text-white">
-              设置
-            </p>
-          </div>
+          <h3 className="music-settings-heading">外观</h3>
           {/* 背景设置项（与「一起听设置」同一 store，即时持久化）；
             展开动画结束后挂载（动画期间零渲染），内容超出面板高度滚动 */}
-          {unfoldDone && (
+          {true && (
             <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain py-1">
               {/* 毛玻璃封面背景（歌词页背景封面模糊开关） */}
               <div className="flex items-center justify-between gap-3 px-5 py-3.5">
@@ -289,6 +273,7 @@ export function PlayerSettingsModal({ onDismiss }: { onDismiss: () => void }) {
                   onChange={(v) => setSettings({ uiBlurLevel: v })}
                 />
               </div>
+              <details className="music-settings-advanced"><summary>高级 · 视频解析与画质</summary>
               {/* CLI 高画质代理（BilibiliParseSettings 同构面板，黑底弹窗配色：
               标题行+连接状态点 → 关闭/启用双按钮 → 状态说明 → 配置页入口；
               CLI 开关即 musicVideoCli 设置项，改回开关语义并即时持久化） */}
@@ -486,6 +471,7 @@ export function PlayerSettingsModal({ onDismiss }: { onDismiss: () => void }) {
                   </div>
                 </div>
               </div>
+              </details>
               {/* 背景显示方式（视频背景的画面适配方式，点击循环切换） */}
               <div className="flex items-center justify-between gap-3 px-5 py-3.5">
                 <span className="min-w-0">
@@ -782,7 +768,6 @@ export function PlayerSettingsModal({ onDismiss }: { onDismiss: () => void }) {
             </div>
           )}
         </>
-      )}
-    </CloudModal>
+    </MusicSheet>
   )
 }

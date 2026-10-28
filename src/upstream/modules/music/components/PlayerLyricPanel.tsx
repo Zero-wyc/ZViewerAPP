@@ -18,7 +18,7 @@
  *   0.8s 展开动画；收起走弹性曲线 cubic-bezier(1,-0.49,0.61,0.36)，
  *   切行时立即折叠 = fast-close）：左侧 28px 旋转菱形（45°→135°，1.6s
  *   延迟 0.6s 循环）+ 右侧三角标 + THE REMAINING TIME 倒计时 +
- *   MUSIC INTERLUDE 黑底标题（内嵌频谱竖线 SVG 装饰）+ 4px 进度条
+ *   间奏 黑底标题（内嵌频谱竖线 SVG 装饰）+ 4px 进度条
  * - 空态：无歌词显示 Lyric-Area——左下/右上两条对角线 38% 展开
  *   （0.8s 延迟 0.5s cubic-bezier(0.32,0.81,0.56,0.98)）+ 文字
  *   0.1s 延迟 1.3s 内闪烁三下常显；纯音乐显示占位行
@@ -684,7 +684,7 @@ export function PlayerLyricPanel({
       {/* 音质标签留在右下安全间距内，四角定位装饰已移除。 */}
       {qualityLabel && (
         <span
-          className="pointer-events-none absolute bottom-[max(2.4vh,16px)] right-[max(2.2vh,12px)] z-[6] text-[max(1.5vh,10px)] leading-none tracking-wide"
+          className="music-quality-label pointer-events-none absolute bottom-[max(2.4vh,16px)] right-[max(2.2vh,12px)] z-[6] text-[max(1.5vh,10px)] leading-none tracking-wide"
           style={{
             color: 'var(--md-sys-color-on-surface)',
             fontFamily: "'Bender-Bold', 'SourceHanSansCN-Bold', sans-serif",
@@ -823,6 +823,7 @@ const LyricRow = memo(function LyricRow({
         tabIndex={clickable ? 0 : undefined}
         onClick={clickable ? () => onSeek(line.time) : undefined}
         onContextMenu={onContextMenu}
+        data-lyric-active={active}
         className={cn(
           'lyric-line-active relative flex origin-left flex-col items-start overflow-hidden px-[130px] py-[10px] pl-[25px]',
           clickable &&
@@ -947,7 +948,7 @@ const LyricRow = memo(function LyricRow({
                 className="whitespace-nowrap text-[8px] font-bold tabular-nums"
                 style={{ color: 'var(--md-sys-color-on-surface)' }}
               >
-                THE REMAINING TIME: {interlude.remaining}
+                间奏 · {interlude.remaining} 秒
               </span>
               <div
                 className="mt-[2px] flex w-full flex-row items-center justify-between whitespace-nowrap px-1 py-0"
@@ -957,7 +958,7 @@ const LyricRow = memo(function LyricRow({
                   className="text-[10px] font-bold"
                   style={{ color: 'var(--md-sys-color-surface)' }}
                 >
-                  MUSIC INTERLUDE
+                  间奏
                 </span>
                 {/* 频谱竖线装饰（Hydrogen title-style SVG 1:1 等价） */}
                 <svg

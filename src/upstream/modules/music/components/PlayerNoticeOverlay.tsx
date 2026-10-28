@@ -12,6 +12,7 @@
  * 0.3s 播放上飘淡出，动画结束才真正卸载（此前是直接闪现消失）。该延迟
  * 状态由父级持有并经 props 传入（详见 useNoticeToast 语义）。
  */
+import { MusicSheet } from './MusicSheet'
 import { Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { NoticeView } from '../hooks/useNoticeToast'
@@ -47,14 +48,17 @@ export function PlayerNoticeOverlay({
   rejectControl,
   immersive,
 }: PlayerNoticeOverlayProps) {
+  if (!immersive && isHost && syncNotice && noticeView?.kind === 'approval') return <MusicSheet title="播放控制申请" onClose={rejectControl}>
+    <div className="music-approval-card"><p>{noticeView.text}</p><div><button onClick={rejectControl}>拒绝</button><button onClick={approveControl}>通过申请</button></div></div>
+  </MusicSheet>
   return (
-    <div
+    <div role="status"
       className={cn(
-        'pointer-events-none absolute left-4 top-4 z-30 flex max-w-[calc(100%-2rem)] flex-col items-start gap-2 max-md:left-3 max-md:top-3',
+        'music-player-notice pointer-events-none absolute left-4 top-4 z-30 flex max-w-[calc(100%-2rem)] flex-col items-start gap-2 max-md:left-3 max-md:top-3',
         immersive && 'invisible'
       )}
     >
-      {hostOffline && !canControl && (
+      {hostOffline && canControl && (
         <div className="zen-notice-bar zen-stagger-fade-up pointer-events-auto flex items-center gap-2 rounded-[14px] px-3.5 py-2 text-xs font-medium">
           <span className="relative flex h-1.5 w-1.5 shrink-0">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--md-sys-color-tertiary)] opacity-60" />

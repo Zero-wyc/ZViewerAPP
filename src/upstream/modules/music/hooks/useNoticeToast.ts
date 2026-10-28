@@ -68,10 +68,10 @@ export function useNoticeToast({
 
   // 5s 自动消失
   useEffect(() => {
-    if (!notice) return
-    const timer = setTimeout(dismiss, SYNC_NOTICE_AUTO_DISMISS_MS)
+    if (!notice || noticeKind === 'approval') return
+    const timer = setTimeout(dismiss, notice.startsWith('已向房主申请') ? 15000 : SYNC_NOTICE_AUTO_DISMISS_MS)
     return () => clearTimeout(timer)
-  }, [notice, dismiss])
+  }, [notice, noticeKind, dismiss])
 
   return { noticeView, noticeLeaving }
 }

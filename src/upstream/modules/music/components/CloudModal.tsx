@@ -197,6 +197,7 @@ export const CloudModal = forwardRef<CloudModalHandle, CloudModalProps>(
             只动宽高（不动 opacity/transform/filter），自身 backdrop-filter
             采样不受 Backdrop Root 影响 */}
         <div
+          data-cloud-modal="true"
           className={cn(
             'fixed flex flex-col',
             variant === 'dark' && 'overflow-hidden',

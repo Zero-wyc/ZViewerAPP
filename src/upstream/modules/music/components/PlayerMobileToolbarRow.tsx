@@ -1,44 +1,17 @@
-/**
- * 手机竖屏水平工具行（替代右侧竖排 song-control）：竖屏下卡片全宽，
- * 右侧 50px 悬出区会出屏，改为卡片下方水平排列；收起走右上角常显按钮，
- * 此处不再重复。触屏尺寸 32px 保证可点。
- *
- * 与桌面 PlayerSongControl 同语义的入口：歌词视图开关 / 罗马音 / 翻译 /
- * 纯净模式 / 喜欢 / 播放模式（房主）/ 歌词-评论切换 / 添加视频 /
- * B站 原视频跳转 / 播放队列（弹窗固定底部 sheet）/ 设置 / UI 深浅色 /
- * 全屏。B站 条目专属的弹幕开关、网易云搜索、收藏红心仅桌面 song-control
- * 提供（竖屏行宽有限，保留高频入口）。
- * 播放视图中喜欢/评论移到歌名旁，模式/队列移到主控制行；歌词视图
- * 中由本工具栏接回这些入口，权限与弹窗所有者保持一致。
- */
+import { useState, type ReactNode } from 'react'
 import type { Socket } from 'socket.io-client'
-import {
-  AlignLeft,
-  Contrast,
-  ExternalLink,
-  Film,
-  ListMusic,
-  Maximize,
-  Minimize,
-  MonitorPlay,
-  MessageCircle,
-  Settings,
-} from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { AlignLeft, MessageCircle, ListMusic, MoreHorizontal, Volume2 } from 'lucide-react'
+import { MusicSheet } from './MusicSheet'
 import { MusicQueuePopup } from './MusicQueuePopup'
-import {
-  LikeFilledIcon,
-  LikeOutlineIcon,
-  PlayModeIcon,
-  RomanLyricIcon,
-  TransLyricIcon,
-} from './PlayerControlIcons'
-import { TOOLBAR_TONE_VARS, type PlayerUiTone } from '../utils/playerTone'
-import { PLAY_MODE_META } from '../constants'
+import { CARD_TONE_VARS, type PlayerUiTone } from '../utils/playerTone'
 import type { PlayMode } from '../types'
-
 export interface PlayerMobileToolbarRowProps {
   /** 工具行色调（跟随主题深浅，不跟播放页 UI 开关） */
+  extraActions?: ReactNode
+  onAddQueue: () => void
+  volume: number
+  onVolume: (value: number) => void
+  onOrderMode: () => void
   toolbarTone: PlayerUiTone
 
   // ===== 歌词视图开关（竖屏独占整页）与歌词三开关 =====
@@ -97,267 +70,32 @@ export interface PlayerMobileToolbarRowProps {
   onToggleFullscreen: () => void
 }
 
-export function PlayerMobileToolbarRow({
-  toolbarTone,
-  mobileLyricViewActive,
-  onToggleMobileLyricView,
-  hasRomaLyric,
-  lyricRoma,
-  onToggleLyricRoma,
-  hasTransLyric,
-  lyricTrans,
-  onToggleLyricTrans,
-  bgVideoReady,
-  onEnterImmersive,
-  canLike,
-  liked,
-  onLike,
-  isHost,
-  playMode,
-  onTogglePlayMode,
-  canComment,
-  rightPanelMode,
-  commentBadge,
-  onToggleCommentPanel,
-  songId,
-  onAddMusicVideo,
-  getBiliSourceUrl,
-  queuePopupOpen,
-  onToggleQueuePopup,
-  socket,
-  roomId,
-  canManage,
-  showPlaybackActions = true,
-  onOpenSettings,
-  uiTone,
-  onToggleUiTone,
-  isFullscreen,
-  showFullscreen = true,
-  onToggleFullscreen,
-}: PlayerMobileToolbarRowProps) {
-  return (
-    <div
-      className={cn(
-        'music-player-mobile-tools lt-icon-outline relative z-[10] flex shrink-0 flex-wrap items-center justify-center gap-1'
-      )}
-      style={{
-        color: 'var(--md-sys-color-on-surface)',
-        // 工具栏色调跟随主题深浅（不跟 UI 开关）：文字三色容器级
-        // 统一覆盖，按钮的 var() 引用跟随
-        ...TOOLBAR_TONE_VARS[toolbarTone],
-      }}
-    >
-      {/* 歌词视图开关：默认只显示播放卡，开启后歌词区独占整页。
-          高亮同桌面：跟随「开关态 且 确实有歌词」，无歌词曲目时
-          歌词视图被自动收起，图标同步呈关闭态 */}
-      <button
-        type="button"
-        onClick={onToggleMobileLyricView}
-        className="flex h-8 w-8 items-center justify-center transition-opacity active:scale-90"
-        style={{
-          color: mobileLyricViewActive
-            ? 'var(--md-sys-color-on-surface)'
-            : 'var(--md-sys-color-on-surface-variant)',
-        }}
-        title={mobileLyricViewActive ? '隐藏歌词' : '显示歌词'}
-        aria-label="切换歌词显示"
-        aria-pressed={mobileLyricViewActive}
-      >
-        <AlignLeft className="h-5 w-5" />
-      </button>
-      {hasRomaLyric && (
-        <button
-          type="button"
-          onClick={onToggleLyricRoma}
-          className="flex h-8 w-8 items-center justify-center transition-opacity active:scale-90"
-          style={{
-            color: lyricRoma
-              ? 'var(--md-sys-color-on-surface)'
-              : 'var(--md-sys-color-on-surface-variant)',
-          }}
-          title={lyricRoma ? '隐藏罗马音' : '显示罗马音'}
-          aria-label="切换罗马音显示"
-        >
-          <RomanLyricIcon className="h-5 w-5" />
-        </button>
-      )}
-      {hasTransLyric && (
-        <button
-          type="button"
-          onClick={onToggleLyricTrans}
-          className="flex h-8 w-8 items-center justify-center transition-opacity active:scale-90"
-          style={{
-            color: lyricTrans
-              ? 'var(--md-sys-color-on-surface)'
-              : 'var(--md-sys-color-on-surface-variant)',
-          }}
-          title={lyricTrans ? '隐藏翻译' : '显示翻译'}
-          aria-label="切换翻译显示"
-        >
-          <TransLyricIcon className="h-5 w-5" />
-        </button>
-      )}
-      {/* 纯净模式（手机端）：与桌面 song-control 同一入口 */}
-      {bgVideoReady && (
-        <button
-          type="button"
-          onClick={onEnterImmersive}
-          className="flex h-8 w-8 items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity active:scale-90"
-          title="纯净模式：隐藏全部界面，仅显示背景视频"
-          aria-label="进入纯净模式"
-        >
-          <MonitorPlay className="h-5 w-5" />
-        </button>
-      )}
-      {canLike && showPlaybackActions && (
-        <button
-          type="button"
-          onClick={() => void onLike()}
-          className="flex h-8 w-8 items-center justify-center transition-opacity active:scale-90"
-          style={{
-            color: liked
-              ? 'var(--md-sys-color-error)'
-              : 'var(--md-sys-color-on-surface)',
-          }}
-          title={liked ? '取消喜欢' : '喜欢这首歌'}
-          aria-label={liked ? '取消喜欢' : '喜欢'}
-        >
-          {liked ? (
-            <LikeFilledIcon className="h-5 w-5" />
-          ) : (
-            <LikeOutlineIcon className="h-5 w-5" />
-          )}
-        </button>
-      )}
-      {isHost && showPlaybackActions && (
-        <button
-          type="button"
-          onClick={onTogglePlayMode}
-          className="flex h-8 w-8 items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity active:scale-90"
-          title={`${PLAY_MODE_META[playMode].label}（点击${PLAY_MODE_META[playMode].next}）`}
-          aria-label={`播放模式：${PLAY_MODE_META[playMode].label}`}
-        >
-          <PlayModeIcon mode={playMode} className="h-5 w-5" />
-        </button>
-      )}
-      {/* 歌词/评论切换（评论数徽章以小圆点形式叠加）：
-          与桌面端同语义——歌词视图收起时，查看评论/歌词的意图
-          即带出面板，否则 mobileLyricView=false 时面板不渲染，
-          手机端永远看不到评论区 */}
-      {canComment && showPlaybackActions && (
-        <button
-          type="button"
-          onClick={onToggleCommentPanel}
-          className="relative flex h-8 w-8 items-center justify-center transition-opacity active:scale-90"
-          style={{ color: 'var(--md-sys-color-on-surface)' }}
-          title={rightPanelMode === 1 ? '查看歌词' : '查看评论'}
-          aria-label="切换歌词/评论区"
-        >
-          <MessageCircle className="h-5 w-5" />
-          {commentBadge !== '0' && (
-            <span
-              className="absolute -right-1 -top-0.5 min-w-[16px] whitespace-nowrap rounded-full px-1 text-center text-[10px] font-bold leading-4"
-              style={{
-                backgroundColor: 'var(--md-sys-color-on-surface)',
-                color: 'var(--lt-tone-inverse, var(--md-sys-color-surface))',
-              }}
-            >
-              {commentBadge}
-            </span>
-          )}
-        </button>
-      )}
-      {/* 添加视频 */}
-      {songId != null && songId > 0 && (
-        <button
-          type="button"
-          onClick={onAddMusicVideo}
-          className="flex h-8 w-8 items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity active:scale-90"
-          title="添加视频"
-          aria-label="添加视频"
-        >
-          <Film className="h-5 w-5" />
-        </button>
-      )}
-      {/* 前往 B站 原视频（仅 B站 条目，与桌面 song-control 同语义） */}
-      {getBiliSourceUrl() && (
-        <button
-          type="button"
-          onClick={() =>
-            window.open(getBiliSourceUrl() ?? undefined, '_blank', 'noopener,noreferrer')
-          }
-          className="flex h-8 w-8 items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity active:scale-90"
-          title="在哔哩哔哩打开原视频"
-          aria-label="在哔哩哔哩打开原视频"
-        >
-          <ExternalLink className="h-5 w-5" />
-        </button>
-      )}
-      {/* 播放队列（弹窗固定底部居中弹出；点击展开、
-          再次点击同一按钮收回，展开态按钮高亮） */}
-      {showPlaybackActions && <button
-        type="button"
-        onClick={onToggleQueuePopup}
-        className={cn(
-          'flex h-8 w-8 items-center justify-center transition-opacity active:scale-90',
-          queuePopupOpen
-            ? 'text-[var(--md-sys-color-primary)]'
-            : 'text-[var(--md-sys-color-on-surface)]'
-        )}
-        title={queuePopupOpen ? '收起播放队列' : '播放队列'}
-        aria-label="切换播放队列"
-        aria-expanded={queuePopupOpen}
-      >
-        <ListMusic className="h-5 w-5" />
-      </button>}
-      {queuePopupOpen && (
-        <MusicQueuePopup
-          socket={socket}
-          roomId={roomId}
-          isHost={isHost}
-          canManage={canManage}
-          placement="sheet"
-        />
-      )}
-      {/* 快捷设置（与桌面 song-control 同一弹窗） */}
-      <button
-        type="button"
-        onClick={onOpenSettings}
-        className="flex h-8 w-8 items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity active:scale-90"
-        title="设置"
-        aria-label="打开设置"
-      >
-        <Settings className="h-5 w-5" />
-      </button>
-      {/* 播放页 UI 深浅色切换：与桌面 song-control 同一状态
-          （同样不含工具栏，工具栏随主题） */}
-      <button
-        type="button"
-        onClick={onToggleUiTone}
-        className="flex h-8 w-8 items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity active:scale-90"
-        title={
-          uiTone === 'light'
-            ? '播放卡/歌词面板：浅色（点击切换为深色）'
-            : '播放卡/歌词面板：深色（点击切换为浅色）'
-        }
-        aria-label="切换播放页 UI 深浅色"
-      >
-        <Contrast className="h-5 w-5" />
-      </button>
-      {/* 浏览器页面全屏；原生移动端不提供重复入口。 */}
-      {showFullscreen && <button
-        type="button"
-        onClick={onToggleFullscreen}
-        className="flex h-8 w-8 items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity active:scale-90"
-        title={isFullscreen ? '退出全屏' : '全屏'}
-        aria-label={isFullscreen ? '退出全屏' : '进入全屏'}
-      >
-        {isFullscreen ? (
-          <Minimize className="h-5 w-5" />
-        ) : (
-          <Maximize className="h-5 w-5" />
-        )}
-      </button>}
-    </div>
-  )
+export function PlayerMobileToolbarRow(p: PlayerMobileToolbarRowProps) {
+  const [more, setMore] = useState(false)
+  const action = (fn: () => void) => { setMore(false); fn() }
+  return <div className="music-player-mobile-tools" style={CARD_TONE_VARS[p.uiTone]}>
+    <button onClick={p.onToggleMobileLyricView} aria-pressed={p.mobileLyricViewActive} aria-label="切换歌词显示"><AlignLeft size={22} /><span>{p.mobileLyricViewActive ? '封面' : '歌词'}</span></button>
+    <button onClick={p.onToggleCommentPanel} disabled={!p.canComment} aria-label="切换歌词/评论区"><MessageCircle size={22} /><span>评论</span></button>
+
+    <button onClick={() => setMore(true)} aria-label="播放器更多操作"><MoreHorizontal size={22} /><span>更多</span></button>
+    {p.queuePopupOpen && <MusicQueuePopup socket={p.socket} roomId={p.roomId} isHost={p.isHost} canManage={p.canManage} placement="sheet" />}
+    {more && <MusicSheet title="更多操作" tone={p.uiTone} onClose={() => setMore(false)}>
+      <div className="music-sheet-actions">
+        <button onClick={() => action(p.onToggleQueuePopup)}>播放队列</button>
+        <button onClick={p.onTogglePlayMode}>播放模式 · {p.playMode === 'repeat-one' ? '单曲循环' : p.playMode === 'shuffle' ? '随机播放' : p.playMode === 'order' ? '按顺序播放' : '列表循环'}{!p.isHost && '（仅房主可切换）'}</button>
+        {p.mobileLyricViewActive && p.hasRomaLyric && <button onClick={p.onToggleLyricRoma}>{p.lyricRoma ? '隐藏罗马音' : '显示罗马音'}</button>}
+        {p.mobileLyricViewActive && p.hasTransLyric && <button onClick={p.onToggleLyricTrans}>{p.lyricTrans ? '隐藏翻译' : '显示翻译'}</button>}
+        {p.canLike && <button onClick={() => void p.onLike()}>{p.liked ? '取消喜欢' : '喜欢这首歌'}</button>}
+        {p.extraActions ?? <button onClick={() => action(p.onAddQueue)}>加入播放队列</button>}
+        {p.songId != null && p.songId > 0 && <button onClick={() => action(p.onAddMusicVideo)}>添加背景视频</button>}
+        {p.getBiliSourceUrl() && <button onClick={() => window.open(p.getBiliSourceUrl()!, '_blank', 'noopener,noreferrer')}>打开哔哩哔哩原视频</button>}
+        {p.bgVideoReady && <button onClick={() => action(p.onEnterImmersive)}>纯净视频模式</button>}
+        <button onClick={() => action(p.onOpenSettings)}>外观与高级设置</button>
+        <button onClick={p.onToggleUiTone}>{p.uiTone === 'light' ? '切换深色播放页' : '切换浅色播放页'}</button>
+        {p.isHost && <button onClick={() => action(p.onOrderMode)}>按顺序播放（播完停止 / B站推荐连播）</button>}
+        {p.showFullscreen && <button onClick={() => action(p.onToggleFullscreen)}>{p.isFullscreen ? '退出全屏' : '进入全屏'}</button>}
+        <label className="music-volume-setting"><Volume2 size={20} /><span>本机音量</span><input aria-label="本机音量" type="range" min="0" max="1" step="0.01" value={p.volume} onChange={event => p.onVolume(Number(event.target.value))} /><output>{Math.round(p.volume * 100)}%</output></label>
+      </div>
+    </MusicSheet>}
+  </div>
 }

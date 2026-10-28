@@ -48,3 +48,14 @@ test('keyboard equivalents switch tracks while modified and repeated keys remain
   }
   assert.deepEqual(calls, ['prev','next']); assert.equal(prevented,2)
 })
+test('a recognized swipe consumes the following click, while a tap remains clickable', async () => {
+  const { hook, event } = await harness()
+  hook.onPointerDown(event(100, 30)); hook.onPointerUp(event(30, 31, 200))
+  let prevented = 0, stopped = 0
+  const click = { preventDefault() { prevented++ }, stopPropagation() { stopped++ } }
+  hook.onClickCapture(click)
+  assert.equal(prevented, 1); assert.equal(stopped, 1)
+  hook.onPointerDown(event(30, 30)); hook.onPointerUp(event(32, 31, 200))
+  hook.onClickCapture(click)
+  assert.equal(prevented, 1)
+})

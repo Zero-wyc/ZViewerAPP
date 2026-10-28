@@ -17,16 +17,15 @@ export const LYRIC_ADVANCE_SEC = 0.2
 
 /** 播放模式轮换顺序（order = 按顺序播放，不循环；B站 推荐连播仅此模式启用） */
 export const PLAY_MODE_ORDER: PlayMode[] = [
-  'order',
+  'sequence',
   'repeat-one',
   'shuffle',
-  'sequence',
 ]
 
 /** 播放模式按钮文案映射：label = 当前模式名，next = 点击后切换到的模式（合成 title） */
 export const PLAY_MODE_META: Record<PlayMode, { label: string; next: string }> =
   {
-    sequence: { label: '顺序循环', next: '切换为按顺序播放' },
+    sequence: { label: '列表循环', next: '切换为单曲循环' },
     order: { label: '按顺序播放', next: '切换为单曲循环' },
     'repeat-one': { label: '单曲循环', next: '切换为随机播放' },
     shuffle: { label: '随机播放', next: '切换为顺序循环' },

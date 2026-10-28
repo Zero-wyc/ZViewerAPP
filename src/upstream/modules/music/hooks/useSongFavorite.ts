@@ -18,6 +18,10 @@
  * - 本地会话记忆 biliCollectedMark 与官方查询结果对齐
  */
 import { useCallback, useEffect, useState } from 'react'
+import { create } from 'zustand'
+import { useMusicStore } from '../store'
+import { useAuthStore } from '@/store/authStore'
+import { getApiUrl } from '@/lib/api'
 import { apiGet, apiPost } from '../musicApi'
 import { message } from '@/components/ui/message'
 import {
@@ -25,6 +29,16 @@ import {
   normalizeBiliLikeFavTitle,
 } from '../store-settings'
 import type { NcmAccountResponse, NcmLikelistResponse } from '../types'
+
+type Favorite = { liked: boolean; busy: boolean; loaded: boolean; revision: number }
+const empty: Favorite = { liked: false, busy: false, loaded: false, revision: 0 }
+const useFavorites = create<{ items: Record<string, Favorite> }>(() => ({ items: {} }))
+let generation = 0
+const inflight = new Map<string, Promise<void>>()
+const update = (key: string, values: Partial<Favorite>) => useFavorites.setState(s => ({ items: { ...s.items, [key]: { ...(s.items[key] ?? empty), ...values } } }))
+// Switching NCM/App accounts invalidates status without retaining credentials.
+useMusicStore.subscribe((s, prev) => { if (s.loginStatus !== prev.loginStatus) { generation++; inflight.clear(); useFavorites.setState({ items: {} }) } })
+useAuthStore.subscribe((s, prev) => { if (s.user?.id !== prev.user?.id) { generation++; inflight.clear(); useFavorites.setState({ items: {} }) } })
 
 export interface UseSongFavoriteOptions {
   /** 网易云曲目 ID（B站 曲目为 null/undefined） */
@@ -42,64 +56,45 @@ export function useSongFavorite({
 }: UseSongFavoriteOptions) {
   // ===== 网易云喜欢：可用条件 = 已登录 + 有效 songId =====
   const canLike = ncmLoggedIn && songId != null && songId > 0
-  /** 喜欢（乐观状态） */
-  const [liked, setLiked] = useState(false)
-  const [likeBusy, setLikeBusy] = useState(false)
-
-  // 切歌重置乐观态（render 期派生）
-  const [prevSongId, setPrevSongId] = useState<number | null | undefined>(
-    songId
-  )
-  if (prevSongId !== songId) {
-    setPrevSongId(songId)
-    setLiked(false)
-  }
-
-  // 查询当前喜欢状态（/account 取 uid → /likelist 取 ids）
+  const account = useMusicStore(s => s.loginStatus.nickname)
+  const key = `${getApiUrl()}:${useAuthStore(s => s.user?.id) ?? ''}:${account ?? ''}:ncm:${songId}`
+  const state = useFavorites(s => s.items[key] ?? empty)
+  const { liked, busy: likeBusy } = state
   useEffect(() => {
-    if (!canLike || songId == null) return
-    let cancelled = false
-    const query = async () => {
+    if (!canLike || songId == null || useFavorites.getState().items[key]?.loaded || inflight.has(key)) return
+    const original = useFavorites.getState().items
+    const revision = original[key]?.revision ?? 0
+    let request: Promise<void>
+    request = Promise.resolve().then(async () => {
       try {
-        const acc = await apiGet<NcmAccountResponse>(
-          `/api/music/ncm/user/account?timestamp=${Date.now()}`
-        )
-        if (cancelled) return
-        const uid = acc?.data?.account?.id ?? acc?.data?.profile?.userId
+        const acc = await apiGet<NcmAccountResponse>(`/api/music/ncm/user/account?timestamp=${Date.now()}`)
+        const uid = acc.data?.account?.id ?? acc.data?.profile?.userId
         if (!uid) return
-        const list = await apiGet<NcmLikelistResponse>(
-          `/api/music/ncm/likelist?uid=${uid}&timestamp=${Date.now()}`
-        )
-        if (cancelled) return
-        const ids = list?.data?.ids ?? []
-        if (Array.isArray(ids)) setLiked(ids.includes(songId))
-      } catch {
-        // 静默失败：按钮仍可点（乐观更新），仅初始状态未知
-      }
-    }
-    void query()
-    return () => {
-      cancelled = true
-    }
-  }, [canLike, songId])
-
-  /** 点击红心：乐观更新 + 失败回滚 */
+        const result = await apiGet<NcmLikelistResponse>(`/api/music/ncm/likelist?uid=${uid}&timestamp=${Date.now()}`)
+        const latest = useFavorites.getState().items[key]
+        if (inflight.get(key) !== request || (latest?.revision ?? 0) !== revision) return
+        update(key, { liked: result.data?.ids?.includes(songId) ?? false, loaded: true })
+      } catch { /* Keep the button available for retry. */ }
+      finally { if (inflight.get(key) === request) inflight.delete(key) }
+    })
+    inflight.set(key, request)
+  }, [canLike, songId, key])
   const toggleLike = useCallback(async () => {
-    if (!canLike || songId == null || likeBusy) return
-    const nextLiked = !liked
-    setLiked(nextLiked)
-    setLikeBusy(true)
+    const current = useFavorites.getState().items[key] ?? empty
+    if (!canLike || songId == null || current.busy) return
+    const session = generation
+    const revision = current.revision + 1
+    update(key, { liked: !current.liked, busy: true, loaded: true, revision })
     try {
-      await apiGet(
-        `/api/music/ncm/like?id=${songId}&like=${nextLiked}&timestamp=${Date.now()}`
-      )
+      const response = await apiGet(`/api/music/ncm/like?id=${songId}&like=${!current.liked}&timestamp=${Date.now()}`)
+      if (!response.ok) throw new Error('收藏失败')
     } catch {
-      // 失败回滚乐观状态
-      setLiked(!nextLiked)
+      if (session === generation && useFavorites.getState().items[key]?.revision === revision) update(key, { liked: current.liked })
+      message.error('喜欢状态更新失败，请重试')
     } finally {
-      setLikeBusy(false)
+      if (session === generation && useFavorites.getState().items[key]?.revision === revision) update(key, { busy: false })
     }
-  }, [canLike, songId, liked, likeBusy])
+  }, [canLike, songId, key])
 
   // ===== B站 收藏：直接收藏到「红心收藏夹」+ 打开收藏夹选择弹窗 =====
   const biliLikeFavTitle = normalizeBiliLikeFavTitle(

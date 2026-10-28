@@ -1,3 +1,4 @@
+import { PlayerNoticeOverlay } from './PlayerNoticeOverlay'
 import { useMusicService } from '../musicApi'
 /**
  * 一起听主区域新根（Hydrogen 完整应用框架）。
@@ -199,13 +200,13 @@ function ShellInner({
   // syncNotice 5s 自动消失（shell 常驻提示；覆盖层内 ListenTogetherPanel
   // 亦有一份相同逻辑，行为一致）
   useEffect(() => {
-    if (!syncNotice) return
+    if (!syncNotice || syncNoticeKind === 'approval') return
     const timer = setTimeout(
       () => setSyncNotice(null),
-      SYNC_NOTICE_AUTO_DISMISS_MS
+      syncNotice.startsWith('已向房主申请') ? 15000 : SYNC_NOTICE_AUTO_DISMISS_MS
     )
     return () => clearTimeout(timer)
-  }, [syncNotice, setSyncNotice])
+  }, [syncNotice, syncNoticeKind, setSyncNotice])
 
   // 提示条退出动画：syncNotice 清除后保留最后文案 0.3s 播放上飘淡出，
   // 动画结束才真正卸载（此前直接闪现消失）。状态同步走 render 期调整
@@ -305,7 +306,7 @@ function ShellInner({
       {/* ===== 左下角观众同步回执：观众完成切歌同步后回执，房主在此
           看到「xx 已同步」——浅色玻璃条 + 上滑入场/TTL 后上飘淡出
           （与左上角提示条同款动画 UI） ===== */}
-      {(syncAcks.length > 0 || leavingAcks.length > 0) &&
+      {!playerOverlayOpen && (syncAcks.length > 0 || leavingAcks.length > 0) &&
         (() => {
           const leavingIds = new Set(leavingAcks.map((a) => a.id))
           const shown = [
@@ -337,54 +338,7 @@ function ShellInner({
         })()}
 
       {/* ===== 左上角提示区：房主离线 + syncNotice（含房主审批按钮） ===== */}
-      <div className="pointer-events-none absolute left-4 top-4 z-[60] flex max-w-[calc(100%-2rem)] flex-col items-start gap-2 max-md:left-3 max-md:top-3">
-        {hostOffline && !canControl && (
-          <div className="zen-notice-bar zen-stagger-fade-up pointer-events-auto flex items-center gap-2 rounded-[14px] px-3.5 py-2 text-xs font-medium">
-            <span className="relative flex h-1.5 w-1.5 shrink-0">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--md-sys-color-tertiary)] opacity-60" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--md-sys-color-tertiary)]" />
-            </span>
-            房主已离开，您可以自主控制播放
-          </div>
-        )}
-        {(syncNotice || noticeLeaving) && noticeView && (
-          <div
-            className={cn(
-              'zen-notice-bar pointer-events-auto flex items-center gap-2.5 rounded-[14px] py-2 pl-3.5 pr-2 text-xs font-medium',
-              // 退出动画期间替换入场动画类（上飘淡出后再卸载）
-              noticeLeaving ? 'zen-notice-leave' : 'zen-notice-drop-in'
-            )}
-          >
-            <span>{noticeView.text}</span>
-            {/* 仅审批类提示（观众控制申请）渲染通过/拒绝按钮；
-                纯状态提示（解析进度、结果回执等）不显示；
-                退出动画期间 pendingControl 已定，不再渲染 */}
-            {isHost && !noticeLeaving && noticeView.kind === 'approval' && (
-              <span className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={approveControl}
-                  className="flex h-6 items-center gap-1 rounded-full px-2.5 text-[11px] font-bold text-[#111114] transition-all hover:opacity-85 active:scale-95"
-                  style={{ backgroundColor: 'rgba(255, 255, 255, 0.92)' }}
-                  title="通过申请"
-                >
-                  <Check className="h-3 w-3" strokeWidth={2.5} />
-                  通过
-                </button>
-                <button
-                  type="button"
-                  onClick={rejectControl}
-                  className="flex h-6 items-center gap-1 rounded-full border border-white/20 px-2.5 text-[11px] font-medium text-[#ff6b6b] transition-colors hover:border-white/35 hover:bg-white/10 active:scale-95"
-                  title="拒绝申请"
-                >
-                  <X className="h-3 w-3" />
-                  拒绝
-                </button>
-              </span>
-            )}
-          </div>
-        )}
-      </div>
+      {!playerOverlayOpen && <PlayerNoticeOverlay hostOffline={hostOffline} canControl={canControl} syncNotice={syncNotice} noticeLeaving={noticeLeaving} noticeView={noticeView} isHost={isHost} approveControl={approveControl} rejectControl={rejectControl} immersive={false} />}
 
       {/* ===== 顶部导航（模式切换滑块/标签注入右侧）。
           底板占满全屏（h-screen）：听模式下全局 Header 默认隐藏，顶栏位置
@@ -469,7 +423,6 @@ function ShellInner({
               : 'music-player-overlay player-slide-in absolute inset-0 z-40'
           }
         >
-          <div className="music-player-overlay-heading" aria-hidden="true">一起听 · 正在播放</div>
           <ListenTogetherPanel
             socket={socket}
             roomId={roomId}
@@ -477,24 +430,7 @@ function ShellInner({
             username={username}
             canManage={canManage}
           />
-          {/* 右上角收起按钮（滑出动画结束后卸载）：移动客户端常显，
-              桌面保持触摸/悬停显形；纯净 MV 使用自己的退出入口。 */}
-          <div className="music-player-collapse group/hide absolute right-3 top-3 z-[70] h-16 w-16 max-md:right-2 max-md:top-2">
-            <button
-              type="button"
-              className={cn(
-                'music-player-collapse-button flex h-11 w-11 items-center justify-center transition-[opacity,transform] duration-200 active:scale-90',
-                overlayCloseVisible
-                  ? 'pointer-events-auto opacity-100'
-                  : 'pointer-events-none opacity-0 group-hover/hide:pointer-events-auto group-hover/hide:opacity-100'
-              )}
-              onClick={closePlayerOverlay}
-              title="收起播放器"
-              aria-label="收起播放器"
-            >
-              <ChevronDown className="h-5 w-5" />
-            </button>
-          </div>
+
         </div>
       )}
 

@@ -1,23 +1,8 @@
 import { getApiUrl } from '@/lib/api'
-/**
- * 歌曲列表行共享组件（Hydrogen LibrarySongList.vue 范式）。
- *
- * 行结构：42px 高（有封面缩略图时 56px），flex 横排 space-between，px-2；
- * hover 整行浅背景。
- * - 左区 55%：序号列 26px 三态叠放（默认序号 / 行 hover 显示操作按钮 /
- *   当前播放行显示 EQ 频谱动画）+ 封面缩略图（可选 40px，网易云新版列表范式）+
- *   歌名（14px 单行截断）+ VIP 描边小标签
- * - 右区（自适应）：歌手（单行截断）+ 时长（右对齐）；行尾操作组常驻占位
- *
- * - 播放模式（搜索/每日推荐/歌单详情等页面）：双击行「添加到队列」，
- *   hover 序号列显示播放按钮，点击「立即播放」；当前播放行 EQ 频谱动画
- * - 队列模式（MusicQueuePopup）：当前播放行 EQ 频谱动画
- *
- * 交互由调用方通过 onPlayNow / onRowDoubleClick / actions 等 props 注入，
- * 本组件只负责排版与三态切换，不含任何业务逻辑；行内按钮的 dblclick 不冒泡。
- */
+/** 歌曲行：单击播放，移动端歌名/歌手两行；行尾更多菜单显式提供入队、收藏和专辑操作。 */
 import { useState, type ReactNode } from 'react'
-import { Play } from 'lucide-react'
+import { MusicSheet } from './MusicSheet'
+import { MoreVertical, Play } from 'lucide-react'
 import { useIsTouch } from '@/hooks/useMediaQuery'
 import { cn } from '@/lib/utils'
 import { musicCoverUrl } from '../utils/neteaseImage'
@@ -69,6 +54,7 @@ export interface SongRowProps {
   rowTitle?: string
   /** 行尾管理操作组（canManage 时传入，行 hover 淡入） */
   actions?: ReactNode
+  menu?: ReactNode
 }
 
 /** 序号列三态切换的过渡时长（对齐 Hydrogen opacity 0.12s ease） */
@@ -93,9 +79,10 @@ export function SongRow({
   onRowClick,
   onRowDoubleClick,
   rowTitle,
-  actions,
+  actions, menu,
 }: SongRowProps) {
   // 行 hover 状态（对齐 Hydrogen hoverRowKey：驱动序号列三态切换）
+  const [menuOpen, setMenuOpen] = useState(false)
   const [hovered, setHovered] = useState(false)
   // 触屏无 hover：「立即播放」按钮常显（序号列让位），否则手机上无法播放
   const isTouch = useIsTouch()
@@ -118,15 +105,17 @@ export function SongRow({
         disabled && 'opacity-70',
         onRowClick && 'cursor-pointer'
       )}
+      role={onRowClick || onPlayNow ? 'button' : undefined}
+      tabIndex={onRowClick || onPlayNow ? 0 : undefined}
+      onKeyDown={event => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); (onRowClick ?? onPlayNow)?.() } }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onClick={onRowClick}
-      onDoubleClick={onRowDoubleClick}
-      title={rowTitle}
+      onClick={onRowClick ?? onPlayNow}
+      title="点击播放"
       data-active={active}
     >
       {/* ===== 左区（55%）：序号列 + 歌名 ===== */}
-      <div className="flex w-[55%] min-w-0 flex-none items-center">
+      <div className="music-song-main flex w-[55%] min-w-0 flex-none items-center">
         {/* 序号列 26px：三态绝对叠放（opacity 过渡切换） */}
         <div className="relative h-[22px] w-[26px] shrink-0">
           {/* 态一：默认序号（非当前行且非 hover 时可见） */}
@@ -189,7 +178,7 @@ export function SongRow({
         {/* 歌名 + VIP 描边小标签 */}
         <span
           className={cn(
-            'flex min-w-0 flex-1 items-center gap-1',
+            'music-song-name flex min-w-0 flex-1 items-center gap-1',
             cover ? 'ml-3' : 'ml-[14px]'
           )}
         >
@@ -201,6 +190,7 @@ export function SongRow({
           >
             {name}
           </span>
+          <span className="music-song-mobile-artist">{artist}</span>
           {vip && (
             <span
               className="shrink-0 border-[0.5px] px-[2px] text-[8px] leading-none"
@@ -216,7 +206,7 @@ export function SongRow({
       </div>
 
       {/* ===== 右区（flex-1）：歌手 + 时长 ===== */}
-      <div className="flex min-w-0 flex-1 items-center">
+      <div className="music-song-secondary flex min-w-0 flex-1 items-center">
         <span className="min-w-0 flex-1 truncate text-base text-[var(--md-sys-color-on-surface-variant)]">
           {artist}
         </span>
@@ -225,20 +215,12 @@ export function SongRow({
         </span>
       </div>
 
-      {/* ===== 行尾管理操作组（常驻占位，行 hover 淡入） ===== */}
-      {actions && (
-        <div
-          className={cn(
-            'ml-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150',
-            'group-hover:opacity-100',
-            hovered && 'opacity-100'
-          )}
-          onClick={(e) => e.stopPropagation()}
-          onDoubleClick={(e) => e.stopPropagation()}
-        >
-          {actions}
-        </div>
-      )}
+      {(menu || actions || onRowDoubleClick) && <button className="music-song-more" aria-label={`更多操作 ${name}`} onClick={event => { event.stopPropagation(); setMenuOpen(true) }}><MoreVertical size={21} /></button>}
+      {menuOpen && <MusicSheet title={name} onClose={() => setMenuOpen(false)}><div className="music-sheet-actions" onClick={event => event.stopPropagation()}>
+        {onPlayNow && <button onClick={() => { onPlayNow(); setMenuOpen(false) }}>立即播放</button>}
+        {menu ?? (onRowDoubleClick && <button onClick={() => { onRowDoubleClick(); setMenuOpen(false) }}>加入队列</button>)}
+        {actions}
+      </div></MusicSheet>}
     </div>
   )
 }

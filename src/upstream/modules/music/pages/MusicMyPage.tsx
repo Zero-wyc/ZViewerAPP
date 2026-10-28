@@ -1,3 +1,4 @@
+import { SongActions } from '../components/SongActions'
 /**
  * 我的音乐页（Hydrogen MyMusic + LibraryDetail 1:1 复刻）。
  *
@@ -933,7 +934,7 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
               <input
                 value={filterKeyword}
                 onChange={(e) => setFilterKeyword(e.target.value)}
-                placeholder="SEARCH"
+                placeholder="搜索歌单内歌曲"
                 aria-label="过滤歌曲"
                 className="min-w-0 flex-1 bg-transparent pl-[10px] text-xs tracking-[0.3px] outline-none focus:placeholder:text-transparent"
                 style={{
@@ -982,7 +983,7 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
               }}
             />
             <span className="ml-1 text-[8px] font-bold tracking-widest text-[var(--md-sys-color-on-surface-variant)]">
-              PLAYALL
+              全部歌曲
             </span>
           </div>
         </div>
@@ -1007,6 +1008,7 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
           {filteredSongs.map((song, idx) => {
             return (
               <SongRow
+                menu={<SongActions song={song} socket={socket} roomId={roomId} canManage={canManage} />}
                 key={song.songId}
                 index={idx + 1}
                 name={song.name}

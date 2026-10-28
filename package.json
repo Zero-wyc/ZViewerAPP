@@ -1,6 +1,6 @@
 {
   "name": "zviewer-client",
-  "version": "2.3.2",
+  "version": "2.3.3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,7 +14,7 @@
     "postinstall": "patch-package --error-on-fail",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "test:music:toolbar": "node --test scripts/music-toolbar.test.mjs scripts/music-quality.test.mjs",
-    "test:maintenance": "node --experimental-vm-modules --test scripts/daily-maintenance.test.mjs scripts/music-personal-fm.test.mjs scripts/music-background-audio.test.mjs scripts/music-overlay-immersive.test.mjs scripts/music-track-swipe.test.mjs scripts/playlist-play-all.test.mjs scripts/music-cover.test.mjs scripts/server-alignment.test.mjs scripts/login-session.test.mjs scripts/resource-contracts.test.mjs scripts/watch-gestures.test.mjs scripts/player-levels.test.mjs scripts/emby-playback.test.mjs scripts/music-loudness.test.mjs scripts/music-loudness-math.test.ts scripts/music-settings.test.mjs scripts/bilibili-parts.test.mjs"
+    "test:maintenance": "node --experimental-vm-modules --test scripts/daily-maintenance.test.mjs scripts/music-personal-fm.test.mjs scripts/music-background-audio.test.mjs scripts/music-overlay-immersive.test.mjs scripts/music-track-swipe.test.mjs scripts/playlist-play-all.test.mjs scripts/music-cover.test.mjs scripts/server-alignment.test.mjs scripts/login-session.test.mjs scripts/resource-contracts.test.mjs scripts/watch-gestures.test.mjs scripts/player-levels.test.mjs scripts/emby-playback.test.mjs scripts/music-loudness.test.mjs scripts/music-loudness-math.test.ts scripts/music-settings.test.mjs scripts/bilibili-parts.test.mjs scripts/song-favorite.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

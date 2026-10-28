@@ -115,7 +115,7 @@ export function BiliFavCollectModal({
        position:fixed 变为相对该祖先定位（弹窗卡底而非屏幕中央）。
        遮罩/面板/进出动画（两段式展开/反向收起、渐进压暗、Esc、内容
        延后挂载闸门）统一由 CloudModal 承载 */
-    <CloudModal
+    <CloudModal zIndex={95}
       ref={modalRef}
       open={open}
       portal

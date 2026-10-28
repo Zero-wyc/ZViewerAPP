@@ -1,3 +1,4 @@
+import { SongActions } from '../components/SongActions'
 /**
  * 搜索页（Hydrogen SearchResult view-control 范式）。
  *
@@ -180,7 +181,7 @@ export function MusicSearchPage({
     <div className="flex min-h-full flex-col px-6 pb-32 pt-6 md:px-8 max-md:px-4 max-md:pb-28 max-md:pt-4">
       {/* 顶部：view-control 范式标题 */}
       <PageBlockHeader
-        titleEN="SEARCH RESULT"
+        titleEN="搜索结果"
         titleCN={`搜索内容：${keywords || '—'}`}
       />
 
@@ -223,6 +224,7 @@ export function MusicSearchPage({
         {results.map((song, idx) => {
           return (
             <SongRow
+                menu={<SongActions song={song} socket={socket} roomId={roomId} canManage={canManage} />}
               key={song.songId}
               index={idx + 1}
               cover={song.cover}

@@ -1,35 +1,14 @@
+import { SongActions } from './SongActions'
+import { PlayerRoomHeader } from './PlayerRoomHeader'
 import { getApiUrl } from '@/lib/api'
 import { useVolumeSliderDrag } from '../hooks/useVolumeSliderDrag'
-/**
- * 一起听完整播放器（点击底栏封面展开，Hydrogen MusicPlayer.vue + Player.vue
- * + Lyric.vue 的 React 1:1 复刻）。
- *
- * 整页布局（flex 横排居中，Hydrogen .music-player 骨架）：
- * - 毛玻璃封面背景（backdrop）：封面图 absolute 铺满 120%（-10% 偏移），
- *   blur(50px) saturate(140%) brightness(1.08) scale(1.08)，上叠 surface 30%
- *   遮罩；无封面时不渲染，切歌时淡入淡出
- * - 左侧播放卡（42vh 宽，无圆角）：半透明白卡 + backdrop 模糊，入场动画
- *   player-card-in（0.7s delay 0.2s：先展开宽度至 42vh，再纵向展开至满高）；
- *   四角黑色实心方块（1.5vh，出界 0.75vh）+ 封面 L 形角标（4vh，1vh→0 内缩，
- *   延迟 0.65s）；内容自上而下：封面（max-height 38vh）/ 歌名（黑块滑入遮字
- *   切歌动画 + 跑马灯）/ 歌手（小方点 + 名）/ 时间行 + 进度条（1.3vh 黑条 +
- *   0.5px 描边）/ 三键控制（5vh）/ 音量滑块 + VOLUME 标签
- * - song-control 悬浮工具栏：卡片 hover 时「信号灯」闪烁显形（0.3s 闪三下），
- *   竖排：喜欢（NCM 登录）/ 播放队列 / 播放模式（房主）/ 翻译开关 / 收起
- * - 右侧歌词面板（flex-1，与左卡间距 50px）：PlayerLyricPanel（黑色高亮条、
- *   补偿式平滑滚动、手动滚动暂停、点击行 seek、间奏倒计时、Lyric-Area 占位）
- * - 提示区（页面左上角 absolute）：房主离线提示 / syncNotice（房主审批带
- *   通过/拒绝小按钮，5s 自动消失），文字提示非弹窗
- *
- * 播放引擎与同步逻辑由 MusicPlayerProvider 持有（内部 useListenTogether），
- * 本组件经 useMusicPlayer 消费；观众无直接控制权时控制按钮走申请制
- * （requestControl），房主端左上角提示申请并通过/拒绝。
- */
+/** 一起听完整播放器：封面/歌词共用播放控制，移动与横屏共用精简工具栏。播放与同步引擎仍由 MusicPlayerProvider 持有。 */
 import {
   useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from 'react'
@@ -38,6 +17,8 @@ import {
   subscribePositionSec,
 } from '../hooks/usePlaybackPosition'
 import { Music } from 'lucide-react'
+import { message } from '@/components/ui/message'
+import { useMusicTrackSwipe } from '../hooks/useMusicTrackSwipe'
 import type { Socket } from 'socket.io-client'
 import { useMediaQuery, useIsLandscapeShort } from '@/hooks/useMediaQuery'
 import { useMusicVideoBackground } from '../hooks/useMusicVideoBackground'
@@ -297,8 +278,8 @@ function ListenTogetherInner({
   // 非模态确认提示（同普通提示窗口样式、不影响其他操作，hook 内实现）=====
   const { add: queueAdd } = useQueueAdd(socket, roomId, canManage ?? isHost)
   const handleSongNameDoubleClick = useCallback(() => {
-    if (!currentSong || isBiliSong) return
-    queueAdd(songToUpsertItem(currentSong), { notify: true })
+    if (!currentSong) return
+    queueAdd({ ...songToUpsertItem(currentSong), biliBvid: currentSong.biliBvid, biliCid: currentSong.biliCid }, { notify: true })
   }, [currentSong, isBiliSong, queueAdd])
 
   // ===== 右面板模式（Hydrogen rightPanelMode：0 歌词 / 1 评论区） =====
@@ -483,11 +464,13 @@ function ListenTogetherInner({
 
   /** 播放模式轮换（仅房主，切换后广播同步） */
   const handleTogglePlayMode = useCallback(() => {
+    if (!isHost) { message.info('仅房主可切换播放模式'); return }
     const idx = PLAY_MODE_ORDER.indexOf(playMode)
     const nextMode =
       PLAY_MODE_ORDER[(idx + 1) % PLAY_MODE_ORDER.length] ?? 'order'
     setPlayMode(nextMode)
-  }, [playMode, setPlayMode])
+    message.info(nextMode === 'sequence' ? '列表循环' : nextMode === 'repeat-one' ? '单曲循环' : '随机播放')
+  }, [isHost, playMode, setPlayMode])
 
   // ===== 音量横条滑块（仅本地生效不参与房间同步） =====
   // 拖拽逻辑抽为 useVolumeSliderDrag 共享（与顶栏 widget 同款：拖动期间
@@ -588,6 +571,8 @@ function ListenTogetherInner({
     setMobileLyricView(true)
   }
 
+  const lyricSwipeStart = useRef<{ x: number; y: number } | null>(null)
+  const viewSwipe = useMusicTrackSwipe(() => setMobileLyricView(v => !v), () => setMobileLyricView(v => !v), isPortraitMobile)
   return (
     <div
       className="music-player-panel relative flex h-full min-w-0 flex-col overflow-hidden"
@@ -611,6 +596,7 @@ function ListenTogetherInner({
         } as React.CSSProperties
       }
     >
+      {!immersive && <PlayerRoomHeader isHost={isHost} />}
       <PlayerBackgroundLayer
         cover={cover}
         songId={songId}
@@ -738,7 +724,7 @@ function ListenTogetherInner({
               isPortraitMobile
                 ? cn(
                     'w-full max-w-[420px] self-center',
-                    mobileLyricViewActive ? 'hidden' : 'flex-1'
+                    mobileLyricViewActive ? 'music-card-lyrics shrink-0' : 'flex-1'
                   )
                 : 'music-player-combined-card'
             )}
@@ -757,70 +743,14 @@ function ListenTogetherInner({
               } as React.CSSProperties
             }
           >
-            <PlayerSongControl
-              toolbarRef={toolbarRef}
-              toolbarScrollable={toolbarScrollable}
-              isPortraitMobile={isPortraitMobile}
-              desktopLyricView={desktopLyricView}
-              lyricPanelVisible={lyricPanelVisible}
-              onToggleDesktopLyricView={() => setDesktopLyricView((v) => !v)}
-              hasRomaLyric={hasRomaLyric}
-              lyricRoma={lyricRoma}
-              onToggleLyricRoma={() => setLyricRoma((v) => !v)}
-              hasTransLyric={hasTransLyric}
-              lyricTrans={lyricTrans}
-              onToggleLyricTrans={() => setLyricTrans((v) => !v)}
-              bgVideoReady={bgVideoReady}
-              onEnterImmersive={enterImmersive}
-              canLike={canLike}
-              liked={liked}
-              onLike={handleLike}
-              isHost={isHost}
-              playMode={playMode}
-              onTogglePlayMode={handleTogglePlayMode}
-              canComment={canComment}
-              rightPanelMode={rightPanelMode}
-              commentBadge={commentBadge}
-              onToggleCommentPanel={() => {
-                setRightPanelMode((v) => (v === 0 ? 1 : 0))
-                // 面板被「隐藏歌词」收起时，查看评论/歌词的意图即带出面板
-                setDesktopLyricView(true)
-              }}
-              songId={songId}
-              onAddMusicVideo={() => setShowMusicVideo(true)}
-              getBiliSourceUrl={buildBiliSourceUrl}
-              isBiliSong={isBiliSong}
-              biliDanmakuEnabled={biliDanmakuEnabled}
-              onToggleDanmaku={() =>
-                setMusicSettings({ biliDanmakuEnabled: !biliDanmakuEnabled })
-              }
-              onOpenNcmSearch={() => setNcmSearchOpen(true)}
-              biliBvid={biliBvid}
-              biliCollected={biliCollected}
-              biliCollectedMark={biliCollectedMark}
-              biliLikeFavTitle={biliLikeFavTitle}
-              biliCollecting={biliCollecting}
-              onBiliCollect={handleBiliCollect}
-              onOpenBiliFavModal={() => setBiliFavModalOpen(true)}
-              queuePopupOpen={queuePopupOpen && queuePopupOwner === 'player'}
-              onToggleQueuePopup={() => toggleQueuePopup('player')}
-              queuePlacement={toolbarScrollable ? 'sheet' : 'side'}
-              socket={socket}
-              roomId={roomId}
-              canManage={canManage ?? isHost}
-              onOpenSettings={() => setShowSettings(true)}
-              uiTone={uiTone}
-              onToggleUiTone={togglePlayerUiTone}
-              isFullscreen={isFullscreen}
-              showFullscreen={!isGlobalAppearanceRuntime()}
-              onToggleFullscreen={toggleFullscreen}
-              onClose={closePlayerOverlay}
-            />
-
             {/* 内层 .player（毛玻璃+透明度解耦 / 卡底 tint / 封面 / 歌曲信息 /
                 进度-三键-音量控制区）：整块已抽为 PlayerCardFace（分层原理
                 与 38d19ec 指针遮挡回归注释见该组件头） */}
             <PlayerCardFace
+              lyricView={mobileLyricViewActive}
+              onToggleLyric={() => { setRightPanelMode(0); if (isPortraitMobile) setMobileLyricView(v => !v); else setDesktopLyricView(v => !v) }}
+              artworkGesture={viewSwipe}
+              currentLyric={displayLyricLines[activeLyricIndex]?.text}
               canLike={canLike}
               liked={liked}
               onLike={handleLike}
@@ -868,12 +798,21 @@ function ListenTogetherInner({
               竖屏下卡片全宽，右侧 50px 悬出区会出屏；收起走右上角
               常显按钮，此处不再重复。触屏尺寸 32px 保证可点。
               整块已抽为 PlayerMobileToolbarRow） ===== */}
-          {isPortraitMobile && (
+          {true && (
             <PlayerMobileToolbarRow
+              extraActions={isBiliSong ? <>
+                <button onClick={() => void handleBiliCollect()} disabled={biliCollecting}>{biliCollected ? '取消视频收藏' : '收藏视频'}</button>
+                <button onClick={() => setBiliFavModalOpen(true)}>添加到哔哩哔哩收藏夹</button>
+                <button onClick={() => setNcmSearchOpen(true)}>在网易云搜索</button>
+                <button onClick={() => setMusicSettings({ biliDanmakuEnabled: !biliDanmakuEnabled })}>{biliDanmakuEnabled ? '关闭弹幕' : '开启弹幕'}</button>
+              </> : currentSong ? <SongActions song={currentSong} socket={socket} roomId={roomId} canManage={canManage ?? isHost} /> : undefined}
+              onAddQueue={handleSongNameDoubleClick}
+              volume={volume} onVolume={setVolume}
+              onOrderMode={() => { setPlayMode('order'); message.info('按顺序播放') }}
               showPlaybackActions={mobileLyricViewActive}
-              toolbarTone={toolbarTone}
-              mobileLyricViewActive={mobileLyricViewActive}
-              onToggleMobileLyricView={() => setMobileLyricView((v) => !v)}
+              toolbarTone={uiTone}
+              mobileLyricViewActive={isPortraitMobile ? mobileLyricViewActive : desktopLyricView}
+              onToggleMobileLyricView={() => { setRightPanelMode(0); if (isPortraitMobile) setMobileLyricView(v => !v); else setDesktopLyricView(v => !v) }}
               hasRomaLyric={hasRomaLyric}
               lyricRoma={lyricRoma}
               onToggleLyricRoma={() => setLyricRoma((v) => !v)}
@@ -891,7 +830,7 @@ function ListenTogetherInner({
               canComment={canComment}
               rightPanelMode={rightPanelMode}
               commentBadge={commentBadge}
-              onToggleCommentPanel={toggleMobileCommentPanel}
+              onToggleCommentPanel={() => { if (isPortraitMobile) toggleMobileCommentPanel(); else { setRightPanelMode(v => v === 0 ? 1 : 0); setDesktopLyricView(true) } }}
               songId={songId}
               onAddMusicVideo={() => setShowMusicVideo(true)}
               getBiliSourceUrl={buildBiliSourceUrl}
@@ -927,11 +866,18 @@ function ListenTogetherInner({
           {(isPortraitMobile ? mobileLyricViewActive : desktopLyricView) &&
             lyricPanelVisible && (
               <div
+                onPointerDownCapture={event => { lyricSwipeStart.current = isPortraitMobile && event.isPrimary !== false ? { x: event.clientX, y: event.clientY } : null }}
+                onPointerCancel={() => { lyricSwipeStart.current = null }}
+                onPointerUpCapture={event => { const origin = lyricSwipeStart.current; lyricSwipeStart.current = null; if (origin && Math.abs(event.clientX - origin.x) > 60 && Math.abs(event.clientX - origin.x) > Math.abs(event.clientY - origin.y) * 1.5) { event.preventDefault(); event.stopPropagation(); setMobileLyricView(false) } }}
                 className={cn(
-                  'relative flex min-h-0 min-w-0',
-                  isPortraitMobile ? 'w-full flex-1' : 'h-full flex-1'
+                  'relative flex min-h-0 min-w-0' ,
+                  isPortraitMobile ? 'music-mobile-lyric-region w-full flex-1' : 'h-full flex-1'
                 )}
               >
+                {isPortraitMobile && rightPanelMode === 0 && <div className="music-lyric-options">
+                  {hasRomaLyric && <button aria-pressed={lyricRoma} onClick={() => setLyricRoma(v => !v)}>罗马音</button>}
+                  {hasTransLyric && <button aria-pressed={lyricTrans} onClick={() => setLyricTrans(v => !v)}>翻译</button>}
+                </div>}
                 <PlayerLyricPanelShell
                   isPortraitMobile={isPortraitMobile}
                   lyricRevealed={lyricRevealed}

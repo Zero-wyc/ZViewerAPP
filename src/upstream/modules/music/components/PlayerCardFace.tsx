@@ -1,30 +1,6 @@
-/**
- * 播放卡玻璃内层（Hydrogen .player）：两层结构（毛玻璃 + 透明度解耦）。
- *
- * ① 冰霜层——常驻满强度 backdrop 模糊（不随 UI 透明度淡出），负责把页面
- *    背景模糊成不透明的「磨砂底」；
- * ② UI 图层——面板底色 + 全部内容作为一个整体图层，随 UI 透明度整体淡出。
- *    图层背后是冰霜层（已模糊画面），淡出永远不会露出锐利背景 → 模糊与
- *    透明度同时成立。
- *    冰霜层/底色 tint 均 pointer-events-none：定位元素绘制在非定位内容
- *    之上，不禁用指针会盖住 UI 图层里未加 relative 的交互元素（38d19ec
- *    回归：三键播放控制按钮无法点击——进度条/音量条因 track 有 relative
- *    幸免）。
- *
- * 卡底 tint 层（**在 uiFade 图层之外**）：卡底毛玻璃采样内容亮度不定
- * （亮封面→亮底、暗视频→暗底），信息层文字色恒与卡底同源（见卡容器
- * CARD_TONE_VARS 变量覆盖注释），故 tint 与文字同组随 UI 深浅色开关切换：
- * 浅色 UI = 恒定亮白底（黑字全场景确定对比度），深色 UI = 恒定暗黑底
- * （白字同理）。刻意不放进 uiFade 图层——UI 透明度调低时若连 tint 一起
- * 淡出，文字会被稀释成灰、且露出更暗的模糊背景，反而更糊；tint 常驻才能
- * 托住文字对比度。竖屏 0.55 / 桌面横屏 0.45（桌面卡面更大，稍低不压背景）。
- *
- * 内容自上而下：封面（max-height 38vh + 主题圆角）/ 歌名（黑块
- * 滑入遮字 + 跑马灯，双击加入播放队列）/ 歌手（小方点 + 名，横屏矮窗口
- * 时行尾收纳迷你三键）/ 进度条 + 音频可视化 / 三键控制 / 音量横条。
- * vh 尺寸全部 max() 保底，保证横屏矮窗口下仍可读可点；滑条挂 touch-slider
- * 禁触屏滚动。
- */
+/** 封面与底部播放控制。竖屏歌词模式隐藏封面与歌曲信息，保留进度和五键；本机音量移入更多菜单。 */
+import { message } from '@/components/ui/message'
+import type { HTMLAttributes } from 'react'
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import { Music, Repeat, Repeat1, Shuffle, ListOrdered, MessageCircle } from 'lucide-react'
 import type { PlayMode } from '../types'
@@ -46,6 +22,10 @@ import { CARD_TINT, type PlayerUiTone } from '../utils/playerTone'
 
 export interface PlayerCardFaceProps {
   /** 播放页 UI 深浅色（卡底 tint 与文字同组切换） */
+  lyricView?: boolean
+  onToggleLyric?: () => void
+  artworkGesture?: HTMLAttributes<HTMLDivElement>
+  currentLyric?: string
   uiTone: PlayerUiTone
   /** UI 整体透明度（设置 uiOpacity 换算，1 = 不透明；只作用于 UI 图层） */
   uiFade: number
@@ -96,6 +76,7 @@ export interface PlayerCardFaceProps {
 }
 
 export function PlayerCardFace({
+  lyricView, onToggleLyric, artworkGesture, currentLyric,
   uiTone,
   uiFade,
   isPortraitMobile,
@@ -137,7 +118,7 @@ export function PlayerCardFace({
   volumeTrackRef,
   onVolumePointerDown,
 }: PlayerCardFaceProps) {
-  const ModeIcon = playMode === 'repeat-one' ? Repeat1 : playMode === 'shuffle' ? Shuffle : playMode === 'order' ? ListOrdered : Repeat
+  const ModeIcon = playMode === 'repeat-one' ? Repeat1 : playMode === 'shuffle' ? Shuffle : Repeat
   return (
     <div className="music-player-card-face relative flex h-full min-h-0 w-full flex-col overflow-hidden">
       <div
@@ -166,6 +147,11 @@ export function PlayerCardFace({
         {/* 封面先让出控制区需要的高度；大字体/矮屏时卡内可滚动，
             工具栏继续占据卡片外独立的高度，避免被底部裁切。 */}
         <div
+          {...artworkGesture}
+          onClick={onToggleLyric}
+          role="button" tabIndex={0} aria-label="查看歌词"
+          onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') onToggleLyric?.() }}
+          hidden={lyricView}
           className="music-player-artwork-region relative p-[max(1.5vh,10px)]"
           style={isPortraitMobile ? undefined : { maxHeight: '38vh' }}
         >
@@ -200,8 +186,7 @@ export function PlayerCardFace({
             双击加入播放队列——网易云歌弹顶部提示/确认） */}
           <div
             className="music-player-song-heading relative min-w-0 overflow-hidden pb-[max(1.2vh,7px)]"
-            onDoubleClick={onSongNameDoubleClick}
-            title="双击添加到播放队列"
+
           >
             <div className={cn('min-w-0', songSwitching && 'opacity-0')}>
               <OverflowMarquee
@@ -277,14 +262,11 @@ export function PlayerCardFace({
               style={{ color: liked ? 'var(--md-sys-color-error)' : 'var(--md-sys-color-on-surface)' }}>
               {liked ? <LikeFilledIcon className="h-6 w-6" /> : <LikeOutlineIcon className="h-6 w-6" />}
             </button>}
-            {canComment && <button type="button" onClick={onToggleCommentPanel}
-              aria-label="切换歌词/评论区" title={rightPanelMode === 1 ? '查看歌词' : '查看评论'}>
-              <MessageCircle className="h-6 w-6" strokeWidth={1.6} />
-              {commentBadge !== '0' && <span className="music-player-comment-count">{commentBadge}</span>}
-            </button>}
           </div>}
         </div>
 
+        {isPortraitMobile && !lyricView && <button className="music-current-lyric" onClick={onToggleLyric}>{currentLyric || '点击封面查看歌词'}</button>}
+        {!canControl && <p className="music-control-authority">🔒 由房主控制 · 点击按钮可申请</p>}
         {/* 控制区（Hydrogen .player-control：进度 / 三键 / 音量 纵向分布；
           滑条挂 touch-slider 禁触屏滚动，vh 尺寸全部 max() 保底，
           保证横屏矮窗口下仍可读可点） */}
@@ -318,13 +300,13 @@ export function PlayerCardFace({
             isLandscapeShort 分支），避免控件区纵向臃肿 */}
           {!isLandscapeShort && (
             <div className="music-player-transport-row flex shrink-0 items-center justify-evenly">
-              {isPortraitMobile && (isHost ? (
+              {isPortraitMobile && (
                 <button type="button" className="music-player-transport music-player-mode flex items-center justify-center"
-                  onClick={onTogglePlayMode} aria-label={`播放模式：${PLAY_MODE_META[playMode].label}`}
+                  onClick={isHost ? onTogglePlayMode : () => message.info('仅房主可切换')} aria-disabled={!isHost} aria-label={`播放模式：${PLAY_MODE_META[playMode].label}`}
                   title={`${PLAY_MODE_META[playMode].label}（点击${PLAY_MODE_META[playMode].next}）`}>
                   <ModeIcon className="h-6 w-6" strokeWidth={1.6} />
                 </button>
-              ) : <span aria-hidden="true" className="music-player-mode" />)}
+              )}
               <button
                 type="button"
                 className="music-player-transport flex h-[max(5vh,36px)] w-[max(5vh,36px)] items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity hover:opacity-70 active:scale-90"
@@ -381,7 +363,7 @@ export function PlayerCardFace({
             手机端保留——蓝牙/外放场景仍需软件音量）。
             横屏矮窗口隐藏：物理音量键触手可及，软件音量让位给
             进度条——高度不足时本区会与进度条重叠出框 */}
-          {!isLandscapeShort && (
+          {!isLandscapeShort && !isPortraitMobile && (
             <div className="music-player-volume shrink-0">
               <div
                 ref={volumeTrackRef}

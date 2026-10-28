@@ -448,7 +448,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
           className="font-mono text-[11px] font-bold tracking-[1.2px]"
           style={{ color: 'var(--md-sys-color-on-surface)' }}
         >
-          {assistMode === 'hot' ? 'HOT SEARCH' : 'SUGGESTIONS'}
+          {assistMode === 'hot' ? '热门搜索' : '搜索建议'}
         </span>
         {assistItems.length > 0 && (
           <span
@@ -480,7 +480,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
             className="py-2 font-mono text-[10px] tracking-[1px]"
             style={{ color: 'var(--md-sys-color-on-surface-variant)' }}
           >
-            {assistMode === 'hot' ? 'NO HOT SEARCH' : 'NO SUGGESTION'}
+            {assistMode === 'hot' ? '暂无热搜' : '暂无建议'}
           </div>
         ) : (
           assistItems.map((word, index) => {

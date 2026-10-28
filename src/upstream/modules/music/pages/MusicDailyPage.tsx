@@ -1,3 +1,4 @@
+import { SongActions } from '../components/SongActions'
 /**
  * 每日推荐面板（Hydrogen RecommendSongs.vue 一比一复刻；Hydrogen 的
  * /mymusic/playlist/rec 在 ZViewer 中作为「我的音乐」详情区面板：
@@ -639,6 +640,7 @@ export function MusicDailyPanel({
       <div className="mt-2 flex min-h-[240px] flex-1 flex-col">
         {songs.map((song, idx) => (
           <SongRow
+                menu={<SongActions song={song} socket={socket} roomId={roomId} canManage={canManage} />}
             key={song.songId}
             index={idx + 1}
             cover={song.cover}
