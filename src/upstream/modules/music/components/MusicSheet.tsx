@@ -1,17 +1,25 @@
-import { useEffect, useRef, type ReactNode, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { CARD_TONE_VARS } from '../utils/playerTone'
 
 /** Portal keeps sheets outside transformed/scrolling player and widget ancestors. */
-export function MusicSheet({ title, onClose, children, tone, className = '' }: {
-  title: string; onClose: () => void; children: ReactNode; tone?: 'light' | 'dark'; className?: string
+export function MusicSheet({ title, onClose, children, tone, className = '', open = true }: {
+  title: string; onClose: () => void; children: ReactNode; tone?: 'light' | 'dark'; className?: string; open?: boolean
 }) {
+  // Controlled sheets stay mounted through their exit animation.
+  const [rendered, setRendered] = useState(open)
+  useEffect(() => {
+    if (open) { setRendered(true); return }
+    const timer = window.setTimeout(() => setRendered(false), window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220)
+    return () => window.clearTimeout(timer)
+  }, [open])
   const panel = useRef<HTMLElement>(null)
   const start = useRef<number | null>(null)
   const close = useRef(onClose)
   close.current = onClose
   useEffect(() => {
+    if (!rendered) return
     const previous = document.activeElement as HTMLElement | null
     panel.current?.focus()
     const key = (event: KeyboardEvent) => {
@@ -26,9 +34,10 @@ export function MusicSheet({ title, onClose, children, tone, className = '' }: {
     }
     document.addEventListener('keydown', key, true)
     return () => { document.removeEventListener('keydown', key, true); previous?.focus() }
-  }, [])
+  }, [rendered])
+  if (!open && !rendered) return null
   const effectiveTone = tone ?? document.querySelector('[data-player-ui-tone]')?.getAttribute('data-player-ui-tone')
-  return createPortal(<div className="music-sheet-backdrop" onClick={onClose}>
+  return createPortal(<div className="music-sheet-backdrop" data-state={open ? 'open' : 'closing'} onClick={onClose}>
     <section ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title}
       className={`music-sheet ${className}`} onClick={event => event.stopPropagation()}
       style={{ ...(effectiveTone === 'light' || effectiveTone === 'dark' ? CARD_TONE_VARS[effectiveTone] : {}),

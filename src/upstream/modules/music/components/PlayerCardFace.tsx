@@ -1,8 +1,8 @@
-/** 封面与底部播放控制。竖屏歌词模式隐藏封面与歌曲信息，保留进度和五键；本机音量移入更多菜单。 */
+/** 封面/歌词共用歌曲信息、图标操作与播放控制。 */
 import { message } from '@/components/ui/message'
 import type { HTMLAttributes } from 'react'
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
-import { Music, Repeat, Repeat1, Shuffle, ListOrdered, MessageCircle } from 'lucide-react'
+import { Music, Repeat, Repeat1, Shuffle, AlignLeft, MessageCircle } from 'lucide-react'
 import type { PlayMode } from '../types'
 import { PLAY_MODE_META } from '../constants'
 import { cn } from '@/lib/utils'
@@ -23,6 +23,7 @@ import { CARD_TINT, type PlayerUiTone } from '../utils/playerTone'
 export interface PlayerCardFaceProps {
   /** 播放页 UI 深浅色（卡底 tint 与文字同组切换） */
   lyricView?: boolean
+  lyricPanelActive?: boolean
   onToggleLyric?: () => void
   artworkGesture?: HTMLAttributes<HTMLDivElement>
   currentLyric?: string
@@ -41,8 +42,6 @@ export interface PlayerCardFaceProps {
   artist: string
   /** 切歌黑块滑入（true = 黑块遮住歌名行） */
   songSwitching: boolean
-  /** 双击歌名 → 添加当前歌到播放队列 */
-  onSongNameDoubleClick: () => void
   onPrev: () => void
   onPlayPause: () => void
   onNext: () => void
@@ -76,7 +75,7 @@ export interface PlayerCardFaceProps {
 }
 
 export function PlayerCardFace({
-  lyricView, onToggleLyric, artworkGesture, currentLyric,
+  lyricView, lyricPanelActive, onToggleLyric, artworkGesture, currentLyric,
   uiTone,
   uiFade,
   isPortraitMobile,
@@ -88,7 +87,6 @@ export function PlayerCardFace({
   songName,
   artist,
   songSwitching,
-  onSongNameDoubleClick,
   onPrev,
   onPlayPause,
   onNext,
@@ -151,7 +149,7 @@ export function PlayerCardFace({
           onClick={onToggleLyric}
           role="button" tabIndex={0} aria-label="查看歌词"
           onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') onToggleLyric?.() }}
-          hidden={lyricView}
+          hidden={lyricView || isLandscapeShort}
           className="music-player-artwork-region relative p-[max(1.5vh,10px)]"
           style={isPortraitMobile ? undefined : { maxHeight: '38vh' }}
         >
@@ -212,57 +210,20 @@ export function PlayerCardFace({
             <span className="music-player-artist-name min-w-0 truncate text-[10px] text-[var(--md-sys-color-on-surface-variant)]">
               {artist || ' '}
             </span>
-            {isLandscapeShort && (
-              <div className="music-player-mini-transport ml-auto flex shrink-0 items-center gap-0.5">
-                <button
-                  type="button"
-                  className="flex h-[max(3.6vh,28px)] w-[max(3.6vh,28px)] items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity hover:opacity-70 active:scale-90"
-                  onClick={onPrev}
-                  title={canControl ? '上一首' : '向房主申请切换上一首'}
-                  aria-label="上一首"
-                >
-                  <ControlPrevIcon className="h-[max(3.6vh,28px)] w-[max(3.6vh,28px)]" />
-                </button>
-                <button
-                  type="button"
-                  className="music-primary-play flex h-[max(3.6vh,28px)] w-[max(3.6vh,28px)] items-center justify-center transition-opacity hover:opacity-70 active:scale-90"
-                  onClick={onPlayPause}
-                  title={
-                    canControl
-                      ? isPlaying
-                        ? '暂停'
-                        : '播放'
-                      : isPlaying
-                        ? '申请暂停'
-                        : '申请继续播放'
-                  }
-                  aria-label="播放或暂停"
-                >
-                  {isPlaying ? (
-                    <ControlPauseIcon className="h-[max(3.6vh,28px)] w-[max(3.6vh,28px)]" />
-                  ) : (
-                    <ControlPlayIcon className="h-[max(3.6vh,28px)] w-[max(3.6vh,28px)]" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  className="flex h-[max(3.6vh,28px)] w-[max(3.6vh,28px)] items-center justify-center text-[var(--md-sys-color-on-surface)] transition-opacity hover:opacity-70 active:scale-90"
-                  onClick={onNext}
-                  title={canControl ? '下一首' : '向房主申请切换下一首'}
-                  aria-label="下一首"
-                >
-                  <ControlNextIcon className="h-[max(3.6vh,28px)] w-[max(3.6vh,28px)]" />
-                </button>
-              </div>
-            )}
           </div>
-          {isPortraitMobile && <div className="music-player-song-actions">
+          <div className="music-player-song-actions">
             {canLike && <button type="button" onClick={() => void onLike()}
               aria-label={liked ? '取消喜欢' : '喜欢'} title={liked ? '取消喜欢' : '喜欢这首歌'}
               style={{ color: liked ? 'var(--md-sys-color-error)' : 'var(--md-sys-color-on-surface)' }}>
               {liked ? <LikeFilledIcon className="h-6 w-6" /> : <LikeOutlineIcon className="h-6 w-6" />}
             </button>}
-          </div>}
+            <button type="button" onClick={onToggleLyric} aria-label="切换歌词显示" title="歌词"
+              aria-pressed={!!lyricPanelActive && rightPanelMode === 0}><AlignLeft size={23} /></button>
+            <button type="button" onClick={onToggleCommentPanel} disabled={!canComment} aria-label="查看歌曲评论" title="评论"
+              aria-pressed={!!lyricPanelActive && rightPanelMode === 1}><MessageCircle size={23} />
+              {canComment && commentBadge !== '0' && <span className="music-player-comment-count">{commentBadge}</span>}
+            </button>
+          </div>
         </div>
 
         {isPortraitMobile && !lyricView && <button className="music-current-lyric" onClick={onToggleLyric}>{currentLyric || '点击封面查看歌词'}</button>}
@@ -298,9 +259,9 @@ export function PlayerCardFace({
             使用实心播放图标，主题色突出中央主按钮。
             横屏矮窗口时隐藏——三键已收纳到歌手行右端（见上方
             isLandscapeShort 分支），避免控件区纵向臃肿 */}
-          {!isLandscapeShort && (
+          {(
             <div className="music-player-transport-row flex shrink-0 items-center justify-evenly">
-              {isPortraitMobile && (
+              {(isPortraitMobile || isLandscapeShort) && (
                 <button type="button" className="music-player-transport music-player-mode flex items-center justify-center"
                   onClick={isHost ? onTogglePlayMode : () => message.info('仅房主可切换')} aria-disabled={!isHost} aria-label={`播放模式：${PLAY_MODE_META[playMode].label}`}
                   title={`${PLAY_MODE_META[playMode].label}（点击${PLAY_MODE_META[playMode].next}）`}>
@@ -346,7 +307,7 @@ export function PlayerCardFace({
               >
                 <ControlNextIcon className="h-[max(5vh,36px)] w-[max(5vh,36px)]" />
               </button>
-              {isPortraitMobile && (
+              {(isPortraitMobile || isLandscapeShort) && (
                 <button type="button" className="music-player-transport music-player-queue flex items-center justify-center"
                   onClick={onToggleQueuePopup} aria-label="切换播放队列" aria-expanded={queuePopupOpen}
                   title={queuePopupOpen ? '收起播放队列' : '播放队列'}>

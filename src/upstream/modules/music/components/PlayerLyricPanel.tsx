@@ -540,6 +540,11 @@ export function PlayerLyricPanel({
     }
     const observer = new ResizeObserver(scheduleResync)
     observer.observe(container)
+    // Resizing the panel also changes its animated top spacer. Its final height
+    // can move the active row after the container's own resize event has fired.
+    const content = contentRef.current
+    if (content) observer.observe(content)
+    if (content?.firstElementChild) observer.observe(content.firstElementChild)
     return () => {
       observer.disconnect()
       if (raf) cancelAnimationFrame(raf)

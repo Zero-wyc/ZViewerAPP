@@ -20,6 +20,7 @@
  * 结论：完全隐藏 = 不渲染任何歌词行）。
  */
 import { cn } from '@/lib/utils'
+import type { ReactNode } from 'react'
 import type { LyricLine } from '../utils/lrc'
 import { PlayerLyricPanel } from './PlayerLyricPanel'
 import { SongCommentsPanel } from './SongCommentsPanel'
@@ -27,6 +28,7 @@ import { BiliCommentsPanel } from './BiliCommentsPanel'
 import { LYRIC_PANEL_TONE_VARS, type PlayerUiTone } from '../utils/playerTone'
 
 export interface PlayerLyricPanelShellProps {
+  footerActions?: ReactNode
   /** 手机竖屏：单列下段 w-full flex-1；桌面/横屏：h-full flex-1 */
   isPortraitMobile: boolean
   /** 歌词就绪闸门（false 时整面板 visibility hidden，防半展开空壳） */
@@ -60,6 +62,7 @@ export interface PlayerLyricPanelShellProps {
 }
 
 export function PlayerLyricPanelShell({
+  footerActions,
   isPortraitMobile,
   lyricRevealed,
   uiTone,
@@ -156,7 +159,7 @@ export function PlayerLyricPanelShell({
             lyricMaskBlur={lyricMaskBlur}
             onSeek={onSeek}
             onUpdateLineOffset={onUpdateLineOffset}
-            qualityLabel={qualityLabel}
+            qualityLabel={footerActions ? '' : qualityLabel}
           />
         ) : (
           /* 原词隐藏 = 完全隐藏歌词：不渲染任何歌词行/翻译/罗马音/
@@ -165,6 +168,7 @@ export function PlayerLyricPanelShell({
           <div className="flex-1" aria-hidden="true" />
         )}
       </div>
+      {footerActions && <footer className="music-lyrics-footer"><small>{qualityLabel}</small><div>{footerActions}</div></footer>}
     </div>
   )
 }

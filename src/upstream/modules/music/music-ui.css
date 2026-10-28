@@ -699,6 +699,7 @@
 .music-player-panel[data-player-ui-tone=light] .music-room-heading { color:#171c24; }
 .music-player-panel[data-player-ui-tone=dark] .music-room-heading { color:#f7f8fa; }
 .music-room-heading > button { min-height:44px; min-width:44px; display:flex; align-items:center; justify-content:center; }
+.music-room-heading > button:disabled { opacity:.35; }
 .music-player-handle { position:absolute; top:0; left:44px; right:44px; height:16px; display:grid; place-items:center; touch-action:none; }
 .music-listeners { flex:1; min-width:0; gap:8px; }
 .music-listeners strong { font-size:13px; display:block; font-weight:600; }
@@ -727,7 +728,6 @@
 .music-app-shell .music-player-content[data-player-layout=portrait] { padding-top:calc(84px + var(--app-safe-top,0px))!important; gap:10px!important; }
 .music-app-shell [data-player-layout=portrait] .music-card-lyrics { order:1; flex:0 0 auto!important; }
 .music-card-lyrics .music-player-artwork-region { display:none!important; }
-.music-card-lyrics .music-player-metadata { display:none; }
 .music-app-shell [data-player-layout=portrait] .music-card-lyrics .music-player-card-body { overflow:visible; }
 .music-app-shell [data-player-layout=portrait] .music-card-lyrics .music-player-controls { padding-top:4px; gap:10px; }
 .music-player-artwork-region[role=button] { cursor:pointer; touch-action:pan-y; }
@@ -783,7 +783,6 @@
 .music-app-shell > .music-player-overlay { position:fixed!important; inset:0!important; }
 .music-app-shell [data-player-layout=portrait] .music-player-card-container { animation:none!important; opacity:1!important; }
 .music-app-shell [data-player-layout=portrait] .music-player-mobile-tools { margin-top:auto; }
-.music-app-shell [data-player-layout=portrait] .music-card-lyrics .music-player-metadata { display:none; }
 .music-settings-sheet [role=switch] { min-height:24px!important; height:24px!important; min-width:44px; background:#8885!important; }
 .music-settings-sheet [role=switch][aria-checked=true] { background:var(--md-sys-color-primary)!important; }
 .music-settings-sheet [role=switch] > span { top:4px!important; }
@@ -800,3 +799,67 @@
 .music-player-panel[data-music-immersive=true]::after { display:none; }
 .music-player-mini-transport button { min-height:44px; min-width:44px; }
 .music-player-mini-transport svg { max-width:30px; max-height:30px; }
+
+/* Song actions belong beside the title; the header owns the only more button. */
+.music-app-shell .music-player-metadata { display:grid; grid-template-columns:minmax(0,1fr) auto; column-gap:8px; }
+.music-app-shell .music-player-song-heading { grid-column:1 / -1!important; grid-row:1; min-width:0; }
+.music-app-shell .music-player-artist-row { grid-column:1; grid-row:2; min-width:0; }
+.music-player-song-actions { grid-column:2; grid-row:2; gap:0; }
+.music-player-song-actions button[aria-pressed=true] { color:var(--md-sys-color-primary); }
+.music-player-song-actions button:disabled { opacity:.35; }
+.music-player-song-actions button:focus-visible { outline:2px solid var(--md-sys-color-primary); outline-offset:0; border-radius:12px; }
+.music-app-shell .music-player-song-heading { padding-bottom:4px; }
+.music-app-shell [data-player-layout=portrait] .music-player-card-container:not(.music-card-lyrics) { flex:1 1 0; }
+.music-app-shell .music-player-content[data-player-layout=portrait] { justify-content:flex-start; padding-bottom:max(20px,var(--app-safe-bottom,env(safe-area-inset-bottom,0px))); }
+.music-app-shell [data-player-layout=portrait] .music-player-card-body { gap:0; justify-content:safe center; }
+.music-app-shell [data-player-layout=portrait] .music-player-artwork-region { flex:0 1 auto; height:min(48dvh,calc(100cqi + 24px)); min-height:100px; max-height:none; padding:0 0 24px; }
+.music-app-shell [data-player-layout=portrait] .music-player-artwork { height:auto; width:auto; aspect-ratio:1; max-height:100%; max-width:100%; }
+.music-app-shell [data-player-layout=portrait] .music-player-cover-image { width:auto; height:auto; max-width:100%; max-height:100%; aspect-ratio:1; object-fit:cover; }
+.music-app-shell [data-player-layout=portrait] .music-player-controls { padding:8px 4px 0; gap:clamp(10px,1.8dvh,18px); }
+.music-app-shell [data-player-layout=portrait] .music-player-transport-row { min-height:64px; }
+.music-app-shell [data-player-layout=portrait] .music-current-lyric { padding:6px 4px; min-height:36px; margin-top:10px; }
+.music-app-shell [data-player-layout=portrait] .music-card-lyrics .music-player-metadata { display:grid; padding-top:4px; }
+.music-app-shell [data-player-layout=portrait] .music-card-lyrics .music-player-controls { padding-top:8px; }
+.music-app-shell [data-player-layout=wide] { padding-bottom:24px; }
+.music-app-shell .music-player-artwork-region[hidden] { display:none!important; }
+.music-app-shell [data-player-layout=compact-landscape] .music-player-combined-card { width:clamp(280px,42vw,400px); }
+.music-app-shell [data-player-layout=compact-landscape] .music-player-card-body { justify-content:space-between; gap:12px; padding:8px 4px; }
+.music-app-shell [data-player-layout=compact-landscape] .music-player-song-title { font-size:22px; line-height:1.4; }
+.music-app-shell [data-player-layout=compact-landscape] .music-player-artist-name { font-size:13px; }
+.music-app-shell [data-player-layout=compact-landscape] .music-player-metadata { padding:0; }
+.music-app-shell [data-player-layout=compact-landscape] .music-player-controls { display:contents; }
+.music-app-shell [data-player-layout=compact-landscape] .music-control-authority { display:none; }
+.music-app-shell [data-player-layout=compact-landscape] .music-player-transport-row { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); justify-items:center; min-height:52px; }
+.music-app-shell [data-player-layout=compact-landscape] .music-primary-play { width:clamp(48px,15dvh,60px); height:clamp(48px,15dvh,60px); }
+.music-app-shell [data-player-layout=compact-landscape][data-aux-visible=false] .music-player-combined-card { width:min(560px,100%); margin-inline:auto; }
+.music-player-lyrics:has(.music-lyrics-footer) > .lt-lyric-content-in { flex:1; height:auto; min-height:0; }
+.music-lyrics-footer { position:relative; flex-shrink:0; min-height:40px; display:flex; align-items:center; justify-content:flex-end; gap:12px; padding:0 10px 4px; color:var(--md-sys-color-on-surface); }
+.music-lyrics-footer small { font-size:10px; opacity:.5; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.music-lyrics-footer > div { display:flex; flex-shrink:0; gap:4px; }
+.music-lyrics-footer button { display:grid; place-items:center; width:36px; height:36px; border-radius:10px; opacity:.5; }
+.music-lyrics-footer button[aria-pressed=true] { opacity:1; background:color-mix(in srgb,currentColor 8%,transparent); }
+.music-lyrics-footer button:focus-visible { outline:2px solid var(--md-sys-color-primary); }
+@media (orientation:landscape) and (max-height:600px) {
+  .music-app-shell .music-player-content[data-player-layout=compact-landscape] { padding-bottom:12px!important; }
+}
+@media (orientation:landscape) and (max-height:350px) {
+  .music-app-shell [data-player-layout=compact-landscape] .music-player-card-body { gap:8px; padding:4px; }
+  .music-app-shell [data-player-layout=compact-landscape] .music-player-song-title { font-size:20px; }
+}
+@media (orientation:portrait) and (max-height:650px) {
+  .music-app-shell [data-player-layout=portrait] .music-player-artwork-region { padding-bottom:12px; }
+  .music-app-shell [data-player-layout=portrait] .music-player-transport-row { min-height:52px; }
+  .music-app-shell [data-player-layout=portrait] .music-current-lyric { margin-top:4px; min-height:30px; }
+}
+
+@keyframes music-sheet-shade-in { from { opacity:0; } to { opacity:1; } }
+@keyframes music-sheet-rise { from { transform:translateY(100%); } to { transform:translateY(0); } }
+@keyframes music-sheet-shade-out { from { opacity:1; } to { opacity:0; } }
+@keyframes music-sheet-drop { from { transform:translateY(0); } to { transform:translateY(100%); } }
+.music-sheet-backdrop[data-state=open] { animation:music-sheet-shade-in .2s ease-out both; }
+.music-sheet-backdrop[data-state=open] > .music-sheet { animation:music-sheet-rise .28s cubic-bezier(.2,.8,.2,1) both; }
+.music-sheet-backdrop[data-state=closing] { pointer-events:none; animation:music-sheet-shade-out .2s ease-in both; }
+.music-sheet-backdrop[data-state=closing] > .music-sheet { animation:music-sheet-drop .2s cubic-bezier(.4,0,1,1) both; }
+@media (prefers-reduced-motion:reduce) {
+  .music-sheet-backdrop,.music-sheet-backdrop > .music-sheet { animation-duration:1ms!important; }
+}

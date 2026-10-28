@@ -2,7 +2,7 @@
  * 溢出跑马灯（Hydrogen base/OverflowMarquee.vue 的 React 复刻）。
  *
  * 规格（与 Hydrogen 一致）：
- * - 单份文本宽度超出容器超过 8px 阈值才滚动，否则静态显示
+ * - 文本超出容器时自动滚动，否则静态显示
  * - 滚动速度 42px/s，循环间隔 36px（内容为「文本 + 36px 空隙」的循环体，
  *   渲染两份文本拼接实现无缝循环），启动延迟 900ms
  * - 布局就绪后双帧测量（rAF 两跳），文本变化时重新测量并重启动画；
@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 /** 溢出阈值（px）：超出该值才启动滚动 */
-const OVERFLOW_THRESHOLD_PX = 8
+const OVERFLOW_THRESHOLD_PX = 1
 /** 滚动速度（px/s） */
 const SPEED_PX_PER_SEC = 42
 /** 循环体间隙（px） */
@@ -91,6 +91,8 @@ export function OverflowMarquee({
   return (
     <div
       ref={wrapRef}
+      title={text}
+      data-overflowing={overflowing}
       className={`relative min-w-0 overflow-hidden ${className ?? ''}`}
     >
       <div
