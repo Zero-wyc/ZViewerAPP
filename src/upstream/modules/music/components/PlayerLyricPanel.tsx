@@ -578,7 +578,7 @@ export function PlayerLyricPanel({
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div
         ref={scrollRef}
-        className="hide-scrollbar relative min-h-0 flex-1 overflow-y-auto"
+        className="music-lyric-scroll hide-scrollbar relative min-h-0 flex-1 overflow-y-auto"
         style={{
           visibility: revealed ? 'visible' : 'hidden',
           // Firefox 滚动锚定防护：溢出锚定会对手动 scrollTop 瞬移 +

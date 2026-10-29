@@ -821,14 +821,10 @@ function ListenTogetherInner({
                   isPortraitMobile ? 'music-mobile-lyric-region w-full flex-1' : 'h-full flex-1'
                 )}
               >
-                {isPortraitMobile && rightPanelMode === 0 && <div className="music-lyric-options">
-                  {hasRomaLyric && <button aria-pressed={lyricRoma} onClick={() => setLyricRoma(v => !v)}>罗马音</button>}
-                  {hasTransLyric && <button aria-pressed={lyricTrans} onClick={() => setLyricTrans(v => !v)}>翻译</button>}
-                </div>}
                 <PlayerLyricPanelShell
-                  footerActions={!isPortraitMobile && rightPanelMode === 0 ? <>
-                    {hasRomaLyric && <button aria-label="罗马音" title="罗马音" aria-pressed={lyricRoma} onClick={() => setLyricRoma(v => !v)}><CaseSensitive size={18} /></button>}
-                    {hasTransLyric && <button aria-label="翻译" title="翻译" aria-pressed={lyricTrans} onClick={() => setLyricTrans(v => !v)}><Languages size={18} /></button>}
+                  footerActions={rightPanelMode === 0 ? <>
+                    {hasRomaLyric && <button aria-label="罗马音" aria-pressed={lyricRoma} onClick={() => setLyricRoma(v => !v)}><CaseSensitive size={18} /></button>}
+                    {hasTransLyric && <button aria-label="翻译" aria-pressed={lyricTrans} onClick={() => setLyricTrans(v => !v)}><Languages size={18} /></button>}
                   </> : undefined}
                   isPortraitMobile={isPortraitMobile}
                   lyricRevealed={lyricRevealed}

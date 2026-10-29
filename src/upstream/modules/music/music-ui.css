@@ -722,9 +722,6 @@
 .music-control-authority { font-size:11px; text-align:center; opacity:.65; padding:5px; }
 .music-player-mode[aria-disabled=true] { opacity:.4; }
 .music-mobile-lyric-region { order:0; flex-direction:column; }
-.music-lyric-options { display:flex; gap:8px; justify-content:flex-end; padding:4px 10px; }
-.music-lyric-options button { min-height:36px; padding:0 12px; font-size:12px; border-radius:16px; opacity:.5; }
-.music-lyric-options button[aria-pressed=true] { opacity:1; background:#8882; }
 .music-app-shell .music-player-content[data-player-layout=portrait] { padding-top:calc(84px + var(--app-safe-top,0px))!important; gap:10px!important; }
 .music-app-shell [data-player-layout=portrait] .music-card-lyrics { order:1; flex:0 0 auto!important; }
 .music-card-lyrics .music-player-artwork-region { display:none!important; }
@@ -832,8 +829,43 @@
 .music-app-shell [data-player-layout=compact-landscape] .music-player-transport-row { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); justify-items:center; min-height:52px; }
 .music-app-shell [data-player-layout=compact-landscape] .music-primary-play { width:clamp(48px,15dvh,60px); height:clamp(48px,15dvh,60px); }
 .music-app-shell [data-player-layout=compact-landscape][data-aux-visible=false] .music-player-combined-card { width:min(560px,100%); margin-inline:auto; }
+/* Short landscape: with lyrics, a thumbnail sits beside the title; without
+   lyrics, a full-height cover fills the left column. Tapping either toggles
+   the lyric panel. Info, progress and transport form one block with fixed
+   gaps, centred vertically; the 1fr rows above and below absorb spare height. */
+.music-app-shell [data-player-layout=compact-landscape] .music-player-card-body {
+  --lt-compact-cover:clamp(56px,20dvh,80px);
+  --lt-compact-gap:clamp(6px,3dvh,16px);
+  display:grid; grid-template-columns:var(--lt-compact-cover) minmax(0,1fr);
+  grid-template-rows:minmax(0,1fr) auto auto auto minmax(0,1fr);
+  gap:0 12px!important; align-items:center;
+}
+.music-app-shell [data-player-layout=compact-landscape] .music-player-progress,
+.music-app-shell [data-player-layout=compact-landscape] .music-player-transport-row { margin-top:var(--lt-compact-gap); }
+.music-app-shell [data-player-layout=compact-landscape] .music-player-artwork-region {
+  grid-column:1; grid-row:2; flex:none; width:var(--lt-compact-cover); height:var(--lt-compact-cover); min-height:0; max-height:none!important; padding:0;
+}
+.music-app-shell [data-player-layout=compact-landscape] .music-player-artwork { width:100%; height:100%; }
+.music-app-shell [data-player-layout=compact-landscape][data-aux-visible=true] .music-player-cover-image { object-fit:cover; }
+.music-app-shell [data-player-layout=compact-landscape] .music-player-metadata { grid-column:2; grid-row:2; }
+.music-app-shell [data-player-layout=compact-landscape] .music-player-progress { grid-column:1 / -1; grid-row:3; }
+.music-app-shell [data-player-layout=compact-landscape] .music-player-transport-row { grid-column:1 / -1; grid-row:4; }
+.music-app-shell [data-player-layout=compact-landscape][data-aux-visible=false] .music-player-combined-card { width:min(760px,100%); }
+.music-app-shell [data-player-layout=compact-landscape][data-aux-visible=false] .music-player-card-body {
+  grid-template-columns:min(calc(100dvh - 96px - var(--app-safe-top,0px) - max(12px,var(--app-safe-bottom,0px))),45%) minmax(0,1fr);
+  column-gap:24px!important; --lt-compact-gap:clamp(8px,4dvh,22px);
+}
+.music-app-shell [data-player-layout=compact-landscape][data-aux-visible=false] .music-player-artwork-region { grid-row:1 / -1; width:100%; height:auto; aspect-ratio:1; }
+.music-app-shell [data-player-layout=compact-landscape][data-aux-visible=false] .music-player-progress,
+.music-app-shell [data-player-layout=compact-landscape][data-aux-visible=false] .music-player-transport-row { grid-column:2; }
 .music-player-lyrics:has(.music-lyrics-footer) > .lt-lyric-content-in { flex:1; height:auto; min-height:0; }
-.music-lyrics-footer { position:relative; flex-shrink:0; min-height:40px; display:flex; align-items:center; justify-content:flex-end; gap:12px; padding:0 10px 4px; color:var(--md-sys-color-on-surface); }
+.music-lyrics-footer { position:relative; flex-shrink:0; min-height:40px; display:flex; align-items:center; justify-content:flex-end; gap:12px; padding:0 10px 4px; color:var(--md-sys-color-on-surface); background:color-mix(in srgb,var(--md-sys-color-surface) 45%,transparent); }
+/* Lines leaving the panel fade out instead of being cut at its edges or the footer. */
+.music-player-panel .music-lyric-scroll {
+  --lt-lyric-fade-end:clamp(32px,14%,72px);
+  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 20px,#000 calc(100% - var(--lt-lyric-fade-end)),transparent);
+  mask-image:linear-gradient(to bottom,transparent,#000 20px,#000 calc(100% - var(--lt-lyric-fade-end)),transparent);
+}
 .music-lyrics-footer small { font-size:10px; opacity:.5; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .music-lyrics-footer > div { display:flex; flex-shrink:0; gap:4px; }
 .music-lyrics-footer button { display:grid; place-items:center; width:36px; height:36px; border-radius:10px; opacity:.5; }
@@ -841,6 +873,19 @@
 .music-lyrics-footer button:focus-visible { outline:2px solid var(--md-sys-color-primary); }
 @media (orientation:landscape) and (max-height:600px) {
   .music-app-shell .music-player-content[data-player-layout=compact-landscape] { padding-bottom:12px!important; }
+}
+/* Phone landscape: a slimmer header and notch / gesture-bar insets hand the
+   reclaimed height and width to the card and lyrics. */
+@media (orientation:landscape) and (max-height:519.98px) {
+  .music-room-heading { height:52px; left:max(12px,var(--app-safe-left,0px)); right:max(12px,var(--app-safe-right,0px)); }
+  .music-player-notice { top:calc(58px + var(--app-safe-top,0px))!important; }
+  .music-app-shell .music-player-content[data-player-layout=compact-landscape] {
+    padding-top:calc(56px + var(--app-safe-top,0px))!important;
+    padding-bottom:max(12px,var(--app-safe-bottom,0px))!important;
+    padding-left:max(16px,var(--app-safe-left,0px));
+    padding-right:max(16px,var(--app-safe-right,0px));
+  }
+  .music-app-shell [data-player-layout=compact-landscape] .music-player-combined-card { margin-right:12px; }
 }
 @media (orientation:landscape) and (max-height:350px) {
   .music-app-shell [data-player-layout=compact-landscape] .music-player-card-body { gap:8px; padding:4px; }
