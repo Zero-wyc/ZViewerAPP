@@ -36,13 +36,13 @@ export interface DashInitInfo {
   sidxRange?: string
   moovRange?: string
   initRange?: string
-  /** sidx 覆盖的总时长（秒），用于判断 sidx 是否完整 */
+  /** 已索引 segment 的播放结束时间（秒），用于判断尾部是否完整 */
   sidxCoverage?: number
   /** 是否找到多个 sidx box */
   sidxCount?: number
   /** 从 sidx 解析出的 segment 列表 */
   segments?: DashSegmentInfo[]
-  /** 文件总大小（从 Content-Length 获取） */
+  /** 文件总大小（Content-Range、完整响应的 Content-Length 或 Blob.size） */
   totalSize?: number
   /** init segment 的结束位置（moov 之后） */
   initEnd?: number
@@ -54,6 +54,76 @@ export interface PreloadInitOptions {
   duration?: number
   /** 取消信号（切源/卸载时中断头部队据拉取） */
   signal?: AbortSignal
+}
+
+function segmentCoverage(segments: DashSegmentInfo[]): number {
+  return segments.reduce(
+    (end, segment) => Math.max(end, segment.startTime + segment.duration),
+    0
+  )
+}
+
+function applySidx(
+  info: DashInitInfo,
+  indices: ReturnType<typeof findAllSidxInBuffer>
+): void {
+  if (indices.length === 0) return
+  info.sidxRange = indices[0].range
+  info.sidxCount = indices.length
+  const segments: DashSegmentInfo[] = []
+  const seenRanges = new Set<string>()
+
+  for (const { box, info: sidx } of indices) {
+    if (!sidx || sidx.timescale <= 0) continue
+    let currentTime = sidx.earliestPresentationTime / sidx.timescale
+    let byteOffset = box.end + sidx.firstOffset
+    for (const reference of sidx.references) {
+      const duration = reference.subsegmentDuration / sidx.timescale
+      const byteSize = reference.referencedSize
+      const key = `${byteOffset}:${byteSize}`
+      // A hierarchical reference points to another index, not a media segment.
+      if (
+        reference.referenceType === 0 &&
+        Number.isFinite(currentTime) &&
+        Number.isFinite(duration) &&
+        duration > 0 &&
+        Number.isSafeInteger(byteOffset) &&
+        byteOffset >= 0 &&
+        Number.isSafeInteger(byteSize) &&
+        byteSize > 0 &&
+        Number.isSafeInteger(byteOffset + byteSize) &&
+        !seenRanges.has(key)
+      ) {
+        seenRanges.add(key)
+        segments.push({ startTime: currentTime, duration, byteOffset, byteSize })
+      }
+      currentTime += duration
+      byteOffset += byteSize
+    }
+  }
+
+  segments.sort((a, b) => a.startTime - b.startTime || a.byteOffset - b.byteOffset)
+  if (segments.length > 0) {
+    info.segments = segments
+    info.sidxCoverage = segmentCoverage(segments)
+  }
+}
+
+function extendIncompleteIndex(info: DashInitInfo, duration?: number): void {
+  if (
+    !info.segments?.length ||
+    !duration ||
+    !Number.isFinite(duration) ||
+    (info.sidxCoverage ?? 0) >= duration - 1
+  ) {
+    return
+  }
+  info.segments = extendSegmentsWithLinearEstimation(
+    info.segments,
+    info.totalSize,
+    duration
+  )
+  info.sidxCoverage = segmentCoverage(info.segments)
 }
 
 /**
@@ -108,7 +178,8 @@ export async function preloadInitSegment(
         info.totalSize = parseInt(match[1], 10)
       }
     }
-    if (!info.totalSize) {
+    if (!info.totalSize && response.status === 200) {
+      // A 206 Content-Length is only the returned range, not the complete file.
       const contentLength = response.headers.get('Content-Length')
       if (contentLength) {
         info.totalSize = parseInt(contentLength, 10)
@@ -129,64 +200,18 @@ export async function preloadInitSegment(
     // 解析所有 sidx box
     const allSidx = findAllSidxInBuffer(buffer)
     if (allSidx.length > 0) {
-      const firstSidx = allSidx[0]
-      info.sidxRange = firstSidx.range
-      info.sidxCount = allSidx.length
-
-      const sidx = firstSidx.info
-      if (sidx && sidx.references.length > 0) {
-        const totalDuration =
-          sidx.references.reduce((sum, r) => sum + r.subsegmentDuration, 0) /
-          sidx.timescale
-        info.sidxCoverage = totalDuration
-
-        // 构建 segments 列表
-        const segments: DashSegmentInfo[] = []
-        let currentTime = sidx.earliestPresentationTime / sidx.timescale
-        // sidx box 的结束位置 = firstOffset 之前的位置
-        // firstOffset 是相对于 sidx box 之后的偏移量
-        const sidxEnd = parseInt(firstSidx.range.split('-')[1], 10)
-        let byteOffset = sidxEnd + 1 + sidx.firstOffset
-
-        for (const ref of sidx.references) {
-          segments.push({
-            startTime: currentTime,
-            duration: ref.subsegmentDuration / sidx.timescale,
-            byteOffset,
-            byteSize: ref.referencedSize,
-          })
-          currentTime += ref.subsegmentDuration / sidx.timescale
-          byteOffset += ref.referencedSize
+      applySidx(info, allSidx)
+      if (duration && (info.sidxCoverage ?? 0) < duration - 1) {
+        console.warn(
+          `[mpd-builder] sidx 覆盖不足 (${(info.sidxCoverage ?? 0).toFixed(1)}s < ${duration}s)`
+        )
+        if (
+          buffer.byteLength < SIDX_SCAN_BYTES &&
+          info.totalSize !== buffer.byteLength
+        ) {
+          await scanForMoreSidx(proxyUrl, info, signal)
         }
-        info.segments = segments
-
-        if (duration && totalDuration < duration - 1) {
-          console.warn(
-            `[mpd-builder] sidx 覆盖不足 (${totalDuration.toFixed(1)}s < ${duration}s)`
-          )
-
-          if (allSidx.length === 1) {
-            // 单 sidx：尝试二次扫描更大范围，检测是否有多 sidx 结构
-            await scanForMoreSidx(proxyUrl, info, signal)
-          }
-
-          // 二次扫描后若仍覆盖不足，使用线性估算扩展 segments
-          // B站 m4s 的 sidx 通常只索引前若干 segment，剩余部分需按已知 segment 的
-          // 平均时长和大小估算，让 dash.js 能 seek 到 sidx 覆盖范围外的位置
-          if (
-            info.segments &&
-            info.sidxCoverage &&
-            info.sidxCoverage < duration - 1
-          ) {
-            info.segments = extendSegmentsWithLinearEstimation(
-              info.segments,
-              info.totalSize,
-              duration
-            )
-            // 扩展后 sidxCoverage 已等于 duration，避免重复扩展
-            info.sidxCoverage = duration
-          }
-        }
+        extendIncompleteIndex(info, duration)
       }
     } else {
       console.warn('[mpd-builder] 未找到 sidx box，seek 可能无法正常工作')
@@ -231,53 +256,8 @@ export async function parseInitFromBlob(
   // 解析所有 sidx box
   const allSidx = findAllSidxInBuffer(buffer)
   if (allSidx.length > 0) {
-    const firstSidx = allSidx[0]
-    info.sidxRange = firstSidx.range
-    info.sidxCount = allSidx.length
-
-    const sidx = firstSidx.info
-    if (sidx && sidx.references.length > 0) {
-      const totalDuration =
-        sidx.references.reduce((sum, r) => sum + r.subsegmentDuration, 0) /
-        sidx.timescale
-      info.sidxCoverage = totalDuration
-
-      const segments: DashSegmentInfo[] = []
-      let currentTime = sidx.earliestPresentationTime / sidx.timescale
-      const sidxEnd = parseInt(firstSidx.range.split('-')[1], 10)
-      let byteOffset = sidxEnd + 1 + sidx.firstOffset
-
-      for (const ref of sidx.references) {
-        segments.push({
-          startTime: currentTime,
-          duration: ref.subsegmentDuration / sidx.timescale,
-          byteOffset,
-          byteSize: ref.referencedSize,
-        })
-        currentTime += ref.subsegmentDuration / sidx.timescale
-        byteOffset += ref.referencedSize
-      }
-      info.segments = segments
-
-      // sidx 覆盖不足时使用线性估算扩展
-      if (duration && totalDuration < duration - 1) {
-        console.warn(
-          `[mpd-builder] sidx 覆盖不足 (${totalDuration.toFixed(1)}s < ${duration}s)`
-        )
-        if (
-          info.segments &&
-          info.sidxCoverage &&
-          info.sidxCoverage < duration - 1
-        ) {
-          info.segments = extendSegmentsWithLinearEstimation(
-            info.segments,
-            info.totalSize,
-            duration
-          )
-          info.sidxCoverage = duration
-        }
-      }
-    }
+    applySidx(info, allSidx)
+    extendIncompleteIndex(info, duration)
   } else {
     console.warn(
       '[mpd-builder] 缓冲模式：未找到 sidx box，seek 可能无法正常工作'
@@ -312,23 +292,7 @@ async function scanForMoreSidx(
 
     const buffer = await response.arrayBuffer()
     const allSidx = findAllSidxInBuffer(buffer)
-    info.sidxCount = allSidx.length
-
-    // 累加每个 sidx 的覆盖时长
-    let totalCoverage = 0
-    for (let i = 0; i < allSidx.length; i++) {
-      const sidx = allSidx[i].info
-      if (sidx && sidx.references.length > 0) {
-        const duration =
-          sidx.references.reduce((sum, r) => sum + r.subsegmentDuration, 0) /
-          sidx.timescale
-        totalCoverage += duration
-      }
-    }
-
-    if (totalCoverage > 0) {
-      info.sidxCoverage = totalCoverage
-    }
+    applySidx(info, allSidx)
   } catch (err) {
     console.warn('[mpd-builder] 二次扫描异常:', err)
   }
@@ -353,7 +317,7 @@ export function extendSegmentsWithLinearEstimation(
   totalSize: number | undefined,
   duration: number | undefined
 ): DashSegmentInfo[] {
-  if (segments.length === 0 || !duration) {
+  if (segments.length === 0 || !duration || !Number.isFinite(duration)) {
     return segments
   }
 
@@ -366,17 +330,12 @@ export function extendSegmentsWithLinearEstimation(
     return segments
   }
 
-  // 验证 totalSize 合理性：
-  // 后端代理可能未返回 Content-Range 头，导致 totalSize 被错误地设置为
-  // 分片大小（如 256KB）而非完整文件大小。如果 totalSize 小于已覆盖字节数，
-  // 视为无效，忽略它（仅按 duration 扩展）
   const validTotalSize =
-    totalSize && totalSize > coveredBytes + 1024 ? totalSize : undefined
-
-  if (totalSize && !validTotalSize) {
-    console.warn(
-      `[mpd-builder] totalSize=${totalSize} 小于已覆盖字节 ${coveredBytes}，视为无效，忽略 totalSize`
-    )
+    totalSize !== undefined && Number.isSafeInteger(totalSize) && totalSize > 0
+      ? totalSize
+      : undefined
+  if (validTotalSize !== undefined && coveredBytes >= validTotalSize) {
+    return segments
   }
 
   // 使用末尾 5 个 segment（或全部，如果不足 5 个）的平均时长和大小
@@ -385,9 +344,16 @@ export function extendSegmentsWithLinearEstimation(
   const sample = segments.slice(-sampleSize)
   const estDuration =
     sample.reduce((sum, s) => sum + s.duration, 0) / sample.length
-  const estSize = sample.reduce((sum, s) => sum + s.byteSize, 0) / sample.length
+  const estSize = Math.round(
+    sample.reduce((sum, s) => sum + s.byteSize, 0) / sample.length
+  )
 
-  if (estDuration <= 0 || estSize <= 0) {
+  if (
+    !Number.isFinite(estDuration) ||
+    estDuration <= 0 ||
+    !Number.isSafeInteger(estSize) ||
+    estSize <= 0
+  ) {
     console.warn(
       '[mpd-builder] 线性估算失败: 平均时长或大小为 0',
       `estDuration=${estDuration}, estSize=${estSize}`
@@ -404,31 +370,25 @@ export function extendSegmentsWithLinearEstimation(
   let iter = 0
 
   while (currentTime < duration && iter < maxIterations) {
-    // 如果 totalSize 已知且 byteOffset 接近或超过 totalSize，停止
-    if (validTotalSize && byteOffset + estSize > validTotalSize) {
-      // 最后一个 segment 可能小于平均值，按比例调整
-      const remainingBytes = validTotalSize - byteOffset
-      if (remainingBytes > 0) {
-        const ratio = remainingBytes / estSize
-        extended.push({
-          startTime: currentTime,
-          duration: estDuration * ratio,
-          byteOffset,
-          byteSize: remainingBytes,
-        })
-      }
-      break
-    }
+    if (validTotalSize !== undefined && byteOffset >= validTotalSize) break
+    const byteSize =
+      validTotalSize === undefined
+        ? estSize
+        : Math.min(estSize, validTotalSize - byteOffset)
+    const segmentDuration = Math.min(
+      (estDuration * byteSize) / estSize,
+      duration - currentTime
+    )
 
     extended.push({
       startTime: currentTime,
-      duration: estDuration,
+      duration: segmentDuration,
       byteOffset,
-      byteSize: estSize,
+      byteSize,
     })
 
-    currentTime += estDuration
-    byteOffset += estSize
+    currentTime += segmentDuration
+    byteOffset += byteSize
     iter++
   }
 
@@ -459,10 +419,7 @@ export interface GenerateMpdOptions {
  * - 单个 Period
  * - 两个 AdaptationSet（video + audio），每个一个 Representation
  *
- * sidx 覆盖判断：
- * - sidx 覆盖完整（sidxCoverage >= duration）：使用 SegmentBase + indexRange，seek 快速准确
- * - sidx 覆盖不足（sidxCoverage < duration）：用线性估算扩展 segments，使用 SegmentList
- *   这样 dash.js 能基于估算的 segment 列表进行 seek，虽然精度略低但能正常跳转
+ * 可用的媒体引用统一使用 SegmentList；只有未解析出引用时回退 SegmentBase。
  */
 export function generateMpd(options: GenerateMpdOptions): string {
   const { videoUrl, audioUrl, videoCodec, audioCodec, duration, initInfo } =
@@ -483,14 +440,19 @@ export function generateMpd(options: GenerateMpdOptions): string {
     // 让 dash.js 能准确计算 seek 目标位置对应的 segment
     const initRange = initInfo.initRange || `0-${initEnd - 1}`
 
-    // SegmentTimeline: 第一个 S 需要 t 属性指定起始时间，后续继承
+    // Explicit times also preserve gaps between independently indexed periods.
     const timelineEntries = segments
       .map((seg, i) => {
-        const d = Math.round(seg.duration * 1000)
-        if (i === 0) {
-          return `        <S t="${Math.round(seg.startTime * 1000)}" d="${d}" />`
-        }
-        return `        <S d="${d}" />`
+        const start = Math.round(seg.startTime * 1000)
+        const d = Math.max(
+          1,
+          Math.round((seg.startTime + seg.duration) * 1000) - start
+        )
+        const previous = segments[i - 1]
+        const explicitStart =
+          !previous ||
+          Math.round((previous.startTime + previous.duration) * 1000) !== start
+        return `        <S${explicitStart ? ` t="${start}"` : ''} d="${d}" />`
       })
       .join('\n')
 

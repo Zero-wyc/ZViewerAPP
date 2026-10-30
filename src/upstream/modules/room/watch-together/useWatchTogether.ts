@@ -33,6 +33,7 @@ import {
   safePlay,
 } from '@/modules/sync-playback'
 import { wasUserPaused } from '@/modules/player/services/pause-intent'
+import { attachNativeStallRecovery } from '@/modules/sync-playback/services/native-stall-recovery'
 import {
   createSuppressRef,
   resetSuppression,
@@ -42,6 +43,7 @@ import {
   resolveMovieSource,
   resolveBilibiliOnline,
   getEffectivePreferMp4,
+  getActiveCliProxyUrl,
   type ResolvedMovieSource,
 } from './movie-source-resolver'
 import type { ResolvedSource } from '@/modules/bilibili/types'
@@ -260,16 +262,7 @@ export function useWatchTogether({
     return () => { controller.dispose(); video.removeEventListener('ended', ended) }
   }, [videoRef, roomId, socket, suppressEventsRef])
 
-  // 1. 视频源管理：applySourceToVideo / cleanupMedia / restoredRef / seekTo / reloadVideo
-  const { applySourceToVideo, cleanupMedia, seekTo, reloadVideo } =
-    useVideoSource({
-      videoRef,
-      suppressEventsRef,
-      watchTogether,
-      isHostRef,
-    })
-
-  // 2. 房主同步编排（组合广播+状态请求+心跳+事件绑定，内部按 isHostRef 判断）
+  // 房主广播先建立，供原生恢复完成后推送已清理本机代理地址的完整状态。
   const { broadcastState, sendControl, forceSync } = useHostSync({
     roomId,
     isHostRef,
@@ -277,6 +270,15 @@ export function useWatchTogether({
     suppressEventsRef,
     setWatchTogether,
   })
+
+  const { applySourceToVideo, cleanupMedia, seekTo, reloadVideo, recoverNativePlayback } =
+    useVideoSource({
+      videoRef,
+      suppressEventsRef,
+      watchTogether,
+      isHostRef,
+      onNativeRecoveryComplete: forceSync,
+    })
 
   // 3. 观众同步编排（组合状态接收+服务器心跳，内部按 isHostRef 判断）
   const viewerStateReceiverRef = useViewerSync({
@@ -1296,7 +1298,26 @@ export function useWatchTogether({
     if (state.sourceType !== 'bilibili') return
 
     const MAX_AUTO_RELOADS = 3
-    if (isEmbeddedBilibiliHost()) return // Native recovery has its own finite budget.
+    if (isEmbeddedBilibiliHost()) {
+      return attachNativeStallRecovery({
+        video,
+        read: () => {
+          const store = useRoomStore.getState()
+          const current = store.watchTogether
+          const movieId = store.currentMovieId
+          return {
+            key: `${store.roomSessionRevision}|${movieId}|${current.cid}|${current.sourceUrl}`,
+            eligible: isHostRef.current && store.roomId === roomId && store.mode === 'watch-together' &&
+              current.sourceType === 'bilibili' && !current.isPreview && movieId != null &&
+              getBilibiliParseOptions(movieId).cliEnabled && !!getActiveCliProxyUrl() &&
+              current.isPlaying && video.isConnected && !video.paused && !video.ended &&
+              !video.seeking && !wasUserPaused(video) && !suppressEventsRef.current,
+          }
+        },
+        recover: recoverNativePlayback,
+        onError: error => message.warning(error.message),
+      })
+    }
     const BASE_COOLDOWN_MS = 10000
     const MAX_COOLDOWN_MS = 60000
 
@@ -1347,6 +1368,9 @@ export function useWatchTogether({
     }
   }, [
     videoRef,
+    roomId,
+    isHost,
+    recoverNativePlayback,
     reloadBilibili,
     suppressEventsRef,
     watchTogether.sourceType,

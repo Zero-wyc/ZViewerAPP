@@ -45,6 +45,8 @@ import { executeSeek } from '../services'
 import type { SeekToResult } from '../services'
 import { getEmbeddedProxyStatus, isEmbeddedBilibiliHost, startEmbeddedProxy, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
 import { fallbackNativeQuality, getNativeQualityPolicy, getQualitySelectionRevision, recordNativeQuality, restoreNativeQuality, type NativeQualityPolicy } from '@/modules/bilibili/nativeQualityPolicy'
+import { hasFreshBilibiliSource } from '@/modules/bilibili/sourceValidity'
+import { awaitAbortable } from '@/modules/player/utils/abortable'
 
 interface ViewerLocalOverride {
   movieId: number
@@ -67,7 +69,8 @@ interface NativeRecoverySnapshot { time: number; playing: boolean; rate: number 
  * 本地已启用 CLI 时同样会按 DASH 偏好解析并覆盖。
  */
 async function ensureViewerLocalOverride(
-  state: WatchTogetherState
+  state: WatchTogetherState,
+  forceRefresh = false
 ): Promise<ViewerLocalOverride | null> {
   // Playback state can arrive before current-movie and the REST movie list.
   // Native viewers must resolve with their own account, never attach the host's loopback URL.
@@ -100,6 +103,18 @@ async function ensureViewerLocalOverride(
   }
   storeState.setViewerCliRequiredMovieId(null)
   const sessionVersion = getEmbeddedProxyStatus().sessionVersion
+  const server = getApiUrl()
+  const selectionRevision = getQualitySelectionRevision(movieId)
+  const isCurrent = () => {
+    const current = useRoomStore.getState()
+    const currentMovie = current.movies.find(item => item.id === movieId)
+    return getApiUrl() === server && current.roomId === storeState.roomId &&
+      current.roomSessionRevision === storeState.roomSessionRevision &&
+      current.currentMovieId === movieId && currentMovie?.cid === movie.cid &&
+      currentMovie?.url === movie.url &&
+      getEmbeddedProxyStatus().sessionVersion === sessionVersion &&
+      getQualitySelectionRevision(movieId) === selectionRevision
+  }
   const effectivePreferMp4 = getEffectivePreferMp4(movieId)
   const hostIsMp4 = state.format === 'mp4'
   const existing = storeState.viewerCliResolvedSource
@@ -120,7 +135,7 @@ async function ensureViewerLocalOverride(
   }
 
   // 已有匹配的本地覆盖时直接复用，避免重复解析
-  if (existing?.movieId === movieId && existing.sessionVersion === getEmbeddedProxyStatus().sessionVersion && existing.resolved.cid === movie.cid && (state.cid == null || existing.resolved.cid === state.cid) && existingIsMp4 === adjustedPreferMp4) {
+  if (!forceRefresh && existing?.movieId === movieId && existing.sessionVersion === sessionVersion && existing.resolved.cid === movie.cid && (state.cid == null || existing.resolved.cid === state.cid) && existingIsMp4 === adjustedPreferMp4 && hasFreshBilibiliSource(existing.resolved)) {
     return existing
   }
 
@@ -129,11 +144,12 @@ async function ensureViewerLocalOverride(
   try {
     const resolved = await resolveBilibiliOnline(movie, undefined, {
       preferMp4: adjustedPreferMp4,
+      forceRefresh,
       // 多 P 视频：切 P 只更新 movie.cid/currentPage，url 不变，
       // 必须显式传 page 才能解析到当前分 P（否则固定解析第 1 P）
       page: movie.currentPage,
     })
-    if (useRoomStore.getState().currentMovieId !== movieId || useRoomStore.getState().movies.find(m => m.id === movieId)?.cid !== movie.cid || getEmbeddedProxyStatus().sessionVersion !== sessionVersion) throw new DOMException('Stale source', 'AbortError')
+    if (!isCurrent()) throw new DOMException('Stale source', 'AbortError')
     const resolvedSource: ResolvedSource = {
       epId: resolved.epId, seasonId: resolved.seasonId, seasonTitle: resolved.seasonTitle, preview: resolved.preview,
       videoUrl: resolved.sourceUrl,
@@ -154,6 +170,8 @@ async function ensureViewerLocalOverride(
     storeState.setViewerCliResolvedSource(override)
     return override
   } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') throw err
+    if (!isCurrent()) throw new DOMException('Stale source', 'AbortError')
     if (movie.cliOnly === true) { storeState.setViewerCliResolvedSource(null); storeState.setViewerCliRequiredMovieId(movieId); return null }
     if (isEmbeddedBilibiliHost()) throw err
     console.error('[useVideoSource] 观众本地解析失败:', err)
@@ -194,6 +212,7 @@ export interface UseVideoSourceOptions {
   /** 房主标识 ref。用于在挂载恢复 effect 中跳过房主，由 loadMovie 全权处理加载，
    *  避免恢复 effect 与 loadMovie 并发调用 applySourceToVideo 导致 MSE attach 互相 abort。 */
   isHostRef: MutableRefObject<boolean>
+  onNativeRecoveryComplete?: () => void
 }
 
 export interface UseVideoSourceReturn {
@@ -209,6 +228,36 @@ export interface UseVideoSourceReturn {
   seekTo: (video: HTMLVideoElement, targetTime: number) => Promise<SeekToResult>
   /** 重载视频源（重载按钮用）：从当前播放位置附近重新 attach */
   reloadVideo: (video: HTMLVideoElement) => Promise<void>
+  recoverNativePlayback: (error: Error) => Promise<void>
+}
+
+function recoveryDelay(milliseconds: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const aborted = () => { clearTimeout(timer); reject(signal.reason) }
+    const timer = setTimeout(() => { signal.removeEventListener('abort', aborted); resolve() }, milliseconds)
+    if (signal.aborted) aborted()
+    else signal.addEventListener('abort', aborted, { once: true })
+  })
+}
+
+function waitForNativeProgress(video: HTMLVideoElement, startTime: number, shouldPlay: () => boolean, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const finish = (error?: unknown) => {
+      clearInterval(timer)
+      signal.removeEventListener('abort', aborted)
+      if (error) reject(error)
+      else resolve()
+    }
+    const aborted = () => finish(signal.reason)
+    const check = () => {
+      if (!shouldPlay()) { finish(); return }
+      if (video.error) { finish(new Error('恢复后媒体仍不可播放')); return }
+      if (!video.paused && video.readyState >= 2 && video.currentTime > startTime + 0.05) finish()
+    }
+    const timer = setInterval(check, 250)
+    if (signal.aborted) aborted()
+    else { signal.addEventListener('abort', aborted, { once: true }); check() }
+  })
 }
 
 /**
@@ -329,12 +378,18 @@ export function useVideoSource({
   suppressEventsRef,
   watchTogether,
   isHostRef,
+  onNativeRecoveryComplete,
 }: UseVideoSourceOptions): UseVideoSourceReturn {
   const authRecoveryRef = useRef<(error: Error) => Promise<boolean>>(async () => false)
   const authRecoveryRunning = useRef<Promise<boolean> | null>(null)
   const authRecoveryAttempt = useRef('')
   const nativeRecoveryRef = useRef<(error: Error) => Promise<void>>(async () => {})
   const nativeRecoveryRunning = useRef<Promise<void> | null>(null)
+  const nativeRecoveryController = useRef<AbortController | null>(null)
+  const nativeRecoveryVideo = useRef<HTMLVideoElement | null>(null)
+  const nativeRecoveryKey = useRef('')
+  const recoveryCompleteRef = useRef(onNativeRecoveryComplete)
+  recoveryCompleteRef.current = onNativeRecoveryComplete
   const nativeAttachmentDepth = useRef(0)
   const nativeRecoveryAttempts = useRef(new Map<string, number>())
   const lastNativeSource = useRef<{ movieId: number; cid?: number; sessionVersion: number; state: WatchTogetherState; policy: NativeQualityPolicy } | null>(null)
@@ -392,64 +447,161 @@ export function useVideoSource({
   }
   const restoredRef = useRef(false)
 
-  const cleanupMedia = cleanup
+  const cleanupMedia = useCallback(() => {
+    nativeRecoveryController.current?.abort(new DOMException('Playback replaced', 'AbortError'))
+    nativeRecoveryController.current = null
+    cleanup()
+  }, [cleanup])
 
   const recoverNative = useCallback(async (error: Error, original?: NativeRecoverySnapshot) => {
-    if (nativeRecoveryRunning.current) return nativeRecoveryRunning.current
     const store = useRoomStore.getState()
     const movie = store.movies.find(item => item.id === store.currentMovieId)
-    if (!movie || !getBilibiliParseOptions(movie.id).cliEnabled || !getActiveCliProxyUrl() || getNativeQualityPolicy(movie.id).mode !== 'autoMax') throw error
+    if (!movie || store.watchTogether.sourceType !== 'bilibili' || store.watchTogether.isPreview || !getBilibiliParseOptions(movie.id).cliEnabled || !getActiveCliProxyUrl()) throw error
     const video = videoRef.current
     if (!video) throw error
-    const key = `${getEmbeddedProxyStatus().sessionVersion}|${movie.id}|${movie.cid}|${getQualitySelectionRevision(movie.id)}`
+    const server = getApiUrl()
     const sessionVersion = getEmbeddedProxyStatus().sessionVersion
     const selectionRevision = getQualitySelectionRevision(movie.id)
-    const stillCurrent = () => video.isConnected && useRoomStore.getState().currentMovieId === movie.id && useRoomStore.getState().movies.find(item => item.id === movie.id)?.cid === movie.cid && getEmbeddedProxyStatus().sessionVersion === sessionVersion && getQualitySelectionRevision(movie.id) === selectionRevision
+    const host = isHostRef.current
+    const key = `${server}|${store.roomId}|${store.roomSessionRevision}|${sessionVersion}|${movie.id}|${movie.cid}|${selectionRevision}|${host}`
+    if (nativeRecoveryRunning.current && nativeRecoveryKey.current === key && nativeRecoveryVideo.current === video && nativeRecoveryController.current && !nativeRecoveryController.current.signal.aborted) return nativeRecoveryRunning.current
+    nativeRecoveryController.current?.abort(new DOMException('Playback replaced', 'AbortError'))
+    const controller = new AbortController()
+    nativeRecoveryController.current = controller
+    nativeRecoveryVideo.current = video
+    nativeRecoveryKey.current = key
+    const stillCurrent = () => {
+      const current = useRoomStore.getState()
+      return nativeRecoveryController.current === controller && video.isConnected && videoRef.current === video && getApiUrl() === server &&
+        current.roomId === store.roomId && current.roomSessionRevision === store.roomSessionRevision &&
+        current.currentMovieId === movie.id && current.movies.find(item => item.id === movie.id)?.cid === movie.cid &&
+        current.movies.find(item => item.id === movie.id)?.url === movie.url &&
+        current.pendingReloadBilibili === store.pendingReloadBilibili && current.pendingViewerSourceReload === store.pendingViewerSourceReload &&
+        current.watchTogether.sourceType === 'bilibili' && !current.watchTogether.isPreview &&
+        isHostRef.current === host && getEmbeddedProxyStatus().sessionVersion === sessionVersion &&
+        getQualitySelectionRevision(movie.id) === selectionRevision
+    }
     const deadline = Date.now() + 60000
     const snapshot = original ?? { time: video.currentTime, playing: store.watchTogether.isPlaying && !wasUserPaused(video), rate: video.playbackRate }
     const task = (async () => {
+      const cancelStale = () => { if (!stillCurrent()) controller.abort(new DOMException('Playback replaced', 'AbortError')) }
+      const unsubscribeStore = useRoomStore.subscribe(cancelStale)
+      const unsubscribeProxy = subscribeEmbeddedProxy(cancelStale)
+      const timeout = setTimeout(() => controller.abort(new Error('自动恢复超时，请手动重试')), 60000)
       suppressEventsRef.current = true
       try {
         let lastError = error
-        let lastQn = getNativeQualityPolicy(movie.id).fallbackQn ?? 80
+        let lastQn = getNativeQualityPolicy(movie.id).fallbackQn ?? store.watchTogether.currentQn ?? 80
         while ((nativeRecoveryAttempts.current.get(key) ?? 0) < 4) {
           if (!stillCurrent()) return
+          controller.signal.throwIfAborted()
           const attempt = (nativeRecoveryAttempts.current.get(key) ?? 0) + 1
           nativeRecoveryAttempts.current.set(key, attempt)
-          if (attempt === 2) fallbackNativeQuality(movie.id)
-          if (attempt >= 3) {
-            if (lastQn <= 16) break
-            fallbackNativeQuality(movie.id, lastQn <= 32 ? 16 : 32)
+          if (attempt > 1) {
+            await recoveryDelay([0, 0, 2000, 4000, 8000][attempt], controller.signal)
+            if (!stillCurrent()) return
+            // A manual selection refreshes its URL at the same quality.
+            if (getNativeQualityPolicy(movie.id).mode === 'autoMax') {
+              fallbackNativeQuality(movie.id, lastQn > 64 ? 64 : lastQn > 32 ? 32 : 16)
+            }
           }
+          const attemptController = new AbortController()
+          const cancelAttempt = () => attemptController.abort(controller.signal.reason)
+          controller.signal.addEventListener('abort', cancelAttempt, { once: true })
+          const attemptTimeout = setTimeout(() => attemptController.abort(new Error('播放恢复等待超时')), Math.min(30000, Math.max(1, deadline - Date.now())))
+          let reloading = false
           try {
             const remaining = deadline - Date.now()
             if (remaining < 1000) throw new Error('自动恢复超时，请手动重试')
-            const resolved = await resolveBilibiliOnline(movie, undefined, { forceRefresh: true, timeoutMs: Math.min(remaining, 45000) })
+            const signal = attemptController.signal
+            const resolved = await awaitAbortable(resolveBilibiliOnline(movie, undefined, { forceRefresh: true, timeoutMs: Math.min(remaining, 25000), signal }), signal)
             if (resolved.currentQn) lastQn = resolved.currentQn
             if (!stillCurrent()) return
+            signal.throwIfAborted()
             const next = { ...store.watchTogether, sourceUrl: resolved.sourceUrl, audioUrl: resolved.audioUrl, format: resolved.format, videoCodec: resolved.videoCodec, audioCodec: resolved.audioCodec, currentQn: resolved.currentQn, acceptQuality: resolved.acceptQuality, currentTime: snapshot.time, playbackRate: snapshot.rate, isPlaying: snapshot.playing, cid: resolved.cid }
-            if (isHostRef.current) store.setWatchTogether(next)
-            else store.setViewerCliResolvedSource({ movieId: movie.id, resolved: { ...resolved, videoUrl: resolved.sourceUrl, format: resolved.format ?? 'dash' } })
             const source = toPlayerSource(next, snapshot.time)
-            source.attachTimeoutMs = Math.max(1, Math.min(30000, deadline - Date.now()))
-            await forceReload(video, source)
-            if (!stillCurrent()) { cleanup(); return }
+            source.signal = signal
+            source.attachTimeoutMs = Math.max(1, Math.min(25000, deadline - Date.now()))
+            reloading = true
+            await awaitAbortable(forceReload(video, source), signal)
+            if (!stillCurrent()) return
+            signal.throwIfAborted()
             video.currentTime = snapshot.time
             video.playbackRate = snapshot.rate
-            if (snapshot.playing) await safePlay(video)
-            lastNativeSource.current = { movieId: movie.id, cid: movie.cid, sessionVersion, state: next, policy: { ...getNativeQualityPolicy(movie.id) } }
+            const shouldPlay = () => stillCurrent() && snapshot.playing && !wasUserPaused(video)
+            if (shouldPlay()) {
+              await awaitAbortable(safePlay(video), signal)
+              await waitForNativeProgress(video, snapshot.time, shouldPlay, signal)
+            }
+            if (!stillCurrent()) return
+            signal.throwIfAborted()
+            if (!shouldPlay()) video.pause()
+            const finalState = { ...next, currentTime: video.currentTime, playbackRate: video.playbackRate, isPlaying: shouldPlay() && !video.paused }
+            if (isHostRef.current) useRoomStore.getState().setWatchTogether(finalState)
+            else useRoomStore.getState().setViewerCliResolvedSource({ movieId: movie.id, resolved: { ...resolved, videoUrl: resolved.sourceUrl, format: resolved.format ?? 'dash' } })
+            lastNativeSource.current = { movieId: movie.id, cid: movie.cid, sessionVersion, state: finalState, policy: { ...getNativeQualityPolicy(movie.id) } }
             if (resolved.currentQn) recordNativeQuality(movie.id, resolved.currentQn, resolved.acceptQuality ?? [])
-            if (attempt >= 2) message.info(`高画质播放失败，已切换至 ${resolved.acceptQuality?.find(q => q.id === resolved.currentQn)?.label ?? '可用画质'}`)
+            if (isHostRef.current) recoveryCompleteRef.current?.()
+            if (getNativeQualityPolicy(movie.id).mode === 'autoMax' && attempt >= 2) message.info(`高画质播放失败，已切换至 ${resolved.acceptQuality?.find(q => q.id === resolved.currentQn)?.label ?? '可用画质'}`)
             return
-          } catch (nextError) { lastError = nextError instanceof Error ? nextError : new Error(String(nextError)) }
+          } catch (nextError) {
+            attemptController.abort(nextError)
+            if (!stillCurrent()) return
+            if (reloading) cleanup()
+            controller.signal.throwIfAborted()
+            lastError = nextError instanceof Error ? nextError : new Error(String(nextError))
+          } finally {
+            clearTimeout(attemptTimeout)
+            controller.signal.removeEventListener('abort', cancelAttempt)
+          }
         }
         throw lastError
-      } finally { suppressEventsRef.current = false }
+      } catch (failure) {
+        if (stillCurrent() && !(failure instanceof DOMException && failure.name === 'AbortError')) throw failure
+      } finally {
+        clearTimeout(timeout)
+        unsubscribeStore()
+        unsubscribeProxy()
+        suppressEventsRef.current = false
+      }
     })()
     nativeRecoveryRunning.current = task
-    try { await task } finally { nativeRecoveryRunning.current = null }
+    try { await task } finally {
+      if (nativeRecoveryRunning.current === task) {
+        nativeRecoveryRunning.current = null
+        nativeRecoveryController.current = null
+        nativeRecoveryVideo.current = null
+      }
+    }
   }, [forceReload, cleanup, isHostRef, suppressEventsRef, videoRef])
   nativeRecoveryRef.current = recoverNative
+
+  useEffect(() => () => nativeRecoveryController.current?.abort(new DOMException('Playback unmounted', 'AbortError')), [])
+
+  // Reset the retry budget only after sustained real progress, not metadata or
+  // a fulfilled play() promise. Keep the selected fallback quality independent.
+  useEffect(() => {
+    if (!isEmbeddedBilibiliHost()) return
+    let stableSince = 0
+    let previousTime = 0
+    let previousKey = ''
+    const timer = setInterval(() => {
+      const video = videoRef.current
+      const store = useRoomStore.getState()
+      const movie = store.movies.find(item => item.id === store.currentMovieId)
+      const key = `${getApiUrl()}|${store.roomId}|${store.roomSessionRevision}|${getEmbeddedProxyStatus().sessionVersion}|${movie?.id}|${movie?.cid}|${movie ? getQualitySelectionRevision(movie.id) : ''}`
+      const progressing = video && movie && previousKey === key && store.watchTogether.sourceType === 'bilibili' &&
+        !nativeRecoveryRunning.current && !suppressEventsRef.current && !video.paused && !video.seeking &&
+        !video.ended && !video.error && !wasUserPaused(video) && video.readyState >= 2 &&
+        video.currentTime > previousTime + 0.05 && video.currentTime - previousTime <= Math.max(5, video.playbackRate * 3)
+      if (!progressing) stableSince = 0
+      else if (!stableSince) stableSince = Date.now()
+      else if (Date.now() - stableSince >= 15000) nativeRecoveryAttempts.current.clear()
+      previousTime = video?.currentTime ?? 0
+      previousKey = key
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [videoRef, suppressEventsRef])
 
   // ── 观众端生效源解析（唯一入口）────────────────────────
   // 观众端所有 attach/reload 路径必须共用此函数决定实际挂载的源：
@@ -464,7 +616,7 @@ export function useVideoSource({
   // （PlaybackController 读已置空的 streamInfo → "D is null"）与
   // blob revoke 后的 code 25 噪音。新增观众端挂载路径时必须经过此函数。
   const resolveViewerEffectiveState = useCallback(
-    async (state: WatchTogetherState): Promise<WatchTogetherState> => {
+    async (state: WatchTogetherState, forceRefresh = false): Promise<WatchTogetherState> => {
       if (isHostRef.current || !state.sourceUrl || state.isPreview) return state
       const room = useRoomStore.getState()
       const movie = room.movies.find(m => m.id === room.currentMovieId)
@@ -475,7 +627,7 @@ export function useVideoSource({
           noProxyFallback: state.noProxyFallback ?? resolved.noProxyFallback,
           playsvideoEnabled: state.playsvideoEnabled ?? resolved.playsvideoEnabled}
       }
-      const override = await ensureViewerLocalOverride(state)
+      const override = await ensureViewerLocalOverride(state, forceRefresh)
       if (override && override.movieId === useRoomStore.getState().currentMovieId) {
         return withViewerOverride(state, override.resolved)
       }
@@ -641,11 +793,18 @@ export function useVideoSource({
       // 获取最新 state，确保使用最新 URL（避免 URL 过期）
       const state = useRoomStore.getState().watchTogether
       if (!state.sourceUrl) return
+      const movieId = useRoomStore.getState().currentMovieId
+      if (isEmbeddedBilibiliHost() && state.sourceType === 'bilibili' && !state.isPreview && movieId != null && getBilibiliParseOptions(movieId).cliEnabled && getActiveCliProxyUrl()) {
+        nativeRecoveryController.current?.abort(new DOMException('Manual reload', 'AbortError'))
+        nativeRecoveryAttempts.current.clear()
+        await recoverNative(new Error('正在刷新 B站播放地址'), { time: snapshot.currentTime, playing: !snapshot.paused && !wasUserPaused(video), rate: snapshot.playbackRate })
+        return
+      }
 
       // 观众端必须与 applySourceToVideo 同源（resolveViewerEffectiveState）：
       // 若此处直接用广播源重挂，seek 失败兜底/手动重载会把本地覆盖源
       // （MP4→经典引擎）替换为房主广播源（DASH→dash 引擎），引发引擎反复翻转
-      const effectiveState = await resolveViewerEffectiveState(state)
+      const effectiveState = await resolveViewerEffectiveState(state, true)
 
       suppressEventsRef.current = true
       useRoomStore.getState().setReloadingState(true, snapshot.currentTime)
@@ -663,7 +822,7 @@ export function useVideoSource({
         useRoomStore.getState().setReloadingState(false, null)
       }
     },
-    [forceReload, resolveViewerEffectiveState, suppressEventsRef]
+    [forceReload, resolveViewerEffectiveState, suppressEventsRef, recoverNative]
   )
 
   // seek 到未缓冲区域时的处理：
@@ -711,5 +870,6 @@ export function useVideoSource({
     restoredRef,
     seekTo,
     reloadVideo,
+    recoverNativePlayback: recoverNative,
   }
 }

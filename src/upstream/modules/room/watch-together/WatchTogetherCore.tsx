@@ -43,7 +43,7 @@ import {
   type RequestNotificationItem,
 } from '@/components/ui/RequestNotification'
 import type { MediaFormat } from '@/lib/mediaFormat'
-import { useVideoPlayingState } from '@/modules/art-player/useVideoPlayingState'
+import { clearUserPaused, markUserPaused, wasUserPaused } from '@/modules/player/services/pause-intent'
 import { systemArtworkUrl, useSystemMediaSession } from '../../../../mobile/useSystemMediaSession'
 import { useWatchGestures } from './useWatchGestures'
 import { isGlobalAppearanceRuntime } from '../../../../platform/runtime'
@@ -148,6 +148,7 @@ export function WatchTogetherCore({
     watchTogether,
     setWatchTogether,
     forceSync,
+    suppressEventsRef,
     isResolving,
     currentQuality,
     availableQualities,
@@ -830,7 +831,11 @@ export function WatchTogetherCore({
     }) => {
       if (!data?.viewerSocketId) return
       if (autoApproveRef.current) {
-        videoRef.current?.pause()
+        const video = videoRef.current
+        if (video) {
+          markUserPaused(video)
+          video.pause()
+        }
         socket.emit(
           'pause-response',
           { roomId, viewerSocketId: data.viewerSocketId, accept: true },
@@ -875,6 +880,7 @@ export function WatchTogetherCore({
       if (!data?.viewerSocketId) return
       if (autoApproveRef.current) {
         if (videoRef.current) {
+          clearUserPaused(videoRef.current)
           void videoRef.current.play().catch(() => {
             /* 浏览器自动播放策略可能拒绝，忽略 */
           })
@@ -949,8 +955,9 @@ export function WatchTogetherCore({
         // sendControl('pause') 不发送，观众端 isPlaying 不会更新，
         // 导致按钮始终显示"申请暂停"而非"申请继续播放"。
         const video = videoRef.current
-        if (video && !video.paused) {
-          video.pause()
+        if (video) {
+          markUserPaused(video)
+          if (!video.paused) video.pause()
         }
         // 自动通过模式下申请时已提示“已暂停”，此处不再重复提示
         if (!autoApproveRef.current) {
@@ -973,8 +980,9 @@ export function WatchTogetherCore({
         // 'play' 事件不触发，sendControl('play') 不发送，
         // 观众端 isPlaying 不会更新，导致按钮始终显示"申请继续播放"。
         const video = videoRef.current
-        if (video && video.paused) {
-          void video.play().catch(() => {
+        if (video) {
+          clearUserPaused(video)
+          if (video.paused) void video.play().catch(() => {
             /* 浏览器自动播放策略可能拒绝，忽略 */
           })
         }
@@ -1096,7 +1104,11 @@ export function WatchTogetherCore({
     if (!pauseRequest) return
     const { viewerSocketIds } = pauseRequest
     if (!socket || viewerSocketIds.length === 0) return
-    videoRef.current?.pause()
+    const video = videoRef.current
+    if (video) {
+      markUserPaused(video)
+      video.pause()
+    }
     for (const sid of viewerSocketIds) {
       socket.emit(
         'pause-response',
@@ -1126,6 +1138,7 @@ export function WatchTogetherCore({
     const { viewerSocketIds } = playRequest
     if (!socket || viewerSocketIds.length === 0) return
     if (videoRef.current) {
+      clearUserPaused(videoRef.current)
       void videoRef.current.play().catch(() => {})
     }
     for (const sid of viewerSocketIds) {
@@ -1448,10 +1461,47 @@ export function WatchTogetherCore({
   ])
 
   // ── 观众申请按钮（渲染用）──────────────────────────────
-  const isPlaying = useVideoPlayingState(video)
+  const [isPlaying, setIsPlaying] = useState(() => !video.paused)
+  useEffect(() => {
+    const update = () => setIsPlaying(!wasUserPaused(video) && (
+      suppressEventsRef.current
+        ? useRoomStore.getState().watchTogether.isPlaying
+        : !video.paused && !video.ended
+    ))
+    update()
+    for (const event of ['play', 'pause', 'ended', 'emptied']) {
+      video.addEventListener(event, update)
+    }
+    return () => {
+      for (const event of ['play', 'pause', 'ended', 'emptied']) {
+        video.removeEventListener(event, update)
+      }
+    }
+  }, [video, suppressEventsRef, watchTogether.isPlaying])
+
+  const handleTogglePlayback = useCallback(() => {
+    // The displayed action remains authoritative while an engine temporarily pauses to attach.
+    if (isPlaying) {
+      markUserPaused(video)
+      setIsPlaying(false)
+      video.pause()
+    } else {
+      clearUserPaused(video)
+      setIsPlaying(true)
+      void video.play().catch(() => {
+        setIsPlaying(!wasUserPaused(video) && (
+          suppressEventsRef.current
+            ? useRoomStore.getState().watchTogether.isPlaying
+            : !video.paused && !video.ended
+        ))
+      })
+    }
+    if (suppressEventsRef.current) forceSync()
+  }, [isPlaying, video, suppressEventsRef, forceSync])
 
   useWatchGestures({ art, video, stage: stageRef, mediaKey: `${roomId}:${currentMovieId}:${watchTogether.sourceUrl}`,
     toggleControls: toggleControlBar,
+    isPlaying, togglePlayback: handleTogglePlayback,
     canControl: isHost || hostOffline, requestPlay: handleRequestPlay,
     requestPause: handleRequestPause, requestSeek: handleRequestSeek })
 
@@ -1472,10 +1522,10 @@ export function WatchTogetherCore({
     onAction(action, position) {
       const canControl = isHost || hostOffline
       if (action === 'play') {
-        if (canControl) void video.play().catch(() => {})
+        if (canControl) { clearUserPaused(video); void video.play().catch(() => {}) }
         else handleRequestPlay()
       } else if (action === 'pause' || action === 'stop') {
-        if (canControl) video.pause()
+        if (canControl) { markUserPaused(video); video.pause() }
         else handleRequestPause()
       } else if (action === 'seekto' && position !== undefined && Number.isFinite(position)) {
         const target = Math.max(0, Math.min(position, Number.isFinite(video.duration) ? video.duration : Infinity))
@@ -1866,6 +1916,7 @@ export function WatchTogetherCore({
           videoRef={videoRef}
           watchTogether={watchTogether}
           isPlaying={isPlaying}
+          onTogglePlayback={handleTogglePlayback}
           onNextMovie={nextMovie.visible ? nextMovie.playNext : undefined}
           nextMovieAvailable={nextMovie.available}
           nextMoviePending={nextMovie.pending}

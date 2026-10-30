@@ -30,7 +30,6 @@ async function player(t, canControl = true) {
   const imports = {
     react: { useEffect: fn => effects.push(fn), useLayoutEffect: fn => fn(), useRef: current => ({ current }) },
     '@/lib/utils': { formatDuration: value => String(Math.round(value)) },
-    '@/modules/player/services/pause-intent': { clearUserPaused: () => calls.push('resume-intent'), markUserPaused: () => calls.push('pause-intent') },
     '../../../../platform/runtime': { isGlobalAppearanceRuntime: () => true },
     '../../../../mobile/watchVideoGestures': { attachWatchVideoGestures },
     '../../../../mobile/playerBrightness': { createBrightnessGesture: () => ({
@@ -43,7 +42,11 @@ async function player(t, canControl = true) {
   }, { context }))
   await module.evaluate()
   module.namespace.useWatchGestures({ art: { notice, template: { $player: element, $state: new Surface() } }, video,
-    stage: { current: element }, mediaKey: 'room:movie', canControl,
+    stage: { current: element }, mediaKey: 'room:movie', canControl, isPlaying: !video.paused,
+    togglePlayback() {
+      if (video.paused) { calls.push('resume-intent'); void video.play() }
+      else { calls.push('pause-intent'); video.pause() }
+    },
     toggleControls: () => calls.push('toggle'), requestPlay: () => calls.push('play-request'),
     requestPause: () => calls.push('pause-request'), requestSeek: position => calls.push(['seek-request', position]),
   })

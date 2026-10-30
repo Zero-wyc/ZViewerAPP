@@ -1,20 +1,20 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import type Artplayer from 'artplayer'
 import { formatDuration } from '@/lib/utils'
-import { clearUserPaused, markUserPaused } from '@/modules/player/services/pause-intent'
 import { isGlobalAppearanceRuntime } from '../../../../platform/runtime'
 import { attachWatchVideoGestures, type WatchDrag } from '../../../../mobile/watchVideoGestures'
 import { createBrightnessGesture } from '../../../../mobile/playerBrightness'
 
 /** Commands keep the room's existing host/guest authorization and synchronization path. */
-export function useWatchGestures({ art, video, stage, mediaKey, canControl, toggleControls, requestPlay, requestPause, requestSeek }: {
+export function useWatchGestures({ art, video, stage, mediaKey, canControl, isPlaying, togglePlayback, toggleControls, requestPlay, requestPause, requestSeek }: {
   art: Artplayer; video: HTMLVideoElement; stage: React.RefObject<HTMLDivElement>
   mediaKey: string; canControl: boolean; toggleControls(): void
+  isPlaying: boolean; togglePlayback(): void
   requestPlay(): void; requestPause(): void; requestSeek(position: number): void
 }) {
-  const commands = useRef({ canControl, toggleControls, requestPlay, requestPause, requestSeek })
-  useLayoutEffect(() => { commands.current = { canControl, toggleControls, requestPlay, requestPause, requestSeek } },
-    [canControl, toggleControls, requestPlay, requestPause, requestSeek])
+  const commands = useRef({ canControl, isPlaying, togglePlayback, toggleControls, requestPlay, requestPause, requestSeek })
+  useLayoutEffect(() => { commands.current = { canControl, isPlaying, togglePlayback, toggleControls, requestPlay, requestPause, requestSeek } },
+    [canControl, isPlaying, togglePlayback, toggleControls, requestPlay, requestPause, requestSeek])
   useEffect(() => {
     const element = stage.current
     if (!element || !isGlobalAppearanceRuntime()) return
@@ -32,10 +32,9 @@ export function useWatchGestures({ art, video, stage, mediaKey, canControl, togg
       onDoubleTap: region => {
         if (region === 0) {
           if (commands.current.canControl) {
-            if (video.paused) { clearUserPaused(video); void video.play().catch(() => {}) }
-            else { markUserPaused(video); video.pause() }
-          } else if (video.paused) commands.current.requestPlay()
-          else commands.current.requestPause()
+            commands.current.togglePlayback()
+          } else if (commands.current.isPlaying) commands.current.requestPause()
+          else commands.current.requestPlay()
         } else {
           if (!Number.isFinite(video.duration) || video.duration <= 0 || !Number.isFinite(video.currentTime)) return
           seek(Math.max(0, Math.min(video.duration, video.currentTime + region * 15)))

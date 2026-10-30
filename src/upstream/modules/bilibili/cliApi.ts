@@ -170,7 +170,7 @@ export async function resolveBilibiliViaCli(
   qn?: number,
   preferMp4?: boolean,
   forceDash?: boolean,
-  nativeOptions?: { qualityMode?: 'autoMax' | 'manual'; fallbackQn?: number; timeoutMs?: number; page?: number; audioOnly?: boolean }
+  nativeOptions?: { qualityMode?: 'autoMax' | 'manual'; fallbackQn?: number; timeoutMs?: number; page?: number; audioOnly?: boolean; signal?: AbortSignal }
 ): Promise<ResolvedSource> {
   const base = proxyUrl.replace(/\/$/, '')
   const params = new URLSearchParams({
@@ -206,9 +206,12 @@ export async function resolveBilibiliViaCli(
   try {
     res = await fetch(`${base}/resolve?${params.toString()}`, {
       method: 'GET',
-      signal: AbortSignal.timeout(nativeOptions?.timeoutMs ?? 50000),
+      signal: nativeOptions?.signal
+        ? AbortSignal.any([nativeOptions.signal, AbortSignal.timeout(nativeOptions.timeoutMs ?? 50000)])
+        : AbortSignal.timeout(nativeOptions?.timeoutMs ?? 50000),
     })
   } catch {
+    nativeOptions?.signal?.throwIfAborted()
     // fetch 抛出 TypeError：网络不可达、CORS 被拦截、进程未启动等
     throw new CliConnectionError(
       embedded ? '内置 B 站代理连接失败，请重试或重新打开客户端' : 'CLI 代理连接失败，请确认本地 ZViewer CLI 已启动'
@@ -219,9 +222,11 @@ export async function resolveBilibiliViaCli(
   try {
     data = (await res.json()) as CliResolveResponse
   } catch {
+    nativeOptions?.signal?.throwIfAborted()
     throw new CliResolveError(`CLI 代理返回了无效响应（HTTP ${res.status}）`)
   }
 
+  nativeOptions?.signal?.throwIfAborted()
   if (embedded && getEmbeddedProxyStatus().sessionVersion !== sessionVersion) throw new CliResolveError('账号已切换，请重新解析')
 
   if (!res.ok || data.success === false || !data.videoUrl) {
@@ -272,7 +277,7 @@ export async function resolveBilibiliViaCli(
 export async function resolveBangumiViaCli(
   proxyUrl: string, epId: number, cid?: number, qn?: number,
   preferMp4?: boolean, forceDash?: boolean,
-  nativeOptions?: { qualityMode?: 'autoMax' | 'manual'; fallbackQn?: number; timeoutMs?: number; seasonId?: number }
+  nativeOptions?: { qualityMode?: 'autoMax' | 'manual'; fallbackQn?: number; timeoutMs?: number; seasonId?: number; signal?: AbortSignal }
 ): Promise<ResolvedSource> {
   // Use the same cancellation, capabilities and account generation checks as UGC.
   const input = epId > 0 ? 'ep' + epId : 'ss' + nativeOptions?.seasonId

@@ -1,10 +1,11 @@
 import { useCallback, useRef } from 'react'
-import type { RefObject } from 'react'
+import type { RefObject, MutableRefObject } from 'react'
 import { useSocket } from '@/hooks/useSocket'
 import { useRoomStore } from '@/store/roomStore'
 import { getBilibiliParseOptions } from '@/modules/bilibili/parseOptions'
 import { unwrapCliProxyUrl } from '@/modules/bilibili/cliApi'
 import type { WatchTogetherState, ControlAction } from '../types'
+import { readHostPlaybackSnapshot, type HostPlaybackSnapshot } from './useHostHeartbeat'
 import { SOCKET_EVENT } from '../constants'
 import {
   buildStateFromVideo,
@@ -16,6 +17,8 @@ export interface UseHostBroadcastOptions {
   roomId: string
   isHostRef: RefObject<boolean>
   videoRef: RefObject<HTMLVideoElement>
+  suppressEventsRef?: RefObject<boolean>
+  stablePlaybackRef?: MutableRefObject<HostPlaybackSnapshot | null>
 }
 
 export interface UseHostBroadcastReturn {
@@ -40,8 +43,12 @@ export function useHostBroadcast({
   roomId,
   isHostRef,
   videoRef,
+  suppressEventsRef,
+  stablePlaybackRef,
 }: UseHostBroadcastOptions): UseHostBroadcastReturn {
   const { socket } = useSocket()
+  const localStableRef = useRef<HostPlaybackSnapshot | null>(null)
+  const stableRef = stablePlaybackRef ?? localStableRef
   // 最近一次广播的状态：用于浅比较跳过等价广播
   const lastStateRef = useRef<WatchTogetherState | null>(null)
   // 广播序号：每次广播递增。观众检测跳号（seq > lastSeq + 1）即说明错失了
@@ -93,7 +100,11 @@ export function useHostBroadcast({
     if (!socket || !isHostRef.current) return
     const video = videoRef.current
     const storeState = useRoomStore.getState().watchTogether
-    const newState = buildStateFromVideo(video, storeState)
+    const newState = buildStateFromVideo(suppressEventsRef?.current ? null : video, storeState)
+    const playback = readHostPlaybackSnapshot(video, suppressEventsRef?.current === true, stableRef)
+    newState.currentTime = playback.currentTime
+    newState.isPlaying = playback.isPlaying
+    newState.playbackRate = playback.playbackRate
     newState.sourceUrl = unwrapCliProxyUrl(newState.sourceUrl)
     if (newState.audioUrl) newState.audioUrl = unwrapCliProxyUrl(newState.audioUrl)
     // 注入房主 CLI 标记（与 broadcastState 一致）
@@ -110,7 +121,7 @@ export function useHostBroadcast({
       state: newState,
       seq: seqRef.current,
     })
-  }, [socket, roomId, isHostRef, videoRef])
+  }, [socket, roomId, isHostRef, videoRef, suppressEventsRef, stableRef])
 
   return {
     broadcastState,

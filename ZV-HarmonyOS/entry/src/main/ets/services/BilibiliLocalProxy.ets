@@ -366,101 +366,150 @@ export class BilibiliLocalProxy {
       return;
     }
     const candidates = trustedMediaCandidates(target, backups);
-    for (const candidate of candidates) {
-      if (!allowedCdn(candidate)) continue;
-      const request = http.createHttp();
-      let sentHeaders = false;
-      let rejected = false;
-      let queuedBytes = 0;
-      let receivedBytes = 0;
-      let expectedBytes = 0;
-      let pendingBeforeHeaders: ArrayBuffer[] = [];
-      let chain: Promise<void> = Promise.resolve();
-      const forwardChunk = (chunk: ArrayBuffer): void => {
-        queuedBytes += chunk.byteLength;
-        if (queuedBytes > 16 * 1024 * 1024) {
-          rejected = true;
+    let clientClosed = false;
+    let cancelRequest: (() => void) | null = null;
+    const clientDisconnected = (): void => {
+      if (clientClosed) return;
+      clientClosed = true;
+      cancelRequest?.();
+    };
+    const closeClient = (): void => {
+      if (clientClosed) return;
+      clientDisconnected();
+      connection.close().catch(() => {});
+    };
+    connection.on('close', clientDisconnected);
+    connection.on('error', closeClient);
+    try {
+      for (const candidate of candidates) {
+        if (clientClosed) return;
+        if (!allowedCdn(candidate)) continue;
+        const request = http.createHttp();
+        let destroyed = false;
+        const destroyRequest = (): void => {
+          if (destroyed) return;
+          destroyed = true;
           request.destroy();
-          return;
-        }
-        chain = chain.then(async () => {
-          if (method !== 'HEAD') await connection.send({ data: chunk });
-          queuedBytes -= chunk.byteLength;
-        });
-      };
-      try {
-        request.on('headersReceive', (rawHeaders: Object) => {
-          const headers = rawHeaders as Record<string, string>;
-          const denyReason = headerValue(headers, 'deny-reason');
-          const statusLine = headerValue(headers, 'status-line');
-          const match = statusLine.match(/\s(\d{3})(?:\s|$)/);
-          const status = match ? Number(match[1]) : range !== '' ? 206 : 200;
-          if (status < 200 || status >= 300) {
+        };
+        let sentHeaders = false;
+        let rejected = false;
+        let queuedBytes = 0;
+        let receivedBytes = 0;
+        let expectedBytes = 0;
+        let pendingBeforeHeaders: ArrayBuffer[] = [];
+        let chain: Promise<void> = Promise.resolve();
+        // Cancellation also releases the waits if a native promise never settles.
+        const cancelled = new Promise<void>((resolve) => {
+          cancelRequest = (): void => {
             rejected = true;
+            pendingBeforeHeaders = [];
+            destroyRequest();
+            resolve();
+          };
+        });
+        const forward = (data: string | ArrayBuffer, byteLength: number = 0): void => {
+          queuedBytes += byteLength;
+          if (queuedBytes > 16 * 1024 * 1024) {
+            cancelRequest?.();
             return;
           }
-          const contentType = headerValue(headers, 'content-type') || 'application/octet-stream';
-          const contentLength = headerValue(headers, 'content-length');
-          const contentRange = headerValue(headers, 'content-range');
-          expectedBytes = Number(contentLength) || 0;
-          if (denyReason !== '' || (range !== '' && method !== 'HEAD' && contentRange === '') ||
-            contentType.startsWith('text/') || contentType.includes('xml')) {
-            rejected = true;
-            return;
-          }
-          const transfer = contentLength !== '' ? `Content-Length: ${contentLength}\r\n` : '';
-          const cors = origin === TRUSTED_ORIGIN ? `Access-Control-Allow-Origin: ${TRUSTED_ORIGIN}\r\nVary: Origin\r\n` : '';
-          const header = `HTTP/1.1 ${status} OK\r\nContent-Type: ${contentType}\r\n${transfer}${contentRange ? `Content-Range: ${contentRange}\r\n` : ''}Accept-Ranges: bytes\r\nAccess-Control-Expose-Headers: Content-Range, Accept-Ranges, Content-Length\r\nConnection: close\r\n${cors}\r\n`;
-          sentHeaders = true;
-          chain = chain.then(() => connection.send({ data: header }));
-          for (const chunk of pendingBeforeHeaders) forwardChunk(chunk);
-          pendingBeforeHeaders = [];
-        });
-        request.on('dataReceive', (data: ArrayBuffer) => {
-          if (rejected) return;
-          receivedBytes += data.byteLength;
-          if (!sentHeaders) {
-            if (receivedBytes > 16 * 1024 * 1024) {
-              rejected = true;
-              request.destroy();
+          chain = chain.then(async () => {
+            try {
+              if (!clientClosed && !rejected) await connection.send({ data });
+            } finally {
+              queuedBytes -= byteLength;
+            }
+          }).catch(() => closeClient());
+        };
+        const forwardChunk = (chunk: ArrayBuffer): void => {
+          if (method !== 'HEAD') forward(chunk, chunk.byteLength);
+        };
+        try {
+          request.on('headersReceive', (rawHeaders: Object) => {
+            if (clientClosed || rejected || destroyed) return;
+            const headers = rawHeaders as Record<string, string>;
+            const denyReason = headerValue(headers, 'deny-reason');
+            const statusLine = headerValue(headers, 'status-line');
+            const match = statusLine.match(/\s(\d{3})(?:\s|$)/);
+            const status = match ? Number(match[1]) : range !== '' ? 206 : 200;
+            if (status < 200 || status >= 300) {
+              cancelRequest?.();
               return;
             }
-            pendingBeforeHeaders.push(data);
+            const contentType = headerValue(headers, 'content-type') || 'application/octet-stream';
+            const contentLength = headerValue(headers, 'content-length');
+            const contentRange = headerValue(headers, 'content-range');
+            expectedBytes = Number(contentLength) || 0;
+            if (denyReason !== '' || (range !== '' && method !== 'HEAD' && contentRange === '') ||
+              contentType.startsWith('text/') || contentType.includes('xml')) {
+              cancelRequest?.();
+              return;
+            }
+            const transfer = contentLength !== '' ? `Content-Length: ${contentLength}\r\n` : '';
+            const cors = origin === TRUSTED_ORIGIN ? `Access-Control-Allow-Origin: ${TRUSTED_ORIGIN}\r\nVary: Origin\r\n` : '';
+            const header = `HTTP/1.1 ${status} OK\r\nContent-Type: ${contentType}\r\n${transfer}${contentRange ? `Content-Range: ${contentRange}\r\n` : ''}Accept-Ranges: bytes\r\nAccess-Control-Expose-Headers: Content-Range, Accept-Ranges, Content-Length\r\nConnection: close\r\n${cors}\r\n`;
+            sentHeaders = true;
+            forward(header);
+            for (const chunk of pendingBeforeHeaders) forwardChunk(chunk);
+            pendingBeforeHeaders = [];
+          });
+          request.on('dataReceive', (data: ArrayBuffer) => {
+            if (clientClosed || rejected || destroyed) return;
+            receivedBytes += data.byteLength;
+            if (!sentHeaders) {
+              if (receivedBytes > 16 * 1024 * 1024) {
+                cancelRequest?.();
+                return;
+              }
+              if (method !== 'HEAD') pendingBeforeHeaders.push(data);
+              return;
+            }
+            forwardChunk(data);
+          });
+          const header: Record<string, string> = {
+            'User-Agent': 'Mozilla/5.0',
+            'Referer': `${BILIBILI_REFERER}/`,
+            'Origin': 'https://www.bilibili.com',
+          };
+          if (range !== '') header['Range'] = range;
+          const status = await Promise.race([request.requestInStream(candidate, {
+            method: method === 'HEAD' ? http.RequestMethod.HEAD : http.RequestMethod.GET,
+            header,
+            maxRedirects: 0,
+            usingCache: false,
+            connectTimeout: 10000,
+            readTimeout: 30000,
+          }), cancelled.then((): number => 0)]);
+          await Promise.race([chain, cancelled]);
+          if (clientClosed) return;
+          if (!rejected && method !== 'HEAD' && expectedBytes > 0 && receivedBytes !== expectedBytes) throw new Error('Incomplete CDN stream');
+          if (rejected || status < 200 || status >= 300) {
+            if (sentHeaders) {
+              closeClient();
+              return;
+            }
+            continue;
+          }
+          if (!sentHeaders) throw new Error('CDN response missing headers');
+          await connection.close().catch(() => {});
+          return;
+        } catch (_error) {
+          if (clientClosed) return;
+          if (sentHeaders) {
+            closeClient();
             return;
           }
-          forwardChunk(data);
-        });
-        const header: Record<string, string> = {
-          'User-Agent': 'Mozilla/5.0',
-          'Referer': `${BILIBILI_REFERER}/`,
-          'Origin': 'https://www.bilibili.com',
-        };
-        if (range !== '') header['Range'] = range;
-        const status = await request.requestInStream(candidate, {
-          method: method === 'HEAD' ? http.RequestMethod.HEAD : http.RequestMethod.GET,
-          header,
-          maxRedirects: 0,
-          usingCache: false,
-          connectTimeout: 10000,
-          readTimeout: 30000,
-        });
-        await chain;
-        if (!rejected && method !== 'HEAD' && expectedBytes > 0 && receivedBytes !== expectedBytes) throw new Error('Incomplete CDN stream');
-        if (rejected || status < 200 || status >= 300) continue;
-        if (!sentHeaders) throw new Error('CDN response missing headers');
-        await connection.close();
-        request.destroy();
-        return;
-      } catch (_error) {
-        if (sentHeaders) {
-          await connection.close().catch(() => {});
-          request.destroy();
-          return;
+        } finally {
+          cancelRequest = null;
+          pendingBeforeHeaders = [];
+          destroyRequest();
         }
       }
-      request.destroy();
+      if (!clientClosed) this.reply(connection, 502, 'Bad Gateway', '{"success":false,"message":"CDN 不可用"}', origin);
+    } finally {
+      connection.off('close', clientDisconnected);
+      connection.off('error', closeClient);
     }
-    this.reply(connection, 502, 'Bad Gateway', '{"success":false,"message":"CDN 不可用"}', origin);
   }
 
   private async resolveEndpoint(connection: socket.TCPSocketConnection, path: string, origin: string): Promise<void> {
@@ -499,6 +548,6 @@ export class BilibiliLocalProxy {
     const cors = origin === TRUSTED_ORIGIN ? `Access-Control-Allow-Origin: ${TRUSTED_ORIGIN}\r\nVary: Origin\r\n` : '';
     const length = new util.TextEncoder().encode(body).length;
     const payload = `HTTP/1.1 ${status} ${reason}\r\nContent-Type: application/json\r\nContent-Length: ${length}\r\nConnection: close\r\nAccess-Control-Allow-Methods: GET, HEAD, OPTIONS\r\nAccess-Control-Allow-Headers: Range, Content-Type\r\nAccess-Control-Expose-Headers: Content-Range, Accept-Ranges, Content-Length\r\n${cors}\r\n${body}`;
-    connection.send({ data: payload }).then(() => connection.close()).catch(() => connection.close());
+    connection.send({ data: payload }).catch(() => {}).then(() => connection.close()).catch(() => {});
   }
 }

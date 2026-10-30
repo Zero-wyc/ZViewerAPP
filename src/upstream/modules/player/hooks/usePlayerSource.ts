@@ -47,6 +47,7 @@ import { refreshAccessToken } from '@/lib/api'
 import { formatVideoLoadError } from '@/modules/player/utils'
 import { isSamePlayerSource } from '../services/source-identity'
 import { assertVideoCodecSupported } from '../codec-capability'
+import { awaitAbortable } from '../utils/abortable'
 
 import {
   isBrowserPlayableFormat,
@@ -253,13 +254,17 @@ export function usePlayerSource(
   }, [options.onPlaybackError])
 
   /** 将操作排入串行队列（前驱无论成败都继续执行） */
-  const enqueue = useCallback(<T>(task: () => Promise<T>): Promise<T> => {
-    const run = queueRef.current.then(task, task)
+  const enqueue = useCallback(<T>(task: () => Promise<T>, signal?: AbortSignal): Promise<T> => {
+    const execute = () => {
+      signal?.throwIfAborted()
+      return task()
+    }
+    const run = queueRef.current.then(execute, execute)
     queueRef.current = run.then(
       () => undefined,
       () => undefined
     )
-    return run
+    return awaitAbortable(run, signal)
   }, [])
 
   const cleanup = useCallback(() => {
@@ -419,6 +424,7 @@ export function usePlayerSource(
       source: PlayerSource,
       authRetried = false
     ): Promise<void> => {
+      source.signal?.throwIfAborted()
       if (!mountedRef.current || !video.isConnected) return
       // Reject known decoder failures before cleanup can stop the playing source.
       if (source.format === 'dash' || shouldUsePlaysVideo(source)) assertVideoCodecSupported(source, true)
@@ -451,7 +457,19 @@ export function usePlayerSource(
         try {
           const abort = new AbortController()
           attachAbortRef.current = abort
-          const result = await engine.attach(video, { ...source, signal: abort.signal })
+          const cancel = () => abort.abort(source.signal?.reason)
+          source.signal?.addEventListener('abort', cancel, { once: true })
+          let result: EngineAttachResult
+          try {
+            source.signal?.throwIfAborted()
+            result = await engine.attach(video, { ...source, signal: abort.signal })
+            if (source.signal?.aborted) {
+              result.cleanup?.()
+              source.signal.throwIfAborted()
+            }
+          } finally {
+            source.signal?.removeEventListener('abort', cancel)
+          }
           if (attachEpochRef.current !== epoch) {
             // 等待期间被新加载/卸载取代：本次落地作废，立即释放引擎
             // 并静默退出——错误与状态都不属于本次会话
@@ -573,7 +591,7 @@ export function usePlayerSource(
           return
         }
         await attachInner(video, source)
-      })
+      }, source.signal)
     },
     [enqueue, attachInner]
   )
@@ -615,6 +633,12 @@ export function usePlayerSource(
    */
   const forceReload = useCallback(
     async (video: HTMLVideoElement, source: PlayerSource) => {
+      // Recovery requests own a deadline. An aborted queued request must never
+      // attach later or join an unrelated reload and report false success.
+      if (source.signal) {
+        await enqueue(() => attachInner(video, source), source.signal)
+        return
+      }
       pendingReloadRef.current = source
       if (reloadScheduledRef.current) return
       reloadScheduledRef.current = true

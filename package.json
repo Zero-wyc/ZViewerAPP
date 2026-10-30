@@ -14,6 +14,7 @@
     "postinstall": "patch-package --error-on-fail",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "test:music:toolbar": "node --test scripts/music-toolbar.test.mjs scripts/music-quality.test.mjs",
+    "test:bilibili": "node --experimental-vm-modules --test scripts/bilibili-native-recovery.test.mjs scripts/bilibili-source-cancellation.test.mjs scripts/bilibili-recovery-sync.test.mjs scripts/bilibili-native-proxy.test.mjs scripts/bilibili-dash-index.test.mjs",
     "test:maintenance": "node --experimental-vm-modules --test scripts/daily-maintenance.test.mjs scripts/music-personal-fm.test.mjs scripts/music-background-audio.test.mjs scripts/music-overlay-immersive.test.mjs scripts/music-track-swipe.test.mjs scripts/playlist-play-all.test.mjs scripts/music-cover.test.mjs scripts/server-alignment.test.mjs scripts/login-session.test.mjs scripts/resource-contracts.test.mjs scripts/watch-gestures.test.mjs scripts/player-levels.test.mjs scripts/emby-playback.test.mjs scripts/music-loudness.test.mjs scripts/music-loudness-math.test.ts scripts/music-settings.test.mjs scripts/bilibili-parts.test.mjs scripts/song-favorite.test.mjs"
   },
   "dependencies": {

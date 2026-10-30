@@ -25,10 +25,6 @@ import {
 import { PlayerDisplayControls } from '../../../../mobile/PlayerDisplayControls'
 import { PlayerMoreMenu } from './PlayerMoreMenu'
 import { cn, formatDuration } from '@/lib/utils'
-import {
-  clearUserPaused,
-  markUserPaused,
-} from '@/modules/player/services/pause-intent'
 import { DanmakuInput } from '@/components/VideoPlayer/parts/DanmakuInput'
 import type { WatchTogetherState } from '@/modules/sync-playback/types'
 import './PlayerControlBar.css'
@@ -228,6 +224,7 @@ interface PlayerControlBarProps {
   videoRef: React.RefObject<HTMLVideoElement>
   watchTogether: WatchTogetherState
   isPlaying: boolean
+  onTogglePlayback: () => void
   onNextMovie?: () => void
   nextMovieAvailable?: boolean
   nextMoviePending?: boolean
@@ -257,6 +254,7 @@ export function PlayerControlBar({
   videoRef,
   watchTogether,
   isPlaying,
+  onTogglePlayback,
   onNextMovie,
   nextMovieAvailable = false,
   nextMoviePending = false,
@@ -450,16 +448,7 @@ export function PlayerControlBar({
     const video = videoRef.current
     if (!video) return
     if (canControl) {
-      if (video.paused) {
-        // 用户主动恢复播放：清除暂停意图，允许异步 attach 完成后自动起播
-        clearUserPaused(video)
-        void video.play().catch(() => {})
-      } else {
-        // 用户主动暂停：打意图标记。MKV 的 playsvideo 管线 attach 需数秒，
-        // 完成后的补播逻辑会检查该标记，避免覆盖用户暂停（声音复活 bug）
-        markUserPaused(video)
-        video.pause()
-      }
+      onTogglePlayback()
     } else {
       if (isPlaying) {
         onRequestPause?.()
@@ -467,7 +456,7 @@ export function PlayerControlBar({
         onRequestPlay?.()
       }
     }
-  }, [canControl, videoRef, isPlaying, onRequestPause, onRequestPlay])
+  }, [canControl, videoRef, isPlaying, onTogglePlayback, onRequestPause, onRequestPlay])
 
   const handleVolumePointer = useCallback(
     (clientY: number) => {

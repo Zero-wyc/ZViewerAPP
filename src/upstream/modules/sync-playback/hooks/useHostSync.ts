@@ -15,11 +15,11 @@
  * 返回值与 useHostBroadcast 一致（broadcastState / sendControl / forceSync），
  * 因为这些是 useWatchTogether 需要调用的主动 API；其他子 hook 仅产生副作用。
  */
-import type { RefObject, MutableRefObject } from 'react'
+import { useRef, type RefObject, type MutableRefObject } from 'react'
 import type { WatchTogetherState, ControlAction } from '../types'
 import { useHostBroadcast } from './useHostBroadcast'
 import { useHostStateRequest } from './useHostStateRequest'
-import { useHostHeartbeat } from './useHostHeartbeat'
+import { useHostHeartbeat, type HostPlaybackSnapshot } from './useHostHeartbeat'
 import { useVideoEventBindings } from './useVideoEventBindings'
 
 export interface UseHostSyncOptions {
@@ -43,14 +43,17 @@ export function useHostSync({
   suppressEventsRef,
   setWatchTogether,
 }: UseHostSyncOptions): UseHostSyncReturn {
+  const stablePlaybackRef = useRef<HostPlaybackSnapshot | null>(null)
   const { broadcastState, sendControl, forceSync } = useHostBroadcast({
     roomId,
     isHostRef,
     videoRef,
+    suppressEventsRef,
+    stablePlaybackRef,
   })
 
-  useHostStateRequest({ roomId, isHostRef, videoRef })
-  useHostHeartbeat({ roomId, isHostRef, videoRef, suppressEventsRef })
+  useHostStateRequest({ roomId, isHostRef, videoRef, forceSync })
+  useHostHeartbeat({ roomId, isHostRef, videoRef, suppressEventsRef, stablePlaybackRef })
   useVideoEventBindings({
     isHostRef,
     videoRef,

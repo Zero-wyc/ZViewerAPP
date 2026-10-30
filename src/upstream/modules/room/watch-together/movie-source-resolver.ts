@@ -27,6 +27,7 @@ import { getEmbyApiMovieSource } from '@/modules/emby/embyApi'
 import { getEmbyMediaSourceId } from '@/modules/emby/playbackMode'
 import { getEmbeddedProxyStatus, isEmbeddedBilibiliHost, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
 import { getNativeQualityPolicy, getWebViewCapabilities, nativeQualityCacheKey, recordNativeQuality } from '@/modules/bilibili/nativeQualityPolicy'
+import { hasFreshBilibiliSource } from '@/modules/bilibili/sourceValidity'
 import {
   resolveAniSubsEpisode,
   buildAniSubsProxyUrl,
@@ -296,8 +297,9 @@ function purgeBilibiliResolveCache(movieId: number): void {
 export async function resolveBilibiliOnline(
   movie: Movie,
   onProgress?: (step: string, message: string) => void,
-  options?: { preferMp4?: boolean; forceRefresh?: boolean; timeoutMs?: number; page?: number; useHostCookie?: boolean }
+  options?: { preferMp4?: boolean; forceRefresh?: boolean; timeoutMs?: number; page?: number; useHostCookie?: boolean; signal?: AbortSignal }
 ): Promise<ResolvedMovieSource> {
+  options?.signal?.throwIfAborted()
   const parsePrefs = getBilibiliParseOptions(movie.id)
   const policy = getNativeQualityPolicy(movie.id)
   const qn = isEmbeddedBilibiliHost() ? policy.qn : undefined
@@ -320,6 +322,7 @@ export async function resolveBilibiliOnline(
   const forceRefresh = options?.forceRefresh === true
   const nativeSession = getEmbeddedProxyStatus().sessionVersion
   const capabilityKey = isEmbeddedBilibiliHost() && proxyUrl ? JSON.stringify(await getWebViewCapabilities()) : ''
+  options?.signal?.throwIfAborted()
   const requestedQn = isEmbeddedBilibiliHost() && policy.mode === 'manual' ? policy.qn : undefined
   const cacheKey = buildBilibiliResolveCacheKey(
     movie.id,
@@ -331,7 +334,7 @@ export async function resolveBilibiliOnline(
   ) + `|${movie.url}|${movie.cid ?? ''}|${isEmbeddedBilibiliHost() ? nativeQualityCacheKey(movie.id) : ''}|${capabilityKey}`
   if (!forceRefresh) {
     const cached = bilibiliResolveCache.get(cacheKey)
-    if (cached && cached.expiresAt > Date.now()) {
+    if (cached && cached.expiresAt > Date.now() && hasFreshBilibiliSource({ videoUrl: cached.resolved.sourceUrl, audioUrl: cached.resolved.audioUrl })) {
       return cached.resolved
     }
   } else {
@@ -341,7 +344,7 @@ export async function resolveBilibiliOnline(
   let resolvedSource: ResolvedMovieSource
   if (proxyUrl) {
     const pgc = extractBangumiId(movie.url)
-    const nativeOptions = { qualityMode: policy.mode, fallbackQn: policy.fallbackQn, timeoutMs: options?.timeoutMs, seasonId: pgc?.seasonId }
+    const nativeOptions = { qualityMode: policy.mode, fallbackQn: policy.fallbackQn, timeoutMs: options?.timeoutMs, seasonId: pgc?.seasonId, signal: options?.signal }
     if (pgc) {
       const resolved = await resolveBangumiViaCli(proxyUrl, pgc.epId ?? 0, movie.cid, requestedQn, effectivePreferMp4, forceDash, nativeOptions)
       resolvedSource = mapResolvedSourceToMovieSource(resolved, movie)
@@ -356,7 +359,7 @@ export async function resolveBilibiliOnline(
         qn,
         effectivePreferMp4,
         forceDash,
-        isEmbeddedBilibiliHost() ? { qualityMode: policy.mode, fallbackQn: policy.fallbackQn, timeoutMs: options?.timeoutMs, page: options?.page ?? movie.currentPage } : undefined
+        isEmbeddedBilibiliHost() ? { qualityMode: policy.mode, fallbackQn: policy.fallbackQn, timeoutMs: options?.timeoutMs, page: options?.page ?? movie.currentPage, signal: options?.signal } : undefined
       )
       resolvedSource = mapResolvedSourceToMovieSource(resolved, movie)
     } else {
@@ -390,6 +393,7 @@ export async function resolveBilibiliOnline(
     resolvedSource = mapResolvedSourceToMovieSource(resolved, movie)
   }
 
+  options?.signal?.throwIfAborted()
   if (isEmbeddedBilibiliHost() && nativeSession !== getEmbeddedProxyStatus().sessionVersion) throw new Error('账号已切换，请重新解析')
   bilibiliResolveCache.set(cacheKey, {
     resolved: resolvedSource,

@@ -1,14 +1,13 @@
 import { useEffect } from 'react'
 import type { RefObject, MutableRefObject } from 'react'
 import { useSocket } from '@/hooks/useSocket'
-import { useRoomStore } from '@/store/roomStore'
 import { SOCKET_EVENT } from '../constants'
-import { buildStateFromVideo } from '../services'
 
 export interface UseHostStateRequestOptions {
   roomId: string
   isHostRef: MutableRefObject<boolean>
   videoRef: RefObject<HTMLVideoElement>
+  forceSync: () => void
 }
 
 export type UseHostStateRequestReturn = void
@@ -29,23 +28,20 @@ export type UseHostStateRequestReturn = void
 export function useHostStateRequest({
   roomId,
   isHostRef,
-  videoRef,
+  forceSync,
 }: UseHostStateRequestOptions): UseHostStateRequestReturn {
   const { socket } = useSocket()
 
   useEffect(() => {
-    if (!socket || !isHostRef.current) return
+    if (!socket) return
 
     const handleRequestState = () => {
-      const video = videoRef.current
-      const storeState = useRoomStore.getState().watchTogether
-      const newState = buildStateFromVideo(video, storeState)
-      socket.emit(SOCKET_EVENT.STATE, { roomId, state: newState })
+      if (isHostRef.current) forceSync()
     }
 
     socket.on(SOCKET_EVENT.REQUEST_STATE, handleRequestState)
     return () => {
       socket.off(SOCKET_EVENT.REQUEST_STATE, handleRequestState)
     }
-  }, [socket, roomId, videoRef, isHostRef])
+  }, [socket, roomId, forceSync, isHostRef])
 }
