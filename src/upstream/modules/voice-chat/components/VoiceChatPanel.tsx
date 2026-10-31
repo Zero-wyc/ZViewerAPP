@@ -11,9 +11,11 @@ import {
   Volume2,
   VolumeX,
   UserX,
+  Download,
 } from 'lucide-react'
 import type { Socket } from 'socket.io-client'
 import { useVoiceChat, type VoiceMember } from '../hooks/useVoiceChat'
+import { useVoiceComponent } from '../hooks/useVoiceComponent'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import { Slider } from '@/components/ui/Slider'
@@ -32,6 +34,7 @@ interface VoiceChatPanelProps {
   embedded?: boolean
   onConnectionChange?: (joined: boolean) => void
   onAudioSessionChange?: (active: boolean) => void
+  visible?: boolean
 }
 
 export function VoiceChatPanel({
@@ -42,6 +45,7 @@ export function VoiceChatPanel({
   embedded = false,
   onConnectionChange,
   onAudioSessionChange,
+  visible = true,
 }: VoiceChatPanelProps) {
   const [expanded, setExpanded] = useState(false)
   const [editingPeer, setEditingPeer] = useState<string | null>(null)
@@ -72,12 +76,21 @@ export function VoiceChatPanel({
     muteVoiceMember,
     kickVoiceMember,
   } = useVoiceChat({ roomId, username })
+  const { status: component, busy: componentBusy, requesting, install } =
+    useVoiceComponent(Boolean(roomId), roomId)
+  const componentMissing = !component.available
+  const downloading = componentBusy || requesting
+  const downloadLabel = component.state === 'installing'
+    ? '正在安装…'
+    : component.state === 'downloading'
+      ? component.total > 0 ? `正在下载 ${Math.round(component.progress)}%` : '正在下载…'
+      : component.state === 'error' ? '重新下载语音组件' : '下载语音组件'
 
   useEffect(() => { onConnectionChange?.(joined) }, [joined, onConnectionChange])
   useEffect(() => { onAudioSessionChange?.(joining || joined) }, [joining, joined, onAudioSessionChange])
   useEffect(() => () => { onAudioSessionChange?.(false) }, [onAudioSessionChange])
 
-  if (!roomId) return null
+  if (!roomId || !visible) return null
 
   const memberCount = members.length
   const isMe = (socketId: string) => socketId === selfId
@@ -330,7 +343,20 @@ export function VoiceChatPanel({
       {joined && audioBlocked && (
         <Button className="min-h-11 w-full" onClick={() => void resumeAudio()}>点击恢复语音声音</Button>
       )}
-      {!joined && !joining && (
+      {componentMissing && !joined && (
+        <div className="mb-3 min-w-0 text-xs text-[var(--md-sys-color-on-surface-variant)]">
+          <p>服务器尚未安装语音组件</p>
+          {component.state === 'error' && component.message && (
+            <p role="alert" className="mt-1 break-words text-[var(--md-sys-color-error)]">{component.message}</p>
+          )}
+          {downloading && (
+            <progress aria-label="语音组件下载进度" max={100}
+              value={component.total > 0 ? component.progress : undefined}
+              className="mt-2 h-1 w-full" />
+          )}
+        </div>
+      )}
+      {!joined && !joining && !componentMissing && (
         <div className="mb-3 text-center text-xs text-[var(--md-sys-color-on-surface-variant)]">
           点击加入即可与房间内其他观众语音交流
         </div>
@@ -372,6 +398,12 @@ export function VoiceChatPanel({
               断开
             </Button>
           </>
+        ) : componentMissing ? (
+          <Button variant="primary" size="sm" block className="min-h-11"
+            loading={downloading} disabled={!socket?.connected || downloading}
+            icon={<Download className="h-3.5 w-3.5" />} onClick={() => void install()}>
+            {downloadLabel}
+          </Button>
         ) : (
           <Button
             variant="primary"

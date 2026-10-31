@@ -1,4 +1,4 @@
-/** One bounded refresh per recovery cycle; transport retries remain Socket.IO's job. */
+/** Bounded refresh cycles; ordinary transport retries remain Socket.IO's job. */
 export function createSocketRecovery(options: {
   refresh: () => Promise<boolean>
   current: () => boolean
@@ -11,12 +11,31 @@ export function createSocketRecovery(options: {
   let task: Promise<void> | null = null
   let attempted = false
   let recent: number[] = []
+  let retryTimer: ReturnType<typeof setTimeout> | null = null
+  let finishWait: ((ready: boolean) => void) | null = null
+  const cancel = () => {
+    generation++
+    task = null
+    attempted = false
+    if (retryTimer !== null) clearTimeout(retryTimer)
+    retryTimer = null
+    finishWait?.(false)
+    finishWait = null
+  }
+  const wait = (delay: number) => new Promise<boolean>(resolve => {
+    finishWait = resolve
+    retryTimer = setTimeout(() => {
+      retryTimer = null
+      finishWait = null
+      resolve(true)
+    }, delay)
+  })
   return {
-    cancel() { generation++; task = null; attempted = false },
-    connected() { attempted = false; options.status('') },
-    disconnected() { return this.recover() },
-    retry() { generation++; task = null; attempted = false; recent = []; return this.recover() },
-    recover(): Promise<void> {
+    cancel,
+    connected() { cancel(); options.status('') },
+    disconnected() { return this.recover(3) },
+    retry() { cancel(); recent = []; return this.recover(3) },
+    recover(maxAttempts = 1): Promise<void> {
       if (task) return task
       if (attempted || !options.current()) return Promise.resolve()
       attempted = true
@@ -33,11 +52,15 @@ export function createSocketRecovery(options: {
         // Defer refresh so task owns the entire attempt, even for sync failures.
         await Promise.resolve()
         try {
-          const ok = await options.refresh()
-          if (!current()) return
-          if (ok) options.connect()
-          else if (options.expired()) options.reject()
-          else options.status('连接恢复失败，请检查网络后重试')
+          for (let attempt = 0; attempt < maxAttempts && current(); attempt++) {
+            let ok = false
+            try { ok = await options.refresh() } catch { /* transient network failure */ }
+            if (!current()) return
+            if (ok) { options.connect(); return }
+            if (options.expired()) { options.reject(); return }
+            if (attempt < maxAttempts - 1 && !(await wait(attempt === 0 ? 1000 : 3000))) return
+          }
+          if (current()) options.status('连接恢复失败，请检查网络后重试')
         } catch {
           if (current()) options.status('连接恢复失败，请检查网络后重试')
         } finally {

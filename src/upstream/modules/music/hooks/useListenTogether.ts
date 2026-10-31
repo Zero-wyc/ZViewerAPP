@@ -6,6 +6,7 @@ import { useSystemSettingsStore } from '@/store/systemSettingsStore'
 import { initialMusicVolume, applyMusicOutputVolume } from '../utils/volume'
 import { loudnessNormalizer } from '../audio/loudnessNormalizer'
 import { resolveBilibiliAudioWithFallback, selectBilibiliAudioStream } from '../utils/bilibiliAudioStream'
+import { resolveBiliPartMeta } from '../bilibiliPlaylist'
 import { advancePersonalFm, fetchPersonalFmPool, usePersonalFmStore, type FetchFmPoolOptions } from '../personal-fm'
 import { FmRecovery } from '../fm-recovery'
 import type { FmSongItem } from '../personal-fm'
@@ -106,14 +107,16 @@ function biliRecKey(r: BiliRelatedItem): string {
 }
 
 /** 相关推荐条目 → queue-upsert 载荷（B站 条目 songId=0，标 recommended） */
-function biliRecToUpsertItem(r: BiliRelatedItem) {
+async function biliRecToUpsertItem(r: BiliRelatedItem) {
+  const meta = await resolveBiliPartMeta(r.bvid, r.cid, r.title)
+  const durationSec = meta.durationSec > 0 ? meta.durationSec : meta.multiPart ? 0 : r.duration || 0
   return {
     songId: 0,
-    name: r.title,
+    name: meta.name,
     artist: r.upName || '哔哩哔哩',
-    album: '',
+    album: meta.album,
     cover: portableMusicCoverUrl(r.pic),
-    durationMs: Math.round((r.duration || 0) * 1000),
+    durationMs: Number.isFinite(durationSec) ? Math.round(Math.max(0, durationSec) * 1000) : 0,
     vip: false,
     biliBvid: r.bvid,
     biliCid: r.cid ?? 0,
@@ -1351,6 +1354,13 @@ export function useListenTogether({
     const currentSocket = socketRef.current
     const currentRoomId = roomIdRef.current
     const state = useMusicStore.getState()
+    const expectedKey = state.currentKey
+    const expectedLoad = loadRequestRef.current
+    const expectedControl = fmPlayRequestRef.current
+    const isCurrent = () => socketRef.current === currentSocket &&
+      roomIdRef.current === currentRoomId && currentSocket?.connected !== false &&
+      useMusicStore.getState().currentKey === expectedKey && loadRequestRef.current === expectedLoad &&
+      fmPlayRequestRef.current === expectedControl && useMusicStore.getState().playMode === state.playMode
     // 当前播放条目：活动队列优先，房间队列兜底，本地插播条目再兜底
     //（搜索试听等本地 B站 条目不在房间队列，漏掉会永不触发推荐）
     const current = state.currentKey
@@ -1372,27 +1382,34 @@ export function useListenTogether({
       console.error('[useListenTogether] 推荐续播拉取 B站 推荐失败:', err)
       fresh = []
     }
+    if (!isCurrent()) return
     if (fresh.length === 0) {
       switchSong('next')
       return
     }
+    const firstPayload = await biliRecToUpsertItem(fresh[0])
+    if (!isCurrent()) return
     // 倒序逐条 afterCurrent 入队 → 最终顺序与推荐一致、紧跟当前曲目
     let added = 0
+    let firstAdded = false
     for (const r of [...fresh].reverse()) {
+      const payload = r === fresh[0] ? firstPayload : await biliRecToUpsertItem(r)
+      if (!isCurrent()) return
       const ok = await new Promise<boolean>((resolve) => {
         currentSocket.emit(
           'music:queue-upsert',
           {
             roomId: currentRoomId,
-            item: biliRecToUpsertItem(r),
+            item: payload,
             afterCurrent: true,
           },
           (res: { success?: boolean }) => resolve(res?.success !== false)
         )
       })
-      if (ok) added++
+      if (!isCurrent()) return
+      if (ok) { added++; if (r === fresh[0]) firstAdded = true }
     }
-    if (added === 0) {
+    if (added === 0 || !firstAdded) {
       switchSong('next')
       return
     }
@@ -1404,11 +1421,11 @@ export function useListenTogether({
       id: -1,
       roomId: '',
       songId: 0,
-      name: first.title,
-      artist: first.upName || '哔哩哔哩',
-      album: '',
-      cover: portableMusicCoverUrl(first.pic),
-      durationMs: Math.round((first.duration || 0) * 1000),
+      name: firstPayload.name,
+      artist: firstPayload.artist,
+      album: firstPayload.album,
+      cover: firstPayload.cover,
+      durationMs: firstPayload.durationMs,
       vip: false,
       order: 0,
       addedBy: '',
@@ -1423,7 +1440,7 @@ export function useListenTogether({
         positionSec: 0,
       })
     }
-    message.info(`已自动播放相关推荐：${first.title}`)
+    message.info(`已自动播放相关推荐：${firstPayload.name}`)
   }, [switchSong, loadAndPlaySong, broadcastSyncState])
 
   /**
@@ -1892,6 +1909,11 @@ export function useListenTogether({
         return 0
       }
       const store = useMusicStore.getState()
+      const expectedKey = store.currentKey
+      const expectedLoad = loadRequestRef.current
+      const isCurrent = () => socketRef.current === currentSocket &&
+        roomIdRef.current === currentRoomId && currentSocket.connected !== false &&
+        useMusicStore.getState().currentKey === expectedKey && loadRequestRef.current === expectedLoad
       // 当前播放条目：房间队列匹配优先，本地插播条目兜底
       const current = store.currentKey
         ? (store.queue.find((q) => musicItemKey(q) === store.currentKey) ??
@@ -1905,9 +1927,11 @@ export function useListenTogether({
       try {
         fresh = await fetchBiliRecs(current.biliBvid)
       } catch {
+        if (!isCurrent()) return 0
         message.error('获取 B站 推荐失败')
         return 0
       }
+      if (!isCurrent()) return 0
       if (fresh.length === 0) {
         message.info('B站 未返回可加入的相关推荐（推荐均已在使用中）')
         return 0
@@ -1916,17 +1940,20 @@ export function useListenTogether({
         // 倒序逐条 afterCurrent 入队 → 最终顺序与推荐一致、紧跟当前曲目
         let added = 0
         for (const r of [...fresh].reverse()) {
+          const payload = await biliRecToUpsertItem(r)
+          if (!isCurrent()) return added
           const ok = await new Promise<boolean>((resolve) => {
             currentSocket.emit(
               'music:queue-upsert',
               {
                 roomId: currentRoomId,
-                item: biliRecToUpsertItem(r),
+                item: payload,
                 afterCurrent: true,
               },
               (res: { success?: boolean }) => resolve(res?.success !== false)
             )
           })
+          if (!isCurrent()) return added
           if (ok) added++
         }
         if (added > 0) {
@@ -1942,12 +1969,14 @@ export function useListenTogether({
       // 观众：倒序逐条 addQueue 申请（房主代理后顺序=推荐顺序、紧跟当前）；
       // ack 失败（如房主不在线）直接提示，申请结果另经 control-response 回执
       for (const r of [...fresh].reverse()) {
+        const payload = await biliRecToUpsertItem(r)
+        if (!isCurrent()) return 0
         currentSocket.emit(
           'music:control-request',
           {
             roomId: currentRoomId,
             action: 'addQueue' as const,
-            item: biliRecToUpsertItem(r),
+            item: payload,
             afterCurrent: true,
           },
           (res: { success?: boolean; message?: string }) => {

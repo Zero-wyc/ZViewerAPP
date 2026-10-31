@@ -42,6 +42,8 @@ export interface SystemSettings {
   roomMultiInstanceLogin: boolean
   /** 自定义 LiveKit 服务器地址（客户端连接；空=按页面域名自动推导或环境变量） */
   livekitExternalUrl: string
+  showVoiceChatButton: boolean
+  showTrafficPanel: boolean
   dataSourceConfig?: Record<string, unknown> | null
 }
 
@@ -77,6 +79,8 @@ const DEFAULT_SETTINGS: SystemSettings = {
   cdnProxyUrl: 'https://gh-proxy.com',
   roomMultiInstanceLogin: false,
   livekitExternalUrl: '',
+  showVoiceChatButton: true,
+  showTrafficPanel: true,
   dataSourceConfig: null,
 }
 

@@ -111,6 +111,7 @@ test('transport failures do not trigger a second format request', async () => {
 
 test('CLI audio-only resolution leaves the video capability guard active for video playback', async () => {
   const api = await loadSource('../src/upstream/modules/bilibili/cliApi.ts', {
+    './bilibiliApi': { getBilibiliVideoView: async () => assert.fail('unexpected detail request') },
     '../../../platform/connectionTransport': { logicalConnectionUrl: value => value },
     '../../../platform/bilibiliProxy': {
       embeddedBilibiliProxy: { logout: async () => {} },

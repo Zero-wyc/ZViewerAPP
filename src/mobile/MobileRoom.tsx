@@ -50,6 +50,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
   const moderators = useRoomStore(s => s.moderators)
   const user = useAuthStore(s => s.user)
   const matrix = useSystemSettingsStore(s => s.roomPermissionMatrix)
+  const showVoiceChatButton = useSystemSettingsStore(s => s.showVoiceChatButton)
   const { isModeSwitching, handleSwitchMode } = useRoomModeSwitch(socket, roomId, room.isHost)
   const streamStatus = useStreamStatus(socket, roomId)
   const { shareMethod } = useShareMethod(socket, roomId, room.isHost)
@@ -136,6 +137,9 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
     window.addEventListener('keydown', close)
     return () => window.removeEventListener('keydown', close)
   }, [voiceOpen])
+  useEffect(() => {
+    if (!showVoiceChatButton) setVoiceOpen(false)
+  }, [showVoiceChatButton])
 
   useEffect(() => {
     if (!socket || !room.isHost || (mode !== 'listen-together' && mode !== 'screen-share')) return
@@ -173,7 +177,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
         <button className="icon-button" aria-label="离开房间" title="离开房间" onClick={() => setLeaveOpen(true)}><ArrowLeft size={22} /></button>
         <div className="mobile-room-title"><strong>{name || roomId}</strong><span>{room.isHost ? '房主' : '观众'} · {music ? '一起听' : mode === 'screen-share' ? '屏幕共享' : '同步观影'}</span></div>
         {ready && <ScreenOrientationButton className="icon-button mobile-orientation-button" />}
-        {ready && <button className={`icon-button mobile-voice-trigger ${voiceJoined ? 'is-connected' : ''}`} title={voiceJoined ? '语音已连接' : '语音聊天'} aria-label="语音聊天" aria-expanded={voiceOpen} onClick={() => setVoiceOpen(value => !value)}><Headphones size={20} /></button>}
+        {ready && showVoiceChatButton && <button className={`icon-button mobile-voice-trigger ${voiceJoined ? 'is-connected' : ''}`} title={voiceJoined ? '语音已连接' : '语音聊天'} aria-label="语音聊天" aria-expanded={voiceOpen} onClick={() => setVoiceOpen(value => !value)}><Headphones size={20} /></button>}
         <button className="icon-button" title="房间设置" aria-label="房间设置" onClick={() => setSettingsOpen(true)}><UsersRound size={20} /></button>
       </header>
       {!connected && <div className="mobile-status" role="status"><WifiOff size={15} />{recoveryError || '连接已断开，正在重连'}{recoveryError && <button onClick={reconnectSocket}>重试连接</button>}</div>}
@@ -231,7 +235,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
           </section>
         </div>
       )}
-      {voiceAvailable && <section className="mobile-voice-panel" hidden={!voiceOpen || !ready} aria-label="语音面板">
+      {voiceAvailable && <section className="mobile-voice-panel" hidden={!showVoiceChatButton || !voiceOpen || !ready} aria-label="语音面板">
         <div className="mobile-voice-heading"><strong>房间语音</strong><button className="icon-button" aria-label="收起语音面板" title="收起语音面板" onClick={() => setVoiceOpen(false)}><X size={20} /></button></div>
         <VoiceChatPanel embedded socket={socket} roomId={roomId} username={user?.username}
           canManageVoice={room.isHost || permissions.isModerator} onConnectionChange={setVoiceJoined}

@@ -3,6 +3,7 @@ import { logicalConnectionUrl } from '../../../platform/connectionTransport'
 import { embeddedBilibiliProxy, getEmbeddedProxyStatus, isEmbeddedBilibiliHost } from '../../../platform/bilibiliProxy'
 import { getWebViewCapabilities } from './nativeQualityPolicy'
 import { assertVideoCodecSupported } from '../player/codec-capability'
+import { getBilibiliVideoView } from './bilibiliApi'
 
 const BV_REGEX = /BV[0-9A-Za-z]{10}/
 
@@ -13,6 +14,13 @@ export function extractBvid(url: string): string | null {
   if (!url) return null
   const match = url.match(BV_REGEX)
   return match ? match[0] : null
+}
+
+/** A page selected in search or a pasted URL must remain selected. */
+export function extractBilibiliPage(input: string): number | undefined {
+  const match = input.match(/[?&](?:p|page)=(\d+)(?=&|#|\s|$)/i)
+  const page = match ? Number(match[1]) : 0
+  return Number.isSafeInteger(page) && page > 0 ? page : undefined
 }
 
 /**
@@ -147,6 +155,23 @@ export class CliResolveError extends Error {
   }
 }
 
+const pageCidCache = new Map<string, number>()
+
+async function resolvePageCid(bvid: string, page: number): Promise<number> {
+  const key = `${bvid}#${page}`
+  const cached = pageCidCache.get(key)
+  if (cached) return cached
+  const view = await getBilibiliVideoView(bvid)
+  const cid = view.pages?.find(part => part.page === page)?.cid ||
+    (page === 1 ? view.cid || view.pages?.[0]?.cid : 0)
+  if (!Number.isSafeInteger(cid) || !cid || cid <= 0) {
+    throw new CliResolveError(`未取到 P${page} 的 cid，请重新解析`)
+  }
+  if (pageCidCache.size >= 200) pageCidCache.clear()
+  pageCidCache.set(key, cid)
+  return cid
+}
+
 /**
  * 通过本地 CLI 代理解析 B站 视频。
  *
@@ -181,15 +206,28 @@ export async function resolveBilibiliViaCli(
   if (pgc?.seasonId) { params.delete('bvid'); params.set('seasonId', String(pgc.seasonId)) }
   const sessionVersion = getEmbeddedProxyStatus().sessionVersion
   const embedded = isEmbeddedBilibiliHost() && proxyUrl === getEmbeddedProxyStatus().proxyUrl
+  const page = nativeOptions?.page ?? extractBilibiliPage(bvid)
+  let effectiveCid = cid
+  if (!embedded && !pgc && !(Number.isSafeInteger(cid) && (cid as number) > 0)) {
+    const videoId = extractBvid(bvid)
+    if (!videoId) throw new CliResolveError('无法识别 BV 号，请使用完整视频链接')
+    try {
+      effectiveCid = await resolvePageCid(videoId, page ?? 1)
+    } catch (error) {
+      nativeOptions?.signal?.throwIfAborted()
+      throw error instanceof CliResolveError ? error : new CliResolveError('获取视频分P信息失败，请重新解析')
+    }
+  }
+  nativeOptions?.signal?.throwIfAborted()
   if (embedded) {
     params.set('qualityMode', nativeOptions?.qualityMode ?? 'autoMax')
     if (nativeOptions?.fallbackQn) params.set('fallbackQn', String(nativeOptions.fallbackQn))
     if (nativeOptions?.timeoutMs) params.set('timeoutMs', String(nativeOptions.timeoutMs))
-    if (nativeOptions?.page) params.set('page', String(nativeOptions.page))
+    if (page && Number.isSafeInteger(page) && page > 0) params.set('page', String(page))
     params.set('capabilities', JSON.stringify(await getWebViewCapabilities()))
   }
-  if (cid != null && Number.isFinite(cid)) {
-    params.set('cid', String(cid))
+  if (effectiveCid != null && Number.isSafeInteger(effectiveCid) && effectiveCid > 0) {
+    params.set('cid', String(effectiveCid))
   }
   if (embedded && qn != null && nativeOptions?.qualityMode == null) params.set('qualityMode', 'manual')
   if (qn != null && Number.isFinite(qn)) {
@@ -248,7 +286,7 @@ export async function resolveBilibiliViaCli(
     duration: data.duration,
     format: (data.format as ResolvedSource['format']) || 'mp4',
     loggedIn: data.loggedIn,
-    cid: data.cid ?? cid,
+    cid: data.cid ?? effectiveCid,
     currentQn: data.currentQn,
     acceptQuality: data.acceptQuality,
     vipStatus: data.vipStatus,

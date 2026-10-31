@@ -25,6 +25,7 @@ jobs:
       - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;30.0.16248370'
       - run: echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/30.0.16248370" >> "$GITHUB_ENV"
       - run: npm ci
+      - run: npm run test:maintenance && npm run test:bilibili && npm run test:music:toolbar && npm run test:alignment
       - run: npm run android:sync
       - run: chmod +x ZV-Android/gradlew && ZV-Android/gradlew -p ZV-Android assembleDebug
       - uses: actions/upload-artifact@v4

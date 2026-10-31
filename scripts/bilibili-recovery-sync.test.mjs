@@ -149,6 +149,7 @@ test('full sync and state requests sanitize local proxy capabilities and retain 
     off: event => listeners.delete(event),
   }
   const cli = await load('../src/upstream/modules/bilibili/cliApi.ts', {
+    './bilibiliApi': { getBilibiliVideoView: async () => assert.fail('unexpected detail request') },
     '../../../platform/connectionTransport': { logicalConnectionUrl },
     '../../../platform/bilibiliProxy': { embeddedBilibiliProxy: {}, getEmbeddedProxyStatus: () => ({}), isEmbeddedBilibiliHost: () => true },
     './nativeQualityPolicy': { getWebViewCapabilities: () => ({}) },

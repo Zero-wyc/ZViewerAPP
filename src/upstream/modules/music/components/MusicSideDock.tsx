@@ -19,6 +19,7 @@ import { TrafficPanel } from '@/modules/room/components/TrafficPanel'
 import { RoomInfoPanel } from '@/modules/room/components/RoomInfoPanel'
 import { CommentPanel } from '@/components/CommentPanel'
 import { cn } from '@/lib/utils'
+import { useSystemSettingsStore } from '@/store/systemSettingsStore'
 
 interface MusicSideDockProps {
   socket: Socket | null
@@ -45,6 +46,8 @@ export function MusicSideDock({
   commentsOnly = false,
 }: MusicSideDockProps) {
   const [open, setOpen] = useState(false)
+  const showVoiceChatButton = useSystemSettingsStore(state => state.showVoiceChatButton)
+  const showTrafficPanel = useSystemSettingsStore(state => state.showTrafficPanel)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const clearCloseTimer = useCallback(() => {
@@ -131,6 +134,7 @@ export function MusicSideDock({
           {!commentsOnly && showVoice && <div className="flex min-h-0 shrink-0 flex-col">
             <VoiceChatPanel
               embedded
+              visible={showVoiceChatButton}
               socket={socket}
               roomId={roomId}
               username={username}
@@ -152,7 +156,7 @@ export function MusicSideDock({
             <RoomInfoPanel roomId={roomId} isHost={isHost} />
           </div>}
           {/* 流量统计（内容较少，自适应高度） */}
-          {!commentsOnly && <div className="shrink-0">
+          {!commentsOnly && showTrafficPanel && <div className="shrink-0">
             <TrafficPanel embedded />
           </div>}
         </div>

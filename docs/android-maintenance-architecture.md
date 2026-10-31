@@ -1,5 +1,13 @@
 # Android 客户端维护文档
 
+## 2.3.5 / 235 服务端对齐（2026-10-31）
+
+客户端对齐服务端 main `e1ed57c31662e5920130af0ca93d89f5cd419720`，本地服务端指定目录受管源码与上游一致。共享实现补齐 `/api/voice/status`、`/api/voice/install` 的状态、下载、安装和失败重试；组件安装在服务器，旧服务端 404 与外置 LiveKit 保留原加入流程。公开设置 `showVoiceChatButton` / `showTrafficPanel` 默认显示、尊重显式 false；隐藏语音入口不卸载既有连接。查询按服务器、用户、房间代次取消，轮询不重叠，旧结果不能覆盖安装完成状态。
+
+Socket 优先消费 `auth-expired(TOKEN_EXPIRED)`，兼容旧服务端本地 JWT 已过期的断连；最多三次刷新，踢出、关房、登出或换身份停止恢复。FLV 错误和 EOF 持续重连，冷启动不受点播 30 秒 metadata 超时影响，仍未起播时显示连接中；卸载和取消释放监听及重试。B站指定分P和画质切换保留 page/CID，音乐推荐、续播、观众申请共用每P元数据，保留 2.3.4 原生恢复、暂停意图、代理和 DASH 修复。
+
+324 项客户端回归及服务端本地验证通过，Android/HarmonyOS 版本统一 2.3.5 / 235。详细证据、签名构建与验收边界见 [对齐记录](server-client-alignment-2026-10-31.md)及 [发行说明](releases/client-2.3.5.md)。本轮没有 Android 实体设备在线，不将本地服务和浏览器结果记为设备后台播放验收；iOS 未修改或构建，NAS 未部署。
+
 ## 2.3.4 / 234 正式发行（2026-10-30）
 
 用户已确认本轮“测试通过”，并授权提交源码及发布 Android / HarmonyOS 2.3.4。客户端源码更新至 main，正式版本统一为 2.3.4 / 234，发行见 [ZViewer-Client V2.3.4](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.3.4)及 [发行说明](releases/client-2.3.4.md)。本版包含下节全部 B站恢复、暂停意图、稳定同步、地址有效期和 DASH 索引修复。用户反馈未指定设备型号、系统版本或时长，不扩展为所有实体设备通过。

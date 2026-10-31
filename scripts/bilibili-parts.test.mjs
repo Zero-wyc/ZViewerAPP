@@ -3,12 +3,13 @@ import test from 'node:test'
 import { readFile } from 'node:fs/promises'
 import { stripTypeScriptTypes } from 'node:module'
 import { SourceTextModule, SyntheticModule, createContext } from 'node:vm'
+import { normalizeBiliPages, pickBiliPartMeta } from '../src/upstream/modules/music/utils/biliPartName.ts'
 
 async function load(root='../src/upstream/') {
  const context=createContext({Set,Number,Error})
  const source=await readFile(new URL(root+'modules/music/bilibiliPlaylist.ts',import.meta.url),'utf8')
  const module=new SourceTextModule(stripTypeScriptTypes(source),{context})
- await module.link(name=>{const values=name.includes('neteaseImage')?{portableMusicCoverUrl:value=>value}:{getBilibiliVideoView:async()=>{throw Error('No live request')}};
+ await module.link(name=>{const values=name.includes('biliPartName')?{normalizeBiliPages,pickBiliPartMeta}:name.includes('neteaseImage')?{portableMusicCoverUrl:value=>value}:{getBilibiliVideoView:async()=>{throw Error('No live request')}};
  return new SyntheticModule(Object.keys(values),function(){for(const [key,value]of Object.entries(values))this.setExport(key,value)},{context})})
  await module.evaluate();return module.namespace
 }

@@ -57,6 +57,7 @@ import { setBilibiliParseOptions } from '@/modules/bilibili/parseOptions'
 import { normalizeBilibiliInput, isBilibiliShortLink } from '@/modules/bilibili/input'
 import {
   extractBvid,
+  extractBilibiliPage,
   extractBangumiId,
   resolveBilibiliViaCli,
   resolveBangumiViaCli,
@@ -919,6 +920,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
       const shortLink = isBilibiliShortLink(inputUrl)
       // PGC（番剧 ep/ss 链接）：CLI 分支按 epId 走番剧解析
       const bangumiId = extractBangumiId(inputUrl)
+      const pinnedPage = bangumiId ? undefined : extractBilibiliPage(inputUrl)
 
       let resolved: ResolvedSource | undefined
       // CLI 已连接时优先使用本地 CLI 代理解析（使用用户自己的 B站 Cookie，可获取高画质）
@@ -956,7 +958,8 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
             undefined,
             undefined,
             false,
-            true
+            true,
+            { page: pinnedPage }
           )
           resolvedViaCliRef.current = true
         } catch (cliErr) {
@@ -977,12 +980,22 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
       if (!resolved) {
         setResolveProgress('正在通过服务器解析...')
         resolvedViaCliRef.current = false
-        resolved = await resolveBilibili(inputUrl, undefined, (_step, msg) =>
-          setResolveProgress(msg)
+        resolved = await resolveBilibili(
+          inputUrl,
+          undefined,
+          (_step, msg) => setResolveProgress(msg),
+          pinnedPage != null ? { page: pinnedPage } : undefined
         )
       }
 
-      setResolvedMovie(resolved)
+      const pinnedPart = pinnedPage != null ? resolved.pages?.find(part => part.page === pinnedPage) : undefined
+      if (pinnedPage != null && resolved.pages?.length && (!pinnedPart || resolved.cid && pinnedPart.cid !== resolved.cid)) {
+        throw new Error(`未能解析指定的 P${pinnedPage}，请重新选择分P`)
+      }
+      const resolvedPinned = pinnedPage != null && resolved.currentPage !== pinnedPage
+        ? { ...resolved, currentPage: pinnedPage }
+        : resolved
+      setResolvedMovie(resolvedPinned)
       // PGC 试看提示：会员专享集 + 非大会员账号时后端只返回试看片段
       if (resolved.preview) {
         message.info(
@@ -990,9 +1003,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
         )
       }
       // 自动检测多 P 视频：若有多 P，弹出分集选择界面
-      if (resolved.pages && resolved.pages.length > 1) {
-        setShowPageSelector(true)
-      }
+      setShowPageSelector(pinnedPage == null && Boolean(resolved.pages && resolved.pages.length > 1))
     } catch (err) {
       console.error('[MoviePushPanel] resolve error:', err)
       message.error(err instanceof Error ? err.message : '解析失败')
@@ -1013,6 +1024,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
       const inputUrl = normalizeBilibiliInput(resolvedMovie.resolvedUrl || url)
       const bvid = extractBvid(inputUrl)
       const bangumiId = extractBangumiId(inputUrl)
+      const page = bangumiId ? undefined : resolvedMovie.currentPage ?? extractBilibiliPage(inputUrl)
 
       let resolved: ResolvedSource | undefined
       // CLI 已连接时通过本地 CLI 代理切换清晰度（使用用户自己的 B站 Cookie）
@@ -1050,7 +1062,8 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
             resolvedMovie.cid,
             qn,
             false,
-            true
+            true,
+            { page }
           )
           resolvedViaCliRef.current = true
         } catch (cliErr) {
@@ -1072,7 +1085,8 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
         resolved = await resolveBilibiliWithOptions(
           inputUrl,
           qn,
-          (_step, msg) => setResolveProgress(msg)
+          (_step, msg) => setResolveProgress(msg),
+          bangumiId ? undefined : { page, cid: resolvedMovie.cid }
         )
       }
       setResolvedMovie(resolved)
@@ -1190,7 +1204,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
           inputUrl,
           resolvedMovie.currentQn,
           (_step, msg) => setResolveProgress(msg),
-          { page }
+          { page, cid: targetPage.cid }
         )
       }
       setResolvedMovie(resolved)

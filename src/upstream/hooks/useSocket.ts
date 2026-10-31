@@ -3,7 +3,7 @@ import { io, type Socket } from 'socket.io-client'
 import { create } from 'zustand'
 import { useAuthStore } from '@/store/authStore'
 import { getSocketUrl, refreshAccessToken, hasExpiredSession, cancelAuthRefresh } from '@/lib/api'
-import { buildSocketAuth } from '@/lib/authTransport'
+import { buildSocketAuth, isAccessTokenExpired } from '@/lib/authTransport'
 import { dispatchRoomMediaTeardown } from '@/lib/mediaTeardown'
 import { clearAuthTokens } from '@/lib/authTransport'
 import { createSocketRecovery } from './socketRecovery'
@@ -43,28 +43,49 @@ function ensureSocket() {
   const user = useAuthStore.getState().user
   const session = createSocketRecovery({
     refresh: refreshAccessToken,
-    current: () => connection.getState().socket === socket && getSocketUrl() === server && !!user && useAuthStore.getState().user?.id === user.id && useAuthStore.getState().user?.role === user.role,
+    current: () => connection.getState().socket === socket && getSocketUrl() === server && !!user && !useAuthStore.getState().hasLoggedOut && useAuthStore.getState().user?.id === user.id && useAuthStore.getState().user?.role === user.role,
     expired: hasExpiredSession,
     connect: () => { if (!socket.connected) socket.connect() },
     reject: () => { clearAuthTokens(); useAuthStore.getState().logout(); resetSocket() },
     status: recoveryError => connection.setState({ recoveryError }),
   })
   recovery = session
+  let authExpired = false
+  let receivedAuthNotice = false
+  let recoveryBlocked = false
+  socket.on('auth-expired', (payload: { code?: string } | undefined) => {
+    receivedAuthNotice = true
+    authExpired = !recoveryBlocked && payload?.code === 'TOKEN_EXPIRED'
+  })
+  const stopRecovery = () => {
+    authExpired = false
+    recoveryBlocked = true
+    session.cancel()
+  }
+  socket.on('viewer-kicked', stopRecovery)
+  socket.on('room-closed', stopRecovery)
   socket.on('connect', () => {
+    authExpired = false
+    receivedAuthNotice = false
+    recoveryBlocked = false
     session.connected()
     connection.setState({ connected: true })
   })
   socket.on('disconnect', reason => {
     connection.setState({ connected: false })
-    if (reason === 'io server disconnect') {
-      // A new server disconnect starts a new bounded cycle; connect_error within
-      // that cycle must not start an endless refresh/connect loop.
+    const expired = authExpired
+    const legacyExpiry = !receivedAuthNotice && isAccessTokenExpired()
+    authExpired = false
+    receivedAuthNotice = false
+    // Older servers omit auth-expired; the locally stored JWT expiry is a hint
+    // only. Kicks and room closure always cancel automatic recovery.
+    if (reason === 'io server disconnect' && !recoveryBlocked && (expired || legacyExpiry)) {
       void session.disconnected()
-    } else if (reason === 'io client disconnect') session.cancel()
+    } else session.cancel()
   })
   socket.on('connect_error', error => {
     connection.setState({ connected: false })
-    if (/token|unauthor|认证|令牌/i.test(error.message)) void session.recover()
+    if (!recoveryBlocked && /token|unauthor|认证|令牌/i.test(error.message)) void session.recover()
   })
   socket.connect()
 }

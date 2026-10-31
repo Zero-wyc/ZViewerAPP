@@ -4,7 +4,7 @@
  * - ArtPlayer 仅承担 UI（isLive 模式 + 自定义玻璃拟态控制栏），与
  *   WebRTC 控制栏风格一致
  * - 拉流与 flv.js 实例管理走引擎层统一路由（selectEngine → flv-engine
- *   isLive 模式）：重连（指数退避 5 次）、延迟追赶、统计上报由引擎
+ *   isLive 模式）：重连（快速退避后持续低频等待）、延迟追赶、统计上报由引擎
  *   提供，本组件只消费 FlvRuntimeEvents 驱动连接状态机与统计展示
  * - 保留：自动播放静音重试、卡死自动恢复（waiting 兜底跳帧 +
  *   stalled 定时器检测）、刷新重建
@@ -143,6 +143,7 @@ export function FlvPlayer({
     const container = containerRef.current
     if (!container || !src) return
 
+    let disposed = false
     configureArtStatics()
 
     setLoading(true)
@@ -276,11 +277,15 @@ export function FlvPlayer({
 
     void attachSource(video, source)
       .then(() => {
-        // metadata 就绪：关闭 loading（部分流 MEDIA_INFO 早于 resolve 已触发）
-        setLoading(false)
-        setErrorMsg(null)
-        setStreamStatus('playing')
-        onStatusChangeRef.current?.('playing')
+        if (disposed) return
+        // Live attach returns cleanup before its first media packet arrives.
+        // Runtime onReady completes the initial connection when metadata is late.
+        if (video.readyState >= 1) {
+          setLoading(false)
+          setErrorMsg(null)
+          setStreamStatus('playing')
+          onStatusChangeRef.current?.('playing')
+        }
 
         // 自动播放（静音重试处理浏览器自动播放策略）
         if (autoPlayRef.current) {
@@ -312,7 +317,8 @@ export function FlvPlayer({
         }
       })
       .catch((err: unknown) => {
-        // attach 失败（waitForMetadata 30s 超时 / flv.js 不可用等）
+        if (disposed) return
+        // attach 失败（flv.js 不可用或引擎挂载失败等）
         const message = err instanceof Error ? err.message : '直播流连接失败'
         console.error('[FlvPlayer] attach failed:', err)
         setErrorMsg(message)
@@ -357,6 +363,7 @@ export function FlvPlayer({
     }, 3000)
 
     return () => {
+      disposed = true
       video.removeEventListener('waiting', handleWaiting)
       video.removeEventListener('play', handlePlay)
       video.removeEventListener('pause', handlePause)
