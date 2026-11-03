@@ -1,28 +1,49 @@
 # Android 客户端维护文档
 
+## 稳定维护规则（2026-11-03）
+
+`docs/` 仅保留三端维护指南。功能合同、源码入口、构建方法、故障定位及验收边界写入对应指南；版本摘要保留在根目录 `CHANGELOG.md`。阶段方案、发布附件和一次性验证不再单独积累文档。以下带日期的记录描述当时状态，不能作为当前设备验收结论。
+
+当前客户端基线为 Android / HarmonyOS 2.3.5 / 235，iOS 保持 2.1.10 / build 31。此次仅整理文档和本地 Git，不修改功能或构建安装包。被移走的阶段文档可通过 `git show d9852ce:docs/原文件名.md` 查询；正式包和发布记录仍保留在本地 `release/`。
+
+现有 `test:maintenance`、`test:bilibili`、`test:music:toolbar`、`test:alignment` 为 CI 使用的有效回归，连同依赖的夹具继续保留。仅将一次性 `.ui-validation/` 预览、截图、媒体样本和过程日志送入回收站；下文 2026-10-23 的“测试已清理”仅指当时历史测试。
+
+### 最新功能的维护入口
+
+| 范围 | 入口与检查重点 |
+| --- | --- |
+| 语音组件与公开入口 | `src/upstream/modules/voice-chat/hooks/useVoiceComponent.ts`、`VoiceChatPanel`、`systemSettingsStore`；旧服 404、外置 LiveKit、安装失败重试、请求代次及隐藏入口保留既有会话。 |
+| 令牌与直播恢复 | `src/upstream/hooks/useSocket.ts`、`socketRecovery.ts`、`FlvPlayer`；仅明确到期刷新、三次上限，踢出/关房/退出取消；FLV 错误和 EOF 持续重试，冷流不使用点播 metadata 超时。 |
+| B站恢复与稳定同步 | `useVideoSource.ts`、`usePlayerSource.ts`、`native-stall-recovery.ts` 及 host 同步 hooks；每轮预算、60 秒截止、旧任务取消、显式暂停与稳定心跳。 |
+| 原生代理与 DASH | `ZV-HarmonyOS/entry/src/main/ets/services/BilibiliLocalProxy.ets`、`src/upstream/modules/player/engines/dash/mpd-builder.ts`；上游请求销毁、下游断连、多 SIDX 与 EOF。 |
+| 分P与一起听 | `src/upstream/modules/bilibili/`、`src/upstream/modules/music/`；page/CID、每P名称和时长、迟到推荐取消、歌词页脚与横屏安全区。 |
+| 播放器手势 | `watchVideoGestures`、`useScreenShareLevelGestures`、`playerBrightness`；左亮度/右本机音量、窗口亮度恢复、直播不 seek、观众权限。 |
+
+2.3.5 的 324 项回归、受控语音面板交互、本地服务/RTMP 检查和签名包检查为历史结果；未新增 Android/HarmonyOS 实体设备、长时后台或 NAS 部署验收。语音组件实际二进制下载未在该轮执行。后续修复必须重新运行相关检查并分别记录设备结果。
+
 ## 2.3.5 / 235 服务端对齐（2026-10-31）
 
 客户端对齐服务端 main `e1ed57c31662e5920130af0ca93d89f5cd419720`，本地服务端指定目录受管源码与上游一致。共享实现补齐 `/api/voice/status`、`/api/voice/install` 的状态、下载、安装和失败重试；组件安装在服务器，旧服务端 404 与外置 LiveKit 保留原加入流程。公开设置 `showVoiceChatButton` / `showTrafficPanel` 默认显示、尊重显式 false；隐藏语音入口不卸载既有连接。查询按服务器、用户、房间代次取消，轮询不重叠，旧结果不能覆盖安装完成状态。
 
 Socket 优先消费 `auth-expired(TOKEN_EXPIRED)`，兼容旧服务端本地 JWT 已过期的断连；最多三次刷新，踢出、关房、登出或换身份停止恢复。FLV 错误和 EOF 持续重连，冷启动不受点播 30 秒 metadata 超时影响，仍未起播时显示连接中；卸载和取消释放监听及重试。B站指定分P和画质切换保留 page/CID，音乐推荐、续播、观众申请共用每P元数据，保留 2.3.4 原生恢复、暂停意图、代理和 DASH 修复。
 
-324 项客户端回归及服务端本地验证通过，Android/HarmonyOS 版本统一 2.3.5 / 235。详细证据、签名构建与验收边界见 [对齐记录](server-client-alignment-2026-10-31.md)及 [发行说明](releases/client-2.3.5.md)。本轮没有 Android 实体设备在线，不将本地服务和浏览器结果记为设备后台播放验收；iOS 未修改或构建，NAS 未部署。
+324 项客户端回归及服务端本地验证通过，Android/HarmonyOS 版本统一 2.3.5 / 235。详细证据、签名构建与验收边界见 [对齐记录](https://github.com/Zero-wyc/ZViewerAPP/blob/d9852ce453f37c06048a91026cf2d22357fa7bac/docs/server-client-alignment-2026-10-31.md)及 [发行说明](https://github.com/Zero-wyc/ZViewerAPP/blob/d9852ce453f37c06048a91026cf2d22357fa7bac/docs/releases/client-2.3.5.md)。本轮没有 Android 实体设备在线，不将本地服务和浏览器结果记为设备后台播放验收；iOS 未修改或构建，NAS 未部署。
 
 ## 2.3.4 / 234 正式发行（2026-10-30）
 
-用户已确认本轮“测试通过”，并授权提交源码及发布 Android / HarmonyOS 2.3.4。客户端源码更新至 main，正式版本统一为 2.3.4 / 234，发行见 [ZViewer-Client V2.3.4](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.3.4)及 [发行说明](releases/client-2.3.4.md)。本版包含下节全部 B站恢复、暂停意图、稳定同步、地址有效期和 DASH 索引修复。用户反馈未指定设备型号、系统版本或时长，不扩展为所有实体设备通过。
+用户已确认本轮“测试通过”，并授权提交源码及发布 Android / HarmonyOS 2.3.4。客户端源码更新至 main，正式版本统一为 2.3.4 / 234，发行见 [ZViewer-Client V2.3.4](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.3.4)及 [发行说明](https://github.com/Zero-wyc/ZViewerAPP/blob/d9852ce453f37c06048a91026cf2d22357fa7bac/docs/releases/client-2.3.4.md)。本版包含下节全部 B站恢复、暂停意图、稳定同步、地址有效期和 DASH 索引修复。用户反馈未指定设备型号、系统版本或时长，不扩展为所有实体设备通过。
 
-正式 APK 位于 `release/client-v2.3.4/ZViewer-Client-2.3.4-android.apk`，同目录提供鸿蒙 HAP、构建日志和最终构建时各一次 SHA256；发布复用对应校验记录。系统要求、发布签名与依赖不变。修复阶段已通过 246 项回归、类型检查、双端签名构建及鸿蒙模拟器中断与暂停补测，详见 [B站恢复修复记录](bilibili-watch-recovery-2026-10-30.md)。下文 2.3.3 / 233 的“本地验证版”“未推送或发布”保留当时证据；本轮 iOS 未改动或构建，NAS 与服务端未修改。
+正式 APK 位于 `release/client-v2.3.4/ZViewer-Client-2.3.4-android.apk`，同目录提供鸿蒙 HAP、构建日志和最终构建时各一次 SHA256；发布复用对应校验记录。系统要求、发布签名与依赖不变。修复阶段已通过 246 项回归、类型检查、双端签名构建及鸿蒙模拟器中断与暂停补测，详见 [B站恢复修复记录](https://github.com/Zero-wyc/ZViewerAPP/blob/d9852ce453f37c06048a91026cf2d22357fa7bac/docs/bilibili-watch-recovery-2026-10-30.md)。下文 2.3.3 / 233 的“本地验证版”“未推送或发布”保留当时证据；本轮 iOS 未改动或构建，NAS 与服务端未修改。
 
 ## B站一起看恢复修复（2026-10-30，本地验证版）
 
 版本保持 2.3.3 / 233。本轮同步共享播放器修复：原生 B站连续正常播放 15 秒后重置恢复预算，恢复全过程最多 60 秒，解析、队列和挂载可取消；静默卡顿 20 秒触发恢复，手动画质同档刷新、自动画质逐档回退。音视频过期地址同时检查，切房间、切账号、切影片或画质后旧任务不能污染新状态。恢复期间心跳和新观众完整状态沿用稳定进度与用户暂停意图，完成后立即同步便携源；多 SIDX 分段及整数/EOF 字节区间同时修复。
 
-控制栏与中间双击按用户看到的播放意图操作，恢复时临时暂停不会把“暂停”反转成播放，显式操作立即同步。246 项回归、类型检查与双端签名构建通过，鸿蒙模拟器三轮中断及最终包的手动 720P 恢复暂停补测通过；Android 本轮未做实体机验收。安装包在 `release/bilibili-recovery-20261030/`，每包一次 SHA256；实施入口及证据边界见 [B站恢复修复记录](bilibili-watch-recovery-2026-10-30.md)。Android 原生代理未单独改写，鸿蒙请求生命周期修复位于 ArkTS。本轮仅本地构建与提交，未推送或发布 Release；iOS 未构建，NAS 与服务端未修改。
+控制栏与中间双击按用户看到的播放意图操作，恢复时临时暂停不会把“暂停”反转成播放，显式操作立即同步。246 项回归、类型检查与双端签名构建通过，鸿蒙模拟器三轮中断及最终包的手动 720P 恢复暂停补测通过；Android 本轮未做实体机验收。安装包在 `release/bilibili-recovery-20261030/`，每包一次 SHA256；实施入口及证据边界见 [B站恢复修复记录](https://github.com/Zero-wyc/ZViewerAPP/blob/d9852ce453f37c06048a91026cf2d22357fa7bac/docs/bilibili-watch-recovery-2026-10-30.md)。Android 原生代理未单独改写，鸿蒙请求生命周期修复位于 ArkTS。本轮仅本地构建与提交，未推送或发布 Release；iOS 未构建，NAS 与服务端未修改。
 
 ## 2.3.3 / 233 正式发行（2026-10-29）
 
-本轮授权将全部 2.3.3 源码更新至客户端仓库 main，并发布 [ZViewer-Client V2.3.3](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.3.3)。正式 APK 复用下节 `release/client-v2.3.3-portrait-lyrics-20261029/` 的最终签名包，包含全部横屏与竖屏修订；发布阶段复用构建时的 SHA256 记录。源码使用 GitHub 自动归档，发行说明见 [client-2.3.3.md](releases/client-2.3.3.md)。下文的本地、未构建和未发布表述记录各次迭代当时的状态，最终行为以本节及 [最终布局记录](listen-ui-2.3.3.md) 为准。169 项回归与双端构建已通过，本次没有新增真机验收。
+本轮授权将全部 2.3.3 源码更新至客户端仓库 main，并发布 [ZViewer-Client V2.3.3](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.3.3)。正式 APK 复用下节 `release/client-v2.3.3-portrait-lyrics-20261029/` 的最终签名包，包含全部横屏与竖屏修订；发布阶段复用构建时的 SHA256 记录。源码使用 GitHub 自动归档，发行说明见 [client-2.3.3.md](https://github.com/Zero-wyc/ZViewerAPP/blob/d9852ce453f37c06048a91026cf2d22357fa7bac/docs/releases/client-2.3.3.md)。下文的本地、未构建和未发布表述记录各次迭代当时的状态，最终行为以本节及 [最终布局记录](https://github.com/Zero-wyc/ZViewerAPP/blob/d9852ce453f37c06048a91026cf2d22357fa7bac/docs/listen-ui-2.3.3.md) 为准。169 项回归与双端构建已通过，本次没有新增真机验收。
 
 ## 2.3.3 竖屏歌词按钮与本地构建（2026-10-29）
 
@@ -50,7 +71,7 @@ TypeScript/Vite、161 项维护测试及 8 项工具栏测试通过；双端签�
 
 ## 2.3.3 / 233 一起听触屏界面改版（2026-10-28，本地验证版）
 
-本轮按 P0 / P1 / P2 一起实施，详见 [一起听改版与验证记录](listen-ui-2.3.3.md)。歌词页保留进度与播放控制，小播放条整条点开/上滑展开且进度只读；歌曲行单击播放并提供显式菜单；队列改为贴底面板，清空需确认，支持拖动排序、键盘排序和左滑显示删除。常驻评论及队列入口各一个，按用户截图反馈去除重复；横屏同样采用精简工具栏。
+本轮按 P0 / P1 / P2 一起实施，详见 [一起听改版与验证记录](https://github.com/Zero-wyc/ZViewerAPP/blob/d9852ce453f37c06048a91026cf2d22357fa7bac/docs/listen-ui-2.3.3.md)。歌词页保留进度与播放控制，小播放条整条点开/上滑展开且进度只读；歌曲行单击播放并提供显式菜单；队列改为贴底面板，清空需确认，支持拖动排序、键盘排序和左滑显示删除。常驻评论及队列入口各一个，按用户截图反馈去除重复；横屏同样采用精简工具栏。
 
 三种常用播放模式轮换，兼容旧房间的按顺序播放/B站推荐连播并移入更多菜单；观众保留只读模式图标、控制权说明和申请回执，审批改为大按钮卡片。成员入口合并房主/本人/在线观众，展示同步回执；服务端未提供的其他用户头像或房主姓名使用文字头像/房主占位，不推断个人资料。设置分为外观与默认折叠的高级，歌词改为文字加粗淡化，音质移至独立页脚，网易云喜欢状态统一缓存并保护迟到响应。
 
@@ -62,7 +83,7 @@ TypeScript/Vite、161 项维护回归与 8 项工具栏回归通过。浏览器�
 
 一起听设置页新增音量均衡，默认关闭；偏好和响度缓存每设备独立，不参与房间同步。19项设置与服务端逐项对照。使用上游K加权、-14LUFS目标，仅衰减最多12dB；用户音量独立保存，主播放与无缝预载使用相同增益。captureStream仅作静音分析支路，不接管媒体元素输出；捕获/建图失败回退，换曲、关闭及离房释放资源。真实设置组件验证开关、刷新保留、静音起播、关闭/卸载清理，数学及生命周期分支由回归覆盖；未做原生设备扬声器听感或后台响度采样结论。
 
-B站多P按CID、每P名称与实际时长逐首导入队列，现有上一首、下一首及播完切换均可使用；房主/房管按顺序导入，离房/断线/失败停止批次。共享请求正确传入安卓Go/鸿蒙ArkTS本地解析器已支持的CID。服务端解析模式需要包含本轮PR的服务端，旧队列请删除旧整段条目后重新添加。详见 [分P修复与静音验收](bilibili-multipart-listen-2026-10-27.md)。
+B站多P按CID、每P名称与实际时长逐首导入队列，现有上一首、下一首及播完切换均可使用；房主/房管按顺序导入，离房/断线/失败停止批次。共享请求正确传入安卓Go/鸿蒙ArkTS本地解析器已支持的CID。服务端解析模式需要包含本轮PR的服务端，旧队列请删除旧整段条目后重新添加。详见 [分P修复与静音验收](https://github.com/Zero-wyc/ZViewerAPP/blob/d9852ce453f37c06048a91026cf2d22357fa7bac/docs/bilibili-multipart-listen-2026-10-27.md)。
 
 网页端补齐客户端已有的两项白屏修复：工具栏按正常流子项测高，防止侧挂队列触发side/sheet布局循环；空歌曲音质状态统一空值并以Object.is比较。展开播放器不再重复挂载底栏弹窗，竖屏不挂载桌面弹窗。两端实际组件在1280×900、1180×520、393×852、852×393各开关4轮；空队列、网易云3首、B站150首均无异常。示例150P真实本地API、Socket、CDN静音验证入队、上下首与片尾切P；依用户要求未做长单P长时间测试。
 
@@ -72,17 +93,17 @@ B站多P按CID、每P名称与实际时长逐首导入队列，现有上一首�
 
 服务端指定目录最终同步至上游 `6d3c64b`，PR #36 已合入；收尾相对测试基线 `067b0fd` 仅新增 GitCode 发布脚本。按用户提供的「浏览器转码」截图，在影片「播放设置」内复用同一个 PlaybackOptionButton 胶囊组件增加 Emby/Jellyfin「服务器中转」，仅内网挂载隐藏。切换保存 directLink、稳定条目/版本 URL、格式及音轨，兼容 ms / MediaSourceId；最终 CDN 地址仅用于起播，不持久化。起播及观众重载刷新 movie-source，修复旧 HLS 格式和过期地址路径；复用已有保存/应用、播放位置和迟到请求保护，失败重试保留原模式。
 
-详见 [最新服务端对齐记录](server-client-alignment-latest-2026-10-27.md)。120 项回归、TypeScript/Vite、双端签名 Release 构建及签名验证通过；浏览器真实片单检查同款样式、320/420px 容器、双向保存与失败重试、版本保留、内网隐藏和观众禁用。安装包及各一次 SHA256 在忽略目录 release/client-v2.3.1/。本轮仅本地提交，未推送/发布、未部署 NAS、未新增实体设备听音验收，iOS 未修改或构建。音量均衡仍为可选未移植功能。
+详见 [最新服务端对齐记录](https://github.com/Zero-wyc/ZViewerAPP/blob/d9852ce453f37c06048a91026cf2d22357fa7bac/docs/server-client-alignment-latest-2026-10-27.md)。120 项回归、TypeScript/Vite、双端签名 Release 构建及签名验证通过；浏览器真实片单检查同款样式、320/420px 容器、双向保存与失败重试、版本保留、内网隐藏和观众禁用。安装包及各一次 SHA256 在忽略目录 release/client-v2.3.1/。本轮仅本地提交，未推送/发布、未部署 NAS、未新增实体设备听音验收，iOS 未修改或构建。音量均衡仍为可选未移植功能。
 
 ## 2.3.0 / 230 亮度与投屏音量手势（2026-10-27）
 
 用户已确认 2.2.8 一起看手势通过，本版合并发布。一起看与投屏（WebRTC / OBS-FLV）新增左侧上下滑调当前 App 窗口亮度；投屏新增右侧上下滑调本机播放器音量。亮度 5%–100%、音量 0–100%，手势显示百分比；不改变发布端或房间音量。窗口亮度在全屏切换时保留，离开播放器后恢复原值；不修改系统亮度设置。一起看原有进度/双击及观众申请流程、投屏直播不跳进度和全屏双击暂停均保留。
 
-按 [实现与验收记录](player-level-gestures-2.3.0.md)，Android / HarmonyOS 原生亮度桥、串行更新与播放器所有者恢复已接入，取消/退出不继续应用迟到读取。106 项回归、TypeScript/Vite、双端 Release 签名构建通过；真实播放器浏览器夹具验证了 MP4、MediaStream、HTTP-FLV 解码及手势，并记录亮度恢复、全屏保持和音量同步。原生亮度为受控桥边界，adb / hdc 无设备，没有新增背光/真机触摸/听音验收。安装包和各一次 SHA256 在忽略目录 release/client-v2.3.0/，发布复用该摘要。iOS 未修改或构建，NAS 未部署。
+按 [实现与验收记录](https://github.com/Zero-wyc/ZViewerAPP/blob/d9852ce453f37c06048a91026cf2d22357fa7bac/docs/player-level-gestures-2.3.0.md)，Android / HarmonyOS 原生亮度桥、串行更新与播放器所有者恢复已接入，取消/退出不继续应用迟到读取。106 项回归、TypeScript/Vite、双端 Release 签名构建通过；真实播放器浏览器夹具验证了 MP4、MediaStream、HTTP-FLV 解码及手势，并记录亮度恢复、全屏保持和音量同步。原生亮度为受控桥边界，adb / hdc 无设备，没有新增背光/真机触摸/听音验收。安装包和各一次 SHA256 在忽略目录 release/client-v2.3.0/，发布复用该摘要。iOS 未修改或构建，NAS 未部署。
 
 ## 2.2.8 / 229 一起看手势与新服务端兼容（2026-10-27，本地签名验证版）
 
-本地服务端已从 GitHub upstream/main 快进至 9e62237。按 [增量检查与实现记录](server-client-alignment-2026-10-27.md)，44 个网易云调用路径均保留；共享 musicApi 兼容 message / msg、隔离云盘上传的网易云账号 401，并将普通 503 与旧服务器明确的 NCM_UNAVAILABLE 区分。桌面组件按需下载不需要手机适配；非音乐 HTTP / 一起看 Socket 合同未见本轮变更。
+本地服务端已从 GitHub upstream/main 快进至 9e62237。按 [增量检查与实现记录](https://github.com/Zero-wyc/ZViewerAPP/blob/d9852ce453f37c06048a91026cf2d22357fa7bac/docs/server-client-alignment-2026-10-27.md)，44 个网易云调用路径均保留；共享 musicApi 兼容 message / msg、隔离云盘上传的网易云账号 401，并将普通 503 与旧服务器明确的 NCM_UNAVAILABLE 区分。桌面组件按需下载不需要手机适配；非音乐 HTTP / 一起看 Socket 合同未见本轮变更。
 
 一起看移除控制栏及“更多”菜单的隐藏按钮与旧隐藏模式。单击视频显隐控制栏；左侧双击后退 15 秒、右侧前进 15 秒、中部播放/暂停，普通窗口和全屏均适用。横向拖动预览进度、松手提交一次；右半边纵向滑动调本机播放器音量。观众仍申请控制，房主沿用同步链；多指、取消、换源、权限变化与卸载不提交迟到跳转。关闭 ArtPlayer 默认触摸跳转，touch-action 仅作用于视频表面，保留设置面板滚动；一起听手势未改。
 
@@ -98,7 +119,7 @@ B站多P按CID、每P名称与实际时长逐首导入队列，现有上一首�
 
 ## 2.2.6 / 227 资源权限与图片合同修复（2026-10-26，本地验证版）
 
-按 [客户端实施记录](resource-remediation-2026-10-26.md) 同步服务端 S01～S15：Emby/Jellyfin 相对封面与签名能力、当前原生取图通道及有界续签；网易云剩余头像/弹窗图片统一规范化；推流观众领取独立观看票据，拒绝后不回退发布密钥；本地影片按 movieId 播放；字幕 413/超限与权限失败在选轨前处理并保留旧字幕。服务端同址挂载按明确 sourceMountId 绑定，删除/改密不静默换账号。原有 B站封面、NCM 错误分流、退出保留输入及播放策略继续保留。
+按 [客户端实施记录](https://github.com/Zero-wyc/ZViewerAPP/blob/d9852ce453f37c06048a91026cf2d22357fa7bac/docs/resource-remediation-2026-10-26.md) 同步服务端 S01～S15：Emby/Jellyfin 相对封面与签名能力、当前原生取图通道及有界续签；网易云剩余头像/弹窗图片统一规范化；推流观众领取独立观看票据，拒绝后不回退发布密钥；本地影片按 movieId 播放；字幕 413/超限与权限失败在选轨前处理并保留旧字幕。服务端同址挂载按明确 sourceMountId 绑定，删除/改密不静默换账号。原有 B站封面、NCM 错误分流、退出保留输入及播放策略继续保留。
 
 81 项共享维护回归、类型检查/Vite、Android/HarmonyOS Release 签名构建通过；版本统一 2.2.6 / 227。APK/HAP 各 31 个网页资源匹配，签名校验通过、非 Debug、签名身份沿用；临时鸿蒙签名配置已恢复。安装包与一次 SHA256 记录在忽略目录 release/resource-remediation-20261026/。仅本地构建，未发布 GitHub Release；iOS 未修改或构建，Android/HarmonyOS 实体设备通知栏/锁屏/穿透仍待验收。
 
@@ -127,7 +148,7 @@ TypeScript/Vite、Android Debug APK 与 HarmonyOS 未签名 Debug HAP 构建通�
 
 ## 2.2.2 / 223 服务端 Go 合同对齐（2026-10-26，本地验证版）
 
-本轮按 [对齐方案](server-client-alignment-2026-10-26.md) 实施 S01/S02 配合与 A01/A02/A03/A05；服务端修改保留在本地，暂不提交 PR。GUI 音乐故障根因是 Go 迁移把 NCM 外部化后，打包和启动链路漏带组件，默认扫码接口 503。已记入服务端仓库的修复说明和后续 PR 待办。
+本轮按 [对齐方案](https://github.com/Zero-wyc/ZViewerAPP/blob/d9852ce453f37c06048a91026cf2d22357fa7bac/docs/server-client-alignment-2026-10-26.md) 实施 S01/S02 配合与 A01/A02/A03/A05；服务端修改保留在本地，暂不提交 PR。GUI 音乐故障根因是 Go 迁移把 NCM 外部化后，打包和启动链路漏带组件，默认扫码接口 503。已记入服务端仓库的修复说明和后续 PR 待办。
 
 - music/musicApi.ts 统一保留音乐 HTTP/业务错误，服务不可用时显示提示与重试；重试重建内容页，首页一次加载门控可重新执行。503 不清 App/网易云登录，第三方音乐 401/403 不刷新 App 会话。扫码错误停止动画并提供重试，异步取消、轮询并发和有限失败保护生效。
 - 直链解析保留 status/code/message，失败停止，不使用固化旧签名或切服务器代理；上游挂载 AUTH_FAILED 不刷新 App 登录。保留 noProxyFallback。
@@ -142,13 +163,13 @@ TypeScript/Vite、Android Debug APK 与 HarmonyOS 未签名 Debug HAP 构建通�
 
 ## 2026-10-26 服务端接口增量检查
 
-已完成 [服务端增量检查与客户端对齐方案](server-client-alignment-2026-10-26.md)：从上次完整适配的 v4.7.4 `e3af086` 检查至上游 main `a34db94`，并区分 2.2.1 已同步的后续功能。旧 HTTP/Socket 路径和事件名保留；隔离检查确认 Go 权威播放快照丢策略字段，以及继承自 Node 的 B站 movieId 代房主解析缺少房间准入校验。NCM 外部依赖、音乐不可用提示、直链错误分流、MP4 本机策略和预览清理列有后续方案。
+已完成 [服务端增量检查与客户端对齐方案](https://github.com/Zero-wyc/ZViewerAPP/blob/d9852ce453f37c06048a91026cf2d22357fa7bac/docs/server-client-alignment-2026-10-26.md)：从上次完整适配的 v4.7.4 `e3af086` 检查至上游 main `a34db94`，并区分 2.2.1 已同步的后续功能。旧 HTTP/Socket 路径和事件名保留；隔离检查确认 Go 权威播放快照丢策略字段，以及继承自 Node 的 B站 movieId 代房主解析缺少房间准入校验。NCM 外部依赖、音乐不可用提示、直链错误分流、MP4 本机策略和预览清理列有后续方案。
 
 本次仅检查与文档更新，Android/HarmonyOS 仍为 2.2.1 / 222，未实施适配、构建安装包或增加设备验收。当前本地服务端在 `56eb51c`，比上游目标多两条桌面 Cloudflare 提交，`backend-go/` 与 `frontend/src/` 和审计目标一致；不代表 NAS 已更新。
 
 ## 2.2.1 歌单布局、自动起播与封面修复（2026-10-25）
 
-用户已反馈上一轮维护功能“经播放测试无问题”，并授权由助手自行验收界面后发布。本次 Android / HarmonyOS 统一为 **2.2.1 / 222**，目标 Release 为 [ZViewer-Client V2.2.1](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.2.1)，发行说明见 [2.2.1](releases/client-2.2.1.md)。不将浏览器检查记为实体设备验收；iOS 保持 2.1.10 / build 31，没有启动构建。
+用户已反馈上一轮维护功能“经播放测试无问题”，并授权由助手自行验收界面后发布。本次 Android / HarmonyOS 统一为 **2.2.1 / 222**，目标 Release 为 [ZViewer-Client V2.2.1](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.2.1)，发行说明见 [2.2.1](https://github.com/Zero-wyc/ZViewerAPP/blob/d9852ce453f37c06048a91026cf2d22357fa7bac/docs/releases/client-2.2.1.md)。不将浏览器检查记为实体设备验收；iOS 保持 2.1.10 / build 31，没有启动构建。
 
 - `music/pages/MusicMyPage.tsx` 删除详情历史栈和前进／后退箭头，保留“返回列表”。封面信息区不再保留收藏／下载占位，手机端缩短播放全部区和列表的上间距；触摸按钮最小 44px。返回列表、重新选歌单、长标题、列表滚动和歌曲操作继续可用。
 - `music/hooks/usePlaylistPlayback.ts` 与 `music/playlistPlayback.ts` 共用歌单／每日推荐的播放全部链路：每首按顺序发送 `music:queue-upsert`，首曲收到成功 ACK 后调用既有 `playSong`，其余歌曲继续加入。首曲只入队一次，首次确认前不抢播；8 秒 ACK 超时或拒绝时停止并报告已加入数量。连续点击受 busy 锁保护，换歌单、换推荐日期、身份/房间/socket 变化、卸载或断连时不再开始后续操作。每日推荐不再调用可能暂停当前曲且重复入队的 `handlePlayRow`。
@@ -192,7 +213,7 @@ TypeScript/Vite、Android Debug APK 与 HarmonyOS 未签名 Debug HAP 构建通�
 
 2026-10-23 用户明确反馈“真机验证通过”，并要求提交源码及发布 2.2.0。该反馈登记为本轮双端界面与播放修复的用户验收；未补写具体设备型号、系统版本或测试时长。此前各轮“待真机验证”属于当时状态，历史记录保留。本次正式包与已验收代码保持相同业务逻辑，统一版本为 2.2.0 / versionCode 221。
 
-发布目标为 [ZViewer-Client V2.2.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.2.0)，源码提交至 main，标签为 `client-v2.2.0`；仅发布 Android / HarmonyOS，iOS 保持 2.1.10 / build 31，未启动 IPA 构建。发行说明见 [2.2.0](releases/client-2.2.0.md)，源码使用 GitHub 自动归档，不另附手工源码压缩包。
+发布目标为 [ZViewer-Client V2.2.0](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.2.0)，源码提交至 main，标签为 `client-v2.2.0`；仅发布 Android / HarmonyOS，iOS 保持 2.1.10 / build 31，未启动 IPA 构建。发行说明见 [2.2.0](https://github.com/Zero-wyc/ZViewerAPP/blob/d9852ce453f37c06048a91026cf2d22357fa7bac/docs/releases/client-2.2.0.md)，源码使用 GitHub 自动归档，不另附手工源码压缩包。
 
 正式构建及检查：TypeScript/Vite、双端资源同步、32 项音轨/后台可见性/显示租约/滑动切歌回归、Android assembleRelease 与 HarmonyOS Release assembleHap 均通过。APK 版本 2.2.0 / 221、正式包名 `com.zviewer.mobile`、最低 API 24，v2 签名与上一正式版一致且非 Debug；HAP 为 2.2.0 / 221、debug=false、最低 HarmonyOS 6.1 / API 23，verify-app 与上一版证书链一致性通过。两包各 31 个前端资源与本次输出一致；鸿蒙 HTML 按同步脚本注入原生桥后比对。公开源码及包体未包含账户凭据、Agents.md 或私有签名源文件，临时鸿蒙签名配置已恢复。
 
@@ -202,12 +223,12 @@ TypeScript/Vite、Android Debug APK 与 HarmonyOS 未签名 Debug HAP 构建通�
 
 | 项目 | 当前基线与使用规则 |
 | --- | --- |
-| Android / HarmonyOS | 2.2.1 / versionCode 222；当前维护与发布证据见文首，用户播放反馈、浏览器检查与正式包验签分别记录。 |
+| Android / HarmonyOS | 2.3.5 / versionCode 235；当前维护与发布证据见文首，用户播放反馈、浏览器检查与正式包验签分别记录。 |
 | iOS | 独立 `ZV-iOS/` 工程，2.1.10 / build31；详见 [iOS 维护文档](ios-maintenance-architecture.md)。 |
 | 客户端仓库 | 所有客户端源码、文档与 Git 操作均在本仓库；共享前端为 `src/`，平台分派为 `src/platform/`。 |
-| 服务端源码 | 2026-10-26 核对本地 `56eb51c`：后端及网页源码与上游 main `a34db94` 一致，另有两条桌面 Cloudflare 提交；见 [接口增量检查](server-client-alignment-2026-10-26.md)。新一轮客户端适配尚未实施，NAS 部署未核实。 |
+| 服务端源码 | 2.3.5 对齐基线为 2026-10-31 服务端 main `e1ed57c31662e5920130af0ca93d89f5cd419720`；该快照不代表 NAS 已更新，后续维护须重新核对目标服务端。 |
 | CLI 源码 | 相邻 `ZViewerCLI-4.1.2/` 保留原目录名，内容已更新至上游 v4.5.5 / main `101659b01a3a9248cea8b32c7eb18b6f76d842f1`，目录名不代表内容版本。 |
-| 已完成的双端协议对齐 | 最近实现基于服务端 v4.7.4 `e3af086c7bd98ee0d4697386b69678f92ea54d81`；本次更新只拉取源码，未新增兼容性或设备验收结论。 |
+| 已完成的双端协议对齐 | 2.3.5 已对齐语音组件、公开开关、令牌续期、OBS 恢复及 B站分P；2026-11-03 仅做维护整理，未新增功能或设备验收结论。 |
 
 共享 UI 与业务写在 `src/upstream/`、`src/mobile/`，平台能力经 `src/platform/` 调用。不能整体复制服务端 frontend/backend 覆盖客户端，也不能直接修改生成资源代替改源文件。Android、ArkWeb、iOS 原生结果分别验收。
 
@@ -432,12 +453,14 @@ Set-Location ZV-Android
 
 Gradle的 `buildBilibiliCore` 调用 `scripts/build-bilicore.mjs` 生成ARM64/x86_64 AAR。改Go后重建AAR，再同步网页，再构建APK；不能复用旧AAR冒充修复进入包体。Debug包名带 `.debug`，可与正式包并存。正式签名由 `ZVIEWER_KEYSTORE`、`ZVIEWER_STORE_PASSWORD`、`ZVIEWER_KEY_ALIAS`、`ZVIEWER_KEY_PASSWORD` 提供，禁止写进源码或日志。
 
-检查版本、签名、最低系统与网页资源；每个最终安装包仅构建后计算一次SHA，发布复用保存摘要。完成可交付版本后在指定客户端仓库本地commit。GitHub Release标题为 `ZViewer-Client V版本号`，发行说明保留 Features、Bug Fixes、Breaking Changes、Performance Improvements、Documentation & Dependencies及完整变更链接；未特别安排时发布Android/HarmonyOS，源码从main获取，不另打源码包。当前Android/HarmonyOS为2.2.0 / 221；iOS保留2.1.10 / build31及其原发行附件，完整源码见main。
+检查版本、签名、最低系统与网页资源；每个最终安装包仅构建后计算一次SHA，发布复用保存摘要。完成可交付版本后在指定客户端仓库本地commit。GitHub Release标题为 `ZViewer-Client V版本号`，发行说明保留 Features、Bug Fixes、Breaking Changes、Performance Improvements、Documentation & Dependencies及完整变更链接；未特别安排时发布Android/HarmonyOS，源码从main获取，不另打源码包。当前Android/HarmonyOS为2.3.5 / 235；iOS保留2.1.10 / build31及其原发行附件，完整源码见main。
 
-测试脚本、夹具、一次性UI检查及历史证据本次移入回收站，已同步移除失效npm测试入口。日常运行 `npm run typecheck` / `npm run build`；今后若建立新回归，应针对实际问题和当前合同。保留构建工具、依赖、Go AAR、签名源材料、`release/` 与iOS的 `release-assets/`。`dist/`、平台build、Gradle/Hvigor/Vite缓存可重新生成；同步到宿主的网页资源由同步脚本维护，不能手改。
+维护回归脚本及其依赖夹具继续保留，日常运行 `npm run typecheck`、相关 `test:*` 和按需的 `npm run build`。一次性预览、散落日志和可重建缓存可移入回收站；先验证仓库边界、重解析点与回收站容量，再核对实际可恢复的数据。保留构建工具、依赖、Go AAR、签名源材料、正式 `release/` 与iOS的 `release-assets/`。`dist/`、平台build、Gradle/Hvigor/Vite缓存可重新生成；同步到宿主的网页资源由同步脚本维护，不能手改。
 
 
 ## 本次整理与后续记录
+
+2026-11-03：回收19份阶段文档、一次性UI验证目录、2份未引用OBS预览夹具、7个构建输出/缓存目录及12份散落日志/截图，共约567MiB，已核对回收站记录及数据。三端指南保留；维护回归161项、TypeScript和指南/项目入口链接检查通过。旧本地分支、stash及macOS同步引用先保留为本地 `archive/*` tag，再清理旧引用；本地仅保留main、无stash。正式包、依赖、签名和有效测试保留，未推送或构建新包。
 
 2026-10-23仅做上游源码同步、客户端测试/缓存清理、文档整合及命令入口维护。未构建APK/HAP/IPA，未启动或修改NAS服务。清理前的版本/测试历史可通过Git查询；后续功能修复同时维护Android和HarmonyOS两份文档，具体设备型号、OS、角色、网络、版本与未通过项必须据实填写。
 
