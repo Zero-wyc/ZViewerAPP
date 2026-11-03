@@ -122,13 +122,15 @@ class ConnectionTunnel {
     }
     if (cookieValues.length > 0) forwarded += `Cookie: ${cookieValues.join('; ')}\r\n`;
     const body = this.initial.slice(end); this.initial = new Uint8Array(0);
-    this.outbound = this.remote.bind({ address: this.target.hostname.includes(':') ? '::' : '0.0.0.0', port: 0,
-      family: this.target.hostname.includes(':') ? 2 : 1 }).then(() => {
+    const host = this.target.hostname.replace(/^\[|\]$/g, '');
+    const family = host.includes(':') ? 2 : 1;
+    this.outbound = this.remote.bind({ address: family === 2 ? '::' : '0.0.0.0', port: 0, family }).then(() => {
       // The native TLS instance is allocated by bind; earlier listeners are ignored.
       this.remote.on('message', (event: socket.SocketMessageInfo) => this.reply(new Uint8Array(event.message)));
       this.remote.on('close', () => this.endRemote());
       this.remote.on('error', () => this.fail());
-      const address: socket.NetAddress = { address: this.target.hostname.replace(/^\[|\]$/g, ''), port: Number(this.target.port || (this.target.protocol === 'https:' ? '443' : '80')) };
+      // NetAddress defaults to IPv4; connect must match the bound IPv6 socket.
+      const address: socket.NetAddress = { address: host, family, port: Number(this.target.port || (this.target.protocol === 'https:' ? '443' : '80')) };
       if (this.target.protocol === 'https:') {
         return (this.remote as socket.TLSSocket).connect({ address,
           secureOptions: { protocols: [socket.Protocol.TLSv12, socket.Protocol.TLSv13] },

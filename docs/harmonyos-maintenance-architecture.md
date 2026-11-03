@@ -1,10 +1,22 @@
 # HarmonyOS 客户端维护文档
 
+## 2.3.6 / 236 IPv6 服务器连接（2026-11-03）
+
+输入格式使用 `https://[2001:db8::10]:3333/edge`，共享 `src/mobile/serverUrl.ts`、`src/platform/connectionTransport.ts` 与 `useSocket.ts` 保留 URL/Host 中的 IPv6 方括号、端口、服务前缀和 Socket.IO 参数。实际传给套接字的 IP 地址必须剥掉方括号，HTTP Host/Origin 仍保留 URL 标准形式。
+
+`entry/src/main/ets/services/ServerConnection.ets` 的 `ConnectionTunnel.receive()` 过去虽为 IPv6 执行 `bind(family: 2)`，却在 TCP/TLS `connect.address` 省略 `family`。SDK 的 `socket.NetAddress` 是 `connection.NetAddress` 别名，缺省值为 1（IPv4）；这会使 IPv6 HTTP、用户选择的 HTTPS 证书例外及其 WebSocket Upgrade 通道连接失败。现在剥括号后的 host、bind 与 connect 共用同一地址族，IPv6 显式传 2，IPv4/域名保持 1。证书有效的严格 HTTPS 继续由 ArkWeb 校验，例外仍仅限用户选择的单一目标源；Cookie、凭据、重定向与本地能力 token 的隔离规则保持。
+
+新增 `scripts/ipv6-server-connection.test.mjs` 并纳入 `test:maintenance`，通过 NetworkKit 接口替身执行真实 ETS 类，按 SDK 默认 IPv4 的行为复现修复前 IPv6 HTTP/TLS 的 502，修复后新增 7 项通过；同时覆盖 Host/Origin、前缀、Range、Upgrade、共享 API/媒体/WS 映射、IPv4/域名与严格 HTTPS。完整维护回归 168 / 168、`npm run typecheck` 与前端生产构建通过；Android 共用 Go 通道在真实 `::1` 实测 HTTP、TLS 证书例外、Range 206 和 Upgrade 双向数据两组通过。
+
+Android / HarmonyOS 已完成 2.3.6 / 236 签名构建。鸿蒙正式 HAP（`debug=false`）在 Pura 90 Pro、HarmonyOS 7.0 / API 26 模拟器中，使用原生 UI 完成 `http://[::1]:14590`、`https://[::1]:14589` 的登录、大厅、房主入房与聊天回显，两条正式版本测试消息在真实 Go 服务端持久化。未勾选例外时拒绝自签证书；当前 SDK 会将该错误显示为“服务器端口不可用”，错误提示分类仍可改进。调试包另有 WebSocket 101 和双向事件证据，正式 Release 不开启 WebView 调试。Android 正式 APK 同样通过上述业务检查。每个最终包仅在构建时计算一次 SHA256，发布复用记录；iOS 未修改或构建。
+
+本轮服务端为最新 `26039c05`，仅使用本地隔离数据库。鸿蒙辅助 App 监听 `[::1]`，日志确认实际对端 `address=::1 family=2`；通过 HDC 原始字节桥到达 Windows 的真实 IPv6 HTTP / HTTPS 服务，不终止 TLS 或伪造业务响应。该拓扑验证原生 IPv6 连接及房间实时业务，不代替用户公网 IPv6、API 23 实体机、媒体播放或长时间后台验收。测试后恢复原 App 存储和正式包，撤销本轮证书例外、端口映射并卸载独立辅助 App。
+
 ## 稳定维护规则（2026-11-03）
 
 `docs/` 仅保留三端维护指南。功能合同、源码入口、构建方法、故障定位及验收边界写入对应指南；版本摘要保留在根目录 `CHANGELOG.md`。阶段方案、发布附件和一次性验证不再单独积累文档。以下带日期的记录描述当时状态，不能作为当前设备验收结论。
 
-当前客户端基线为 Android / HarmonyOS 2.3.5 / 235，iOS 保持 2.1.10 / build 31。此次仅整理文档和本地 Git，不修改功能或构建安装包。被移走的阶段文档可通过 `git show d9852ce:docs/原文件名.md` 查询；正式包和发布记录仍保留在本地 `release/`。
+本节记录 Android / HarmonyOS 2.3.5 / 235 时的文档整理，未修改功能或构建安装包；当前版本见上方 2.3.6 记录，iOS 保持 2.1.10 / build 31。被移走的阶段文档可通过 `git show d9852ce:docs/原文件名.md` 查询；正式包和发布记录仍保留在本地 `release/`。
 
 现有 `test:maintenance`、`test:bilibili`、`test:music:toolbar`、`test:alignment` 为 CI 使用的有效回归，连同依赖的夹具继续保留。仅将一次性 `.ui-validation/` 预览、截图、媒体样本和过程日志送入回收站；下文 2026-10-23 的“测试已清理”仅指当时历史测试。
 

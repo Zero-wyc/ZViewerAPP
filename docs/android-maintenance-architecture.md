@@ -1,10 +1,22 @@
 # Android 客户端维护文档
 
+## 2.3.6 / 236 IPv6 服务器连接（2026-11-03）
+
+输入格式使用 `https://[2001:db8::10]:3333/edge`，IPv6 字面量必须保留方括号。`src/mobile/serverUrl.ts` 负责规范化与显式 HTTPS 选择，`src/platform/connectionTransport.ts` 负责当前服务端的 API、媒体与 WS 地址映射；`useSocket.ts` 通过 `URL.origin` 与独立 path 保留端口、服务前缀及 Socket.IO 参数。媒体 token 仍只附加到同源 API，逻辑地址回写仍剥离会话私有通道。
+
+Android `ServerConnectionPlugin` 调用 `native/bilicore/mobile/server_connection.go`，远端连接由 Go `net/http` 与 `httputil.ReverseProxy` 处理，HTTP Host 使用含方括号的 `target.Host`，无需单独拆分 IPv6。严格 HTTPS 沿用系统证书校验；用户选择的证书例外仅限当前不可变目标源，不产生全局跳过。鸿蒙的同等原生通道已同步修复 `NetAddress.family` 缺省回落 IPv4 的问题，见另一端维护指南。
+
+新增 `scripts/ipv6-server-connection.test.mjs` 并纳入 `test:maintenance`，执行实际共享 TS 与鸿蒙 ETS 源码，覆盖 IPv6 输入、API/媒体/WS 往返、同源限制、HTTP/TLS 地址族、IPv4/域名兼容及严格 HTTPS；修复前可复现鸿蒙 IPv6 通道 502，修复后新增 7 项通过，完整维护回归 168 / 168 通过，`npm run typecheck` 与前端生产构建通过。`cd native/bilicore` 后执行 `go test ./mobile -run TestIPv6ServerConnection -count=1 -v`，HTTP 与 HTTPS 证书例外两组均在真实 `::1` 监听端口验证了 Range 206、Host/Origin、服务前缀、Upgrade 双向数据及严格证书探测。Android 生产 Go 通道未改写。
+
+Android / HarmonyOS 已完成 2.3.6 / 236 签名构建。Android 正式 APK 在隔离 API 37 x86_64 模拟器中，通过原生 UI 完成 `https://[::1]:14589` 的严格自签证书拒绝、仅当前服务器证书例外登录、大厅、房主入房及聊天回显；`http://[::1]:14590` 同样通过登录、入房与聊天。鸿蒙正式 HAP 也完成相同业务检查。每个最终安装包仅在构建时计算一次 SHA256，发布复用该记录；iOS 保持 2.1.10 / build 31，未修改或构建。
+
+本轮使用本地最新 Go 服务端 `26039c05` 的隔离数据库。客户端第一跳和服务端最后一跳均实际使用 IPv6，中间通过 ADB / HDC 原始字节桥跨越模拟器与 Windows 主机，保留 TLS 与 WebSocket；这不是公网端到端 IPv6 路由验收。用户提供的公网地址、实体设备网络、媒体播放、长时间后台与双实体设备同步仍需分别验收。
+
 ## 稳定维护规则（2026-11-03）
 
 `docs/` 仅保留三端维护指南。功能合同、源码入口、构建方法、故障定位及验收边界写入对应指南；版本摘要保留在根目录 `CHANGELOG.md`。阶段方案、发布附件和一次性验证不再单独积累文档。以下带日期的记录描述当时状态，不能作为当前设备验收结论。
 
-当前客户端基线为 Android / HarmonyOS 2.3.5 / 235，iOS 保持 2.1.10 / build 31。此次仅整理文档和本地 Git，不修改功能或构建安装包。被移走的阶段文档可通过 `git show d9852ce:docs/原文件名.md` 查询；正式包和发布记录仍保留在本地 `release/`。
+本节记录 Android / HarmonyOS 2.3.5 / 235 时的文档整理，未修改功能或构建安装包；当前版本见上方 2.3.6 记录，iOS 保持 2.1.10 / build 31。被移走的阶段文档可通过 `git show d9852ce:docs/原文件名.md` 查询；正式包和发布记录仍保留在本地 `release/`。
 
 现有 `test:maintenance`、`test:bilibili`、`test:music:toolbar`、`test:alignment` 为 CI 使用的有效回归，连同依赖的夹具继续保留。仅将一次性 `.ui-validation/` 预览、截图、媒体样本和过程日志送入回收站；下文 2026-10-23 的“测试已清理”仅指当时历史测试。
 

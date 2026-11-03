@@ -1,5 +1,13 @@
 # 更新记录
 
+## 2.3.6 - 2026-11-03（Android/HarmonyOS 236）
+
+- 修复鸿蒙原生连接隧道仅在 bind 指定 IPv6、connect 遗漏地址族的问题；HTTP 与允许自签名证书的 HTTPS 连接使用一致的目标地址族，保留 WebSocket Upgrade 与请求头转发。
+- 新增 IPv6 地址输入、方括号与端口、路径前缀、鉴权媒体地址、WebSocket 映射及跨服务器隔离回归，覆盖鸿蒙 IPv4 / IPv6 通道与 Android 原生连接。
+- Android / HarmonyOS 完成本地 IPv6 地址的登录/房间实时连接回归，包含登录、入房与聊天回显；严格证书校验继续拒绝未授权的自签名证书。
+- 168 项维护回归、TypeScript / Vite、真实 IPv6 原生 Go 回归及双端签名构建通过；正式 2.3.6 包在 Android / HarmonyOS 模拟器完成上述业务验收，公网与实体设备网络需另验。
+- 更新 README 与双端维护文档；依赖、最低系统和发布签名沿用，iOS 保持 2.1.10 / build 31。
+
 ## 2.3.5 - 2026-10-31（Android/HarmonyOS 235）
 
 - 对齐服务端 main `e1ed57c3`：新增语音组件状态、下载进度、安装与重试入口；组件安装在服务器，兼容旧服务端和外置 LiveKit。
