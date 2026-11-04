@@ -8,14 +8,23 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 应用 | 2.3.6 / build40 本地未签名IPA，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
+| 应用 | 2.3.6 / build40 未签名IPA，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
 | 工程 | 独立Expo SDK57 / React Native0.86；唯一视频/音乐内核为VLCKit4.0.0a25，语音LiveKit，投屏WebRTC/OBS接收及原生主动共享测试版。 |
 | 用户验收 | 用户对build30反馈“测试通过”；build31保持该播放/房间逻辑，仅统一2.1.10版本元数据并重建发布。没有给出的设备OS、时长和逐项结果不作扩展认定。 |
-| 发布 | 历史build31未签名device ARM64 IPA位于 `client-v2.1.10` Release；build32至build40仅在本地交付。Android/HarmonyOS参考源码为2.3.6/236。自行签名后侧载，未使用App Store/TestFlight。 |
-| 源码 | build40位于本地分支`codex/ios-2.3.6-build40`，承接build39；Windows交接包提供相对`e4d1c48`的完整Mac增量。原Release标签保留历史快照，发布时应使用合并后的main。 |
+| 发布 | build40未签名device ARM64 IPA追加到既有 `client-v2.3.6` Release，与Android/HarmonyOS 2.3.6/236原包集中发布。历史build31仍位于 `client-v2.1.10`。自行签名后侧载，未使用App Store/TestFlight。 |
+| 源码 | Mac分支`codex/ios-2.3.6-build40`的9个提交已合入指定Windows仓库main；来源提交为`68acabd0cd8ae552afe38e185258c2506eb8bb75`。`client-v2.3.6`同步到本次合并后的main，自动源码归档包含iOS更新。 |
 | 本次Mac工作 | build40按用户要求统一iOS版本为2.3.6并重新构建，保留build39的来源列表、清空入口、来源内切歌及歌单全部播放替换。build39已完成双模拟器功能验证；build37共享方向仍待用户真机复测。本次未改动Android/HarmonyOS或NAS。 |
+| 本次Windows工作 | 合并Mac历史、复核现有IPA、更新下载与维护入口，并推送main和更新同一个2.3.6 Release；未重新构建安装包，未操作NAS。 |
 
 所有客户端修改及Git操作在本仓库。iOS设备构建需用户明确指示；Windows日常先用Expo Go/Web检查可用界面，原生VLC、Go、LiveKit、Keychain及系统音频必须在对应原生环境验收。跨平台来源对照见 [Android维护文档](android-maintenance-architecture.md) 和 [HarmonyOS维护文档](harmonyos-maintenance-architecture.md)。
+
+## 2026-11-05 Windows合并与三端集中发布
+
+按用户要求在`E:/Codex-bulid/ZViewer/ZViewer-client`将交接Git bundle的9个Mac提交合入main，保留完整提交历史。Windows与远端基线均为`e4d1c48403f94cd1ccdb8a121c55b3eb96e88999`，合并没有冲突；Android/HarmonyOS及共享Go代码没有新增改动，原生来源提交`7ebacfb2ca2dbd6f359a04ea44016cfacb883bc6`仍可追溯。
+
+合并后在Windows重新运行VLC持久补丁、ESLint、TypeScript、18/18合同测试和12个共享Go来源检查，均通过。离线检查直接使用用户提供的48,605,143字节IPA并跳过SHA计算；确认2.3.6/build40、设备ARM64、未签名宿主与广播扩展，以及内嵌JS、原生桥和来源清单。安装包摘要复用Mac构建记录，没有重新构建或消耗EAS额度；本轮不新增模拟器界面或真机验收结论。
+
+将`ZViewer-iOS-2.3.6-build40-unsigned.ipa`加入既有`client-v2.3.6` Release，保留Android/HarmonyOS原安装包；`SHA256SUMS.txt`追加Mac构建时的IPA摘要。发行说明合并三端内容，README与本指南同步当前版本。发布标签从原双端提交同步到包含Mac更新的本次main，确保自动源码归档包含完整三端源码；未另附源码ZIP、交接包、Git bundle或验证材料，源码排除AGENTS.md及账户凭据。
 
 ## 2026-11-05 build40 iOS版本统一为2.3.6
 

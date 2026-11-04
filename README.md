@@ -8,13 +8,13 @@ ZViewer 是一款手机和平板客户端，用来和朋友一起看视频、一
 
 ## 下载与安装
 
-Android / HarmonyOS 当前版本为 **2.3.6（236）**；iOS / iPadOS 保持 **2.1.10（build 31）**。
+Android / HarmonyOS 当前版本为 **2.3.6（236）**；iOS / iPadOS 当前版本为 **2.3.6（build 40）**，三端安装包集中在同一个 Release。
 
 | 平台 | 版本与下载 | 安装方式与系统要求 |
 | --- | --- | --- |
 | Android | **2.3.6（236）** · [APK](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.3.6/ZViewer-Client-2.3.6-android.apk) | 允许安装该来源的应用后安装。要求 Android 7.0 / API 24 或更高版本、64 位设备；APK 包含 ARM64 / x86_64。 |
 | HarmonyOS | **2.3.6（236）** · [HAP](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.3.6/ZViewer-Client-2.3.6-harmonyos.hap) | 要求 HarmonyOS 6.1 / API 23 或更高版本。通过 DevEco Studio、HDC 等设备支持的开发者安装方式安装，签名及设备授权需匹配；当前不是应用商店安装包。 |
-| iOS / iPadOS | **2.1.10（build 31）** · [未签名 IPA](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.1.10/ZViewer-iOS-2.1.10-31-unsigned.ipa) | 要求 iOS / iPadOS 16.4 或更高版本，支持 iPhone 和 iPad。需使用自己的有效证书及设备授权签名后侧载，不能直接点击 IPA 安装。 |
+| iOS / iPadOS | **2.3.6（build 40）** · [未签名 IPA](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.3.6/ZViewer-iOS-2.3.6-build40-unsigned.ipa) | 要求 iOS / iPadOS 16.4 或更高版本，支持 iPhone 和 iPad。需使用自己的有效证书及设备授权签名后侧载，不能直接点击 IPA 安装。 |
 
 iOS 安装包已经内置运行所需的 JavaScript，安装后无需 Expo Go、Metro 或连接开发电脑。Android 和 HarmonyOS 也将界面、播放器打包在 App 内，仍需连接服务端获取房间和媒体。
 
@@ -25,6 +25,8 @@ Android / HarmonyOS 沿用既有发布签名；签名一致时可按平台规则
 - 修复鸿蒙原生 HTTP / 自签名 HTTPS 通道连接 IPv6 地址时遗漏地址族，导致登录或房间实时连接失败的问题。
 - 补充 IPv6 方括号、端口、路径前缀、媒体地址与 WebSocket 映射回归，保持服务器之间的连接隔离。
 - Android / HarmonyOS 完成本地 IPv6 地址的登录、入房与聊天回显回归；HTTPS 自签名证书仍需用户对当前服务器明确授权。
+- iOS 一起听按网易云、B站分组显示播放列表，切歌限制在当前来源；新增清空全部确认，歌单详情“全部播放”完整加载后替换整个房间列表并从首曲播放。
+- iOS 同步一起听导航、扫码登录与音乐设置，修复 OBS 观看票据、媒体库资源刷新和评论分页，加入原生主动屏幕共享测试能力及画质/帧率设置。
 
 ## 第一次连接
 
@@ -42,7 +44,7 @@ Android / HarmonyOS 沿用既有发布签名；签名一致时可按平台规则
 | --- | --- |
 | 一起看 | 从 B站、Emby / Jellyfin、目录、番剧或 CMS 等已配置来源添加视频；按来源提供搜索、分 P、分集和批量添加。房主控制播放，观众按权限操作。 |
 | 一起听 | 选择网易云或 B站歌曲，管理队列、查看歌词和评论、拖动进度；提供顺序循环、按顺序播放、单曲循环和随机播放。账号授权内容需要登录对应音乐账号。 |
-| 投屏与屏幕共享 | 接收网页或桌面端的 WebRTC / OBS 投屏。Android / HarmonyOS 还可在系统授权及设备支持时共享本机屏幕；iOS 当前提供接收功能。 |
+| 投屏与屏幕共享 | 接收网页或桌面端的 WebRTC / OBS 投屏。Android / HarmonyOS 可在系统授权及设备支持时共享本机屏幕；iOS build40 另含原生主动共享测试能力，宿主与广播扩展需要有效签名及共享权限，方向真机复验仍待完成。 |
 | 房间语音与聊天 | 在房间中打开语音入口，按需授予麦克风权限；支持聊天、成员列表和房间设置。播放控制申请与入房审批分别管理。 |
 | 弹幕与字幕 | 支持弹幕显示、类型过滤及字幕；入口和格式支持因平台不同，iOS 设置中提供字幕 / 弹幕页和在线弹幕管理。 |
 | 外观与横竖屏 | 支持深浅主题、背景和布局设置。视频全屏按实际画面方向适配；iPad 方向与窗口由系统管理。 |
@@ -66,7 +68,7 @@ Android / HarmonyOS 沿用既有发布签名；签名一致时可按平台规则
 
 当前完整三端源码以 [main 分支](https://github.com/Zero-wyc/ZViewerAPP/tree/main) 为准，可直接 [下载 main 源码 ZIP](https://github.com/Zero-wyc/ZViewerAPP/archive/refs/heads/main.zip)。
 
-`client-v2.3.6` 标签保留本版源码快照；继续开发请使用 main。iOS 工程保持 2.1.10 / build 31，本轮安卓/鸿蒙适配未移植到 iOS。无需额外下载手工打包的 Source Code 附件。
+`client-v2.3.6` 标签已同步到包含 Mac iOS build32 至 build40 更新的合并提交，Release 自动源码归档包含三端源码；继续开发请使用 main。Android / HarmonyOS 保留原 2.3.6 / 236 安装包，无需额外下载手工打包的 Source Code 附件。
 
 ## 本地开发
 
@@ -100,10 +102,12 @@ iOS 需要在子目录单独安装依赖：
 cd ZV-iOS
 npm ci
 npm run check
+npm run test:contracts
+node scripts/stage-native-core.cjs --verify-only
 npm start
 ```
 
-`npm run check` 包含 VLC 持久补丁检查、lint 和 TypeScript；历史回归源码已按清理要求移入回收站，当前命令不包含历史测试。原生编译和运行仍需要 macOS / Xcode。Expo Go / Web 可用于预览界面，VLC、Go、LiveKit 等自定义原生能力需要原生 App。IPA 构建在 macOS 上按 [iOS 维护流程](docs/ios-maintenance-architecture.md)另行安排。
+`npm run check` 包含 VLC 持久补丁检查、lint 和 TypeScript；`npm run test:contracts` 运行 18 项协议与音乐队列回归，来源检查核对 12 个共享 Go 文件。历史完整测试集不在这些命令中。原生编译和运行仍需要 macOS / Xcode。Expo Go / Web 可用于预览界面，VLC、Go、LiveKit 等自定义原生能力需要原生 App。IPA 构建在 macOS 上按 [iOS 维护流程](docs/ios-maintenance-architecture.md)另行安排。
 
 正式签名需要自己的密钥、证书及授权材料。不要将密码、Cookie、令牌、签名文件或本机 SDK 配置提交到仓库。安装包的 SHA-256 在构建结束时计算一次，发布时复用对应校验文件。
 

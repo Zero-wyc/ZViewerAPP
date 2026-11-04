@@ -1,10 +1,10 @@
 # ZViewer iOS
 
-`ZV-iOS/` 是独立的 Expo SDK 57 / React Native 0.86 客户端，使用 Expo Router、VLCKit、LiveKit 与项目自有原生模块。当前本地版本为 **2.1.10 / build 32**，未签名 IPA 位于 `release-assets/ZViewer-iOS-2.1.10-build32-unsigned.ipa`；历史 build31 可在 [2.1.10 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.1.10) 下载。需要自行签名后侧载，最低 iOS / iPadOS 16.4，Release 安装后无需 Metro 或开发电脑。
+`ZV-iOS/` 是独立的 Expo SDK 57 / React Native 0.86 客户端，使用 Expo Router、VLCKit、LiveKit 与项目自有原生模块。当前版本为 **2.3.6 / build 40**，可在 [2.3.6 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.3.6) 下载 `ZViewer-iOS-2.3.6-build40-unsigned.ipa`，与 Android / HarmonyOS 2.3.6 安装包集中发布。需要自行签名后侧载，最低 iOS / iPadOS 16.4，Release 安装后无需 Metro 或开发电脑。
 
-build32 对齐新版服务端 OBS 只读观看票据、Emby/Jellyfin 按 movieId 起播刷新与运行期服务器中转、FTP/服务器文件/OpenList/WebDAV 成员播放地址，保留原生 HLS Relay 及现有播放设置事务。共享 Go 来源更新至 `7ebacfb`，继续使用固定的 VLCKit 4.0.0a25。5项协议测试、lint、类型检查、模拟器启动、设备 Release 构建和 IPA 离线检查通过；真实播放和其他音乐/手势对齐仍待验，详见 [本轮维护记录](../docs/ios-maintenance-architecture.md#2026-11-04-build32-服务端兼容)。
+本版包含 Mac build32 至 build40 的更新：OBS 只读观看票据、Emby/Jellyfin 及挂载资源刷新、评论分页、一起听导航与设置、网易云/B站来源内切歌、清空全部同步停止，以及歌单详情“全部播放”完整加载后替换整个房间列表。共享 Go 来源为 `7ebacfb`，继续使用固定的 VLCKit 4.0.0a25。Windows 合并后 VLC 补丁、lint、类型检查、18项合同测试及12个共享来源检查通过；Mac 设备构建与模拟器证据的范围见 [iOS 维护文档](../docs/ios-maintenance-architecture.md)。
 
-保留 build31 的播放器栏、字幕/弹幕设置、方向切换、投屏全屏/刷新/聊天、房间设置、LiveKit 音量操作及一起听修复。build30 的用户“测试通过”反馈属于历史版本，不扩展为本次验收。媒体内核仍为 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 实例；投屏只接收 WebRTC 画面，不采集屏幕。维护入口、模块边界、运行限制和故障定位见 [iOS 维护文档](../docs/ios-maintenance-architecture.md)。
+保留 build31 的播放器栏、字幕/弹幕设置、方向切换、投屏全屏/刷新/聊天、房间设置与 LiveKit 音量操作。build30 的用户“测试通过”反馈属于历史版本，不扩展为本次验收。媒体内核仍为 `NativeMediaAdapter → VlcPlayer → VlcVideo` 单一 VLCKit 实例；除 WebRTC / OBS 接收外，本版包含原生主动共享测试能力与画质/帧率设置。旧系统广播扩展需要有效的宿主/扩展签名及共享权限，build37 方向修复仍待真机复验。
 
 ## 日常开发与检查
 
@@ -16,7 +16,7 @@ node scripts/stage-native-core.cjs --verify-only
 npm start
 ```
 
-`npm run check` 运行 VLC 持久补丁检查、lint 和 TypeScript；`npm run test:contracts` 运行本轮5项协议测试；`stage-native-core.cjs --verify-only` 单独核对共享 Go 来源。历史测试与一次性检查已移入回收站，当前check不包含原有433项测试；原生编译和运行仍需macOS/Xcode。普通界面改动先用 Expo Go 或 Expo Web 预览；这些环境没有项目的 VLC、Go、LiveKit、Keychain 和 Swift 模块，结果只代表 JS/UI 流程。关闭开发服务后，确认 Expo 使用的 8081 端口已释放。
+`npm run check` 运行 VLC 持久补丁检查、lint 和 TypeScript；`npm run test:contracts` 运行18项协议与音乐队列测试；`stage-native-core.cjs --verify-only` 单独核对12个共享 Go 来源。历史测试与一次性检查已移入回收站，当前check不包含原有433项测试；原生编译和运行仍需macOS/Xcode。普通界面改动先用 Expo Go 或 Expo Web 预览；这些环境没有项目的 VLC、Go、LiveKit、Keychain 和 Swift 模块，结果只代表 JS/UI 流程。关闭开发服务后，确认 Expo 使用的 8081 端口已释放。
 
 ## 原生工程与 IPA
 
