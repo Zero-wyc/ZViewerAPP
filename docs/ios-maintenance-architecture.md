@@ -2,20 +2,34 @@
 
 2026-11-03 历史整理：`docs/` 仅保留 Android、HarmonyOS、iOS 三份维护指南，阶段方案和发布摘要分别由 Git 历史与根目录 `CHANGELOG.md` 追溯。该次整理保持 2.1.10 / build 31；2026-11-04 的 Mac 开发状态见下文。
 
-更新日期：2026-11-04（Asia/Shanghai；历史Mac日志时间按各文件记录）。本文整合架构、macOS开发记录、验收清单、构建证据、Windows回传与历史故障。当前状态、实现合同、实测范围和未解决项集中维护；已移走的阶段材料可通过Git历史查询。
+更新日期：2026-11-05（Asia/Shanghai；历史Mac日志时间按各文件记录）。本文整合架构、macOS开发记录、验收清单、构建证据、Windows回传与历史故障。当前状态、实现合同、实测范围和未解决项集中维护；已移走的阶段材料可通过Git历史查询。
 
 ## 当前版本与工作边界
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 应用 | 2.1.10 / build39 本地未签名IPA，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
+| 应用 | 2.3.6 / build40 本地未签名IPA，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
 | 工程 | 独立Expo SDK57 / React Native0.86；唯一视频/音乐内核为VLCKit4.0.0a25，语音LiveKit，投屏WebRTC/OBS接收及原生主动共享测试版。 |
 | 用户验收 | 用户对build30反馈“测试通过”；build31保持该播放/房间逻辑，仅统一2.1.10版本元数据并重建发布。没有给出的设备OS、时长和逐项结果不作扩展认定。 |
-| 发布 | 历史build31未签名device ARM64 IPA位于 `client-v2.1.10` Release；build32至build39仅在本地交付。Android/HarmonyOS参考源码为2.3.6/236。自行签名后侧载，未使用App Store/TestFlight。 |
-| 源码 | build39位于本地分支`codex/ios-music-queue-build39`，承接main的build38；Windows交接包提供相对`e4d1c48`的完整Mac增量。原Release标签保留历史快照，发布时应使用合并后的main。 |
-| 本次Mac工作 | build39保留用户一起听导航、扫码登录与设置界面，补齐来源列表、清空入口和来源内切歌，验证歌单全部播放替换；完成双模拟器验证与本地IPA。build37共享方向仍待用户真机复测；本次未改动Android/HarmonyOS或NAS。 |
+| 发布 | 历史build31未签名device ARM64 IPA位于 `client-v2.1.10` Release；build32至build40仅在本地交付。Android/HarmonyOS参考源码为2.3.6/236。自行签名后侧载，未使用App Store/TestFlight。 |
+| 源码 | build40位于本地分支`codex/ios-2.3.6-build40`，承接build39；Windows交接包提供相对`e4d1c48`的完整Mac增量。原Release标签保留历史快照，发布时应使用合并后的main。 |
+| 本次Mac工作 | build40按用户要求统一iOS版本为2.3.6并重新构建，保留build39的来源列表、清空入口、来源内切歌及歌单全部播放替换。build39已完成双模拟器功能验证；build37共享方向仍待用户真机复测。本次未改动Android/HarmonyOS或NAS。 |
 
 所有客户端修改及Git操作在本仓库。iOS设备构建需用户明确指示；Windows日常先用Expo Go/Web检查可用界面，原生VLC、Go、LiveKit、Keychain及系统音频必须在对应原生环境验收。跨平台来源对照见 [Android维护文档](android-maintenance-architecture.md) 和 [HarmonyOS维护文档](harmonyos-maintenance-architecture.md)。
+
+## 2026-11-05 build40 iOS版本统一为2.3.6
+
+用户明确要求将IPA版本编译为2.3.6。`app.json`、`package.json`及锁文件根包版本从2.1.10更新为2.3.6，构建号由39递增至40；使用`expo prebuild --platform ios --no-clean --no-install`同步宿主与广播扩展，恢复prebuild改写的npm启动脚本。本轮仅更新版本元数据，保留build39一起听界面与队列功能，原生依赖和12个共享Go来源未变。
+
+VLC持久补丁、ESLint、TypeScript和18/18合同测试通过。Xcode27.2设备Release构建成功，离线检查确认宿主与`com.zviewer.mobile.BroadcastUpload`均为2.3.6/build40、iOS平台2/ARM64、未签名；最低16.4并支持iPhone/iPad，原生播放、语音和广播桥检查通过。设备构建后已恢复Simulator Vendor/Pods，Simulator Debug编译通过。本轮未重复build39的模拟器界面逐项测试，其截图和本机Go队列状态作为历史功能验证保留。
+
+交付`ZV-iOS/release-assets/ZViewer-iOS-2.3.6-build40-unsigned.ipa`及Downloads同名副本，48,605,143字节，生产JS6,739,375字节。构建脚本仅计算一次SHA，后续检查传`--skip-sha256`复用：
+
+```text
+bc7ec7b4c5dc2601cfaebafc58c4e2f831679f5d7035f1a6cae83487ce6f43c4
+```
+
+日志和离线检查位于忽略目录`.native-tools/build40-*`。Windows交接包更新为`ZViewer-Windows-Handoff-2.3.6-build40-20261105.zip`，包含最终源码、相对`e4d1c48`的完整Mac Git增量、build40 IPA和版本检查，以及build39功能验证证据；合并说明与发行说明草稿已同步2.3.6/build40。未使用EAS云额度，未推送、合并远端或发布Release。
 
 ## 2026-11-04 build39 一起听播放列表与Windows交接
 
