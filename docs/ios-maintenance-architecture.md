@@ -2,20 +2,56 @@
 
 2026-11-03 历史整理：`docs/` 仅保留 Android、HarmonyOS、iOS 三份维护指南，阶段方案和发布摘要分别由 Git 历史与根目录 `CHANGELOG.md` 追溯。该次整理保持 2.1.10 / build 31；2026-11-04 的 Mac 开发状态见下文。
 
-更新日期：2026-11-04（本轮Mac记录使用America/New_York）。本文整合架构、macOS开发记录、验收清单、构建证据、Windows回传与历史故障。当前状态、实现合同、实测范围和未解决项集中维护；已移走的阶段材料可通过Git历史查询。
+更新日期：2026-11-04（Asia/Shanghai；历史Mac日志时间按各文件记录）。本文整合架构、macOS开发记录、验收清单、构建证据、Windows回传与历史故障。当前状态、实现合同、实测范围和未解决项集中维护；已移走的阶段材料可通过Git历史查询。
 
 ## 当前版本与工作边界
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 应用 | 2.1.10 / build35 本地未签名IPA，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
+| 应用 | 2.1.10 / build36 本地未签名IPA，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
 | 工程 | 独立Expo SDK57 / React Native0.86；唯一视频/音乐内核为VLCKit4.0.0a25，语音LiveKit，投屏WebRTC/OBS接收及原生主动共享测试版。 |
 | 用户验收 | 用户对build30反馈“测试通过”；build31保持该播放/房间逻辑，仅统一2.1.10版本元数据并重建发布。没有给出的设备OS、时长和逐项结果不作扩展认定。 |
-| 发布 | 历史build31未签名device ARM64 IPA位于 `client-v2.1.10` Release；build32至build35仅在本地交付。Android/HarmonyOS参考源码为2.3.6/236。自行签名后侧载，未使用App Store/TestFlight。 |
+| 发布 | 历史build31未签名device ARM64 IPA位于 `client-v2.1.10` Release；build32至build36仅在本地交付。Android/HarmonyOS参考源码为2.3.6/236。自行签名后侧载，未使用App Store/TestFlight。 |
 | 源码 | 完整后续iOS源码在main；原Release标签保留双端最初快照，标签自动归档不含全部后续iOS修复。 |
-| 本次Mac工作 | build35处理投屏权限诊断、iOS27存储边界、分辨率/帧率及横竖屏比例；用户已反馈build34真机因App Group不可访问而无法开始。新包未获得真机通过结论，旧系统签名问题仍待核对实际重签包。未修改Android/HarmonyOS或NAS。 |
+| 本次Mac工作 | build36处理真机反馈的竖屏画面侧转且接收宽高未交换；编码前旋转实际像素，方向附件兼容两种位置。用户截图显示共享画面已到达网页，但build35旋转验收失败；不能据此确认所有系统签名问题已解决。build36仍待用户真机复测。未修改Android/HarmonyOS或NAS。 |
 
 所有客户端修改及Git操作在本仓库。iOS设备构建需用户明确指示；Windows日常先用Expo Go/Web检查可用界面，原生VLC、Go、LiveKit、Keychain及系统音频必须在对应原生环境验收。跨平台来源对照见 [Android维护文档](android-maintenance-architecture.md) 和 [HarmonyOS维护文档](harmonyos-maintenance-architecture.md)。
+
+## 2026-11-04 build36 竖屏像素方向修复
+
+用户真机测试build35后提供网页接收截图：内容侧转，显示分辨率仍为1546×1080，H.264约49fps。设备系统、签名渠道和开始共享时的姿态未知。该证据说明build35依赖旋转元数据的实现没有在此链路产生正确结果；此前的尺寸计算和模拟器布局通过不能代替该失败项。
+
+修复集中在发送端，未修改服务端/网页。新增`ZVShareVideoProcessor`，在采集回调持有源buffer期间先按原比例缩小，再用VideoToolbox旋转实际像素；90/270度时目标buffer交换宽高，向WebRTC提交的旋转恒为0。源适配与采集统计均读取最终buffer宽高，避免只改统计或让接收端二次旋转。缩小后的临时buffer按尺寸/格式复用，保留单帧在途限制；不旋转时仍仅拷贝一次。
+
+ReplayKit与iOS27的方向读取共用helper，兼容`CMGetAttachment`和sample附件数组两种存放位置，仍按EXIF映射0/90/180/270度。不根据宿主界面或重力传感器猜测其他应用的实际方向，源应用锁向时继续遵循源。
+
+验证：
+
+- BGRA与NV12 full/video range真实pixel buffer测试通过。逐像素检查0/90/180/270度及反复切换的位置，另验证2360×1648在1080p档位输出1546×1080，旋转后实际buffer为1080×1546；两种方向附件位置也通过。
+- 使用本包同版本LiveKitWebRTC144.7559.15的macOS slice建立两个原生PeerConnection，限制H.264、通过实际ICE/RTP/编码/解码回环接收视频，连续验证1546×1080、1080×1546、1546×1080、1080×1546、1546×1080和各象限像素；接收旋转均为0。没有只替换显示标签。最初直接调用编码器的测试因固定的初始编码尺寸不适于验证PeerConnection自动重配置而失败，最终改为完整PeerConnection回环；不将最初的测试当作通过。
+- VLC持久补丁、ESLint、TypeScript及9/9合同测试通过。设备Release宿主/广播扩展构建与离线检查通过；最低16.4、iPhone/iPad、ARM64平台2和现有原生桥保持。回环是本机原生媒体链验证，未覆盖实际iPad采集、用户浏览器/NAS、长时间高帧率或系统中断，仍需新包真机复测。
+
+在Mac的`ZV-iOS/`运行像素与H.264回环测试（须先安装Pods；不含设备采集授权）：
+
+```bash
+xcrun swiftc native/screen-share/ZVShareVideoSettings.swift \
+  native/screen-share/ZVShareVideoProcessor.swift scripts/screen-share-video.test.swift \
+  -F ios/Pods/LiveKitWebRTC/LiveKitWebRTC.xcframework/macos-arm64_x86_64 \
+  -framework LiveKitWebRTC -Xlinker -rpath \
+  -Xlinker "$PWD/ios/Pods/LiveKitWebRTC/LiveKitWebRTC.xcframework/macos-arm64_x86_64" \
+  -o .native-tools/screen-share-video-test
+.native-tools/screen-share-video-test
+```
+
+交付`ZV-iOS/release-assets/ZViewer-iOS-2.1.10-build36-unsigned.ipa`与Downloads同名副本，48,598,701字节，生产JS6,726,424字节。宿主与扩展均为2.1.10/build36、未签名。构建后仅计算一次SHA，离线检查传`--skip-sha256`：
+
+```text
+b3e7c53e1c3fbc712b50432689db564c2a0673c1ac24b772f33103ae09aab8fc
+```
+
+本地证据在忽略目录`.native-tools/build36-{prebuild,device-pods,package,check,contracts,video-codec}.log`及`build36-inspection.json`。SDK57 CLI当前默认清理原生目录，保留生成目录需显式`expo prebuild --no-clean`；本轮重新生成后安装Pods并恢复Simulator依赖。未使用EAS云构建额度，未发布远端。
+
+Simulator Debug构建通过并同步到iPad Pro13英寸M5与iPhone18Pro/iOS27.2；iPad连接隔离的本地测试房间并显示共享设置，iPhone显示连接首页。启动截图为`.native-tools/build36-{ipad,iphone}-launch.png`，构建日志为`.native-tools/build36-simulator-xcode.log`。Metro通过8082提供开发包；本机`--localhost`仅监听IPv6时会使应用的127.0.0.1请求失败，已改为`--host lan`并用`REACT_NATIVE_PACKAGER_HOSTNAME=127.0.0.1`指定开发地址。此验证只覆盖安装、启动与界面，Simulator不支持实际主动采集。
 
 ## 2026-11-04 build35 签名诊断、画质与方向适配
 

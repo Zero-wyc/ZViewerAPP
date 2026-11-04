@@ -194,10 +194,7 @@ private final class ZVModernScreenCapture: NSObject, SCContentSharingPickerObser
   }
   func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
     if type == .screen {
-      let attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]]
-      // SCStream's videoOrientation is an EXIF orientation, just like ReplayKit.
-      let orientation = (attachments?.first?[.videoOrientation] as? NSNumber)?.intValue ?? 1
-      sender?.videoSample(sampleBuffer, rotation: ZVShareVideoSettings.rotation(exif: orientation))
+      sender?.videoSample(sampleBuffer, rotation: ZVShareVideoProcessor.rotation(for: sampleBuffer, key: SCStreamFrameInfo.videoOrientation.rawValue as CFString))
     } else if type == .audio { sender?.audioSample(sampleBuffer) }
   }
   func stream(_ stream: SCStream, didStopWithError error: Error) { fail("系统已结束屏幕共享") }

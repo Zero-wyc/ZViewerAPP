@@ -1,6 +1,5 @@
 import Foundation
 import AVFoundation
-import VideoToolbox
 import LiveKitWebRTC
 import SocketIO
 
@@ -10,6 +9,7 @@ public final class ZVShareSender: NSObject, LKRTCPeerConnectionDelegate {
   public let queue = DispatchQueue(label: "zviewer.share.sender", qos: .userInitiated)
   private let options: [String: Any]
   private let settings: ZVShareVideoSettings
+  private let videoProcessor: ZVShareVideoProcessor
   private let audio = ZVShareAudioDevice()
   private var factory: LKRTCPeerConnectionFactory?
   private var source: LKRTCVideoSource?
@@ -34,12 +34,13 @@ public final class ZVShareSender: NSObject, LKRTCPeerConnectionDelegate {
   private var disconnectedAt: Date?
   private var lastSnapshot: Double = 0
   private let frameGate = DispatchSemaphore(value: 1)
-  private var transfer: VTPixelTransferSession?
 
   public init(options: [String: Any]) throws {
     guard let id = options["id"] as? String, !id.isEmpty else { throw ZVShareStore.failure("共享会话不存在") }
     self.id = id; self.options = options
-    self.settings = ZVShareVideoSettings(quality: options["quality"] as? String, framesPerSecond: options["framesPerSecond"] as? Int)
+    let settings = ZVShareVideoSettings(quality: options["quality"] as? String, framesPerSecond: options["framesPerSecond"] as? Int)
+    self.settings = settings
+    self.videoProcessor = ZVShareVideoProcessor(settings: settings)
     super.init()
   }
 
@@ -216,22 +217,14 @@ public final class ZVShareSender: NSObject, LKRTCPeerConnectionDelegate {
     let stamp = CMSampleBufferGetPresentationTimeStamp(sample).seconds
     guard stamp.isFinite, lastFrame == 0 || stamp - lastFrame + 0.0005 >= 1.0 / Double(settings.framesPerSecond) else { frameGate.signal(); return }
     lastFrame = stamp
-    let rawWidth = CVPixelBufferGetWidth(input), rawHeight = CVPixelBufferGetHeight(input)
-    let size = settings.dimensions(width: rawWidth, height: rawHeight)
-    let width = size.width, height = size.height
-    var copied: CVPixelBuffer?
-    guard CVPixelBufferCreate(kCFAllocatorDefault, width, height, CVPixelBufferGetPixelFormatType(input),
-      [kCVPixelBufferIOSurfacePropertiesKey: [:]] as CFDictionary, &copied) == kCVReturnSuccess, let copied else { frameGate.signal(); return }
-    if transfer == nil { VTPixelTransferSessionCreate(allocator: kCFAllocatorDefault, pixelTransferSessionOut: &transfer) }
-    guard let transfer, VTPixelTransferSessionTransferImage(transfer, from: input, to: copied) == noErr else { frameGate.signal(); return }
+    guard let copied = videoProcessor.copyFrame(input, rotation: rotation) else { frameGate.signal(); return }
+    let width = CVPixelBufferGetWidth(copied), height = CVPixelBufferGetHeight(copied)
     queue.async { [self] in
       defer { frameGate.signal() }
       guard !closed, !paused, let source, let capturer else { return }
       source.adaptOutputFormat(toWidth: Int32(width), height: Int32(height), fps: Int32(settings.framesPerSecond))
-      let rtcRotation = LKRTCVideoRotation(rawValue: rotation) ?? ._0
-      source.capturer(capturer, didCapture: LKRTCVideoFrame(buffer: LKRTCCVPixelBuffer(pixelBuffer: copied), rotation: rtcRotation, timeStampNs: Int64(stamp * 1_000_000_000)))
-      let displayed = ZVShareVideoSettings.displayDimensions(width: width, height: height, rotation: rotation)
-      frames += 1; frameSize = CGSize(width: displayed.width, height: displayed.height)
+      source.capturer(capturer, didCapture: LKRTCVideoFrame(buffer: LKRTCCVPixelBuffer(pixelBuffer: copied), rotation: ._0, timeStampNs: Int64(stamp * 1_000_000_000)))
+      frames += 1; frameSize = CGSize(width: width, height: height)
     }
   }
 

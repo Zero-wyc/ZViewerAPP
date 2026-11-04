@@ -1,5 +1,4 @@
 import ReplayKit
-import ImageIO
 import ZViewerScreenShare
 
 final class SampleHandler: RPBroadcastSampleHandler {
@@ -29,8 +28,7 @@ final class SampleHandler: RPBroadcastSampleHandler {
   override func processSampleBuffer(_ sampleBuffer: CMSampleBuffer, with sampleBufferType: RPSampleBufferType) {
     switch sampleBufferType {
     case .video:
-      let orientation = (CMGetAttachment(sampleBuffer, key: RPVideoSampleOrientationKey as CFString, attachmentModeOut: nil) as? NSNumber)?.uint32Value ?? 1
-      sender?.videoSample(sampleBuffer, rotation: ZVShareVideoSettings.rotation(exif: Int(orientation)))
+      sender?.videoSample(sampleBuffer, rotation: ZVShareVideoProcessor.rotation(for: sampleBuffer, key: RPVideoSampleOrientationKey as CFString))
     case .audioApp: sender?.audioSample(sampleBuffer)
     // The initial sender deliberately does not capture a second microphone
     // alongside room voice, or bypass the room's microphone permissions.
