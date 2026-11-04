@@ -39,6 +39,24 @@ def inspect(path):
         assert all(bridges.values()), 'Missing linked native Bilibili/voice bridge classes'
         assert info.get('NSMicrophoneUsageDescription'), 'Missing microphone permission description'
         continuation = {}
+        extensions = [name for name in names if name.startswith(root + 'PlugIns/') and name.endswith('.appex/Info.plist')]
+        if int(info['CFBundleVersion']) >= 34:
+            assert len(extensions) == 1, 'Missing or duplicate broadcast extension'
+            extension_root = extensions[0].removesuffix('Info.plist')
+            extension_info = plistlib.loads(archive.read(extensions[0]))
+            extension_binary = archive.read(extension_root + extension_info['CFBundleExecutable'])
+            extension_macho = macho(extension_binary)
+            assert extension_macho['arm64'] and extension_macho['platform'] == 2 and not extension_macho['signed'], 'Invalid broadcast extension executable'
+            assert extension_info['CFBundleIdentifier'] == info['CFBundleIdentifier'] + '.BroadcastUpload', 'Broadcast identifier mismatch'
+            assert extension_info['CFBundleVersion'] == info['CFBundleVersion'], 'Broadcast build mismatch'
+            assert extension_info['NSExtension']['NSExtensionPointIdentifier'] == 'com.apple.broadcast-services-upload', 'Wrong broadcast extension point'
+            assert extension_info['NSExtension']['RPBroadcastProcessMode'] == 'RPBroadcastProcessModeSampleBuffer'
+            assert b'ZVShareSender' in extension_binary and b'SampleHandler' in extension_binary, 'Missing native broadcast sender'
+            assert b'ZViewerNativeModule' not in extension_binary and b'ZVBiliBridge' not in extension_binary, 'Host runtime leaked into extension'
+            assert not any(name.startswith(extension_root) and any(engine in name for engine in ('VLCKit.framework/', 'hermes.framework/', 'React.framework/', 'Bilicore.framework/')) for name in names), 'Heavy host dependencies leaked into extension'
+            assert info.get('ZViewerShareKeychainGroup') == extension_info.get('ZViewerShareKeychainGroup'), 'Shared keychain group mismatch'
+            assert 'screen-capture' in info.get('UIBackgroundModes', []), 'Missing modern screen capture background mode'
+            continuation['screenShareExtension'] = dict(bundleId=extension_info['CFBundleIdentifier'], build=extension_info['CFBundleVersion'], **extension_macho)
         if tuple(map(int, info['CFBundleShortVersionString'].split('.'))) >= (1, 5, 0):
             assert set(info.get('UIDeviceFamily', [])) == {1, 2}, 'Missing iPhone or iPad device family'
             assert b'ZVSystemMedia' in binary and b'ZViewerVlcCommand' in binary and b'ZViewerVlcProgress' in binary, 'Missing system media integration'
@@ -52,7 +70,7 @@ def inspect(path):
             source_manifest = json.loads(archive.read(manifests[0].replace('source-provenance.json', 'source-manifest.json')))
             assert provenance['files'] == source_manifest, 'Source manifests disagree'
             assert any(name.endswith('/OPUS-LICENSE') for name in names) and any(name.endswith('/BILICORE-LICENSE') for name in names), 'Missing native dependency licenses'
-            continuation = dict(systemMedia=True, sharedSource=provenance, deviceFamilies=info.get('UIDeviceFamily'), minimumOS=info.get('MinimumOSVersion'), interfaceStyle=info.get('UIUserInterfaceStyle'))
+            continuation.update(systemMedia=True, sharedSource=provenance, deviceFamilies=info.get('UIDeviceFamily'), minimumOS=info.get('MinimumOSVersion'), interfaceStyle=info.get('UIUserInterfaceStyle'))
         if tuple(map(int, info['CFBundleShortVersionString'].split('.'))) >= (1, 7, 5):
             rtc = {name: name.encode() in binary for name in ['LivekitReactNativeModule', 'WebRTCModule', 'LiveKitExpoAppDelegate']}
             assert all(rtc.values()), 'Missing LiveKit native RTC modules or Expo startup registration'

@@ -25,6 +25,7 @@ import { RoomSettings, RoomSettingsFooter, type Viewer } from '@/components/Room
 import { DanmakuOverlay, useDanmaku } from '@/components/Danmaku';
 import { MusicPanel } from '@/components/MusicPanel';
 import { ScreenShare, type ShareState } from '@/components/ScreenShare';
+import { ScreenShareHost } from '@/components/ScreenShareHost';
 import { playbackSource, onBiliChange, biliFallback, stopBiliPlayback, resolveSharedBili } from '@/lib/biliNative';
 import { RoomIconButton } from '@/components/RoomUi';
 import { resolveAggregateSource } from '@/lib/aggregatePlayback';
@@ -124,6 +125,9 @@ export default function RoomScreen() {
   useEffect(() => { mediaColumn.current?.scrollTo({ y: 0, animated: false }); }, [mode]);
   const attempted = useRef(hasPassword !== '1' || asHost === '1');
   const hostRef = useRef(asHost === '1');
+  const nativeShareOwner = useRef(false);
+  const [nativeSharing, setNativeSharing] = useState(false);
+  const shareOwnership = useCallback((active: boolean) => { nativeShareOwner.current = active; setNativeSharing(active); }, []);
   const passwordRef = useRef('');
   const adapterRef = useRef<NativeMediaAdapter | null>(null);
   const playbackRef = useRef<Playback | null>(null);
@@ -197,7 +201,7 @@ export default function RoomScreen() {
   const stacked = portrait && sideVisible;
   const columns = landscapeColumns(bodySize.width || Math.max(0, width - 24));
   const [mediaSize, setMediaSize] = useState({ width: 0, height: 0 });
-  const leftWidth = mediaSize.width || (wide && sideVisible ? Math.max(0, width - 380) : Math.max(0, width - 32));
+  const leftWidth = mediaSize.width || (wide && sideVisible ? Number(columns.media.width) : Math.max(0, width - 32));
   const mediaHeight = stacked ? stackedMediaHeight(bodySize.height || Math.max(0, height - 150)) : bodySize.height || Math.max(0, height - 150);
   const playerHeight = Math.min(leftWidth * (decodedSize.width > 0 ? decodedSize.height / decodedSize.width : 9 / 16), Math.max(80, mediaHeight));
   const toggleFullscreen = async () => { showControls(); await display.toggleFullscreen(); };
@@ -253,6 +257,7 @@ export default function RoomScreen() {
   }, [loadMovies, loadComments, socket, roomId, applyPlayback, requestPlayback, request]);
 
   const join = useCallback(async (asRoomHost: boolean) => {
+    if (nativeShareOwner.current) return;
     if (!socket?.connected) { setPhase('connecting'); return; }
     const version = ++generation.current;
     setPhase('joining'); setError('');
@@ -279,7 +284,7 @@ export default function RoomScreen() {
     if (!socket) return;
     const invalidateJoin = () => { generation.current++; };
     const onConnect = () => { if (attempted.current) void join(hostRef.current); else setPhase('password'); };
-    const onDisconnect = () => { movieResolution.current?.abort(); settingsInFlight.current?.abort(); generation.current++; readyRef.current = false; roomPlayback.current.reset(); setSource(null); knownMembers.current.clear(); setViewers([]); setPhase('connecting'); };
+    const onDisconnect = () => { if (nativeShareOwner.current) return; movieResolution.current?.abort(); settingsInFlight.current?.abort(); generation.current++; readyRef.current = false; roomPlayback.current.reset(); setSource(null); knownMembers.current.clear(); setViewers([]); setPhase('connecting'); };
     const onViewerJoined = (payload: { viewerSocketId: string; userId?: number; username?: string; role?: string }) => { const viewer = { ...payload, socketId: payload.viewerSocketId }; knownMembers.current.set(viewer.socketId, viewer); setViewers(previous => [...previous.filter(item => item.socketId !== payload.viewerSocketId), viewer]); };
     const onViewerLeft = (payload: { viewerSocketId: string }) => { knownMembers.current.delete(payload.viewerSocketId); setViewers(previous => previous.filter(item => item.socketId !== payload.viewerSocketId)); };
     const onApproved = (data: JoinData) => { if (data.roomId === roomId) applyRoom(data); };
@@ -288,6 +293,7 @@ export default function RoomScreen() {
     const onKicked = (data: { reason?: string }) => { settingsInFlight.current?.abort(); generation.current++; attempted.current = false; readyRef.current = false; player.pause(); setSource(null); setPhase('closed'); setError(data.reason || '您已被移出房间'); };
     const onMode = (data: JoinData) => { if ((!data.roomId || data.roomId === roomId) && data.mode && data.mode !== modeRef.current) { roomInfoRevision.current++; modeRef.current = data.mode; movieOperation.current++; movieResolution.current?.abort(); settingsInFlight.current?.abort(); setMode(data.mode); setRoomTab('chat'); setSideOpen(null); setControlsVisible(true); void resetDisplay(); } };
     const onHostTransferred = (data: HostTransfer & { newOwnerUserId?: number }) => {
+      if (nativeShareOwner.current) return;
       if (typeof data.newHostSocketId !== 'string' || !data.newHostSocketId || data.newHostSocketId === data.oldHostSocketId) return;
       if (data.oldHostSocketId === socket.id && session) knownMembers.current.set(socket.id!, { socketId: socket.id!, userId: session.user.id, username: session.user.username, role: session.user.role });
       const former = data.oldHostSocketId ? knownMembers.current.get(data.oldHostSocketId) : undefined;
@@ -650,12 +656,12 @@ export default function RoomScreen() {
       <RoomIconButton label="离开房间" icon="arrow-left" onPress={() => setLeaveOpen(true)} />
       <View style={{ flex: 1, minWidth: 0 }}><Text style={styles.title} numberOfLines={1}>{roomName}</Text><Text style={styles.muted}>{host ? '房主' : '观众'} · {mode === 'listen-together' ? '一起听' : mode === 'screen-share' ? '屏幕共享' : '同步观影'}</Text></View>
       <ScreenOrientationButton state={display.orientation} />
-      <VoicePanel compact roomId={roomId} ready={phase === 'ready'} host={host} />
-      <RoomIconButton label="房间设置" icon="users" onPress={() => setSettingsOpen(true)} />
+      {!nativeSharing ? <VoicePanel compact roomId={roomId} ready={phase === 'ready'} host={host} /> : null}
+      {!nativeSharing ? <RoomIconButton label="房间设置" icon="users" onPress={() => setSettingsOpen(true)} /> : null}
       {mode === 'watch-together' && !portrait && !wide ? <RoomIconButton label={portrait ? (sideVisible ? '收起下方菜单' : '展开下方菜单') : (sideVisible ? '收起侧栏' : '展开侧栏')} icon={portrait ? (sideVisible ? 'chevron-up' : 'chevron-down') : (sideVisible ? 'sidebar' : 'menu')} onPress={() => setSideOpen(!sideVisible)} /> : null}
     </Surface>
     {display.orientation.error && !fullScreen ? <Text accessibilityLiveRegion="polite" style={styles.error}>{display.orientation.error}</Text> : null}
-    {!connected && !fullScreen ? <Text style={styles.error}>连接已断开，正在重连</Text> : null}
+    {!connected && !fullScreen && !nativeSharing ? <Text style={styles.error}>连接已断开，正在重连</Text> : null}
     {phase !== 'ready' && !retainMusicPlayback(joined, mode, phase) ? <View style={styles.join}><ActivityIndicator color="#65d59b" animating={phase === 'joining' || phase === 'connecting' || phase === 'waiting'} /><Text style={styles.title}>{phase === 'password' ? '请输入房间密码' : phase === 'waiting' ? '等待房主批准' : phase === 'closed' ? '房间已关闭' : phase === 'error' ? '无法加入房间' : '正在加入房间'}</Text>{error ? <Text style={styles.error}>{error}</Text> : null}{phase === 'password' ? <><TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholder="房间密码" placeholderTextColor="#a8b3b6" /><Button label="进入房间" disabled={!connected} onPress={() => { passwordRef.current = password; attempted.current = true; void join(hostRef.current); }} /></> : null}{phase === 'error' ? <Button label="重试" disabled={!connected} onPress={() => void join(hostRef.current)} /> : null}<Button label="返回房间列表" onPress={leave} /></View> : <>
       <View testID="room-body" onLayout={event => setBodySize(event.nativeEvent.layout)} style={[roomLayout.body, { gap: stacked ? 0 : 12 }, wide && roomLayout.wide, fullScreen && { gap: 0 }]}>
         <View testID="room-media-frame" onLayout={event => setMediaSize(event.nativeEvent.layout)} style={[roomLayout.mediaFrame, wide && sideVisible && columns.media, stacked && roomLayout.stackedMedia, stacked && { height: playerHeight }]}>
@@ -675,11 +681,11 @@ export default function RoomScreen() {
             <View pointerEvents={controlsVisible ? 'auto' : 'none'} accessibilityElementsHidden={!controlsVisible} style={[styles.playbackBar, styles.videoControls, !controlsVisible && { opacity: 0 }]}>
               <PlaybackControls nextEnabled={permissions.canSwitch && nextMovieId(movies.map(movie => movie.id), source?.movieId) !== null} nextBusy={nextBusy} next={() => void nextMovie()} sync={() => publishNativeState()} orientation={display.orientation} interact={setControlsInteracting} hide={() => setControlsVisible(false)} refresh={() => { relayAuth.current.reset(); adapterRef.current?.invalidate(); setPlaybackError(''); setRetryTick(value => value + 1); }} player={player} host={host} roomId={roomId} subtitles={subtitles} danmaku={danmaku} control={control} fullscreen={fullScreen} toggleFullscreen={() => void toggleFullscreen()} />
             </View>
-          </View> : <><ScreenShare orientation={display.orientation} roomId={roomId} share={share} height={playerHeight} fullscreen={fullScreen} toggleFullscreen={() => void toggleFullscreen()} />{!fullScreen && !castingSidebar ? <RoomChatPanel error={error} comments={comments} draft={draft} setDraft={setDraft} send={() => void sendComment()} busy={busy} connected={connected} asDanmaku={sendAsDanmaku} setAsDanmaku={setSendAsDanmaku} /> : null}</>}
+          </View> : <>{host && share.shareMethod !== 'stream-push' ? <ScreenShareHost roomId={roomId} onOwnership={shareOwnership} /> : <ScreenShare orientation={display.orientation} roomId={roomId} share={share} height={playerHeight} fullscreen={fullScreen} toggleFullscreen={() => void toggleFullscreen()} />}{!fullScreen && !castingSidebar ? <RoomChatPanel error={error} comments={comments} draft={draft} setDraft={setDraft} send={() => void sendComment()} busy={busy} connected={connected && !nativeSharing} asDanmaku={sendAsDanmaku} setAsDanmaku={setSendAsDanmaku} /> : null}</>}
 
         </ScrollView>}
         </View>
-        {castingSidebar ? <View testID="screen-share-chat-sidebar" style={columns.sidebar}><RoomChatPanel sidebar error={error} comments={comments} draft={draft} setDraft={setDraft} send={() => void sendComment()} busy={busy} connected={connected} asDanmaku={sendAsDanmaku} setAsDanmaku={setSendAsDanmaku} /></View> : null}
+        {castingSidebar ? <View testID="screen-share-chat-sidebar" style={columns.sidebar}><RoomChatPanel sidebar error={error} comments={comments} draft={draft} setDraft={setDraft} send={() => void sendComment()} busy={busy} connected={connected && !nativeSharing} asDanmaku={sendAsDanmaku} setAsDanmaku={setSendAsDanmaku} /></View> : null}
         {mode === 'watch-together' ? <Surface readable testID="room-sidebar" style={[styles.sidePanel, !sideVisible && { display: 'none' }, wide ? columns.sidebar : stacked ? roomLayout.stackedSidebar : { position: 'absolute', top: 0, right: 0, bottom: 0, width: '100%', zIndex: 20, backgroundColor: theme.color('#111417', 'backgroundColor'), padding: 12 }]}>
           <View accessibilityRole="tablist" style={{ flexDirection: 'row', borderBottomWidth: 1, borderColor: palette.line }}>
             {(['chat', 'movies'] as const).map((value, index) => <Pressable key={value} accessibilityRole="tab" accessibilityLabel={index === 0 ? '聊天' : '片单'} accessibilityState={{ selected: roomTab === value }} onAccessibilityTap={() => setRoomTab(value)} onPress={() => setRoomTab(value)} style={{ flex: 1, minHeight: 52, borderBottomWidth: 2, borderColor: roomTab === value ? palette.accent : 'transparent', flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' }}><Feather name={index === 0 ? 'message-circle' : 'film'} size={21} color={roomTab === value ? palette.accent : palette.muted} /><Text style={{ color: roomTab === value ? palette.accent : palette.muted, fontSize: 17 }}>{index === 0 ? '聊天' : '片单'}</Text></Pressable>)}

@@ -4,6 +4,7 @@ set -euo pipefail
 cd "$(cd "$(dirname "$0")/.." && pwd)"
 node scripts/stage-native-core.cjs --verify-only
 node scripts/patch-vlc-native.cjs --check
+node scripts/verify-screen-share-project.cjs
 python3 - <<'PY'
 import plistlib
 from pathlib import Path

@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { firstCommentPage, ncmCommentsPath, readNcmComments } from '../src/lib/songComments.ts';
+import { landscapeColumns } from '../src/lib/roomLayout.ts';
+import { screenShareExpiry } from '../src/lib/screenShareSession.ts';
 import { getWatchPlaybackUrl, watchPlaybackUrl } from '../src/lib/streamPush.ts';
 import {
   canSwitchLibraryPlayback,
@@ -9,6 +12,43 @@ import {
   libraryMovieSourceUrl,
   resolveMoviePlaybackSource,
 } from '../src/lib/movieSourceResolver.ts';
+
+test('NCM comments use the supported nested response and cursor/time pagination', () => {
+  const url = new URL(ncmCommentsPath(123, null, firstCommentPage), 'https://nas.example');
+  assert.equal(url.pathname, '/api/music/ncm/comment/new');
+  assert.equal(url.searchParams.get('sortType'), '3');
+  assert.equal(url.searchParams.get('pageNo'), '1');
+  assert.equal(url.searchParams.get('cursor'), '0');
+  const page = readNcmComments(JSON.stringify({ code: 200, data: { comments: [{ commentId: 4, content: 'test' }], totalCount: 99, cursor: 'next', hasMore: true } }), null, firstCommentPage);
+  assert.equal(page.count, 99);
+  assert.equal(new URL(ncmCommentsPath(123, null, page.next), 'https://nas.example').searchParams.get('cursor'), 'next');
+  const floor = readNcmComments(JSON.stringify({ code: 200, data: { comments: [{ commentId: 5 }], totalCount: 3, time: 200, hasMore: true } }), 4, firstCommentPage);
+  const replies = new URL(ncmCommentsPath(123, 4, floor.next), 'https://nas.example');
+  assert.equal(replies.pathname, '/api/music/ncm/comment/floor');
+  assert.equal(replies.searchParams.get('time'), '200');
+  assert.equal(replies.searchParams.get('parentCommentId'), '4');
+  assert.throws(() => readNcmComments('{"code":301}', null, firstCommentPage), /登录网易云/);
+  assert.equal(readNcmComments('{"code":200,"data":{"comments":[],"hasMore":true,"cursor":"0"}}', null, firstCommentPage).next, null);
+});
+
+test('iPad room columns leave room for controls and widen comments without overflow', () => {
+  for (const width of [620, 800, 980, 1120, 1340]) {
+    const columns = landscapeColumns(width);
+    assert.equal(columns.media.width + columns.sidebar.width + 12, width);
+    assert.ok(columns.media.width >= 360);
+    assert.ok(columns.sidebar.width <= 440);
+    if (width >= 900) assert.ok(columns.sidebar.width >= 360);
+  }
+});
+
+test('broadcast authorization is bounded and never accepts expired JWTs', () => {
+  const now = 1_000_000;
+  const jwt = exp => `header.${Buffer.from(JSON.stringify({ exp })).toString('base64url')}.signature`;
+  assert.equal(screenShareExpiry(jwt(10000), now), 4600);
+  assert.equal(screenShareExpiry(jwt(1100), now), 1100);
+  assert.throws(() => screenShareExpiry(jwt(1000), now));
+  assert.throws(() => screenShareExpiry('invalid', now));
+});
 
 test('library playback switches follow public and intranet mount policy', () => {
   for (const serverUrl of ['nas', 'https://nas.home.arpa', 'http://192.168.1.2', 'http://[::ffff:192.168.1.2]', 'http://[::ffff:100.64.1.2]', 'http://[::1]', 'http://[fd00::1]']) {
