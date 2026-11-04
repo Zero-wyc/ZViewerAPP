@@ -24,7 +24,7 @@ enum ScreenShareSettingsTest {
     precondition(landscape.width == 1920 && landscape.height == 1080)
     let tablet = fullHD.dimensions(width: 2732, height: 2048)
     precondition(tablet.height == 1080 && tablet.width <= 1920)
-    for (exif, rotation) in [(1, 0), (3, 180), (6, 90), (8, 270)] {
+    for (exif, rotation) in [(1, 0), (3, 180), (6, 270), (8, 90)] {
       precondition(ZVShareVideoSettings.rotation(exif: exif) == rotation)
       let displayed = ZVShareVideoSettings.displayDimensions(width: 1440, height: 1080, rotation: rotation)
       precondition(displayed.width == (rotation == 90 || rotation == 270 ? 1080 : 1440))

@@ -25,10 +25,12 @@ public struct ZVShareVideoSettings {
   }
 
   public static func rotation(exif: Int) -> Int {
+    // Screen capture tags describe the source orientation; undo the quarter turn
+    // when baking it into pixels (right -> CCW, left -> CW).
     switch exif {
-    case 6, 7: return 90
+    case 6, 7: return 270
     case 3, 4: return 180
-    case 5, 8: return 270
+    case 5, 8: return 90
     default: return 0
     }
   }

@@ -8,16 +8,36 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 应用 | 2.1.10 / build36 本地未签名IPA，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
+| 应用 | 2.1.10 / build37 本地未签名IPA，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
 | 工程 | 独立Expo SDK57 / React Native0.86；唯一视频/音乐内核为VLCKit4.0.0a25，语音LiveKit，投屏WebRTC/OBS接收及原生主动共享测试版。 |
 | 用户验收 | 用户对build30反馈“测试通过”；build31保持该播放/房间逻辑，仅统一2.1.10版本元数据并重建发布。没有给出的设备OS、时长和逐项结果不作扩展认定。 |
-| 发布 | 历史build31未签名device ARM64 IPA位于 `client-v2.1.10` Release；build32至build36仅在本地交付。Android/HarmonyOS参考源码为2.3.6/236。自行签名后侧载，未使用App Store/TestFlight。 |
+| 发布 | 历史build31未签名device ARM64 IPA位于 `client-v2.1.10` Release；build32至build37仅在本地交付。Android/HarmonyOS参考源码为2.3.6/236。自行签名后侧载，未使用App Store/TestFlight。 |
 | 源码 | 完整后续iOS源码在main；原Release标签保留双端最初快照，标签自动归档不含全部后续iOS修复。 |
-| 本次Mac工作 | build36处理真机反馈的竖屏画面侧转且接收宽高未交换；编码前旋转实际像素，方向附件兼容两种位置。用户截图显示共享画面已到达网页，但build35旋转验收失败；不能据此确认所有系统签名问题已解决。build36仍待用户真机复测。未修改Android/HarmonyOS或NAS。 |
+| 本次Mac工作 | build37修正竖屏90/270度方向映射。用户对build36的真机截图确认宽高已交换为1080×1546，但画面上下颠倒，旋转验收仍失败。新测试覆盖采集方向附件到正立像素及H.264回环，build37仍待用户真机复测。未修改Android/HarmonyOS或NAS。 |
 
 所有客户端修改及Git操作在本仓库。iOS设备构建需用户明确指示；Windows日常先用Expo Go/Web检查可用界面，原生VLC、Go、LiveKit、Keychain及系统音频必须在对应原生环境验收。跨平台来源对照见 [Android维护文档](android-maintenance-architecture.md) 和 [HarmonyOS维护文档](harmonyos-maintenance-architecture.md)。
 
-## 2026-11-04 build36 竖屏像素方向修复
+## 2026-11-04 build37 竖屏倒置修复
+
+用户真机复测build36，网页截图显示1080×1546、H.264、约63fps，内容上下颠倒。该截图确认宽高交换已生效，但不能把画面方向认定为通过，也不能由接收统计推导持续帧率、设备系统或签名渠道。
+
+原因是采集EXIF方向到像素校正角度的90/270度映射反了。`ZVShareVideoSettings.rotation(exif:)`现将right(6)校正为270度、left(8)校正为90度；0/180度保持原处理。ReplayKit与iOS27后端共用该映射，继续在编码前转正像素，向WebRTC提交rotation=0。宽高交换、等比缩小、画质/帧率档位与观看端布局保持现有行为，不在网页强制旋转180度。
+
+上轮测试只验证“给定角度是否正确旋转像素”，回环也沿用了给定角度的预期象限，漏掉了实际采集标签应该如何校正方向。新回归测试先独立构造同一正立图的不同采集姿态，再附加EXIF 1/6/3/8并走生产方向helper与像素处理器；对BGRA、NV12 full/video range、两种附件位置和反复切换逐像素确认还原正立。修改生产代码前，新用例以`Capture EXIF 6 is not upright`失败；对调映射后通过。
+
+使用同版本LiveKitWebRTC的两个原生PeerConnection做H.264实际收发，源象限按采集姿态改变而最终象限恒定，连续验证1546×1080 → 1080×1546 → 1546×1080 → 1080×1546 → 1546×1080，接收rotation均为0且像素正立。Swift画质/帧率测试、VLC持久补丁、ESLint、TypeScript及9/9合同测试通过。日志为忽略目录`.native-tools/build37-before-fix.log`、`build37-video-codec.log`、`build37-check.log`和`build37-contracts.log`。这仍是合成采集样本和本机媒体链验证，不代替实际iPad采集及用户浏览器链路复测。
+
+设备Release宿主与广播扩展构建通过，离线检查通过，均为2.1.10/build37、ARM64/iOS平台2、未签名，最低16.4并保留iPhone/iPad支持。交付`ZV-iOS/release-assets/ZViewer-iOS-2.1.10-build37-unsigned.ipa`及Downloads同名副本，48,598,705字节，生产JS6,726,424字节。构建脚本仅计算一次SHA，离线检查使用`--skip-sha256`：
+
+```text
+3a8c892e749c72f7301c0ff19bb73a271e244d8390be9a2150bbac8b68b82b63
+```
+
+构建证据为`.native-tools/build37-{prebuild,device-pods,package}.log`、`build37-inspection.json`及`ios/build/unsigned-xcode.log`。保留生成目录使用`expo prebuild --no-clean`；未使用EAS云构建额度，未发布远端。
+
+已恢复Simulator Vendor/Pods并完成Debug构建，安装到iPad Pro13英寸M5及iPhone18Pro/iOS27.2，确认build37启动并显示连接首页，Metro仍用8082。截图为`.native-tools/build37-{ipad,iphone}-launch.png`，构建日志为`build37-simulator-xcode.log`。本轮模拟器不测试真实主动采集，真机验收需覆盖竖屏直接开始、横屏转竖屏及两种竖屏方向。
+
+## 2026-11-04 build36 竖屏像素方向修复（后续真机反馈仍倒置）
 
 用户真机测试build35后提供网页接收截图：内容侧转，显示分辨率仍为1546×1080，H.264约49fps。设备系统、签名渠道和开始共享时的姿态未知。该证据说明build35依赖旋转元数据的实现没有在此链路产生正确结果；此前的尺寸计算和模拟器布局通过不能代替该失败项。
 

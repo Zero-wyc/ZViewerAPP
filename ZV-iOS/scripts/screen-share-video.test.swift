@@ -46,7 +46,80 @@ enum ScreenShareVideoTest {
     }
   }
 
+  static func sample(_ image: CVPixelBuffer, orientation: Int?, inSampleAttachments: Bool = false) -> CMSampleBuffer {
+    var description: CMVideoFormatDescription?
+    precondition(CMVideoFormatDescriptionCreateForImageBuffer(allocator: kCFAllocatorDefault, imageBuffer: image, formatDescriptionOut: &description) == noErr)
+    var timing = CMSampleTimingInfo(duration: .invalid, presentationTimeStamp: .zero, decodeTimeStamp: .invalid)
+    var sample: CMSampleBuffer?
+    precondition(CMSampleBufferCreateReadyWithImageBuffer(allocator: kCFAllocatorDefault, imageBuffer: image,
+      formatDescription: description!, sampleTiming: &timing, sampleBufferOut: &sample) == noErr)
+    if let orientation {
+      let value = NSNumber(value: orientation)
+      if inSampleAttachments {
+        let attachments = CMSampleBufferGetSampleAttachmentsArray(sample!, createIfNecessary: true)!
+        let entry = unsafeBitCast(CFArrayGetValueAtIndex(attachments, 0), to: CFMutableDictionary.self)
+        CFDictionarySetValue(entry, Unmanaged.passUnretained(orientationKey).toOpaque(), Unmanaged.passUnretained(value).toOpaque())
+      } else {
+        CMSetAttachment(sample!, key: orientationKey, value: value, attachmentMode: kCMAttachmentMode_ShouldPropagate)
+      }
+    }
+    return sample!
+  }
+
+  static let orientationKey = "ScreenShareTestOrientation" as CFString
+
+  static func captureOrientation() {
+    let processor = ZVShareVideoProcessor(settings: ZVShareVideoSettings(quality: "1080p", framesPerSecond: 30))
+    for format in [kCVPixelFormatType_32BGRA, kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange, kCVPixelFormatType_420YpCbCr8BiPlanarFullRange] {
+      for orientation in [1, 6, 3, 8, 1, 8, 6] {
+        let sideways = orientation == 6 || orientation == 8
+        let width = sideways ? 8 : 4, height = sideways ? 4 : 8
+        let input = buffer(width: width, height: height, format: format)
+        CVPixelBufferLockBaseAddress(input, [])
+        let planar = CVPixelBufferIsPlanar(input)
+        let base = (planar ? CVPixelBufferGetBaseAddressOfPlane(input, 0) : CVPixelBufferGetBaseAddress(input))!.assumingMemoryBound(to: UInt8.self)
+        let stride = planar ? CVPixelBufferGetBytesPerRowOfPlane(input, 0) : CVPixelBufferGetBytesPerRow(input)
+        for y in 0..<height {
+          for x in 0..<width {
+            // Construct capture-oriented pixels independently of the production rotator.
+            let upright: (Int, Int)
+            switch orientation {
+            case 6: upright = (y, 7 - x)
+            case 3: upright = (3 - x, 7 - y)
+            case 8: upright = (3 - y, x)
+            default: upright = (x, y)
+            }
+            let value = UInt8(20 + upright.0 * 6 + upright.1 * 20)
+            let offset = y * stride + x * (planar ? 1 : 4)
+            base[offset] = value
+            if !planar { base[offset + 1] = value; base[offset + 2] = value; base[offset + 3] = 255 }
+          }
+        }
+        if planar {
+          memset(CVPixelBufferGetBaseAddressOfPlane(input, 1), 128,
+            CVPixelBufferGetBytesPerRowOfPlane(input, 1) * CVPixelBufferGetHeightOfPlane(input, 1))
+        }
+        CVPixelBufferUnlockBaseAddress(input, [])
+        for attachedToSample in [false, true] {
+          let captured = sample(input, orientation: orientation, inSampleAttachments: attachedToSample)
+          let rotation = ZVShareVideoProcessor.rotation(for: captured, key: orientationKey)
+          let output = processor.copyFrame(CMSampleBufferGetImageBuffer(captured)!, rotation: rotation)!
+          precondition(CVPixelBufferGetWidth(output) == 4 && CVPixelBufferGetHeight(output) == 8)
+          let values = pixels(output)
+          for y in 0..<8 {
+            for x in 0..<4 {
+              precondition(abs(Int(values[y * 4 + x]) - (20 + x * 6 + y * 20)) <= 1,
+                "Capture EXIF \(orientation) is not upright at \(x),\(y) / \(format)")
+            }
+          }
+        }
+      }
+    }
+    print("Capture orientation passed: EXIF 1/6/3/8 restore the same upright pixels, both attachment locations, BGRA/NV12")
+  }
+
   static func main() {
+    captureOrientation()
     let settings = ZVShareVideoSettings(quality: "1080p", framesPerSecond: 60)
     for format in [kCVPixelFormatType_32BGRA, kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange, kCVPixelFormatType_420YpCbCr8BiPlanarFullRange] {
       let processor = ZVShareVideoProcessor(settings: settings)
@@ -80,22 +153,7 @@ enum ScreenShareVideoTest {
       }
     }
     let image = buffer(width: 8, height: 4, format: kCVPixelFormatType_32BGRA)
-    var description: CMVideoFormatDescription?
-    precondition(CMVideoFormatDescriptionCreateForImageBuffer(allocator: kCFAllocatorDefault, imageBuffer: image, formatDescriptionOut: &description) == noErr)
-    var timing = CMSampleTimingInfo(duration: .invalid, presentationTimeStamp: .zero, decodeTimeStamp: .invalid)
-    var sample: CMSampleBuffer?
-    precondition(CMSampleBufferCreateReadyWithImageBuffer(allocator: kCFAllocatorDefault, imageBuffer: image,
-      formatDescription: description!, sampleTiming: &timing, sampleBufferOut: &sample) == noErr)
-    let key = "ScreenShareTestOrientation" as CFString
-    precondition(ZVShareVideoProcessor.rotation(for: sample!, key: key) == 0)
-    CMSetAttachment(sample!, key: key, value: NSNumber(value: 6), attachmentMode: kCMAttachmentMode_ShouldPropagate)
-    precondition(ZVShareVideoProcessor.rotation(for: sample!, key: key) == 90)
-    CMRemoveAttachment(sample!, key: key)
-    let attachments = CMSampleBufferGetSampleAttachmentsArray(sample!, createIfNecessary: true)! as NSArray
-    let entry = unsafeBitCast(CFArrayGetValueAtIndex(attachments, 0), to: CFMutableDictionary.self)
-    let orientation = NSNumber(value: 8)
-    CFDictionarySetValue(entry, Unmanaged.passUnretained(key).toOpaque(), Unmanaged.passUnretained(orientation).toOpaque())
-    precondition(ZVShareVideoProcessor.rotation(for: sample!, key: key) == 270)
+    precondition(ZVShareVideoProcessor.rotation(for: sample(image, orientation: nil), key: orientationKey) == 0)
     print("Video pixels passed: BGRA/NV12, 0/90/180/270 degrees, repeated swaps, 1546x1080 -> 1080x1546, attachment locations")
     #if canImport(LiveKitWebRTC)
     codecRoundTrip()
@@ -107,36 +165,40 @@ enum ScreenShareVideoTest {
     let loopback = VideoLoopback()
     defer { loopback.close() }
     let input = buffer(width: 2360, height: 1648, format: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)
-    CVPixelBufferLockBaseAddress(input, [])
-    let base = CVPixelBufferGetBaseAddressOfPlane(input, 0)!.assumingMemoryBound(to: UInt8.self)
-    let stride = CVPixelBufferGetBytesPerRowOfPlane(input, 0)
-    for y in 0..<1648 {
-      for x in 0..<2360 { base[y * stride + x] = UInt8(80 + (x >= 1180 ? 40 : 0) + (y >= 824 ? 80 : 0)) }
-    }
-    memset(CVPixelBufferGetBaseAddressOfPlane(input, 1), 128,
-      CVPixelBufferGetBytesPerRowOfPlane(input, 1) * CVPixelBufferGetHeightOfPlane(input, 1))
-    CVPixelBufferUnlockBaseAddress(input, [])
     let processor = ZVShareVideoProcessor(settings: ZVShareVideoSettings(quality: "1080p", framesPerSecond: 30))
-    for rotation in [0, 90, 180, 270, 0] {
-      let expected: [Int]
-      switch rotation {
-      case 90: expected = [160, 80, 200, 120]
-      case 180: expected = [200, 160, 120, 80]
-      case 270: expected = [120, 200, 80, 160]
-      default: expected = [80, 120, 160, 200]
+    for orientation in [1, 6, 3, 8, 1] {
+      let capturedQuadrants: [UInt8]
+      switch orientation {
+      case 6: capturedQuadrants = [160, 80, 200, 120]
+      case 3: capturedQuadrants = [200, 160, 120, 80]
+      case 8: capturedQuadrants = [120, 200, 80, 160]
+      default: capturedQuadrants = [80, 120, 160, 200]
       }
-      let output = processor.copyFrame(input, rotation: rotation)!
-      let received = loopback.receive(output, firstLuma: expected[0])
+      CVPixelBufferLockBaseAddress(input, [])
+      let base = CVPixelBufferGetBaseAddressOfPlane(input, 0)!.assumingMemoryBound(to: UInt8.self)
+      let stride = CVPixelBufferGetBytesPerRowOfPlane(input, 0)
+      for y in 0..<1648 {
+        for x in 0..<2360 { base[y * stride + x] = capturedQuadrants[(y >= 824 ? 2 : 0) + (x >= 1180 ? 1 : 0)] }
+      }
+      memset(CVPixelBufferGetBaseAddressOfPlane(input, 1), 128,
+        CVPixelBufferGetBytesPerRowOfPlane(input, 1) * CVPixelBufferGetHeightOfPlane(input, 1))
+      CVPixelBufferUnlockBaseAddress(input, [])
+      let captured = sample(input, orientation: orientation)
+      let rotation = ZVShareVideoProcessor.rotation(for: captured, key: orientationKey)
+      let output = processor.copyFrame(CMSampleBufferGetImageBuffer(captured)!, rotation: rotation)!
+      let received = loopback.receive(output, firstLuma: 80)
       let width = Int(received.width), height = Int(received.height)
-      precondition(width == CVPixelBufferGetWidth(output) && height == CVPixelBufferGetHeight(output))
+      let sideways = orientation == 6 || orientation == 8
+      precondition(width == (sideways ? 1080 : 1546) && height == (sideways ? 1546 : 1080))
       precondition(received.rotation == ._0)
       let yuv = received.buffer.toI420()
+      let expected = [80, 120, 160, 200]
       for quadrant in 0..<4 {
         let x = width * (quadrant % 2 == 0 ? 1 : 3) / 4
         let y = height * (quadrant < 2 ? 1 : 3) / 4
         precondition(abs(Int(yuv.dataY[y * Int(yuv.strideY) + x]) - expected[quadrant]) < 20, "H264 pixel orientation changed")
       }
-      print("H264 round trip: \(rotation) degrees -> decoded \(width)x\(height), rotation 0, pixels upright")
+      print("H264 capture EXIF \(orientation), correction \(rotation) -> decoded \(width)x\(height), rotation 0, pixels upright")
     }
   }
   #endif
