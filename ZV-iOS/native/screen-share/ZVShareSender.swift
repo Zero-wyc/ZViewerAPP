@@ -9,6 +9,7 @@ public final class ZVShareSender: NSObject, LKRTCPeerConnectionDelegate {
   public var finished: ((String?) -> Void)?
   public let queue = DispatchQueue(label: "zviewer.share.sender", qos: .userInitiated)
   private let options: [String: Any]
+  private let settings: ZVShareVideoSettings
   private let audio = ZVShareAudioDevice()
   private var factory: LKRTCPeerConnectionFactory?
   private var source: LKRTCVideoSource?
@@ -38,6 +39,7 @@ public final class ZVShareSender: NSObject, LKRTCPeerConnectionDelegate {
   public init(options: [String: Any]) throws {
     guard let id = options["id"] as? String, !id.isEmpty else { throw ZVShareStore.failure("共享会话不存在") }
     self.id = id; self.options = options
+    self.settings = ZVShareVideoSettings(quality: options["quality"] as? String, framesPerSecond: options["framesPerSecond"] as? Int)
     super.init()
   }
 
@@ -163,6 +165,7 @@ public final class ZVShareSender: NSObject, LKRTCPeerConnectionDelegate {
           guard let self, let peer else { return }
           queue.async {
             guard !self.closed, self.peers[from] === peer, error == nil else { return }
+            self.configureVideoSender(peer)
             self.socket?.emit("signal-offer", ["to": from, "data": ["type": "offer", "sdp": offer.sdp]])
           }
         }
@@ -179,8 +182,21 @@ public final class ZVShareSender: NSObject, LKRTCPeerConnectionDelegate {
       guard let self, let peer else { return }
       queue.async {
         guard !self.closed, self.peers[from] === peer, error == nil else { return }
+        self.configureVideoSender(peer)
         for candidate in self.earlyIce.removeValue(forKey: from) ?? [] { peer.add(candidate, completionHandler: { _ in }) }
       }
+    }
+  }
+
+  private func configureVideoSender(_ peer: LKRTCPeerConnection) {
+    for sender in peer.senders where sender.track?.kind == "video" {
+      let parameters = sender.parameters
+      for encoding in parameters.encodings {
+        encoding.maxFramerate = NSNumber(value: settings.framesPerSecond)
+        encoding.maxBitrateBps = NSNumber(value: settings.maxBitrate)
+        encoding.scaleResolutionDownBy = 1
+      }
+      sender.parameters = parameters
     }
   }
 
@@ -198,12 +214,11 @@ public final class ZVShareSender: NSObject, LKRTCPeerConnectionDelegate {
     guard CMSampleBufferDataIsReady(sample), let input = CMSampleBufferGetImageBuffer(sample),
       frameGate.wait(timeout: .now()) == .success else { return }
     let stamp = CMSampleBufferGetPresentationTimeStamp(sample).seconds
-    guard stamp.isFinite, stamp - lastFrame >= 1.0 / 30.0 else { frameGate.signal(); return }
+    guard stamp.isFinite, lastFrame == 0 || stamp - lastFrame + 0.0005 >= 1.0 / Double(settings.framesPerSecond) else { frameGate.signal(); return }
     lastFrame = stamp
     let rawWidth = CVPixelBufferGetWidth(input), rawHeight = CVPixelBufferGetHeight(input)
-    let cap = (options["quality"] as? String) == "540p" ? 960.0 : 1280.0
-    let scale = min(1, cap / Double(max(rawWidth, rawHeight)))
-    let width = max(2, Int(Double(rawWidth) * scale) & ~1), height = max(2, Int(Double(rawHeight) * scale) & ~1)
+    let size = settings.dimensions(width: rawWidth, height: rawHeight)
+    let width = size.width, height = size.height
     var copied: CVPixelBuffer?
     guard CVPixelBufferCreate(kCFAllocatorDefault, width, height, CVPixelBufferGetPixelFormatType(input),
       [kCVPixelBufferIOSurfacePropertiesKey: [:]] as CFDictionary, &copied) == kCVReturnSuccess, let copied else { frameGate.signal(); return }
@@ -212,10 +227,11 @@ public final class ZVShareSender: NSObject, LKRTCPeerConnectionDelegate {
     queue.async { [self] in
       defer { frameGate.signal() }
       guard !closed, !paused, let source, let capturer else { return }
-      source.adaptOutputFormat(toWidth: Int32(width), height: Int32(height), fps: 30)
+      source.adaptOutputFormat(toWidth: Int32(width), height: Int32(height), fps: Int32(settings.framesPerSecond))
       let rtcRotation = LKRTCVideoRotation(rawValue: rotation) ?? ._0
       source.capturer(capturer, didCapture: LKRTCVideoFrame(buffer: LKRTCCVPixelBuffer(pixelBuffer: copied), rotation: rtcRotation, timeStampNs: Int64(stamp * 1_000_000_000)))
-      frames += 1; frameSize = CGSize(width: width, height: height)
+      let displayed = ZVShareVideoSettings.displayDimensions(width: width, height: height, rotation: rotation)
+      frames += 1; frameSize = CGSize(width: displayed.width, height: displayed.height)
     }
   }
 
@@ -239,7 +255,8 @@ public final class ZVShareSender: NSObject, LKRTCPeerConnectionDelegate {
     lastSnapshot = Date().timeIntervalSince1970
     var value: [String: Any] = ["id": id, "phase": phase, "updatedAt": lastSnapshot,
       "viewers": peers.count, "capturedFrames": frames, "audioSamples": audio.sampleCount,
-      "width": frameSize.width, "height": frameSize.height, "systemAudio": systemAudio]
+      "width": frameSize.width, "height": frameSize.height, "systemAudio": systemAudio,
+      "quality": settings.quality, "framesPerSecond": settings.framesPerSecond]
     if let message { value["message"] = message }
     try? ZVShareStore.write("status-\(id)", value)
   }

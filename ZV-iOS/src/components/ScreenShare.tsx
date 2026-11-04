@@ -9,6 +9,7 @@ import { useSession } from '@/state/session';
 import { NativeMediaAdapter } from '@/lib/mediaAdapter';
 import { initialScreenReceiver, ScreenReceiver, loadScreenPull } from '@/lib/screenReceiver';
 import { getWatchPlaybackUrl, watchPlaybackUrl } from '@/lib/streamPush';
+import { screenShareViewportHeight } from '@/lib/screenShareLayout';
 import { ScreenOrientationButton } from './ScreenOrientationButton';
 import type { ScreenOrientationControl } from '@/hooks/usePlayerDisplay';
 import { AppDialog } from './AppDialog';
@@ -29,6 +30,8 @@ export function ScreenShare({ roomId, share, height, fullscreen, toggleFullscree
   const [paused, setPaused] = useState(false); const [volume, setVolume] = useState(100); const [muted, setMuted] = useState(false);
   const [edit, setEdit] = useState(false); const [draftBase, setDraftBase] = useState(''); const [flvBase, setFlvBase] = useState('');
   const [receiver, setReceiver] = useState(initialScreenReceiver); const receiverRef = useRef<ScreenReceiver | null>(null);
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const [dimensions, setDimensions] = useState({ identity: '', width: 0, height: 0 });
   const [flv, setFlv] = useState({ phase: 'waiting', status: '等待 OBS 推流', error: '' }); const [flvLive, setFlvLive] = useState<boolean | null>(null);
   const [actionError, setActionError] = useState(''); const [retry, setRetry] = useState(0); const [controlsVisible, setControlsVisible] = useState(true);
   const adapterRef = useRef<NativeMediaAdapter | null>(null); const pausedRef = useRef(false); const gainRef = useRef(100);
@@ -36,10 +39,19 @@ export function ScreenShare({ roomId, share, height, fullscreen, toggleFullscree
   const previousTap = useRef<{ x: number; y: number; time: number } | null>(null); const singleTap = useRef<ReturnType<typeof setTimeout> | null>(null);
   const push = share.shareMethod === 'stream-push'; const state = push ? flv : receiver;
   const stream = connected && !push && receiver.hasVideo ? receiver.stream : null;
+  const streamURL = stream?.toURL() || '';
+  const mediaIdentity = push ? `vlc:${video.snapshot?.id || 0}` : `rtc:${streamURL}`;
+  const viewportHeight = screenShareViewportHeight(viewportWidth, height,
+    dimensions.identity === mediaIdentity ? dimensions.width : 0, dimensions.identity === mediaIdentity ? dimensions.height : 0);
   const receiving = connected && state.phase === 'connected' && (push ? flvLive !== false : receiver.hasVideo);
   const error = actionError || (push && flvLive === false ? '' : state.error);
   const showControls = !fullscreen || controlsVisible || paused || !!error || edit || !receiving;
   const togglePause = () => { const next = !pausedRef.current; pausedRef.current = next; setPaused(next); receiverRef.current?.setPlayback(next, gainRef.current / 100); if (push) { if (next) video.player.pause(); else video.player.play(); } setControlsVisible(true); };
+  useEffect(() => {
+    if (!push) return;
+    const subscription = video.player.addListener('videoSize', size => setDimensions({ identity: mediaIdentity, ...size }));
+    return () => subscription.remove();
+  }, [push, video.player, mediaIdentity]);
   useEffect(() => {
     if (push || !socket || !rtc || !connected || !serverUrl) return;
     const current = new ScreenReceiver(rtc, socket, roomId, setReceiver); receiverRef.current = current;
@@ -95,8 +107,8 @@ export function ScreenShare({ roomId, share, height, fullscreen, toggleFullscree
 
   const displayStatus = !connected ? '连接已断开，正在等待重新加入房间' : push && flvLive === false ? '共享端尚未推流，等待 OBS 开始' : state.status;
   return <View testID="screen-share-panel" style={fullscreen ? { flex: 1, minHeight: 0 } : { gap: 10 }}>
-    <View testID="screen-share-viewport" style={[{ backgroundColor: '#000', overflow: 'hidden', borderRadius: fullscreen ? 0 : 16 }, fullscreen ? { flex: 1 } : { height: Math.max(240, height) }]}>
-      {push ? <VlcVideo video={video} style={{ flex: 1 }} /> : stream && rtc ? <rtc.RTCView streamURL={stream.toURL()} objectFit="contain" style={{ flex: 1 }} /> : null}
+    <View testID="screen-share-viewport" onLayout={event => setViewportWidth(event.nativeEvent.layout.width)} style={[{ backgroundColor: '#000', overflow: 'hidden', borderRadius: fullscreen ? 0 : 16 }, fullscreen ? { flex: 1 } : { height: viewportHeight }]}>
+      {push ? <VlcVideo video={video} style={{ flex: 1 }} /> : stream && rtc ? <rtc.RTCView streamURL={streamURL} objectFit="contain" onDimensionsChange={event => setDimensions({ identity: mediaIdentity, ...event.nativeEvent })} style={{ flex: 1 }} /> : null}
       {!receiving || paused ? <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 20, right: 20, bottom: fullscreen ? 0 : 80, alignItems: 'center', justifyContent: 'center', gap: 12 }}><View style={{ alignItems: 'center', gap: 12, maxWidth: '100%', paddingHorizontal: 20, paddingVertical: 16, borderRadius: 14, backgroundColor: paused || !!error ? 'rgba(15,23,32,.88)' : 'transparent' }}>{!paused && !error && connected && (rtc || push) ? <ActivityIndicator color="#9cdbff" /> : <Feather name={paused ? 'pause-circle' : 'monitor'} color="#a8b3c2" size={30} />}<Text accessibilityLiveRegion="polite" style={{ color: '#eef3fa', fontSize: 14, lineHeight: 21, textAlign: 'center' }}>{paused ? '已暂停本机接收' : error || (rtc || push ? displayStatus : '共享观看需要原生安装包')}</Text></View></View> : null}
       <View testID="screen-share-gestures" accessible accessibilityRole="button" accessibilityLabel="共享画面：单击显示控件，双击暂停或继续接收" accessibilityActions={[{ name: 'activate', label: '显示控件' }, { name: 'toggle', label: '暂停或继续接收' }]} onAccessibilityTap={() => setControlsVisible(true)} onAccessibilityAction={event => { if (event.nativeEvent.actionName === 'toggle') togglePause(); else setControlsVisible(true); }} style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }} onStartShouldSetResponder={event => { if (event.nativeEvent.touches.length === 1) return true; previousTap.current = null; if (singleTap.current) clearTimeout(singleTap.current); return false; }} onResponderGrant={event => { if (singleTap.current) clearTimeout(singleTap.current); touch.current = { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY, time: Date.now() }; }} onResponderMove={event => { const start = touch.current; if (event.nativeEvent.touches.length !== 1 || start && Math.hypot(event.nativeEvent.locationX - start.x, event.nativeEvent.locationY - start.y) > 12) { touch.current = null; previousTap.current = null; if (singleTap.current) clearTimeout(singleTap.current); } }} onResponderTerminate={() => { touch.current = null; previousTap.current = null; if (singleTap.current) clearTimeout(singleTap.current); }} onResponderRelease={event => {
         const start = touch.current; touch.current = null; const now = Date.now();

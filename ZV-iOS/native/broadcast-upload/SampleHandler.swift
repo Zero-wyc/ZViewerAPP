@@ -30,14 +30,7 @@ final class SampleHandler: RPBroadcastSampleHandler {
     switch sampleBufferType {
     case .video:
       let orientation = (CMGetAttachment(sampleBuffer, key: RPVideoSampleOrientationKey as CFString, attachmentModeOut: nil) as? NSNumber)?.uint32Value ?? 1
-      let rotation: Int
-      switch CGImagePropertyOrientation(rawValue: orientation) {
-      case .right, .rightMirrored: rotation = 90
-      case .down, .downMirrored: rotation = 180
-      case .left, .leftMirrored: rotation = 270
-      default: rotation = 0
-      }
-      sender?.videoSample(sampleBuffer, rotation: rotation)
+      sender?.videoSample(sampleBuffer, rotation: ZVShareVideoSettings.rotation(exif: Int(orientation)))
     case .audioApp: sender?.audioSample(sampleBuffer)
     // The initial sender deliberately does not capture a second microphone
     // alongside room voice, or bypass the room's microphone permissions.

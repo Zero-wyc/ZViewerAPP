@@ -2,20 +2,54 @@
 
 2026-11-03 历史整理：`docs/` 仅保留 Android、HarmonyOS、iOS 三份维护指南，阶段方案和发布摘要分别由 Git 历史与根目录 `CHANGELOG.md` 追溯。该次整理保持 2.1.10 / build 31；2026-11-04 的 Mac 开发状态见下文。
 
-更新日期：2026-11-04（Asia/Shanghai）。本文整合架构、macOS开发记录、验收清单、构建证据、Windows回传与历史故障。当前状态、实现合同、实测范围和未解决项集中维护；已移走的阶段材料可通过Git历史查询。
+更新日期：2026-11-04（本轮Mac记录使用America/New_York）。本文整合架构、macOS开发记录、验收清单、构建证据、Windows回传与历史故障。当前状态、实现合同、实测范围和未解决项集中维护；已移走的阶段材料可通过Git历史查询。
 
 ## 当前版本与工作边界
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 应用 | 2.1.10 / build34 本地未签名IPA，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
+| 应用 | 2.1.10 / build35 本地未签名IPA，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
 | 工程 | 独立Expo SDK57 / React Native0.86；唯一视频/音乐内核为VLCKit4.0.0a25，语音LiveKit，投屏WebRTC/OBS接收及原生主动共享测试版。 |
 | 用户验收 | 用户对build30反馈“测试通过”；build31保持该播放/房间逻辑，仅统一2.1.10版本元数据并重建发布。没有给出的设备OS、时长和逐项结果不作扩展认定。 |
-| 发布 | 历史build31未签名device ARM64 IPA位于 `client-v2.1.10` Release；build32至build34仅在本地交付。Android/HarmonyOS参考源码为2.3.6/236。自行签名后侧载，未使用App Store/TestFlight。 |
+| 发布 | 历史build31未签名device ARM64 IPA位于 `client-v2.1.10` Release；build32至build35仅在本地交付。Android/HarmonyOS参考源码为2.3.6/236。自行签名后侧载，未使用App Store/TestFlight。 |
 | 源码 | 完整后续iOS源码在main；原Release标签保留双端最初快照，标签自动归档不含全部后续iOS修复。 |
-| 本次Mac工作 | 修复网易云评论合同、加宽iPad横屏侧栏、依投屏方案补入原生主动共享测试版；build34设备Release和扩展构建、IPA离线检查通过。真机持续投屏与真实评论内容仍待用户测试。未修改Android/HarmonyOS或NAS。 |
+| 本次Mac工作 | build35处理投屏权限诊断、iOS27存储边界、分辨率/帧率及横竖屏比例；用户已反馈build34真机因App Group不可访问而无法开始。新包未获得真机通过结论，旧系统签名问题仍待核对实际重签包。未修改Android/HarmonyOS或NAS。 |
 
 所有客户端修改及Git操作在本仓库。iOS设备构建需用户明确指示；Windows日常先用Expo Go/Web检查可用界面，原生VLC、Go、LiveKit、Keychain及系统音频必须在对应原生环境验收。跨平台来源对照见 [Android维护文档](android-maintenance-architecture.md) 和 [HarmonyOS维护文档](harmonyos-maintenance-architecture.md)。
+
+## 2026-11-04 build35 签名诊断、画质与方向适配
+
+用户真机反馈build34提示“当前签名没有App Group权限”。源码和生成entitlements均已声明共享组，但未签名IPA不能授权设备访问；本机没有可用签名身份和用户重签后的包，不能判断是描述文件缺少授权、重签移除权限，还是组ID被改写。此故障保留为真实失败记录，不能以编译成功关闭。
+
+| 范围 | 本次实现 |
+| --- | --- |
+| iOS27存储 | `SCContentSharingPicker/SCStream`后端与发送端同属宿主进程，改用应用私有Application Support与默认Keychain，去除这条路径对共享App Group/共享Keychain的无谓要求。仍保留真实系统授权、会话期限和原生停止清理。不是绕过旧系统沙盒权限。 |
+| iOS16.4至26签名 | ReplayKit扩展仍必须与宿主共同获授权。`with-screen-share-broadcast.cjs`可用`appGroup`参数指定该Team实际注册的组；同时写入双方Info.plist、entitlements和EAS扩展声明。生成守卫核对所选组，不要求宿主的其他无关组也复制给扩展。系统picker根据实际宿主Bundle ID定位`.BroadcastUpload`。 |
+| 签名诊断 | 新增`scripts/check-ios-share-signing.py`，输入重签后的IPA/app，检查双方实际签名entitlements与描述文件、应用标识、Team、App Group及共享Keychain是否一致。工具不显示令牌、密码或完整profile。未签名build34包按预期明确失败；没有真实签名成功样本。此工具检查共享权限合同，不替代Apple安装验证或真机采集验证。 |
+| 分辨率 | 新增1080p、1440p，保留540p、720p，默认720p。`ZVShareVideoSettings`同时限制长边与短边，分别为960×540、1280×720、1920×1080、2560×1440的横竖等价边界；保持源比例、不放大、偶数尺寸。iPad的4:3画面不硬拉伸成16:9。 |
+| 帧率/发送 | 可选15、24、30、60fps，默认30。选项实际控制原生采样限帧、VideoSource适配及各视频sender的`maxFramerate/maxBitrateBps`，不只增加菜单。最高每peer码率随档位/帧率调整，网络与SDK仍可降级。系统实际采样不足60fps时不会插帧，也不承诺持续60fps或1440p；尚未实测高档位的发热、内存与多观众效果。 |
+| 共享端旋转 | ReplayKit与iOS27统一映射实际sample的EXIF方向为WebRTC旋转元数据；不再分别维护映射。每帧按真实像素尺寸等比缩放，统计尺寸采用旋转后的显示宽高，只旋转一次。源应用锁向时遵循实际采样，不凭设备姿态强制改变内容方向。 |
+| 观看端比例 | 原先普通投屏容器仍按房间默认16:9估高。现在RTCView的`onDimensionsChange`与OBS的VLC实际尺寸驱动容器高度，按当前窗口宽高限幅；观看端旋转只改变可用布局，保持`contain`，不拉伸/裁切源。切流按媒体身份隔离旧尺寸；全屏继续填满当前窗口并等比留边。 |
+
+旧系统签名核查方式（须使用实际重签后的包）：
+
+```bash
+python3 ZV-iOS/scripts/check-ios-share-signing.py /absolute/path/to/resigned.ipa
+```
+
+如签名Team使用其他已注册组，可在`app.json`把plugin条目设为`["./plugins/with-screen-share-broadcast.cjs", {"appGroup":"group.<已注册组>"}]`后重新prebuild。它只选择运行时与工程要请求的组，不会自动在开发者账号创建/授权该组；宿主和扩展profile仍须同时允许它。原生读取`ZViewerShareAppGroup`，重签渠道若更改组名，须同步双方配置。iOS27私有存储路径不需要这一步，后台捕获仍须真机验证。
+
+验证：VLC持久补丁、ESLint、TypeScript和9/9合同测试通过；原生Swift测试覆盖四档分辨率×四档帧率、iPad/16:9/横竖输入、禁止放大、偶数尺寸、非法选项回退及0/90/180/270度显示尺寸。布局合同验证800pt宽时4:3画面高600pt、3:4画面高约1066.67pt，旋转观看窗口后遵守可用高度。此类测试不等同于真实iPad连续旋转推流。
+
+Simulator Debug构建成功并安装到iPad Pro13英寸M5及iPhone18Pro/iOS27.2。iPad使用隔离的本地服务端测试房间，实际切换1080p/60fps并旋转横竖屏，选中状态保留，选项、聊天栏及输入区未观察到遮挡；截图在`.native-tools/build35-ipad-{portrait,landscape}.png`。模拟器不提供主动系统共享，不能据此认定采集、远端方向切换或高帧率已真机通过。旧本地测试房间过期关闭后重新创建了本地房间，未操作NAS。
+
+设备Release和广播扩展构建通过，离线检查通过。交付`ZV-iOS/release-assets/ZViewer-iOS-2.1.10-build35-unsigned.ipa`及Downloads同名副本，48,592,726字节，生产JS 6,726,424字节。宿主与扩展均为2.1.10/build35、iOS平台2/ARM64、未签名；最低16.4、iPhone/iPad与现有VLC/Go/LiveKit桥保留。构建脚本仅计算一次SHA，检查使用`--skip-sha256`：
+
+```text
+a8368ba96074b237034f4ee14eb0583734e180f5aadd7545ddb1d9bbc7b73926
+```
+
+本轮prebuild重建了生成目录，构建日志改保存在不会被prebuild删除的忽略目录`.native-tools/build35-{device-pods,simulator-pods,package,simulator-xcode,check,contracts}.log`与`build35-inspection.json`；旧`ios/build/`日志可能已被清理。打包后恢复Simulator Vendor/Pods并同步Debug应用。不使用EAS云构建额度。未关闭build34的15分钟跨应用、新观众、真实音频、系统中断和共享委托等待验项目；用户仍需提供设备系统版本、签名渠道或重签包权限结果来定位旧系统签名故障。
 
 ## 2026-11-04 build34 评论、iPad与主动投屏测试包
 

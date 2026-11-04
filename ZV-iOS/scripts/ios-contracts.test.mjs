@@ -3,6 +3,7 @@ import test from 'node:test';
 import { firstCommentPage, ncmCommentsPath, readNcmComments } from '../src/lib/songComments.ts';
 import { landscapeColumns } from '../src/lib/roomLayout.ts';
 import { screenShareExpiry } from '../src/lib/screenShareSession.ts';
+import { screenShareViewportHeight } from '../src/lib/screenShareLayout.ts';
 import { getWatchPlaybackUrl, watchPlaybackUrl } from '../src/lib/streamPush.ts';
 import {
   canSwitchLibraryPlayback,
@@ -48,6 +49,14 @@ test('broadcast authorization is bounded and never accepts expired JWTs', () => 
   assert.equal(screenShareExpiry(jwt(1100), now), 1100);
   assert.throws(() => screenShareExpiry(jwt(1000), now));
   assert.throws(() => screenShareExpiry('invalid', now));
+});
+
+test('screen sharing viewport follows received orientation and available iPad window', () => {
+  assert.equal(screenShareViewportHeight(800, 1200, 1440, 1080), 600);
+  assert.ok(Math.abs(screenShareViewportHeight(800, 1200, 1080, 1440) - 1066.6667) < 0.001);
+  assert.equal(screenShareViewportHeight(1200, 700, 1080, 1440), 700);
+  assert.equal(screenShareViewportHeight(800, 1200, 0, 0), 450);
+  assert.equal(screenShareViewportHeight(0, 1200, 0, 0), 240);
 });
 
 test('library playback switches follow public and intranet mount policy', () => {

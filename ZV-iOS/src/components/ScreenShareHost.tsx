@@ -4,7 +4,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { useSession } from '@/state/session';
 import { nativeBridge, type ScreenShareSnapshot } from '@/lib/nativeBridge';
 import { emitAck } from '@/lib/socket';
-import { screenShareExpiry, isActiveScreenShare } from '@/lib/screenShareSession';
+import { screenShareExpiry, isActiveScreenShare, screenShareQualities, screenShareFrameRates } from '@/lib/screenShareSession';
 import { useAppearance } from '@/state/appearance';
 import { RoomButton, RoomIconButton, ui as baseUi } from './RoomUi';
 import { Surface } from './Surface';
@@ -19,6 +19,7 @@ export function ScreenShareHost({ roomId, onOwnership }: { roomId: string; onOwn
   const [capability, setCapability] = useState<{ available: boolean; message?: string } | null>(null);
   const [snapshot, setSnapshot] = useState<ScreenShareSnapshot>({ id: '', phase: 'idle' });
   const [systemAudio, setSystemAudio] = useState(true); const [quality, setQuality] = useState('720p');
+  const [framesPerSecond, setFramesPerSecond] = useState(30);
   const [busy, setBusy] = useState(false); const [message, setMessage] = useState('');
   const current = useRef(''); const released = useRef(false); const claiming = useRef(false); const alive = useRef(true);
   const operation = useRef(0); const ownership = useRef(onOwnership);
@@ -95,7 +96,7 @@ export function ScreenShareHost({ roomId, onOwnership }: { roomId: string; onOwn
       if (epoch !== operation.current || !alive.current) return;
       if (!nativeBridge?.screenSharePrepare || !nativeBridge.screenSharePresent) throw new Error('当前安装包缺少主动共享模块');
       const value = await nativeBridge.screenSharePrepare(JSON.stringify({
-        server: fresh.serverUrl, roomId, token: fresh.accessToken, expires: screenShareExpiry(fresh.accessToken), systemAudio, quality, certificateException,
+        server: fresh.serverUrl, roomId, token: fresh.accessToken, expires: screenShareExpiry(fresh.accessToken), systemAudio, quality, framesPerSecond, certificateException,
       }));
       if (epoch !== operation.current || !alive.current) { await nativeBridge.screenShareStop?.(value.id); return; }
       current.current = value.id; ownership.current(true);
@@ -112,11 +113,13 @@ export function ScreenShareHost({ roomId, onOwnership }: { roomId: string; onOwn
   return <Surface readable testID="screen-share-host" style={{ padding: 18, gap: 18, minWidth: 0 }}>
     <View style={[ui.row, { gap: 12 }]}><Feather name="cast" size={26} color={theme.color('#65d59b')} /><View style={{ flex: 1, minWidth: 0 }}><Text style={ui.title}>{labels[snapshot.phase]}</Text><Text style={ui.muted}>本机屏幕共享</Text></View>{busy || active && !['sharing', 'paused'].includes(snapshot.phase) ? <ActivityIndicator /> : null}</View>
     {snapshot.phase === 'sharing' || snapshot.phase === 'paused' ? <Text style={ui.text}>{snapshot.viewers || 0} / 2 位观众 · {snapshot.capturedFrames || 0} 帧已采集{snapshot.audioSamples ? ' · 已收到应用声音' : ''}</Text> : null}
+    {snapshot.width && snapshot.height ? <Text style={ui.muted}>{snapshot.width} × {snapshot.height} · 上限 {snapshot.framesPerSecond || 30} fps</Text> : null}
     <View style={ui.row}><Text style={[ui.text, { flex: 1 }]}>应用声音</Text><Switch accessibilityLabel="共享应用声音" value={systemAudio} disabled={busy || active && snapshot.phase === 'requesting-permission'} onValueChange={value => {
       setSystemAudio(value);
       if (current.current) void nativeBridge?.screenShareControl?.(current.current, JSON.stringify({ systemAudio: value })).catch(() => setMessage('应用声音设置未生效'));
     }} /></View>
-    <View style={ui.row}><Text style={ui.text}>画质</Text>{['540p', '720p'].map(value => <RoomButton key={value} label={value} secondary selected={quality === value} disabled={active || busy} onPress={() => setQuality(value)} />)}</View>
+    <View style={{ gap: 8 }}><Text style={ui.text}>分辨率上限</Text><View style={ui.row}>{screenShareQualities.map(value => <RoomButton key={value} label={value} secondary selected={quality === value} disabled={active || busy} onPress={() => setQuality(value)} />)}</View></View>
+    <View style={{ gap: 8 }}><Text style={ui.text}>帧率上限</Text><View style={ui.row}>{screenShareFrameRates.map(value => <RoomButton key={value} label={`${value} fps`} secondary selected={framesPerSecond === value} disabled={active || busy} onPress={() => setFramesPerSecond(value)} />)}</View></View>
     <View style={ui.row}>{active ? <><RoomIconButton label={snapshot.phase === 'paused' ? '恢复共享' : '暂停共享'} icon={snapshot.phase === 'paused' ? 'play' : 'pause'} onPress={() => {
       if (!['sharing', 'paused'].includes(snapshot.phase)) return;
       void nativeBridge?.screenShareControl?.(current.current, JSON.stringify({ paused: snapshot.phase !== 'paused' })).catch(() => setMessage('共享暂停状态未确认'));

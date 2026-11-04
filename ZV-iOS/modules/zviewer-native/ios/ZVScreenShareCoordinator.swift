@@ -11,8 +11,15 @@ final class ZVScreenShareCoordinator {
   private var picker: RPSystemBroadcastPickerView?
   private var modern: AnyObject?
   private var command: [String: Any] = [:]
+  private var storageError: String?
 
   init() {
+    #if canImport(ScreenCaptureKit)
+    if #available(iOS 27.0, *) {
+      do { try ZVShareStore.useProcessStorage() }
+      catch { storageError = "无法准备本机投屏存储，请检查设备空间后重试" }
+    }
+    #endif
     // A new host process must not silently inherit a previous process's
     // screen-capture authorization or leave its bearer reusable.
     if let previous = ZVShareStore.read("session")?["id"] as? String {
@@ -24,9 +31,10 @@ final class ZVScreenShareCoordinator {
     #if targetEnvironment(simulator)
     return ["available": false, "systemAudio": true, "microphone": false, "message": "主动共享需要 iPhone 或 iPad 真机"]
     #else
+    if let storageError { return ["available": false, "systemAudio": true, "microphone": false, "message": storageError] }
     let available = ZVShareStore.available()
     return ["available": available, "systemAudio": true, "microphone": false,
-      "message": available ? "" : "当前签名没有投屏 App Group 权限"]
+      "message": available ? "" : "当前签名无法访问投屏共享容器。请为主程序和广播扩展同时授权 \(ZVShareStore.group)，并保留共享钥匙串权限后重新签名安装。"]
     #endif
   }
 
@@ -48,6 +56,9 @@ final class ZVScreenShareCoordinator {
     guard expires > Date().timeIntervalSince1970 + 30 else { throw ZVShareStore.failure("登录授权即将到期，请刷新登录后重试") }
     options["expires"] = min(expires, Date().timeIntervalSince1970 + 3600)
     options["id"] = id
+    let videoSettings = ZVShareVideoSettings(quality: options["quality"] as? String, framesPerSecond: options["framesPerSecond"] as? Int)
+    options["quality"] = videoSettings.quality
+    options["framesPerSecond"] = videoSettings.framesPerSecond
     ZVShareStore.prune()
     try ZVShareStore.saveToken(token, id: id)
     do {
@@ -73,7 +84,7 @@ final class ZVScreenShareCoordinator {
     #endif
     do {
       let picker = RPSystemBroadcastPickerView(frame: CGRect(x: 0, y: 0, width: 44, height: 44))
-      picker.preferredExtension = "com.zviewer.mobile.BroadcastUpload"
+      picker.preferredExtension = "\(Bundle.main.bundleIdentifier ?? "com.zviewer.mobile").BroadcastUpload"
       picker.showsMicrophoneButton = false
       guard let button = picker.subviews.compactMap({ $0 as? UIButton }).first,
         let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first(where: { $0.activationState == .foregroundActive }),
@@ -186,8 +197,7 @@ private final class ZVModernScreenCapture: NSObject, SCContentSharingPickerObser
       let attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]]
       // SCStream's videoOrientation is an EXIF orientation, just like ReplayKit.
       let orientation = (attachments?.first?[.videoOrientation] as? NSNumber)?.intValue ?? 1
-      let rotation = orientation == 6 ? 90 : orientation == 3 ? 180 : orientation == 8 ? 270 : 0
-      sender?.videoSample(sampleBuffer, rotation: rotation)
+      sender?.videoSample(sampleBuffer, rotation: ZVShareVideoSettings.rotation(exif: orientation))
     } else if type == .audio { sender?.audioSample(sampleBuffer) }
   }
   func stream(_ stream: SCStream, didStopWithError error: Error) { fail("系统已结束屏幕共享") }

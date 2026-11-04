@@ -2,9 +2,22 @@ import Foundation
 import Security
 
 public enum ZVShareStore {
-  public static let group = "group.com.zviewer.mobile.broadcast"
+  public static var group: String {
+    Bundle.main.object(forInfoDictionaryKey: "ZViewerShareAppGroup") as? String ?? "group.com.zviewer.mobile.broadcast"
+  }
+  private static var processDirectory: URL?
+
+  // The iOS 27 backend has a single process owner and needs no cross-process
+  // container or shared keychain entitlement.
+  public static func useProcessStorage() throws {
+    let url = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+      appropriateFor: nil, create: true).appendingPathComponent("ZViewerScreenShare", isDirectory: true)
+    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    processDirectory = url
+  }
 
   private static func directory() throws -> URL {
+    if let processDirectory { return processDirectory }
     guard let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group) else {
       throw failure("当前签名没有启用投屏 App Group，请使用支持广播扩展和 App Group 的签名")
     }
@@ -32,6 +45,9 @@ public enum ZVShareStore {
   public static func available() -> Bool { (try? directory()) != nil }
 
   private static func key(_ id: String) throws -> [String: Any] {
+    let base: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: "ZViewer.BroadcastSession", kSecAttrAccount as String: id]
+    if processDirectory != nil { return base }
     let configured = Bundle.main.object(forInfoDictionaryKey: "ZViewerShareKeychainGroup") as? String ?? ""
     let group: String
     if !configured.contains("$("), configured.hasSuffix(".com.zviewer.mobile.share") {
@@ -53,9 +69,9 @@ public enum ZVShareStore {
         let prefix = actual.split(separator: ".").first, !prefix.isEmpty else { throw failure("无法读取投屏签名前缀") }
       group = "\(prefix).com.zviewer.mobile.share"
     }
-    return [kSecClass as String: kSecClassGenericPassword,
-      kSecAttrService as String: "ZViewer.BroadcastSession", kSecAttrAccount as String: id,
-      kSecAttrAccessGroup as String: group]
+    var query = base
+    query[kSecAttrAccessGroup as String] = group
+    return query
   }
 
   public static func saveToken(_ token: String, id: String) throws {

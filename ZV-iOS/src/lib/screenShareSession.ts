@@ -11,3 +11,5 @@ export function screenShareExpiry(token: string, now = Date.now()) {
 export function isActiveScreenShare(phase: string) {
   return ['requesting-permission', 'awaiting-host', 'starting', 'sharing', 'paused', 'stopping'].includes(phase);
 }
+export const screenShareQualities = ['540p', '720p', '1080p', '1440p'] as const;
+export const screenShareFrameRates = [15, 24, 30, 60] as const;

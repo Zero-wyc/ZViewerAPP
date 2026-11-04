@@ -3,10 +3,17 @@ const fs = require('node:fs');
 const path = require('node:path');
 const plist = require('@expo/plist').default;
 const targetName = 'ZViewerBroadcast';
-const group = 'group.com.zviewer.mobile.broadcast';
-const keychain = '$(AppIdentifierPrefix)com.zviewer.mobile.share';
 
-module.exports = config => {
+module.exports = (config, options = {}) => {
+  const group = options.appGroup || 'group.com.zviewer.mobile.broadcast';
+  if (!/^group\.[A-Za-z0-9.-]+$/.test(group)) throw new Error('Invalid screen sharing App Group');
+  const keychain = '$(AppIdentifierPrefix)com.zviewer.mobile.share';
+  const extension = config.extra?.eas?.build?.experimental?.ios?.appExtensions?.find(item => item.targetName === targetName);
+  if (extension) {
+    extension.entitlements ||= {};
+    extension.entitlements['com.apple.security.application-groups'] = [group];
+    extension.entitlements['keychain-access-groups'] = [keychain];
+  }
   config = withEntitlementsPlist(config, value => {
     value.modResults['com.apple.security.application-groups'] = [...new Set([...(value.modResults['com.apple.security.application-groups'] || []), group])];
     value.modResults['keychain-access-groups'] = [...new Set([...(value.modResults['keychain-access-groups'] || []), keychain])];
@@ -14,6 +21,7 @@ module.exports = config => {
   });
   config = withInfoPlist(config, value => {
     value.modResults.ZViewerShareKeychainGroup = keychain;
+    value.modResults.ZViewerShareAppGroup = group;
     value.modResults.UIBackgroundModes = [...new Set([...(value.modResults.UIBackgroundModes || []), 'screen-capture'])];
     return value;
   });
@@ -38,6 +46,7 @@ module.exports = config => {
       CFBundlePackageType: 'XPC!', CFBundleShortVersionString: value.version,
       CFBundleVersion: value.ios.buildNumber,
       ZViewerShareKeychainGroup: keychain,
+      ZViewerShareAppGroup: group,
       NSAppTransportSecurity: { NSAllowsLocalNetworking: true },
       NSExtension: {
         NSExtensionPointIdentifier: 'com.apple.broadcast-services-upload',
