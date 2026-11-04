@@ -8,14 +8,30 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 应用 | 2.1.10 / build37 本地未签名IPA，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
+| 应用 | 2.1.10 / build38 本地未签名IPA，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
 | 工程 | 独立Expo SDK57 / React Native0.86；唯一视频/音乐内核为VLCKit4.0.0a25，语音LiveKit，投屏WebRTC/OBS接收及原生主动共享测试版。 |
 | 用户验收 | 用户对build30反馈“测试通过”；build31保持该播放/房间逻辑，仅统一2.1.10版本元数据并重建发布。没有给出的设备OS、时长和逐项结果不作扩展认定。 |
-| 发布 | 历史build31未签名device ARM64 IPA位于 `client-v2.1.10` Release；build32至build37仅在本地交付。Android/HarmonyOS参考源码为2.3.6/236。自行签名后侧载，未使用App Store/TestFlight。 |
+| 发布 | 历史build31未签名device ARM64 IPA位于 `client-v2.1.10` Release；build32至build38仅在本地交付。Android/HarmonyOS参考源码为2.3.6/236。自行签名后侧载，未使用App Store/TestFlight。 |
 | 源码 | 完整后续iOS源码在main；原Release标签保留双端最初快照，标签自动归档不含全部后续iOS修复。 |
-| 本次Mac工作 | build37修正竖屏90/270度方向映射。用户对build36的真机截图确认宽高已交换为1080×1546，但画面上下颠倒，旋转验收仍失败。新测试覆盖采集方向附件到正立像素及H.264回环，build37仍待用户真机复测。未修改Android/HarmonyOS或NAS。 |
+| 本次Mac工作 | build38同步用户修改的倍速选择、共享等待提示与共享设置界面，完成本地IPA及双模拟器安装启动。build37的竖屏方向修复仍待用户真机复测；本次未改动原生共享逻辑、Android/HarmonyOS或NAS。 |
 
 所有客户端修改及Git操作在本仓库。iOS设备构建需用户明确指示；Windows日常先用Expo Go/Web检查可用界面，原生VLC、Go、LiveKit、Keychain及系统音频必须在对应原生环境验收。跨平台来源对照见 [Android维护文档](android-maintenance-architecture.md) 和 [HarmonyOS维护文档](harmonyos-maintenance-architecture.md)。
+
+## 2026-11-04 build38 前端同步与本地构建
+
+用户要求同步最新前端到模拟器、构建IPA并本地提交。承接`03a5a6a`及用户未提交的三个前端文件，版本保持2.1.10，构建号由37递增至38。倍速选项改为两行布局；共享接收增加OBS等待与错误状态提示；共享设置重排状态、应用声音、分辨率、帧率及操作区。仅清理改动后不再使用的`MediaTabs`、`RoomButton`与`RoomIconButton`导入，保留用户界面实现。
+
+VLC持久补丁、ESLint与TypeScript通过且无lint警告，9/9合同测试通过；12个共享Go来源仍为`7ebacfb2ca2dbd6f359a04ea44016cfacb883bc6`，广播工程配置检查通过。Xcode设备Release及Simulator Debug构建均成功；恢复Simulator Vendor/Pods后，build38已安装并启动到iPad Pro13英寸M5与iPhone18Pro/iOS27.2，继续使用Metro8082。用户随后要求加载完成后停止检查，本轮到此停止运行验证，不新增界面逐项、真实播放或真机投屏验收。
+
+IPA离线检查确认宿主与广播扩展均为2.1.10/build38、iOS平台2/ARM64、未签名，最低16.4并支持iPhone/iPad；生产JS包含本次界面文案，包内无AGENTS.md、环境配置、私钥、provisioning profile及已知测试密码字面量。交付`ZV-iOS/release-assets/ZViewer-iOS-2.1.10-build38-unsigned.ipa`及Downloads同名副本，48,601,304字节，生产JS6,731,957字节，需要自行签名后侧载。
+
+构建脚本仅计算一次SHA，离线检查使用`--skip-sha256`：
+
+```text
+e53ef9e390f67f44cc3c56b3f02d7906dbe96cc75af31542ea6d893c1828d862
+```
+
+构建证据位于忽略目录`.native-tools/build38-{prebuild,device-pods,package,check,simulator-pods,simulator-xcode}.log`、`build38-inspection.json`及`ios/build/unsigned-xcode.log`。使用`expo prebuild --no-clean`同步版本，保留原有npm启动脚本。本轮使用本地构建，未使用EAS云构建额度，未推送或发布远端。
 
 ## 2026-11-04 build37 竖屏倒置修复
 

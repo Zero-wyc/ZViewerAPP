@@ -109,7 +109,37 @@ export function ScreenShare({ roomId, share, height, fullscreen, toggleFullscree
   return <View testID="screen-share-panel" style={fullscreen ? { flex: 1, minHeight: 0 } : { gap: 10 }}>
     <View testID="screen-share-viewport" onLayout={event => setViewportWidth(event.nativeEvent.layout.width)} style={[{ backgroundColor: '#000', overflow: 'hidden', borderRadius: fullscreen ? 0 : 16 }, fullscreen ? { flex: 1 } : { height: viewportHeight }]}>
       {push ? <VlcVideo video={video} style={{ flex: 1 }} /> : stream && rtc ? <rtc.RTCView streamURL={streamURL} objectFit="contain" onDimensionsChange={event => setDimensions({ identity: mediaIdentity, ...event.nativeEvent })} style={{ flex: 1 }} /> : null}
-      {!receiving || paused ? <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 20, right: 20, bottom: fullscreen ? 0 : 80, alignItems: 'center', justifyContent: 'center', gap: 12 }}><View style={{ alignItems: 'center', gap: 12, maxWidth: '100%', paddingHorizontal: 20, paddingVertical: 16, borderRadius: 14, backgroundColor: paused || !!error ? 'rgba(15,23,32,.88)' : 'transparent' }}>{!paused && !error && connected && (rtc || push) ? <ActivityIndicator color="#9cdbff" /> : <Feather name={paused ? 'pause-circle' : 'monitor'} color="#a8b3c2" size={30} />}<Text accessibilityLiveRegion="polite" style={{ color: '#eef3fa', fontSize: 14, lineHeight: 21, textAlign: 'center' }}>{paused ? '已暂停本机接收' : error || (rtc || push ? displayStatus : '共享观看需要原生安装包')}</Text></View></View> : null}
+      {!receiving || paused ? <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 20, right: 20, bottom: fullscreen ? 0 : 80, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+        <View style={{ alignItems: 'center', gap: 14, maxWidth: '100%', paddingHorizontal: 24, paddingVertical: 20, borderRadius: 16, backgroundColor: paused || !!error ? 'rgba(15,23,32,.92)' : 'rgba(15,23,32,.88)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}>
+          {!paused && !error && connected && (rtc || push) ? (
+            <ActivityIndicator color="#9cdbff" size="large" />
+          ) : (
+            <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(156,219,255,0.12)', alignItems: 'center', justifyContent: 'center' }}>
+              <Feather name={paused ? 'pause-circle' : push && !connected ? 'wifi-off' : 'monitor'} color={paused ? '#ffd54f' : '#9cdbff'} size={28} />
+            </View>
+          )}
+          <View style={{ alignItems: 'center', gap: 6, maxWidth: 420 }}>
+            <Text accessibilityLiveRegion="polite" style={{ color: '#eef3fa', fontSize: 16, fontWeight: '600', textAlign: 'center' }}>
+              {paused ? '已暂停本机接收' : push && flvLive === false ? '等待 OBS 推流' : error ? '共享不可用' : displayStatus}
+            </Text>
+            {!paused && push && flvLive === false && !error ? (
+              <View style={{ paddingHorizontal: 16, paddingVertical: 10, marginTop: 6, backgroundColor: 'rgba(156,219,255,0.08)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(156,219,255,0.2)' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <Feather name="monitor" size={18} color="#9cdbff" />
+                  <Text style={{ color: '#9cdbff', fontSize: 14, fontWeight: '500' }}>当前房间使用 OBS 推流</Text>
+                </View>
+                <Text style={{ color: '#b8c5cd', fontSize: 13, lineHeight: 19, textAlign: 'center' }}>
+                  请在电脑推流软件中开始推流
+                </Text>
+              </View>
+            ) : error ? (
+              <Text style={{ color: '#ffb4ab', fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 4 }}>
+                {error}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+      </View> : null}
       <View testID="screen-share-gestures" accessible accessibilityRole="button" accessibilityLabel="共享画面：单击显示控件，双击暂停或继续接收" accessibilityActions={[{ name: 'activate', label: '显示控件' }, { name: 'toggle', label: '暂停或继续接收' }]} onAccessibilityTap={() => setControlsVisible(true)} onAccessibilityAction={event => { if (event.nativeEvent.actionName === 'toggle') togglePause(); else setControlsVisible(true); }} style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }} onStartShouldSetResponder={event => { if (event.nativeEvent.touches.length === 1) return true; previousTap.current = null; if (singleTap.current) clearTimeout(singleTap.current); return false; }} onResponderGrant={event => { if (singleTap.current) clearTimeout(singleTap.current); touch.current = { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY, time: Date.now() }; }} onResponderMove={event => { const start = touch.current; if (event.nativeEvent.touches.length !== 1 || start && Math.hypot(event.nativeEvent.locationX - start.x, event.nativeEvent.locationY - start.y) > 12) { touch.current = null; previousTap.current = null; if (singleTap.current) clearTimeout(singleTap.current); } }} onResponderTerminate={() => { touch.current = null; previousTap.current = null; if (singleTap.current) clearTimeout(singleTap.current); }} onResponderRelease={event => {
         const start = touch.current; touch.current = null; const now = Date.now();
         if (!start || now - start.time > 250 || Math.hypot(event.nativeEvent.locationX - start.x, event.nativeEvent.locationY - start.y) > 12) { previousTap.current = null; if (singleTap.current) clearTimeout(singleTap.current); return; }

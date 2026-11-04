@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Pressable, Switch, Text, View } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 import { useSession } from '@/state/session';
 import { nativeBridge, type ScreenShareSnapshot } from '@/lib/nativeBridge';
 import { emitAck } from '@/lib/socket';
 import { screenShareExpiry, isActiveScreenShare, screenShareQualities, screenShareFrameRates } from '@/lib/screenShareSession';
 import { useAppearance } from '@/state/appearance';
-import { RoomButton, RoomIconButton, ui as baseUi } from './RoomUi';
+import { ui as baseUi } from './RoomUi';
 import { Surface } from './Surface';
 
 const labels: Record<ScreenShareSnapshot['phase'], string> = {
@@ -110,22 +110,238 @@ export function ScreenShareHost({ roomId, onOwnership }: { roomId: string; onOwn
       setMessage(error instanceof Error ? error.message : '无法开始共享');
     } finally { setBusy(false); }
   };
-  return <Surface readable testID="screen-share-host" style={{ padding: 18, gap: 18, minWidth: 0 }}>
-    <View style={[ui.row, { gap: 12 }]}><Feather name="cast" size={26} color={theme.color('#65d59b')} /><View style={{ flex: 1, minWidth: 0 }}><Text style={ui.title}>{labels[snapshot.phase]}</Text><Text style={ui.muted}>本机屏幕共享</Text></View>{busy || active && !['sharing', 'paused'].includes(snapshot.phase) ? <ActivityIndicator /> : null}</View>
-    {snapshot.phase === 'sharing' || snapshot.phase === 'paused' ? <Text style={ui.text}>{snapshot.viewers || 0} / 2 位观众 · {snapshot.capturedFrames || 0} 帧已采集{snapshot.audioSamples ? ' · 已收到应用声音' : ''}</Text> : null}
-    {snapshot.width && snapshot.height ? <Text style={ui.muted}>{snapshot.width} × {snapshot.height} · 上限 {snapshot.framesPerSecond || 30} fps</Text> : null}
-    <View style={ui.row}><Text style={[ui.text, { flex: 1 }]}>应用声音</Text><Switch accessibilityLabel="共享应用声音" value={systemAudio} disabled={busy || active && snapshot.phase === 'requesting-permission'} onValueChange={value => {
-      setSystemAudio(value);
-      if (current.current) void nativeBridge?.screenShareControl?.(current.current, JSON.stringify({ systemAudio: value })).catch(() => setMessage('应用声音设置未生效'));
-    }} /></View>
-    <View style={{ gap: 8 }}><Text style={ui.text}>分辨率上限</Text><View style={ui.row}>{screenShareQualities.map(value => <RoomButton key={value} label={value} secondary selected={quality === value} disabled={active || busy} onPress={() => setQuality(value)} />)}</View></View>
-    <View style={{ gap: 8 }}><Text style={ui.text}>帧率上限</Text><View style={ui.row}>{screenShareFrameRates.map(value => <RoomButton key={value} label={`${value} fps`} secondary selected={framesPerSecond === value} disabled={active || busy} onPress={() => setFramesPerSecond(value)} />)}</View></View>
-    <View style={ui.row}>{active ? <><RoomIconButton label={snapshot.phase === 'paused' ? '恢复共享' : '暂停共享'} icon={snapshot.phase === 'paused' ? 'play' : 'pause'} onPress={() => {
-      if (!['sharing', 'paused'].includes(snapshot.phase)) return;
-      void nativeBridge?.screenShareControl?.(current.current, JSON.stringify({ paused: snapshot.phase !== 'paused' })).catch(() => setMessage('共享暂停状态未确认'));
-    }} /><RoomButton label="停止共享" disabled={busy} onPress={() => void stop()} /></> : <RoomButton label="开始共享" disabled={busy || !capability?.available || !socket?.connected} onPress={() => void start()} />}</View>
-    <Text style={ui.muted}>应用声音取决于系统允许捕获的内容；本版不采集共享麦克风。</Text>
-    {active ? <Text accessibilityLiveRegion="polite" style={ui.muted}>共享期间由原生连接持有房主身份，房间聊天、语音与设置暂不可操作。停止后恢复。</Text> : null}
-    {message || snapshot.message || capability?.message ? <Text accessibilityLiveRegion="polite" style={ui.error}>{message || snapshot.message || capability?.message}</Text> : null}
+  const p = theme.color('#1463b6'); const surface = theme.color('#0f1720'); const container = theme.color('#19232e');
+  const phaseIcon = snapshot.phase === 'sharing' ? 'cast' : snapshot.phase === 'paused' ? 'pause-circle' : snapshot.phase === 'error' ? 'alert-circle' : 'monitor';
+  const phaseColor = snapshot.phase === 'sharing' ? '#65d59b' : snapshot.phase === 'error' ? '#ffb4ab' : '#9cdbff';
+
+  return <Surface readable testID="screen-share-host" style={{ padding: 0, gap: 0, minWidth: 0, overflow: 'hidden' }}>
+    {/* 头部状态区 */}
+    <View style={{ padding: 20, gap: 14, backgroundColor: container, borderBottomWidth: 1, borderColor: theme.color('#ffffff12') }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+        <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: surface, alignItems: 'center', justifyContent: 'center' }}>
+          <Feather name={phaseIcon} size={26} color={phaseColor} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+          <Text style={[ui.title, { fontSize: 19, fontWeight: '600' }]}>屏幕共享</Text>
+          <Text style={[ui.muted, { fontSize: 14 }]}>{labels[snapshot.phase]}</Text>
+        </View>
+        {busy || active && !['sharing', 'paused'].includes(snapshot.phase) ? <ActivityIndicator color={phaseColor} /> : null}
+      </View>
+
+      {/* 共享状态指示器 */}
+      {snapshot.phase === 'sharing' || snapshot.phase === 'paused' ? (
+        <View style={{ paddingTop: 8, gap: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Feather name="users" size={15} color={theme.color('#a8b3b6')} />
+              <Text style={[ui.text, { fontSize: 14 }]}>{snapshot.viewers || 0} / 2 观众</Text>
+            </View>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Feather name="activity" size={15} color={theme.color('#a8b3b6')} />
+              <Text style={[ui.text, { fontSize: 14 }]}>{snapshot.capturedFrames || 0} 帧</Text>
+            </View>
+          </View>
+          {snapshot.width && snapshot.height ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Feather name="monitor" size={15} color={theme.color('#a8b3b6')} />
+              <Text style={[ui.muted, { fontSize: 13 }]}>
+                {snapshot.width} × {snapshot.height} @ {snapshot.framesPerSecond || 30} fps
+                {snapshot.audioSamples ? ' · 含应用声音' : ''}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+
+    {/* 设置区域 */}
+    <View style={{ padding: 20, gap: 18 }}>
+      {/* 应用声音开关 */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 14, backgroundColor: container, borderRadius: 14, minHeight: 56 }}>
+        <View style={{ flex: 1, gap: 3 }}>
+          <Text style={[ui.text, { fontSize: 15, fontWeight: '500' }]}>应用声音</Text>
+          <Text style={[ui.muted, { fontSize: 12 }]}>捕获系统允许的应用音频</Text>
+        </View>
+        <Switch
+          accessibilityLabel="共享应用声音"
+          value={systemAudio}
+          disabled={busy || active && snapshot.phase === 'requesting-permission'}
+          trackColor={{ true: p, false: theme.color('#43566b') }}
+          thumbColor="#fff"
+          onValueChange={value => {
+            setSystemAudio(value);
+            if (current.current) void nativeBridge?.screenShareControl?.(current.current, JSON.stringify({ systemAudio: value })).catch(() => setMessage('应用声音设置未生效'));
+          }}
+        />
+      </View>
+
+      {/* 分辨率设置 */}
+      <View style={{ gap: 10 }}>
+        <Text style={[ui.text, { fontSize: 14, fontWeight: '500' }]}>分辨率上限</Text>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {screenShareQualities.map(value => {
+            const selected = quality === value;
+            return <Pressable
+              key={value}
+              accessibilityRole="button"
+              accessibilityState={{ selected, disabled: active || busy }}
+              disabled={active || busy}
+              onPress={() => setQuality(value)}
+              style={{
+                flex: 1,
+                minHeight: 44,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 12,
+                backgroundColor: selected ? p : container,
+                borderWidth: 1,
+                borderColor: selected ? p : theme.color('#ffffff18'),
+                opacity: active || busy ? 0.5 : 1
+              }}
+            >
+              <Text style={{ color: selected ? '#fff' : theme.color('#a8b3b6'), fontSize: 15, fontWeight: selected ? '600' : '400' }}>
+                {value}
+              </Text>
+            </Pressable>;
+          })}
+        </View>
+      </View>
+
+      {/* 帧率设置 */}
+      <View style={{ gap: 10 }}>
+        <Text style={[ui.text, { fontSize: 14, fontWeight: '500' }]}>帧率上限</Text>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {screenShareFrameRates.map(value => {
+            const selected = framesPerSecond === value;
+            return <Pressable
+              key={value}
+              accessibilityRole="button"
+              accessibilityState={{ selected, disabled: active || busy }}
+              disabled={active || busy}
+              onPress={() => setFramesPerSecond(value)}
+              style={{
+                flex: 1,
+                minHeight: 44,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 12,
+                backgroundColor: selected ? p : container,
+                borderWidth: 1,
+                borderColor: selected ? p : theme.color('#ffffff18'),
+                opacity: active || busy ? 0.5 : 1
+              }}
+            >
+              <Text style={{ color: selected ? '#fff' : theme.color('#a8b3b6'), fontSize: 15, fontWeight: selected ? '600' : '400' }}>
+                {value} fps
+              </Text>
+            </Pressable>;
+          })}
+        </View>
+      </View>
+
+      {/* 操作按钮 */}
+      <View style={{ flexDirection: 'row', gap: 10, paddingTop: 8 }}>
+        {active ? (
+          <>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={snapshot.phase === 'paused' ? '恢复共享' : '暂停共享'}
+              disabled={!['sharing', 'paused'].includes(snapshot.phase)}
+              onPress={() => {
+                if (!['sharing', 'paused'].includes(snapshot.phase)) return;
+                void nativeBridge?.screenShareControl?.(current.current, JSON.stringify({ paused: snapshot.phase !== 'paused' })).catch(() => setMessage('共享暂停状态未确认'));
+              }}
+              style={{
+                flex: 1,
+                minHeight: 50,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 14,
+                backgroundColor: container,
+                borderWidth: 1,
+                borderColor: theme.color('#ffffff18')
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Feather name={snapshot.phase === 'paused' ? 'play' : 'pause'} size={18} color={theme.color('#a8b3b6')} />
+                <Text style={{ color: theme.color('#a8b3b6'), fontSize: 16, fontWeight: '500' }}>
+                  {snapshot.phase === 'paused' ? '恢复' : '暂停'}
+                </Text>
+              </View>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="停止共享"
+              accessibilityState={{ disabled: busy }}
+              disabled={busy}
+              onPress={() => void stop()}
+              style={{
+                flex: 1,
+                minHeight: 50,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 14,
+                backgroundColor: '#d32f2f',
+                opacity: busy ? 0.6 : 1
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Feather name="square" size={18} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>停止共享</Text>
+              </View>
+            </Pressable>
+          </>
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="开始共享"
+            accessibilityState={{ disabled: busy || !capability?.available || !socket?.connected }}
+            disabled={busy || !capability?.available || !socket?.connected}
+            onPress={() => void start()}
+            style={{
+              flex: 1,
+              minHeight: 50,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 14,
+              backgroundColor: p,
+              opacity: busy || !capability?.available || !socket?.connected ? 0.5 : 1
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Feather name="cast" size={20} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>开始共享</Text>
+            </View>
+          </Pressable>
+        )}
+      </View>
+
+      {/* 提示信息 */}
+      <View style={{ paddingTop: 4, gap: 10 }}>
+        {!active ? (
+          <View style={{ flexDirection: 'row', gap: 10, padding: 12, backgroundColor: theme.color('#0a0f16'), borderRadius: 12, borderLeftWidth: 3, borderLeftColor: '#9cdbff' }}>
+            <Feather name="info" size={16} color="#9cdbff" style={{ marginTop: 2 }} />
+            <Text style={[ui.muted, { flex: 1, fontSize: 13, lineHeight: 19 }]}>
+              应用声音取决于系统允许捕获的内容，不包含麦克风音频
+            </Text>
+          </View>
+        ) : (
+          <View style={{ flexDirection: 'row', gap: 10, padding: 12, backgroundColor: theme.color('#0a0f16'), borderRadius: 12, borderLeftWidth: 3, borderLeftColor: '#ffd54f' }}>
+            <Feather name="alert-triangle" size={16} color="#ffd54f" style={{ marginTop: 2 }} />
+            <Text style={[ui.muted, { flex: 1, fontSize: 13, lineHeight: 19 }]}>
+              共享期间由原生连接持有房主身份，聊天、语音与设置暂不可用，停止后恢复
+            </Text>
+          </View>
+        )}
+        {(message || snapshot.message || capability?.message) ? (
+          <View style={{ flexDirection: 'row', gap: 10, padding: 12, backgroundColor: theme.color('#3d1215'), borderRadius: 12, borderLeftWidth: 3, borderLeftColor: '#ffb4ab' }}>
+            <Feather name="alert-circle" size={16} color="#ffb4ab" style={{ marginTop: 2 }} />
+            <Text accessibilityLiveRegion="polite" style={[ui.error, { flex: 1, fontSize: 13, lineHeight: 19 }]}>
+              {message || snapshot.message || capability?.message}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+    </View>
   </Surface>;
 }

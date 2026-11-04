@@ -11,7 +11,7 @@ import { emitAck } from '@/lib/socket';
 import { messageFor } from '@/lib/server';
 import type { VlcPlayer } from '@/lib/vlcPlayer';
 import { AppDialog } from './AppDialog';
-import { MediaSlider, MediaTabs } from './MediaPanelUi';
+import { MediaSlider } from './MediaPanelUi';
 import { ScreenOrientationButton } from './ScreenOrientationButton';
 import type { ScreenOrientationControl } from '@/hooks/usePlayerDisplay';
 import { PlaybackSettings } from './PlaybackSettings';
@@ -123,7 +123,13 @@ export function PlaybackControls({ nextEnabled, nextBusy, next, sync, player, ho
     {error ? <Text style={{ color: '#ffb4ab', padding: 6 }}>{error}</Text> : null}
     <PlaybackSettings visible={settings} close={() => setSettings(false)} player={player} subtitles={subtitles} danmaku={danmaku} roomId={roomId} host={host} trackVersion={trackVersion} />
     <AppDialog visible={!!quick} title={quick === 'rate' ? '播放倍速' : '本机音量'} close={() => setQuick(null)} maxWidth={420}>
-      {quick === 'rate' ? <><MediaTabs tabs={[.5, .75, 1, 1.25, 1.5, 2].map(value => ({ value: String(value), label: `${value}×` }))} value={String(rate)} onChange={value => { if (host) { control('rate', Number(value)); setQuick(null); } }} />{!host ? <Text style={{ color: theme.color('#a8b3b6') }}>倍速由房主调整</Text> : null}</> : <MediaSlider label="本机音量" value={volume} maximumValue={100} displayValue={`${Math.round(volume)}%`} onChange={value => { setVolume(value); player.configure({ volume: value }); }} onComplete={value => { void writePreference('zviewer-volume', { value }).catch(() => {}); }} />}
+      {quick === 'rate' ? <><View style={{ gap: 12 }}><View style={{ flexDirection: 'row', gap: 8 }}>{[0.5, 0.75, 1].map(value => {
+        const active = Math.abs(rate - value) < 0.01; const p = theme.color('#1463b6');
+        return <Pressable key={value} accessibilityRole="button" accessibilityLabel={`${value}倍速`} accessibilityState={{ selected: active }} disabled={!host} onPress={() => { if (host) { control('rate', value); setQuick(null); } }} style={{ flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: active ? p : '#0f1720', borderWidth: 1, borderColor: active ? p : '#ffffff18' }}><Text style={{ color: active ? '#ffffff' : '#a8b3b6', fontSize: 17, fontWeight: active ? '700' : '400' }}>{value}×</Text></Pressable>;
+      })}</View><View style={{ flexDirection: 'row', gap: 8 }}>{[1.25, 1.5, 2].map(value => {
+        const active = Math.abs(rate - value) < 0.01; const p = theme.color('#1463b6');
+        return <Pressable key={value} accessibilityRole="button" accessibilityLabel={`${value}倍速`} accessibilityState={{ selected: active }} disabled={!host} onPress={() => { if (host) { control('rate', value); setQuick(null); } }} style={{ flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: active ? p : '#0f1720', borderWidth: 1, borderColor: active ? p : '#ffffff18' }}><Text style={{ color: active ? '#ffffff' : '#a8b3b6', fontSize: 17, fontWeight: active ? '700' : '400' }}>{value}×</Text></Pressable>;
+      })}</View></View>{!host ? <Text style={{ color: theme.color('#a8b3b6'), marginTop: 12 }}>倍速由房主调整</Text> : null}</> : <MediaSlider label="本机音量" value={volume} maximumValue={100} displayValue={`${Math.round(volume)}%`} onChange={value => { setVolume(value); player.configure({ volume: value }); }} onComplete={value => { void writePreference('zviewer-volume', { value }).catch(() => {}); }} />}
     </AppDialog>
   </View>;
 }
