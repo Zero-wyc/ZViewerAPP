@@ -1,5 +1,5 @@
 """Offline device IPA inspection. Does not run or sign the app."""
-import hashlib, json, plistlib, struct, sys, zipfile
+import argparse, hashlib, json, plistlib, struct, zipfile
 from pathlib import Path
 
 def macho(blob):
@@ -67,10 +67,16 @@ def inspect(path):
         return dict(bundleId=info['CFBundleIdentifier'], version=info['CFBundleShortVersionString'], build=info['CFBundleVersion'], app=app, frameworks=frameworks, nativeBridges=bridges, jsBytes=archive.getinfo(root + 'main.jsbundle').file_size, background=info.get('UIBackgroundModes'), ats=info.get('NSAppTransportSecurity'), requiresFullScreen=info.get('UIRequiresFullScreen', False), orientations=info.get('UISupportedInterfaceOrientations'), ipadOrientations=info.get('UISupportedInterfaceOrientations~ipad'), **continuation)
 
 if __name__ == '__main__':
-    path = Path(sys.argv[1]); result = inspect(path)
-    digest = hashlib.sha256()
-    with path.open('rb') as archive:
-        for chunk in iter(lambda: archive.read(1024 * 1024), b''):
-            digest.update(chunk)
-    result['bytes'] = path.stat().st_size; result['sha256'] = digest.hexdigest()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('ipa', type=Path)
+    parser.add_argument('--skip-sha256', action='store_true', help='Reuse the SHA-256 already emitted by the build script')
+    args = parser.parse_args()
+    path = args.ipa; result = inspect(path)
+    result['bytes'] = path.stat().st_size
+    if not args.skip_sha256:
+        digest = hashlib.sha256()
+        with path.open('rb') as archive:
+            for chunk in iter(lambda: archive.read(1024 * 1024), b''):
+                digest.update(chunk)
+        result['sha256'] = digest.hexdigest()
     print(json.dumps(result, indent=2, ensure_ascii=False))

@@ -1,5 +1,13 @@
 # 更新记录
 
+## iOS 2.1.10 / build32 - 2026-11-04（本地交付）
+
+- OBS接收改为按当前房间领取只读观看票据，校验房间路径和ticket，保留反代前缀及自定义FLV入口，不再依赖发布密钥。
+- Emby/Jellyfin按movieId和MediaSourceId刷新起播资源，持久逻辑地址与本机临时CDN地址分开；运行期服务器中转复用原有设置事务，分集/版本切换保留直连策略。
+- FTP/服务器文件按movieId重建成员播放地址，OpenList/WebDAV按当前策略刷新成员直链或中转；内网媒体库隐藏中转开关，覆盖IPv4映射IPv6等地址。
+- 共享Go来源同步至7ebacfb，保留VLCKit4.0.0a25；修复设备准备脚本的Opus主机检查头文件路径。
+- 5项协议测试、lint/TypeScript、iPhone18Pro/iOS27.2模拟器启动、Xcode27.2设备Release构建与未签名IPA离线检查通过；维护文档记录包摘要及待验边界。真实播放与其余音乐/手势等对齐项目尚未验收，本轮未公开发布。
+
 ## 2.3.6 - 2026-11-03（Android/HarmonyOS 236）
 
 - 修复鸿蒙原生连接隧道仅在 bind 指定 IPv6、connect 遗漏地址族的问题；HTTP 与允许自签名证书的 HTTPS 连接使用一致的目标地址族，保留 WebSocket Upgrade 与请求头转发。

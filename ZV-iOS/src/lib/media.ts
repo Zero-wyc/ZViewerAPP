@@ -1,6 +1,6 @@
 import { connectionUrl } from './connectionTransport.ts';
 
-export type PlaybackPolicy = { serverProxy?: boolean; playsvideoEnabled?: boolean; noProxyFallback?: boolean; sourceMountId?: number | null };
+export type PlaybackPolicy = { serverProxy?: boolean; directLink?: boolean; playsvideoEnabled?: boolean; noProxyFallback?: boolean; sourceMountId?: number | null };
 export type PlaybackSource = PlaybackPolicy & {
   sourceMeta?: import('./sources').SourceMeta;
   movieId?: number;

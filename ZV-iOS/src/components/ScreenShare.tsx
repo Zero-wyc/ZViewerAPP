@@ -7,7 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActivityIndicator, NativeModules, Platform, Pressable, Text, View } from 'react-native';
 import { useSession } from '@/state/session';
 import { NativeMediaAdapter } from '@/lib/mediaAdapter';
-import { initialScreenReceiver, ScreenReceiver, screenFlvUrl, loadScreenPull } from '@/lib/screenReceiver';
+import { initialScreenReceiver, ScreenReceiver, loadScreenPull } from '@/lib/screenReceiver';
+import { getWatchPlaybackUrl, watchPlaybackUrl } from '@/lib/streamPush';
 import { ScreenOrientationButton } from './ScreenOrientationButton';
 import type { ScreenOrientationControl } from '@/hooks/usePlayerDisplay';
 import { AppDialog } from './AppDialog';
@@ -20,10 +21,10 @@ const rtc: typeof import('@livekit/react-native-webrtc') | null = Platform.OS ==
 function ReceiveControl({ accessibilityLabel, icon, onPress, disabled = false }: { accessibilityLabel: string; icon: ComponentProps<typeof Feather>['name']; onPress: () => void; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} onAccessibilityTap={() => { if (!disabled) onPress(); }} style={{ flex: 1, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', opacity: disabled ? .4 : 1 }}><Feather name={icon} color="#f3f7fa" size={21} /></Pressable>;
 }
-export type ShareState = { shareMethod?: 'webrtc' | 'stream-push'; streamKey?: string | null };
+export type ShareState = { shareMethod?: 'webrtc' | 'stream-push' };
 export function ScreenShare({ roomId, share, height, fullscreen, toggleFullscreen, orientation }: { roomId: string; share: ShareState; height: number; fullscreen: boolean; toggleFullscreen: () => void; orientation: ScreenOrientationControl }) {
   const theme = useAppearance(); const ui = theme.styles(baseUi); const insets = useSafeAreaInsets();
-  const { session, socket, connected } = useSession(); const video = useVlcVideo(true);
+  const { session, socket, connected, request } = useSession(); const video = useVlcVideo(true);
   const serverUrl = session?.serverUrl; const accessToken = session?.accessToken; const userId = session?.user.id;
   const [paused, setPaused] = useState(false); const [volume, setVolume] = useState(100); const [muted, setMuted] = useState(false);
   const [edit, setEdit] = useState(false); const [draftBase, setDraftBase] = useState(''); const [flvBase, setFlvBase] = useState('');
@@ -66,22 +67,23 @@ export function ScreenShare({ roomId, share, height, fullscreen, toggleFullscree
   useEffect(() => {
     let active = true; void Promise.resolve().then(() => { if (active) setFlvLive(null); });
     return () => { active = false; };
-  }, [connected, roomId, share.streamKey, serverUrl, userId, push, socket?.id]);
+  }, [connected, roomId, serverUrl, userId, push, socket?.id]);
   useEffect(() => {
-    let active = true; const adapter = adapterRef.current; if (!adapter) return;
+    let active = true; const controller = new AbortController(); const adapter = adapterRef.current; if (!adapter) return;
     if (!push || !serverUrl || !accessToken || !connected || flvLive === false) { void adapter.apply(null, '', '').catch(() => {}); return; }
     void Promise.resolve().then(async () => {
       if (!active) return;
       setFlv({ phase: 'connecting', status: '正在接收推流…', error: '' });
       try {
-        const path = screenFlvUrl(serverUrl, share.streamKey || '', flvBase);
+        const path = await getWatchPlaybackUrl(request, serverUrl, roomId, controller.signal, () => active, flvBase);
+        if (!active) return;
         // Load paused, then apply the latest local intent after asynchronous native replacement.
         const current = await loadScreenPull(adapter, path, serverUrl, accessToken, () => active, retry);
         if (current) { if (pausedRef.current) video.player.pause(); else video.player.play(); }
       } catch (failure) { if (active) setFlv({ phase: 'failed', status: '推流不可用', error: failure instanceof Error ? failure.message : '无法播放推流，请检查拉流地址与 OBS 状态' }); }
     });
-    return () => { active = false; adapter.cancelPending(); };
-  }, [roomId, push, share.streamKey, serverUrl, accessToken, video.player, flvBase, flvLive, connected, retry]);
+    return () => { active = false; controller.abort(); adapter.cancelPending(); };
+  }, [request, roomId, push, serverUrl, accessToken, video.player, flvBase, flvLive, connected, retry]);
   useEffect(() => {
     pausedRef.current = paused; gainRef.current = muted ? 0 : volume;
     receiverRef.current?.setPlayback(paused, gainRef.current / 100); video.player.configure({ volume: gainRef.current });
@@ -116,6 +118,6 @@ export function ScreenShare({ roomId, share, height, fullscreen, toggleFullscree
         {!fullscreen ? <Text accessibilityLiveRegion="polite" style={{ color: '#b8c5cd', fontSize: 11, lineHeight: 17, paddingHorizontal: 10, paddingBottom: 3 }}>{paused ? '已暂停本机接收' : displayStatus}{muted ? ' · 已静音' : ''}</Text> : null}
       </View> : null}
     </View>
-    <AppDialog visible={edit} title="投屏设置" maxWidth={460} close={() => setEdit(false)}><Text style={ui.text}>接收音量</Text><Slider accessibilityLabel="投屏接收音量" minimumValue={0} maximumValue={100} value={volume} onValueChange={value => { setVolume(value); if (value > 0) setMuted(false); }} minimumTrackTintColor={theme.color('#1463b6')} maximumTrackTintColor={theme.color('#43566b')} /><Text style={ui.muted}>{Math.round(muted ? 0 : volume)}%</Text>{push ? <><Text style={ui.title}>HTTP-FLV 地址</Text><RoomInput value={draftBase} onChangeText={setDraftBase} placeholder="服务地址（可选，含协议与端口）" autoCapitalize="none" keyboardType="url" /><RoomButton label="应用并刷新" onPress={() => { try { screenFlvUrl(session?.serverUrl || '', share.streamKey || '', draftBase); setFlvBase(draftBase); setEdit(false); refresh(); } catch (failure) { setActionError(failure instanceof Error ? failure.message : '拉流地址无效'); } }} />{isDevice ? <RoomButton label="画中画" secondary disabled={!receiving} onPress={() => { void video.player.startPictureInPicture().then(() => setEdit(false)).catch(() => setActionError('设备当前无法进入画中画')); }} /> : null}</> : <Text style={ui.muted}>由共享端提供画面。暂停与音量只影响本机，连接异常时刷新重新接入。</Text>}{error ? <Text style={ui.error}>{error}</Text> : null}</AppDialog>
+    <AppDialog visible={edit} title="投屏设置" maxWidth={460} close={() => setEdit(false)}><Text style={ui.text}>接收音量</Text><Slider accessibilityLabel="投屏接收音量" minimumValue={0} maximumValue={100} value={volume} onValueChange={value => { setVolume(value); if (value > 0) setMuted(false); }} minimumTrackTintColor={theme.color('#1463b6')} maximumTrackTintColor={theme.color('#43566b')} /><Text style={ui.muted}>{Math.round(muted ? 0 : volume)}%</Text>{push ? <><Text style={ui.title}>HTTP-FLV 地址</Text><RoomInput value={draftBase} onChangeText={setDraftBase} placeholder="服务地址（可选，含协议与端口）" autoCapitalize="none" keyboardType="url" /><RoomButton label="应用并刷新" onPress={() => { try { watchPlaybackUrl(session?.serverUrl || '', roomId, `/live/${encodeURIComponent(roomId)}.flv?ticket=validation`, draftBase); setFlvBase(draftBase); setEdit(false); refresh(); } catch (failure) { setActionError(failure instanceof Error ? failure.message : '拉流地址无效'); } }} />{isDevice ? <RoomButton label="画中画" secondary disabled={!receiving} onPress={() => { void video.player.startPictureInPicture().then(() => setEdit(false)).catch(() => setActionError('设备当前无法进入画中画')); }} /> : null}</> : <Text style={ui.muted}>由共享端提供画面。暂停与音量只影响本机，连接异常时刷新重新接入。</Text>}{error ? <Text style={ui.error}>{error}</Text> : null}</AppDialog>
   </View>;
 }

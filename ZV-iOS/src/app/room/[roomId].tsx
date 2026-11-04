@@ -232,7 +232,7 @@ export default function RoomScreen() {
     const infoRevision = ++roomInfoRevision.current;
     const roomGeneration = generation.current;
     setJoined(true);
-    if (data.shareMethod) setShare({ shareMethod: data.shareMethod, streamKey: data.streamKey });
+    if (data.shareMethod) setShare({ shareMethod: data.shareMethod });
     if (data.name) setRoomName(data.name);
     if (data.mode) setMode(data.mode);
     if (!data.name || !data.mode) {
@@ -300,7 +300,7 @@ export default function RoomScreen() {
       hostRef.current = next; setHost(next); if (next) void join(true);
     };
     const onName = (data: JoinData) => { if (data.roomId === roomId && data.name) { roomInfoRevision.current++; setRoomName(data.name); } };
-    const onShare = (data: JoinData) => { if (data.roomId === roomId) setShare({ shareMethod: data.shareMethod, streamKey: data.streamKey }); };
+    const onShare = (data: JoinData) => { if (data.roomId === roomId) setShare({ shareMethod: data.shareMethod }); };
     const onComment = (item: Comment) => setComments(previous => previous.some(value => value.id === item.id) ? previous : [...previous, item]);
     const onMovies = (payload: { movies?: Movie[] }) => { if (Array.isArray(payload.movies)) { const values = payload.movies.filter(movie => !movie.roomId || movie.roomId === roomId); setMovies(values); const updated = roomPlayback.current.list(values); if (!settingsInFlight.current) applyPlayback(updated); const movie = roomPlayback.current.hostMovieToActivate; if (hostRef.current && movie) void activateMovieRef.current(movie); } };
     const onCurrent = (payload: { movieId: number | null }) => {
@@ -578,7 +578,10 @@ export default function RoomScreen() {
       const confirmed = data.movies.find(item => item.id === movie.id); if (!confirmed) throw new Error('影片已删除');
       setMovies(data.movies); const coordinated = roomPlayback.current.list(data.movies);
       if (roomPlayback.current.currentId !== movie.id || !coordinated) return;
-      const affectsNative = !Object.keys(patch).length || patch.serverProxy !== undefined || (confirmed.serverProxy ?? false) !== (playbackRef.current?.serverProxy ?? false) || confirmed.sourceMountId !== playbackRef.current?.sourceMountId;
+      const affectsNative = !Object.keys(patch).length || patch.serverProxy !== undefined || patch.directLink !== undefined ||
+        (confirmed.serverProxy ?? false) !== (playbackRef.current?.serverProxy ?? false) ||
+        (confirmed.directLink === true) !== (playbackRef.current?.noProxyFallback === true) ||
+        confirmed.sourceMountId !== playbackRef.current?.sourceMountId;
       if (!affectsNative) {
         const applied = playbackAfterSettings(coordinated, playbackRef.current, player);
         sharedSource.current = applied; applyPlayback(roomPlayback.current.state(applied));

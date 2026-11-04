@@ -1,21 +1,46 @@
 # iOS 客户端维护文档
 
-2026-11-03 稳定维护整理：`docs/` 仅保留 Android、HarmonyOS、iOS 三份维护指南，阶段方案和发布摘要分别由 Git 历史与根目录 `CHANGELOG.md` 追溯。本轮仅整理文档和本地 Git；iOS 保持 2.1.10 / build 31，未修改工程或启动 IPA 构建。
+2026-11-03 历史整理：`docs/` 仅保留 Android、HarmonyOS、iOS 三份维护指南，阶段方案和发布摘要分别由 Git 历史与根目录 `CHANGELOG.md` 追溯。该次整理保持 2.1.10 / build 31；2026-11-04 的 Mac 开发状态见下文。
 
-更新日期：2026-10-23（Asia/Shanghai）。本文整合架构、macOS开发记录、验收清单、构建证据、Windows回传与历史故障。当前状态、实现合同、实测范围和未解决项集中维护；已移走的阶段材料可通过Git历史查询。
+更新日期：2026-11-04（Asia/Shanghai）。本文整合架构、macOS开发记录、验收清单、构建证据、Windows回传与历史故障。当前状态、实现合同、实测范围和未解决项集中维护；已移走的阶段材料可通过Git历史查询。
 
 ## 当前版本与工作边界
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 应用 | 2.1.10 / build31，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
+| 应用 | 2.1.10 / build32 本地未签名IPA，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
 | 工程 | 独立Expo SDK57 / React Native0.86；唯一视频/音乐内核为VLCKit4.0.0a25，语音LiveKit，投屏WebRTC/OBS接收。 |
 | 用户验收 | 用户对build30反馈“测试通过”；build31保持该播放/房间逻辑，仅统一2.1.10版本元数据并重建发布。没有给出的设备OS、时长和逐项结果不作扩展认定。 |
-| 发布 | 未签名device ARM64 IPA追加到既有 `client-v2.1.10` Release；Android/HarmonyOS仍为2.1.10/220原包。自行签名后侧载，未使用App Store/TestFlight。 |
+| 发布 | 历史build31未签名device ARM64 IPA位于 `client-v2.1.10` Release；build32本轮仅在本地交付。Android/HarmonyOS参考源码为2.3.6/236。自行签名后侧载，未使用App Store/TestFlight。 |
 | 源码 | 完整后续iOS源码在main；原Release标签保留双端最初快照，标签自动归档不含全部后续iOS修复。 |
-| 本次Windows工作 | 文档与检查入口整理、移走测试和缓存；不更改播放逻辑，不构建IPA，不新增原生/真机通过结论。 |
+| 本次Mac工作 | OBS观看票据、媒体库起播刷新、挂载成员资源合同及Emby/Jellyfin运行期播放方式；协议测试、模拟器启动、设备Release构建与IPA离线检查通过。 |
 
 所有客户端修改及Git操作在本仓库。iOS设备构建需用户明确指示；Windows日常先用Expo Go/Web检查可用界面，原生VLC、Go、LiveKit、Keychain及系统音频必须在对应原生环境验收。跨平台来源对照见 [Android维护文档](android-maintenance-architecture.md) 和 [HarmonyOS维护文档](harmonyos-maintenance-architecture.md)。
+
+## 2026-11-04 build32 服务端兼容
+
+本轮承接Mac交接清单的P0-01/P0-02/P0-03及P1-04，实现以下合同；自动测试与构建结果不能替代相应真实媒体验收。
+
+| 范围 | 实现与边界 |
+| --- | --- |
+| OBS观看 | `streamPush.ts`通过当前房间的`/api/stream-push/watch/:roomId`领取只读票据，校验房间路径和唯一ticket；保留反代前缀及用户指定FLV入口。界面只转换一次地址，不再读取或依赖发布密钥。切房/换会话/重试取消旧请求。 |
+| Emby/Jellyfin起播 | `movieSourceResolver.ts`按movieId、MediaSourceId和directLink读取`movie-source`；服务器中转使用当前服务器成员地址，直连优先使用本机临时`resolvedDirectUrl`。持久化仍使用稳定`directUrl`/`streamUrl`，不把临时CDN地址写入房间；HLS继续走原生Relay。 |
+| 挂载成员资源 | FTP和服务器文件重建movieId地址；OpenList/WebDAV按策略刷新成员直链或重建成员中转地址，不使用添加者的旧临时票据或管理员path接口。授权结果由服务端决定。 |
+| 运行期设置 | Emby/Jellyfin服务器中转开关复用已有保存、权威读取和当前媒体应用事务；分集/多版本保留策略与真实源身份。内网挂载隐藏开关，包含CGNAT、IPv4映射IPv6及home.arpa；未知挂载仍可选择，实际可播由解析结果决定。 |
+| 共享Go | 来源更新至`7ebacfb2ca2dbd6f359a04ea44016cfacb883bc6`，12个来源文件核验通过。相对旧基线仅quality.go新增PGC MP4请求上限720P；UGC及DASH沿用原规则。 |
+| 构建修复 | 设备原生准备脚本的Opus主机检查改用`opus-host`头文件；继续固定VLCKit4.0.0a25，不迁移播放内核。本机直接复用用户下载的框架至CocoaPods缓存，源码不绑定个人下载路径。 |
+
+检查证据：5项Node协议测试、VLC持久补丁检查、ESLint、TypeScript、原生WBI签名检查及Opus主机50帧编解码检查通过。Xcode27.2（27B52）在iPhone18Pro/iOS27.2 Simulator完成Debug构建及连接/登录界面启动截图，fontScale=1；未登录NAS，未新增真实OBS/Emby/Jellyfin解码、跨账号角色或实体设备验收。
+
+本地交付文件为`ZV-iOS/release-assets/ZViewer-iOS-2.1.10-build32-unsigned.ipa`，47,717,332字节。Xcode设备Release构建通过；离线检查确认iOS平台2/ARM64、主程序未签名且未加密、最低系统16.4、iPhone/iPad、内嵌生产JS 6,642,316字节、VLC/LiveKit/Hermes及Bilibili/Opus/系统媒体原生桥、共享Go来源与许可。包中无provisioning profile、AGENTS.md、私钥或环境配置文件。构建后只计算一次SHA-256，后续检查复用该值：
+
+```text
+663fc7a052a758b00cfb45e35b9e595d7587060c6044e3d72038a630e38279c7
+```
+
+构建日志和离线检查JSON保存在忽略目录`ZV-iOS/ios/build/`，模拟器启动截图在`.native-tools/build32-launch.png`。CocoaPods1.16.2/系统Ruby2.6无法读取新版Expo预编译配置中的filter_map，安装已自动回退源码编译；本次两种原生构建均通过，警告不等于预编译模块已启用。未上传GitHub/EAS/App Store/TestFlight；IPA需要自行签名后侧载。设备构建完成后恢复Simulator Vendor/Pods，已安装的Debug应用继续使用本地Metro。
+
+本轮未关闭的对齐项目：B站长时恢复、OBS持续重连、语音组件安装与公开开关、音乐完整/迷你播放器及队列手势、观看亮度/音量/进度手势、B站多P音乐与封面续签，以及交接清单的其他P1/P2项目。build30用户通过反馈仍只属于历史版本，不沿用为build32通过结论。
 
 
 ## 架构与边界
@@ -286,7 +311,7 @@ npm start
 
 清理后 `npm run check` 只运行VLC持久补丁检查、ESLint和TypeScript，已移除指向被清理测试的命令。Expo Go/Web适合界面和JS流程，不包含本项目全部原生能力。`scripts/launch-simulator-debug.py` 是原生Simulator启动工具；`inspect-unsigned-ipa.py`、`verify-ios-native-symbols.cjs` 和native来源/补丁守卫继续保留。
 
-共享Go来源固定在 `scripts/native-core-baseline.json` 的12个文件与来源提交736452e。`--verify-only`只核验；真正准备前不带该参数暂存到 `.native-staging/`。模块最低Go1.26.8，工具链固定1.27.1；显式 `ZVIEWER_USE_SYSTEM_GO=1` 只允许精确版本，默认下载摘要验证保留。本次删除 `_test.go` 不改变生产Go来源清单。
+共享Go来源固定在 `scripts/native-core-baseline.json` 的12个文件与来源提交7ebacfb。`--verify-only`只核验；真正准备前不带该参数暂存到 `.native-staging/`。模块最低Go1.26.8，工具链固定1.27.1；显式 `ZVIEWER_USE_SYSTEM_GO=1` 只允许精确版本，默认下载摘要验证保留。历史删除 `_test.go` 不改变生产Go来源清单。
 
 只有收到明确IPA构建指示后，在Mac按需要执行：
 
@@ -297,8 +322,10 @@ node scripts/stage-native-core.cjs
 npm run native:patch
 bash scripts/prepare-native-ios.sh
 bash scripts/build-unsigned-ios.sh
-python3 scripts/inspect-unsigned-ipa.py /absolute/path/to/ZViewer-unsigned.ipa
+python3 scripts/inspect-unsigned-ipa.py /absolute/path/to/ZViewer-unsigned.ipa --skip-sha256
 ```
+
+`build-unsigned-ios.sh`在打包后计算一次SHA-256；随后离线检查传`--skip-sha256`复用已有摘要，仍检查包结构与原生合同。只有单独检查且没有已有摘要时才保留检查脚本默认计算。
 
 `prepare-native-ios*.sh` 仍调用 `bili-signing-smoke.m` 与 `opus-smoke.c` 验证原生库签名和Opus构建，二者属于现行构建依赖，保留以防准备脚本断链。`generate-bili-probe-fixtures.m/.sh` 用于重新生成生产解码能力探测的自主合成关键帧，不能当普通测试夹具删除。device与Simulator ARM64 Vendor/Pods分开，构建设备后恢复Simulator环境，不混用。
 

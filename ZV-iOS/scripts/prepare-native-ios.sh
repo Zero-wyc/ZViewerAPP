@@ -65,5 +65,5 @@ export MACOSX_DEPLOYMENT_TARGET=13.0
 export CC="$(xcrun --sdk macosx --find clang)" AR="$(xcrun --sdk macosx --find ar)" RANLIB="$(xcrun --sdk macosx --find ranlib)" CFLAGS="-O2 -isysroot $SDKROOT -mmacosx-version-min=13.0" LDFLAGS="-isysroot $SDKROOT -mmacosx-version-min=13.0" CPPFLAGS=""
 ./configure --disable-shared --enable-static --disable-extra-programs --disable-doc --disable-intrinsics --disable-asm
 make -j4
-"$CC" -isysroot "$SDKROOT" -mmacosx-version-min=13.0 -I"$work/opus-1.6.1/include" "$root/scripts/opus-smoke.c" .libs/libopus.a -lm -o opus-smoke
+"$CC" -isysroot "$SDKROOT" -mmacosx-version-min=13.0 -I"$work/opus-host/opus-1.6.1/include" "$root/scripts/opus-smoke.c" .libs/libopus.a -lm -o opus-smoke
 ./opus-smoke

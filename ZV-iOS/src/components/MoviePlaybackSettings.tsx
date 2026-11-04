@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 import type { Movie } from '@/lib/sources';
 import type { PlaybackPolicy } from '@/lib/media';
+import { canSwitchLibraryPlayback } from '@/lib/movieSourceResolver';
 import { messageFor } from '@/lib/server';
 import { playbackSettingsRetryError, playbackSettingsRetryMode, retryCurrentPlaybackSettings, type PlaybackSettingsRetry } from '@/lib/playbackSettingsRetry';
 import { useAppearance } from '@/state/appearance';
@@ -16,6 +17,9 @@ export function MoviePlaybackSettings({ movie, canEdit, current, save }: { movie
   const active = useRef(true); useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   const busy = status === 'saving' || status === 'applying' || status === 'confirming';
   const kind = movie.source || movie.sourceType;
+  const libraryMode = kind === 'emby' || kind === 'jellyfin';
+  const serverProxy = libraryMode ? movie.directLink !== true : movie.serverProxy === true;
+  const canSwitchLibrary = !libraryMode || canSwitchLibraryPlayback(movie);
   if (kind === 'bilibili') return null;
   const change = async (patch: PlaybackPolicy, retrying: PlaybackSettingsRetry | null = null) => {
     if (lock.current || !canEdit) return; lock.current = true; setError(''); setRetry(null); setStatus(retrying ? 'confirming' : 'saving');
@@ -35,13 +39,16 @@ export function MoviePlaybackSettings({ movie, canEdit, current, save }: { movie
     }
     finally { lock.current = false; }
   };
-  const capsule = (field: 'serverProxy' | 'playsvideoEnabled', label: string, icon: 'server' | 'cpu', enabled: boolean) => <Pressable accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: enabled, disabled: !canEdit || busy }} disabled={!canEdit || busy} onAccessibilityTap={() => { if (canEdit && !busy) void change({ [field]: !enabled }); }} onPress={() => void change({ [field]: !enabled })} style={{ minHeight: 44, minWidth: 130, flexGrow: 1, justifyContent: 'center' }}>
+  const capsule = (field: 'serverProxy' | 'directLink' | 'playsvideoEnabled', label: string, icon: 'server' | 'cpu', enabled: boolean) => {
+    const toggle = () => change(field === 'directLink' ? { directLink: enabled } : { [field]: !enabled });
+    return <Pressable accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: enabled, disabled: !canEdit || busy }} disabled={!canEdit || busy} onAccessibilityTap={() => { if (canEdit && !busy) void toggle(); }} onPress={() => void toggle()} style={{ minHeight: 44, minWidth: 130, flexGrow: 1, justifyContent: 'center' }}>
     <View style={{ minHeight: 32, paddingHorizontal: 10, borderRadius: 18, borderWidth: 1, borderColor: theme.color(enabled ? '#65d59b' : '#343d41'), backgroundColor: enabled ? theme.color('#65d59b', 'backgroundColor') : 'transparent', flexDirection: 'row', alignItems: 'center', gap: 6, opacity: !canEdit || busy ? .55 : 1 }}>
       <Feather name={icon} size={14} color={theme.color(enabled ? '#111417' : '#a8b3b6')} /><Text style={{ flex: 1, textAlign: 'center', fontSize: 13, color: theme.color(enabled ? '#111417' : '#edf1ef') }}>{label}</Text><Feather name="check" size={14} style={{ opacity: enabled ? 1 : 0 }} color={theme.color('#111417')} />
     </View>
   </Pressable>;
+  };
   return <View style={{ gap: 6 }}><View style={[ui.row, { alignItems: 'stretch' }]}>
-    {['anime', 'kazumi', 'cms'].includes(kind || '') ? capsule('serverProxy', '服务器中转', 'server', movie.serverProxy === true) : null}
+    {libraryMode && canSwitchLibrary || ['anime', 'kazumi', 'cms'].includes(kind || '') ? capsule(libraryMode ? 'directLink' : 'serverProxy', '服务器中转', 'server', serverProxy) : null}
     {capsule('playsvideoEnabled', '浏览器转码', 'cpu', movie.playsvideoEnabled !== false)}
   </View><Text style={ui.muted}>iOS 使用 VLC；浏览器转码为其他客户端保存共享偏好。</Text>
     {status ? <Text accessibilityLiveRegion="polite" style={ui.muted}>{({ saving: '正在保存…', confirming: '正在读取服务器当前设置…', applying: '正在应用到当前媒体…', applied: '已保存并应用', saved: '已保存', 'confirmed-applied': '已读取并应用服务器当前设置；上次修改未重新提交', confirmed: '已读取服务器当前设置；上次修改未重新提交', failed: '' } as Record<string, string>)[status]}</Text> : null}

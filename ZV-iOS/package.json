@@ -62,6 +62,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
+    "test:contracts": "node --experimental-strip-types --test scripts/ios-contracts.test.mjs",
     "ios:run": "expo run:ios",
     "native:patch": "node scripts/patch-vlc-native.cjs && node scripts/patch-vlc-native.cjs --check",
     "check": "npm run native:patch && npm run lint && npm run typecheck"

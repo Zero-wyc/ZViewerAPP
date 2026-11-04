@@ -2,7 +2,7 @@ import { checkAbort } from './cancellation.ts';
 import type { MoviePage, SourceSelection } from './sources.ts';
 export type LibraryKind = 'emby' | 'jellyfin';
 export type LibraryEntry = { name: string; path: string; type: string; embyType?: string; imageTag?: string; indexNumber?: number; parentIndexNumber?: number; duration?: number; childCount?: number; recursiveItemCount?: number };
-export type LibraryMedia = { title: string; videoUrl: string; directUrl?: string; streamUrl?: string; format: string; duration: number; audioCodec?: string; multiVersion: boolean; mediaSourceId: string; versions: { id: string; label: string }[] };
+export type LibraryMedia = { title: string; videoUrl: string; directUrl?: string; resolvedDirectUrl?: string; streamUrl?: string; format: string; duration: number; audioCodec?: string; multiVersion: boolean; mediaSourceId: string; versions: { id: string; label: string }[] };
 export type ApiRequest = <T>(path: string, init?: RequestInit) => Promise<T>;
 export const libraryRoute = (kind: LibraryKind, mountId: number, path?: string) => `/api/${kind}/mounts/${mountId}/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`;
 export function selectLibraryMount<T extends { id: number; directLink?: boolean }>(mounts: T[], previousId: string) {
