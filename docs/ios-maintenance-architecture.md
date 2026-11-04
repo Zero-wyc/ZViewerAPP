@@ -8,14 +8,39 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 应用 | 2.1.10 / build32 本地未签名IPA，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
+| 应用 | 2.1.10 / build33 本地未签名IPA，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
 | 工程 | 独立Expo SDK57 / React Native0.86；唯一视频/音乐内核为VLCKit4.0.0a25，语音LiveKit，投屏WebRTC/OBS接收。 |
 | 用户验收 | 用户对build30反馈“测试通过”；build31保持该播放/房间逻辑，仅统一2.1.10版本元数据并重建发布。没有给出的设备OS、时长和逐项结果不作扩展认定。 |
-| 发布 | 历史build31未签名device ARM64 IPA位于 `client-v2.1.10` Release；build32本轮仅在本地交付。Android/HarmonyOS参考源码为2.3.6/236。自行签名后侧载，未使用App Store/TestFlight。 |
+| 发布 | 历史build31未签名device ARM64 IPA位于 `client-v2.1.10` Release；build32/build33仅在本地交付。Android/HarmonyOS参考源码为2.3.6/236。自行签名后侧载，未使用App Store/TestFlight。 |
 | 源码 | 完整后续iOS源码在main；原Release标签保留双端最初快照，标签自动归档不含全部后续iOS修复。 |
-| 本次Mac工作 | OBS观看票据、媒体库起播刷新、挂载成员资源合同及Emby/Jellyfin运行期播放方式；协议测试、模拟器启动、设备Release构建与IPA离线检查通过。 |
+| 本次Mac工作 | 同步用户最新首页、连接流程及房间聊天界面；build33模拟器Debug安装启动、设备Release构建与IPA离线检查通过。build32的服务端兼容改动继续保留。 |
 
 所有客户端修改及Git操作在本仓库。iOS设备构建需用户明确指示；Windows日常先用Expo Go/Web检查可用界面，原生VLC、Go、LiveKit、Keychain及系统音频必须在对应原生环境验收。跨平台来源对照见 [Android维护文档](android-maintenance-architecture.md) 和 [HarmonyOS维护文档](harmonyos-maintenance-architecture.md)。
+
+## 2026-11-04 build33 前端同步与本地构建
+
+用户明确要求将最新前端同步到模拟器并构建IPA。承接客户端提交`1300785`及用户未提交的iOS修改，保持版本2.1.10、构建号由32递增至33；未调整Android/HarmonyOS或原生播放内核。
+
+| 范围 | 本轮内容 |
+| --- | --- |
+| 首页与大厅 | 新增`HomeChrome.tsx`集中维护首页控件；包含品牌栏、B站账号入口、房间列表与创建弹窗、关于应用及外观入口。 |
+| 连接 | `SessionProvider.detectServer`与首页配合，先检测服务器地址，再执行账号或游客登录；保留当前服务器证书策略。 |
+| 房间聊天 | 评论增加头像缩写、可选时间与当前用户名输入提示；房间标题统一展示同步观影、屏幕共享或一起听。 |
+| 版本 | `app.json`使用2.1.10/build33，经Expo prebuild同步到生成工程，不手改生成项目作为持久实现。 |
+
+检查证据：`npm run check`的VLC持久补丁、ESLint与TypeScript通过；`npm run test:contracts`为5/5通过；12个共享Go来源仍为`7ebacfb2ca2dbd6f359a04ea44016cfacb883bc6`。复用build32的device与Simulator原生Vendor缓存，分别安装Pods并编译，未重新生成Go/Opus或重复下载依赖。
+
+Xcode27.2（27B52）在iPhone18Pro/iOS27.2 Simulator完成Debug构建、build33安装与启动，截图`.native-tools/build33-launch.png`显示最新连接首页，无启动错误页。复用同一客户端目录现有Metro服务8082；打包后已恢复Simulator Vendor/Pods。此次只确认启动与首页显示，未新增NAS登录、建房、聊天发送、真实播放或实体设备验收，历史开放问题继续有效。
+
+设备Release构建成功，本地文件为`ZV-iOS/release-assets/ZViewer-iOS-2.1.10-build33-unsigned.ipa`，另复制到用户Downloads目录便于安装。包大小47,962,832字节，内嵌生产JS 6,706,375字节；离线检查确认`com.zviewer.mobile`、2.1.10/build33、iOS平台2/ARM64、最低16.4、iPhone/iPad、主程序未签名且未加密，以及VLC/LiveKit/Hermes、Bilibili/Opus/系统媒体原生桥、共享Go来源与许可。包内包含新增首页文案，无AGENTS.md、环境配置、私钥、provisioning profile或已知测试账号密码。
+
+仅由构建脚本计算一次SHA-256，离线检查使用`--skip-sha256`，复制与交付不重算：
+
+```text
+7a8cb74882cb5126d6bf0106f06088928d64beed4a027d7120170e3849f239e9
+```
+
+构建日志、打包摘要与检查结果分别保存在忽略目录`ios/build/build33-simulator-xcode.log`、`ios/build/unsigned-xcode.log`、`ios/build/package-build33.log`及`ios/build/build33-inspection.json`。本机CocoaPods需`RUBYOPT=-rlogger`；Ruby2.6的`filter_map`预编译配置警告沿用源码编译回退，两次原生构建均通过。未使用EAS构建额度，未上传或发布；IPA需要自行签名后侧载。
 
 ## 2026-11-04 build32 服务端兼容
 

@@ -3,7 +3,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { WatchRoomChat } from '@/components/WatchRoomChat';
 import { useMediaPalette } from '@/components/MediaPanelUi';
-import { roomModeName, type RoomMode } from '@/lib/roomModes';
+import { type RoomMode } from '@/lib/roomModes';
 import { viewersAfterHostTransfer, type HostTransfer } from '@/lib/roomMembers';
 import { useAppearance } from '@/state/appearance';
 import { SubtitleOverlay, useSubtitles } from '@/components/Subtitles';
@@ -648,7 +648,7 @@ export default function RoomScreen() {
     {!fullScreen && !musicImmersive ? <NativePreviewNotice /> : null}
     <Surface readable style={[styles.header, (fullScreen || musicImmersive) && { display: 'none' }]}>
       <RoomIconButton label="离开房间" icon="arrow-left" onPress={() => setLeaveOpen(true)} />
-      <View style={{ flex: 1, minWidth: 0 }}><Text style={styles.title} numberOfLines={1}>{roomName}</Text><Text style={styles.muted}>{host ? '房主' : '观众'} · {roomModeName(mode)}</Text></View>
+      <View style={{ flex: 1, minWidth: 0 }}><Text style={styles.title} numberOfLines={1}>{roomName}</Text><Text style={styles.muted}>{host ? '房主' : '观众'} · {mode === 'listen-together' ? '一起听' : mode === 'screen-share' ? '屏幕共享' : '同步观影'}</Text></View>
       <ScreenOrientationButton state={display.orientation} />
       <VoicePanel compact roomId={roomId} ready={phase === 'ready'} host={host} />
       <RoomIconButton label="房间设置" icon="users" onPress={() => setSettingsOpen(true)} />
@@ -684,7 +684,7 @@ export default function RoomScreen() {
           <View accessibilityRole="tablist" style={{ flexDirection: 'row', borderBottomWidth: 1, borderColor: palette.line }}>
             {(['chat', 'movies'] as const).map((value, index) => <Pressable key={value} accessibilityRole="tab" accessibilityLabel={index === 0 ? '聊天' : '片单'} accessibilityState={{ selected: roomTab === value }} onAccessibilityTap={() => setRoomTab(value)} onPress={() => setRoomTab(value)} style={{ flex: 1, minHeight: 52, borderBottomWidth: 2, borderColor: roomTab === value ? palette.accent : 'transparent', flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' }}><Feather name={index === 0 ? 'message-circle' : 'film'} size={21} color={roomTab === value ? palette.accent : palette.muted} /><Text style={{ color: roomTab === value ? palette.accent : palette.muted, fontSize: 17 }}>{index === 0 ? '聊天' : '片单'}</Text></Pressable>)}
           </View>
-          <View accessibilityElementsHidden={roomTab !== 'chat'} style={{ flex: 1, minHeight: 0, display: roomTab === 'chat' ? 'flex' : 'none' }}><WatchRoomChat key={continuationScope} roomId={roomId} host={host} danmaku={danmaku} comments={comments} draft={draft} setDraft={setDraft} send={() => void sendComment()} busy={busy} connected={connected} error={error} asDanmaku={sendAsDanmaku} setAsDanmaku={setSendAsDanmaku} /></View>
+          <View accessibilityElementsHidden={roomTab !== 'chat'} style={{ flex: 1, minHeight: 0, display: roomTab === 'chat' ? 'flex' : 'none' }}><WatchRoomChat key={continuationScope} username={session?.user.username || ''} roomId={roomId} host={host} danmaku={danmaku} comments={comments} draft={draft} setDraft={setDraft} send={() => void sendComment()} busy={busy} connected={connected} error={error} asDanmaku={sendAsDanmaku} setAsDanmaku={setSendAsDanmaku} /></View>
           <View accessibilityElementsHidden={roomTab !== 'movies'} style={{ flex: 1, minHeight: 0, padding: 12, display: roomTab === 'movies' ? 'flex' : 'none' }}><MoviePanel ownerUserId={ownerUserId} savePlaybackSettings={savePlaybackSettings} key={continuationScope} currentMovieId={source?.movieId ?? source?.currentMovieId} roomId={roomId} movies={movies} host={host} canAdd={!!permissions.canAdd} canSwitch={permissions.canSwitch} play={playMovie} reload={loadMovies} autoContinue={autoContinue} setAutoContinue={changeAutoContinue} /></View>
           {watch.notice ? <Text style={styles.muted}>{watch.notice}</Text> : null}{watch.requests.map(item => <View key={`${item.action}:${item.viewerSocketId}`} style={styles.item}><Text style={styles.text}>{item.viewerUsername || '观众'} 申请 {item.action}{item.time !== undefined ? ` · ${Math.round(item.time)} 秒` : ''}</Text><View style={styles.controls}><Button label="同意" onPress={() => void watch.decide(item, true)} /><Button label="拒绝" onPress={() => void watch.decide(item, false)} /></View></View>)}{error ? <Text style={styles.error}>{error}</Text> : null}
         </Surface> : null}
