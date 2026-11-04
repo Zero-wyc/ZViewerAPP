@@ -1,21 +1,257 @@
 # iOS 客户端维护文档
 
-2026-11-03 稳定维护整理：`docs/` 仅保留 Android、HarmonyOS、iOS 三份维护指南，阶段方案和发布摘要分别由 Git 历史与根目录 `CHANGELOG.md` 追溯。本轮仅整理文档和本地 Git；iOS 保持 2.1.10 / build 31，未修改工程或启动 IPA 构建。
+2026-11-03 历史整理：`docs/` 仅保留 Android、HarmonyOS、iOS 三份维护指南，阶段方案和发布摘要分别由 Git 历史与根目录 `CHANGELOG.md` 追溯。该次整理保持 2.1.10 / build 31；2026-11-04 的 Mac 开发状态见下文。
 
-更新日期：2026-10-23（Asia/Shanghai）。本文整合架构、macOS开发记录、验收清单、构建证据、Windows回传与历史故障。当前状态、实现合同、实测范围和未解决项集中维护；已移走的阶段材料可通过Git历史查询。
+更新日期：2026-11-05（Asia/Shanghai；历史Mac日志时间按各文件记录）。本文整合架构、macOS开发记录、验收清单、构建证据、Windows回传与历史故障。当前状态、实现合同、实测范围和未解决项集中维护；已移走的阶段材料可通过Git历史查询。
 
 ## 当前版本与工作边界
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 应用 | 2.1.10 / build31，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
-| 工程 | 独立Expo SDK57 / React Native0.86；唯一视频/音乐内核为VLCKit4.0.0a25，语音LiveKit，投屏WebRTC/OBS接收。 |
+| 应用 | 2.3.6 / build40 本地未签名IPA，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
+| 工程 | 独立Expo SDK57 / React Native0.86；唯一视频/音乐内核为VLCKit4.0.0a25，语音LiveKit，投屏WebRTC/OBS接收及原生主动共享测试版。 |
 | 用户验收 | 用户对build30反馈“测试通过”；build31保持该播放/房间逻辑，仅统一2.1.10版本元数据并重建发布。没有给出的设备OS、时长和逐项结果不作扩展认定。 |
-| 发布 | 未签名device ARM64 IPA追加到既有 `client-v2.1.10` Release；Android/HarmonyOS仍为2.1.10/220原包。自行签名后侧载，未使用App Store/TestFlight。 |
-| 源码 | 完整后续iOS源码在main；原Release标签保留双端最初快照，标签自动归档不含全部后续iOS修复。 |
-| 本次Windows工作 | 文档与检查入口整理、移走测试和缓存；不更改播放逻辑，不构建IPA，不新增原生/真机通过结论。 |
+| 发布 | 历史build31未签名device ARM64 IPA位于 `client-v2.1.10` Release；build32至build40仅在本地交付。Android/HarmonyOS参考源码为2.3.6/236。自行签名后侧载，未使用App Store/TestFlight。 |
+| 源码 | build40位于本地分支`codex/ios-2.3.6-build40`，承接build39；Windows交接包提供相对`e4d1c48`的完整Mac增量。原Release标签保留历史快照，发布时应使用合并后的main。 |
+| 本次Mac工作 | build40按用户要求统一iOS版本为2.3.6并重新构建，保留build39的来源列表、清空入口、来源内切歌及歌单全部播放替换。build39已完成双模拟器功能验证；build37共享方向仍待用户真机复测。本次未改动Android/HarmonyOS或NAS。 |
 
 所有客户端修改及Git操作在本仓库。iOS设备构建需用户明确指示；Windows日常先用Expo Go/Web检查可用界面，原生VLC、Go、LiveKit、Keychain及系统音频必须在对应原生环境验收。跨平台来源对照见 [Android维护文档](android-maintenance-architecture.md) 和 [HarmonyOS维护文档](harmonyos-maintenance-architecture.md)。
+
+## 2026-11-05 build40 iOS版本统一为2.3.6
+
+用户明确要求将IPA版本编译为2.3.6。`app.json`、`package.json`及锁文件根包版本从2.1.10更新为2.3.6，构建号由39递增至40；使用`expo prebuild --platform ios --no-clean --no-install`同步宿主与广播扩展，恢复prebuild改写的npm启动脚本。本轮仅更新版本元数据，保留build39一起听界面与队列功能，原生依赖和12个共享Go来源未变。
+
+VLC持久补丁、ESLint、TypeScript和18/18合同测试通过。Xcode27.2设备Release构建成功，离线检查确认宿主与`com.zviewer.mobile.BroadcastUpload`均为2.3.6/build40、iOS平台2/ARM64、未签名；最低16.4并支持iPhone/iPad，原生播放、语音和广播桥检查通过。设备构建后已恢复Simulator Vendor/Pods，Simulator Debug编译通过。本轮未重复build39的模拟器界面逐项测试，其截图和本机Go队列状态作为历史功能验证保留。
+
+交付`ZV-iOS/release-assets/ZViewer-iOS-2.3.6-build40-unsigned.ipa`及Downloads同名副本，48,605,143字节，生产JS6,739,375字节。构建脚本仅计算一次SHA，后续检查传`--skip-sha256`复用：
+
+```text
+bc7ec7b4c5dc2601cfaebafc58c4e2f831679f5d7035f1a6cae83487ce6f43c4
+```
+
+日志和离线检查位于忽略目录`.native-tools/build40-*`。Windows交接包更新为`ZViewer-Windows-Handoff-2.3.6-build40-20261105.zip`，包含最终源码、相对`e4d1c48`的完整Mac Git增量、build40 IPA和版本检查，以及build39功能验证证据；合并说明与发行说明草稿已同步2.3.6/build40。未使用EAS云额度，未推送、合并远端或发布Release。
+
+## 2026-11-04 build39 一起听播放列表与Windows交接
+
+用户明确要求在其一起听界面改动上补齐三项功能、模拟器验证及IPA构建，并澄清“全部播放”是歌单详情按钮。版本保持2.1.10，构建号由38递增至39。保留用户的`MusicNavigation.tsx`、扫码登录弹窗与新增`MusicSettings.tsx`，没有回退用户改动。
+
+- `musicQueue.ts`集中定义来源过滤；`MusicQueueDialog.tsx`提供网易云/B站两组列表、各自计数和空态。小播放器按当前浏览来源打开，完整播放器按当前播放来源打开，弹窗内可切换来源。
+- `MusicPanel.tsx`的上一首、下一首、随机、顺序播放边界与自然结束均读取当前播放来源列表，避免混合房间队列导致跨来源切歌；共享协议仍保留单一房间队列。
+- 两处队列入口共用清空确认。按钮明确为“清空全部播放列表”，确认提示会影响网易云、B站及全房间；权限沿用`musicQueue`矩阵，等待服务端ACK，失败保留弹窗并显示原因，不先清本地数据。
+- 收到空队列后停止私人漫游及B站续播请求，清理当前歌曲与游标；房主广播停止状态，避免服务端仍保留已清空曲目的播放状态。
+- 歌单详情“全部播放”完整读取、校验全部分页后清空整个房间播放列表，逐首确认入队，最后确认首曲并从头播放；“全部加入播放列表”保留追加行为。复用并验证现有`applyCollection`合同，统一清空入口；未新增服务端原子替换接口，中途断线仍可能留下已确认的部分歌曲，界面报告完成数量，不宣称整体事务回滚。
+
+验证在iPhone18Pro/iOS27.2和iPad Pro13英寸M5/iPadOS27.2 Simulator的原生Debug应用完成，设备型号由模拟器库存取得。使用本机Go服务端独立测试房间，网易云歌单/音频为隔离的合成响应，Socket队列与同步状态由实际Go处理器确认，没有连接NAS或更改第三方账号歌单：
+
+| 实际操作 | 观察结果 |
+| --- | --- |
+| 混排NCM/B站各2首，分别打开来源列表 | 两端各组只显示本来源2首；iPad横屏弹窗无遮挡。 |
+| NCM旧曲一点击下一首 | Go状态为`ncm:39102`，跳过混排中的B站条目，原4首保留。 |
+| 清空确认后取消 | 原列表保留，确认文案明确两源全部4首。 |
+| 歌单详情点击全部播放 | 两端Go队列只含`39201/39202/39203`，无旧NCM/B站项，从`ncm:39201`开始播放。 |
+| 全部加入播放列表 | 队列3首增至6首，当前曲和连续进度保留。 |
+| 完整播放器打开队列并确认清空 | Go队列为空，`trackKey/trackSongId=null`、`isPlaying=false`、`positionSec=0`；弹窗两源计数0且清空按钮禁用。 |
+
+VLC持久补丁、ESLint、TypeScript及18/18合同测试通过。新增测试覆盖来源内next/prev/shuffle/order、清空ACK拒绝、权限变化、部分失败、105首分页完整加载后替换，以及追加保留当前播放。Xcode27.2 Simulator Debug与设备Release均构建成功；12个共享Go来源仍为`7ebacfb2ca2dbd6f359a04ea44016cfacb883bc6`，原生依赖未变。本轮不代替真实网易云/B站媒体、实体设备听感、后台切歌及Android/HarmonyOS互通验收。
+
+交付`ZV-iOS/release-assets/ZViewer-iOS-2.1.10-build39-unsigned.ipa`及Downloads同名副本，48,605,142字节，生产JS6,739,375字节。离线检查确认宿主与广播扩展均为2.1.10/build39、iOS平台2/ARM64、未签名，最低16.4且支持iPhone/iPad；需自行签名后侧载。构建时仅计算一次SHA，后续检查使用`--skip-sha256`复用：
+
+```text
+fe08152a826e05969fb05c4c08d927d40506da3186edf221a9962052064e3dd3
+```
+
+构建日志、离线检查JSON、模拟器截图和Go状态记录保存在忽略目录`.native-tools/build39-*`。`expo prebuild --no-clean`同步宿主/扩展版本；生成过程改写的npm启动脚本已恢复原来的Expo启动命令。Windows私有交接包包含最新源码快照、相对`e4d1c48`的Git增量包、IPA、精简验证证据、合并说明及按规定结构编写的发行说明草稿。源码快照排除AGENTS.md、账号、依赖缓存、临时会话和签名材料；交接ZIP不要作为公开Release附件。未使用EAS云额度，未推送、合并远端或发布Release。
+
+## 2026-11-04 build38 前端同步与本地构建
+
+用户要求同步最新前端到模拟器、构建IPA并本地提交。承接`03a5a6a`及用户未提交的三个前端文件，版本保持2.1.10，构建号由37递增至38。倍速选项改为两行布局；共享接收增加OBS等待与错误状态提示；共享设置重排状态、应用声音、分辨率、帧率及操作区。仅清理改动后不再使用的`MediaTabs`、`RoomButton`与`RoomIconButton`导入，保留用户界面实现。
+
+VLC持久补丁、ESLint与TypeScript通过且无lint警告，9/9合同测试通过；12个共享Go来源仍为`7ebacfb2ca2dbd6f359a04ea44016cfacb883bc6`，广播工程配置检查通过。Xcode设备Release及Simulator Debug构建均成功；恢复Simulator Vendor/Pods后，build38已安装并启动到iPad Pro13英寸M5与iPhone18Pro/iOS27.2，继续使用Metro8082。用户随后要求加载完成后停止检查，本轮到此停止运行验证，不新增界面逐项、真实播放或真机投屏验收。
+
+IPA离线检查确认宿主与广播扩展均为2.1.10/build38、iOS平台2/ARM64、未签名，最低16.4并支持iPhone/iPad；生产JS包含本次界面文案，包内无AGENTS.md、环境配置、私钥、provisioning profile及已知测试密码字面量。交付`ZV-iOS/release-assets/ZViewer-iOS-2.1.10-build38-unsigned.ipa`及Downloads同名副本，48,601,304字节，生产JS6,731,957字节，需要自行签名后侧载。
+
+构建脚本仅计算一次SHA，离线检查使用`--skip-sha256`：
+
+```text
+e53ef9e390f67f44cc3c56b3f02d7906dbe96cc75af31542ea6d893c1828d862
+```
+
+构建证据位于忽略目录`.native-tools/build38-{prebuild,device-pods,package,check,simulator-pods,simulator-xcode}.log`、`build38-inspection.json`及`ios/build/unsigned-xcode.log`。使用`expo prebuild --no-clean`同步版本，保留原有npm启动脚本。本轮使用本地构建，未使用EAS云构建额度，未推送或发布远端。
+
+## 2026-11-04 build37 竖屏倒置修复
+
+用户真机复测build36，网页截图显示1080×1546、H.264、约63fps，内容上下颠倒。该截图确认宽高交换已生效，但不能把画面方向认定为通过，也不能由接收统计推导持续帧率、设备系统或签名渠道。
+
+原因是采集EXIF方向到像素校正角度的90/270度映射反了。`ZVShareVideoSettings.rotation(exif:)`现将right(6)校正为270度、left(8)校正为90度；0/180度保持原处理。ReplayKit与iOS27后端共用该映射，继续在编码前转正像素，向WebRTC提交rotation=0。宽高交换、等比缩小、画质/帧率档位与观看端布局保持现有行为，不在网页强制旋转180度。
+
+上轮测试只验证“给定角度是否正确旋转像素”，回环也沿用了给定角度的预期象限，漏掉了实际采集标签应该如何校正方向。新回归测试先独立构造同一正立图的不同采集姿态，再附加EXIF 1/6/3/8并走生产方向helper与像素处理器；对BGRA、NV12 full/video range、两种附件位置和反复切换逐像素确认还原正立。修改生产代码前，新用例以`Capture EXIF 6 is not upright`失败；对调映射后通过。
+
+使用同版本LiveKitWebRTC的两个原生PeerConnection做H.264实际收发，源象限按采集姿态改变而最终象限恒定，连续验证1546×1080 → 1080×1546 → 1546×1080 → 1080×1546 → 1546×1080，接收rotation均为0且像素正立。Swift画质/帧率测试、VLC持久补丁、ESLint、TypeScript及9/9合同测试通过。日志为忽略目录`.native-tools/build37-before-fix.log`、`build37-video-codec.log`、`build37-check.log`和`build37-contracts.log`。这仍是合成采集样本和本机媒体链验证，不代替实际iPad采集及用户浏览器链路复测。
+
+设备Release宿主与广播扩展构建通过，离线检查通过，均为2.1.10/build37、ARM64/iOS平台2、未签名，最低16.4并保留iPhone/iPad支持。交付`ZV-iOS/release-assets/ZViewer-iOS-2.1.10-build37-unsigned.ipa`及Downloads同名副本，48,598,705字节，生产JS6,726,424字节。构建脚本仅计算一次SHA，离线检查使用`--skip-sha256`：
+
+```text
+3a8c892e749c72f7301c0ff19bb73a271e244d8390be9a2150bbac8b68b82b63
+```
+
+构建证据为`.native-tools/build37-{prebuild,device-pods,package}.log`、`build37-inspection.json`及`ios/build/unsigned-xcode.log`。保留生成目录使用`expo prebuild --no-clean`；未使用EAS云构建额度，未发布远端。
+
+已恢复Simulator Vendor/Pods并完成Debug构建，安装到iPad Pro13英寸M5及iPhone18Pro/iOS27.2，确认build37启动并显示连接首页，Metro仍用8082。截图为`.native-tools/build37-{ipad,iphone}-launch.png`，构建日志为`build37-simulator-xcode.log`。本轮模拟器不测试真实主动采集，真机验收需覆盖竖屏直接开始、横屏转竖屏及两种竖屏方向。
+
+## 2026-11-04 build36 竖屏像素方向修复（后续真机反馈仍倒置）
+
+用户真机测试build35后提供网页接收截图：内容侧转，显示分辨率仍为1546×1080，H.264约49fps。设备系统、签名渠道和开始共享时的姿态未知。该证据说明build35依赖旋转元数据的实现没有在此链路产生正确结果；此前的尺寸计算和模拟器布局通过不能代替该失败项。
+
+修复集中在发送端，未修改服务端/网页。新增`ZVShareVideoProcessor`，在采集回调持有源buffer期间先按原比例缩小，再用VideoToolbox旋转实际像素；90/270度时目标buffer交换宽高，向WebRTC提交的旋转恒为0。源适配与采集统计均读取最终buffer宽高，避免只改统计或让接收端二次旋转。缩小后的临时buffer按尺寸/格式复用，保留单帧在途限制；不旋转时仍仅拷贝一次。
+
+ReplayKit与iOS27的方向读取共用helper，兼容`CMGetAttachment`和sample附件数组两种存放位置，仍按EXIF映射0/90/180/270度。不根据宿主界面或重力传感器猜测其他应用的实际方向，源应用锁向时继续遵循源。
+
+验证：
+
+- BGRA与NV12 full/video range真实pixel buffer测试通过。逐像素检查0/90/180/270度及反复切换的位置，另验证2360×1648在1080p档位输出1546×1080，旋转后实际buffer为1080×1546；两种方向附件位置也通过。
+- 使用本包同版本LiveKitWebRTC144.7559.15的macOS slice建立两个原生PeerConnection，限制H.264、通过实际ICE/RTP/编码/解码回环接收视频，连续验证1546×1080、1080×1546、1546×1080、1080×1546、1546×1080和各象限像素；接收旋转均为0。没有只替换显示标签。最初直接调用编码器的测试因固定的初始编码尺寸不适于验证PeerConnection自动重配置而失败，最终改为完整PeerConnection回环；不将最初的测试当作通过。
+- VLC持久补丁、ESLint、TypeScript及9/9合同测试通过。设备Release宿主/广播扩展构建与离线检查通过；最低16.4、iPhone/iPad、ARM64平台2和现有原生桥保持。回环是本机原生媒体链验证，未覆盖实际iPad采集、用户浏览器/NAS、长时间高帧率或系统中断，仍需新包真机复测。
+
+在Mac的`ZV-iOS/`运行像素与H.264回环测试（须先安装Pods；不含设备采集授权）：
+
+```bash
+xcrun swiftc native/screen-share/ZVShareVideoSettings.swift \
+  native/screen-share/ZVShareVideoProcessor.swift scripts/screen-share-video.test.swift \
+  -F ios/Pods/LiveKitWebRTC/LiveKitWebRTC.xcframework/macos-arm64_x86_64 \
+  -framework LiveKitWebRTC -Xlinker -rpath \
+  -Xlinker "$PWD/ios/Pods/LiveKitWebRTC/LiveKitWebRTC.xcframework/macos-arm64_x86_64" \
+  -o .native-tools/screen-share-video-test
+.native-tools/screen-share-video-test
+```
+
+交付`ZV-iOS/release-assets/ZViewer-iOS-2.1.10-build36-unsigned.ipa`与Downloads同名副本，48,598,701字节，生产JS6,726,424字节。宿主与扩展均为2.1.10/build36、未签名。构建后仅计算一次SHA，离线检查传`--skip-sha256`：
+
+```text
+b3e7c53e1c3fbc712b50432689db564c2a0673c1ac24b772f33103ae09aab8fc
+```
+
+本地证据在忽略目录`.native-tools/build36-{prebuild,device-pods,package,check,contracts,video-codec}.log`及`build36-inspection.json`。SDK57 CLI当前默认清理原生目录，保留生成目录需显式`expo prebuild --no-clean`；本轮重新生成后安装Pods并恢复Simulator依赖。未使用EAS云构建额度，未发布远端。
+
+Simulator Debug构建通过并同步到iPad Pro13英寸M5与iPhone18Pro/iOS27.2；iPad连接隔离的本地测试房间并显示共享设置，iPhone显示连接首页。启动截图为`.native-tools/build36-{ipad,iphone}-launch.png`，构建日志为`.native-tools/build36-simulator-xcode.log`。Metro通过8082提供开发包；本机`--localhost`仅监听IPv6时会使应用的127.0.0.1请求失败，已改为`--host lan`并用`REACT_NATIVE_PACKAGER_HOSTNAME=127.0.0.1`指定开发地址。此验证只覆盖安装、启动与界面，Simulator不支持实际主动采集。
+
+## 2026-11-04 build35 签名诊断、画质与方向适配
+
+用户真机反馈build34提示“当前签名没有App Group权限”。源码和生成entitlements均已声明共享组，但未签名IPA不能授权设备访问；本机没有可用签名身份和用户重签后的包，不能判断是描述文件缺少授权、重签移除权限，还是组ID被改写。此故障保留为真实失败记录，不能以编译成功关闭。
+
+| 范围 | 本次实现 |
+| --- | --- |
+| iOS27存储 | `SCContentSharingPicker/SCStream`后端与发送端同属宿主进程，改用应用私有Application Support与默认Keychain，去除这条路径对共享App Group/共享Keychain的无谓要求。仍保留真实系统授权、会话期限和原生停止清理。不是绕过旧系统沙盒权限。 |
+| iOS16.4至26签名 | ReplayKit扩展仍必须与宿主共同获授权。`with-screen-share-broadcast.cjs`可用`appGroup`参数指定该Team实际注册的组；同时写入双方Info.plist、entitlements和EAS扩展声明。生成守卫核对所选组，不要求宿主的其他无关组也复制给扩展。系统picker根据实际宿主Bundle ID定位`.BroadcastUpload`。 |
+| 签名诊断 | 新增`scripts/check-ios-share-signing.py`，输入重签后的IPA/app，检查双方实际签名entitlements与描述文件、应用标识、Team、App Group及共享Keychain是否一致。工具不显示令牌、密码或完整profile。未签名build34包按预期明确失败；没有真实签名成功样本。此工具检查共享权限合同，不替代Apple安装验证或真机采集验证。 |
+| 分辨率 | 新增1080p、1440p，保留540p、720p，默认720p。`ZVShareVideoSettings`同时限制长边与短边，分别为960×540、1280×720、1920×1080、2560×1440的横竖等价边界；保持源比例、不放大、偶数尺寸。iPad的4:3画面不硬拉伸成16:9。 |
+| 帧率/发送 | 可选15、24、30、60fps，默认30。选项实际控制原生采样限帧、VideoSource适配及各视频sender的`maxFramerate/maxBitrateBps`，不只增加菜单。最高每peer码率随档位/帧率调整，网络与SDK仍可降级。系统实际采样不足60fps时不会插帧，也不承诺持续60fps或1440p；尚未实测高档位的发热、内存与多观众效果。 |
+| 共享端旋转 | ReplayKit与iOS27统一映射实际sample的EXIF方向为WebRTC旋转元数据；不再分别维护映射。每帧按真实像素尺寸等比缩放，统计尺寸采用旋转后的显示宽高，只旋转一次。源应用锁向时遵循实际采样，不凭设备姿态强制改变内容方向。 |
+| 观看端比例 | 原先普通投屏容器仍按房间默认16:9估高。现在RTCView的`onDimensionsChange`与OBS的VLC实际尺寸驱动容器高度，按当前窗口宽高限幅；观看端旋转只改变可用布局，保持`contain`，不拉伸/裁切源。切流按媒体身份隔离旧尺寸；全屏继续填满当前窗口并等比留边。 |
+
+旧系统签名核查方式（须使用实际重签后的包）：
+
+```bash
+python3 ZV-iOS/scripts/check-ios-share-signing.py /absolute/path/to/resigned.ipa
+```
+
+如签名Team使用其他已注册组，可在`app.json`把plugin条目设为`["./plugins/with-screen-share-broadcast.cjs", {"appGroup":"group.<已注册组>"}]`后重新prebuild。它只选择运行时与工程要请求的组，不会自动在开发者账号创建/授权该组；宿主和扩展profile仍须同时允许它。原生读取`ZViewerShareAppGroup`，重签渠道若更改组名，须同步双方配置。iOS27私有存储路径不需要这一步，后台捕获仍须真机验证。
+
+验证：VLC持久补丁、ESLint、TypeScript和9/9合同测试通过；原生Swift测试覆盖四档分辨率×四档帧率、iPad/16:9/横竖输入、禁止放大、偶数尺寸、非法选项回退及0/90/180/270度显示尺寸。布局合同验证800pt宽时4:3画面高600pt、3:4画面高约1066.67pt，旋转观看窗口后遵守可用高度。此类测试不等同于真实iPad连续旋转推流。
+
+Simulator Debug构建成功并安装到iPad Pro13英寸M5及iPhone18Pro/iOS27.2。iPad使用隔离的本地服务端测试房间，实际切换1080p/60fps并旋转横竖屏，选中状态保留，选项、聊天栏及输入区未观察到遮挡；截图在`.native-tools/build35-ipad-{portrait,landscape}.png`。模拟器不提供主动系统共享，不能据此认定采集、远端方向切换或高帧率已真机通过。旧本地测试房间过期关闭后重新创建了本地房间，未操作NAS。
+
+设备Release和广播扩展构建通过，离线检查通过。交付`ZV-iOS/release-assets/ZViewer-iOS-2.1.10-build35-unsigned.ipa`及Downloads同名副本，48,592,726字节，生产JS 6,726,424字节。宿主与扩展均为2.1.10/build35、iOS平台2/ARM64、未签名；最低16.4、iPhone/iPad与现有VLC/Go/LiveKit桥保留。构建脚本仅计算一次SHA，检查使用`--skip-sha256`：
+
+```text
+a8368ba96074b237034f4ee14eb0583734e180f5aadd7545ddb1d9bbc7b73926
+```
+
+本轮prebuild重建了生成目录，构建日志改保存在不会被prebuild删除的忽略目录`.native-tools/build35-{device-pods,simulator-pods,package,simulator-xcode,check,contracts}.log`与`build35-inspection.json`；旧`ios/build/`日志可能已被清理。打包后恢复Simulator Vendor/Pods并同步Debug应用。不使用EAS云构建额度。未关闭build34的15分钟跨应用、新观众、真实音频、系统中断和共享委托等待验项目；用户仍需提供设备系统版本、签名渠道或重签包权限结果来定位旧系统签名故障。
+
+## 2026-11-04 build34 评论、iPad与主动投屏测试包
+
+本轮用户明确要求修复网易云评论、加宽iPad一起看评论栏、完成主动投屏并交付IPA。实现依据交接包`docs/06-iOS投屏实现方案.md`，该文件描述目标与分阶段验证，不能当作原先已实现的功能。保留2.1.10，构建号递增至34。
+
+| 范围 | 实现与边界 |
+| --- | --- |
+| 网易云评论 | 原先使用服务端未开放的`comment/music`路径。新增`src/lib/songComments.ts`，改用`/api/music/ncm/comment/new`、嵌套`data.comments/totalCount/cursor/hasMore`与时间排序游标；楼中楼使用`comment/floor`的`time`分页。加入目标切换取消、追加去重、登录失败提示与发送时间戳。 |
+| iPad一起看 | `roomLayout.ts`按实际可用宽度分配侧栏；宽度900pt以上为38%、限制360至440pt，较窄横屏为34%、限制240至320pt。媒体宽度统一为内容宽度减侧栏及12pt间距，避免播放器和侧栏分别估算后溢出。 |
+| 主动共享入口 | `ScreenShareHost.tsx`提供开始、暂停/恢复、停止、应用声音和540p/720p；状态来自原生快照。仅真机开放，Simulator明确提示不支持；本版不采集共享麦克风。 |
+| 采集后端 | iOS16.4至26使用独立ReplayKit Broadcast Upload Extension；本机Xcode27.2 SDK提供的iOS27+使用`SCContentSharingPicker/SCStream`及真实`screen-capture`后台模式。后者尚无真机运行证据，不由编译成功推导后台可用。 |
+| 发送所有权 | 独立纯原生`native/screen-share` Pod持有现有LiveKitWebRTC144.7559.15、PC和Socket.IO信令，未引入另一套WebRTC。旧系统由扩展持有，新系统由宿主原生采集后端持有，不依赖JS进行持续SDP/ICE或传帧。扩展不链接React、VLC或Go。 |
+| 视频/音频 | sample回调内安全拷贝并等比限制最长边1280/960、最多30fps、不放大；仅一个视频帧在途。自定义`RTCAudioDevice`把实际应用PCM转换成48kHz单声道，最多缓存200ms；不发送麦克风或虚假保活音轨。统计只表示采集帧/收到的采样，不能当成发送帧、远端解码或听感证据。 |
+| 会话与安全 | 用户系统授权后，主房间连接确认`host-leave`，原生连接再`register-host`；停止后恢复主连接。共享期间聊天、房间语音和设置暂不可操作，避免两个房主所有者。共享令牌仅放共享Keychain，小型状态/命令放App Group；会话最长为JWT剩余期限与1小时的较小值，不做后台刷新。 |
+| 生命周期 | UUID会话隔离、本机旧peer回调检查、早到ICE上限64、SDP/候选长度限制；最多2位观众。停止、关房、踢出、模式切换、房主转移、连接超时与令牌到期统一清理；新宿主进程撤销上次授权，不自动恢复系统采集。 |
+| 原生生成 | `with-screen-share-broadcast.cjs`幂等生成扩展、源文件、依赖和嵌入阶段；宿主与扩展版本同步。`verify-screen-share-project.cjs`核对单一target、嵌入、共享权限和扩展依赖隔离，连续prebuild检查通过。 |
+
+签名要求：宿主`com.zviewer.mobile`和扩展`com.zviewer.mobile.BroadcastUpload`必须同Team签名，均具备`group.com.zviewer.mobile.broadcast` App Group和`<实际AppIdentifierPrefix>.com.zviewer.mobile.share`共享Keychain权限；须为扩展保留独立profile/签名。未签名包不能附带有效开发者权限，旧侧载渠道若移除扩展或App Group，主动共享不会可用；界面会显示权限错误。运行时从实际签名读取Keychain前缀，不固化个人Team。系统不允许捕获的媒体不保证有画面或声音。
+
+验证证据：
+
+- `npm run check`的VLC补丁、ESLint和TypeScript通过，`npm run test:contracts`为8/8通过，含NCM接口/响应/分页、横屏宽度和共享授权期限。
+- Xcode27.2（27B52）完成Simulator Debug及设备Release构建，宿主和广播扩展均成功。iPad Pro13英寸M5/iOS27.2 Simulator检查一起看横竖屏、聊天/片单切换、控制栏和共享入口，横屏侧栏440pt，无观察到的遮挡；证据位于`.native-tools/build34-ipad-host.png`等本地截图。未据此确认分屏、所有动态字体或真实媒体。
+- 隔离的本地服务端验证`host-leave ACK → 原生等价Socket register-host → 停止 → 主Socket恢复`，没有修改NAS或新增服务端委托API。网易云真实上游请求在本地服务端返回EOF/502，本轮不记录真实评论列表已验收。
+- IPA检查确认2.1.10/build34、最低16.4、iPhone/iPad、宿主与扩展均为iOS平台2/ARM64且未签名、生产JS 6,723,616字节；仅一套LiveKitWebRTC，广播扩展没有React/VLC/Go运行时。12个共享Go来源仍为`7ebacfb2ca2dbd6f359a04ea44016cfacb883bc6`。
+
+本地交付`ZV-iOS/release-assets/ZViewer-iOS-2.1.10-build34-unsigned.ipa`，另复制至Downloads。包大小48,586,811字节；构建脚本仅计算一次SHA-256，后续离线检查使用`--skip-sha256`：
+
+```text
+a9828ace21ff09807ccc18aec4666239319ba322b757911e6dc0e958454aaa68
+```
+
+构建与检查证据在忽略目录`ios/build/build34-simulator-xcode.log`、`unsigned-xcode.log`、`package-build34.log`、`build34-inspection.json`及`build34-check.log`。设备包完成后恢复Simulator Vendor/Pods；CocoaPods重装可能把React预编译产物切成Release，Debug若出现`DebugStringConvertible/RCTPackagerConnection`链接缺失，使用Pods缓存的`reactnative-core-0.86.3-debug.tar.gz`恢复Debug产物后重建，不修改业务代码规避。iOS27选择器配置在Swift为值类型，麦克风控制属于picker配置，不能使用macOS专属`SCStreamConfiguration.captureMicrophone`。
+
+本版是主动共享的真机测试候选，不能描述为方案全部验收完成：尚缺实际签名/App Group、16.4至26与27真机授权和跨应用至少15分钟、后台新观众、1/2观众资源、真实应用声音、横竖旋转、网络切换和系统中断证据。现有房主handoff仍有短暂离房/重连窗口，生产所需服务端原子委托尚未实现；共享麦克风/混音、后台授权刷新和复杂NAT的TURN也未开放。旧协议不携带peer generation，迟到wire answer/ICE的完全隔离仍须专项检查。未消耗EAS云构建额度，未发布GitHub/App Store/TestFlight。
+
+## 2026-11-04 build33 前端同步与本地构建
+
+用户明确要求将最新前端同步到模拟器并构建IPA。承接客户端提交`1300785`及用户未提交的iOS修改，保持版本2.1.10、构建号由32递增至33；未调整Android/HarmonyOS或原生播放内核。
+
+| 范围 | 本轮内容 |
+| --- | --- |
+| 首页与大厅 | 新增`HomeChrome.tsx`集中维护首页控件；包含品牌栏、B站账号入口、房间列表与创建弹窗、关于应用及外观入口。 |
+| 连接 | `SessionProvider.detectServer`与首页配合，先检测服务器地址，再执行账号或游客登录；保留当前服务器证书策略。 |
+| 房间聊天 | 评论增加头像缩写、可选时间与当前用户名输入提示；房间标题统一展示同步观影、屏幕共享或一起听。 |
+| 版本 | `app.json`使用2.1.10/build33，经Expo prebuild同步到生成工程，不手改生成项目作为持久实现。 |
+
+检查证据：`npm run check`的VLC持久补丁、ESLint与TypeScript通过；`npm run test:contracts`为5/5通过；12个共享Go来源仍为`7ebacfb2ca2dbd6f359a04ea44016cfacb883bc6`。复用build32的device与Simulator原生Vendor缓存，分别安装Pods并编译，未重新生成Go/Opus或重复下载依赖。
+
+Xcode27.2（27B52）在iPhone18Pro/iOS27.2 Simulator完成Debug构建、build33安装与启动，截图`.native-tools/build33-launch.png`显示最新连接首页，无启动错误页。复用同一客户端目录现有Metro服务8082；打包后已恢复Simulator Vendor/Pods。此次只确认启动与首页显示，未新增NAS登录、建房、聊天发送、真实播放或实体设备验收，历史开放问题继续有效。
+
+设备Release构建成功，本地文件为`ZV-iOS/release-assets/ZViewer-iOS-2.1.10-build33-unsigned.ipa`，另复制到用户Downloads目录便于安装。包大小47,962,832字节，内嵌生产JS 6,706,375字节；离线检查确认`com.zviewer.mobile`、2.1.10/build33、iOS平台2/ARM64、最低16.4、iPhone/iPad、主程序未签名且未加密，以及VLC/LiveKit/Hermes、Bilibili/Opus/系统媒体原生桥、共享Go来源与许可。包内包含新增首页文案，无AGENTS.md、环境配置、私钥、provisioning profile或已知测试账号密码。
+
+仅由构建脚本计算一次SHA-256，离线检查使用`--skip-sha256`，复制与交付不重算：
+
+```text
+7a8cb74882cb5126d6bf0106f06088928d64beed4a027d7120170e3849f239e9
+```
+
+构建日志、打包摘要与检查结果分别保存在忽略目录`ios/build/build33-simulator-xcode.log`、`ios/build/unsigned-xcode.log`、`ios/build/package-build33.log`及`ios/build/build33-inspection.json`。本机CocoaPods需`RUBYOPT=-rlogger`；Ruby2.6的`filter_map`预编译配置警告沿用源码编译回退，两次原生构建均通过。未使用EAS构建额度，未上传或发布；IPA需要自行签名后侧载。
+
+## 2026-11-04 build32 服务端兼容
+
+本轮承接Mac交接清单的P0-01/P0-02/P0-03及P1-04，实现以下合同；自动测试与构建结果不能替代相应真实媒体验收。
+
+| 范围 | 实现与边界 |
+| --- | --- |
+| OBS观看 | `streamPush.ts`通过当前房间的`/api/stream-push/watch/:roomId`领取只读票据，校验房间路径和唯一ticket；保留反代前缀及用户指定FLV入口。界面只转换一次地址，不再读取或依赖发布密钥。切房/换会话/重试取消旧请求。 |
+| Emby/Jellyfin起播 | `movieSourceResolver.ts`按movieId、MediaSourceId和directLink读取`movie-source`；服务器中转使用当前服务器成员地址，直连优先使用本机临时`resolvedDirectUrl`。持久化仍使用稳定`directUrl`/`streamUrl`，不把临时CDN地址写入房间；HLS继续走原生Relay。 |
+| 挂载成员资源 | FTP和服务器文件重建movieId地址；OpenList/WebDAV按策略刷新成员直链或重建成员中转地址，不使用添加者的旧临时票据或管理员path接口。授权结果由服务端决定。 |
+| 运行期设置 | Emby/Jellyfin服务器中转开关复用已有保存、权威读取和当前媒体应用事务；分集/多版本保留策略与真实源身份。内网挂载隐藏开关，包含CGNAT、IPv4映射IPv6及home.arpa；未知挂载仍可选择，实际可播由解析结果决定。 |
+| 共享Go | 来源更新至`7ebacfb2ca2dbd6f359a04ea44016cfacb883bc6`，12个来源文件核验通过。相对旧基线仅quality.go新增PGC MP4请求上限720P；UGC及DASH沿用原规则。 |
+| 构建修复 | 设备原生准备脚本的Opus主机检查改用`opus-host`头文件；继续固定VLCKit4.0.0a25，不迁移播放内核。本机直接复用用户下载的框架至CocoaPods缓存，源码不绑定个人下载路径。 |
+
+检查证据：5项Node协议测试、VLC持久补丁检查、ESLint、TypeScript、原生WBI签名检查及Opus主机50帧编解码检查通过。Xcode27.2（27B52）在iPhone18Pro/iOS27.2 Simulator完成Debug构建及连接/登录界面启动截图，fontScale=1；未登录NAS，未新增真实OBS/Emby/Jellyfin解码、跨账号角色或实体设备验收。
+
+本地交付文件为`ZV-iOS/release-assets/ZViewer-iOS-2.1.10-build32-unsigned.ipa`，47,717,332字节。Xcode设备Release构建通过；离线检查确认iOS平台2/ARM64、主程序未签名且未加密、最低系统16.4、iPhone/iPad、内嵌生产JS 6,642,316字节、VLC/LiveKit/Hermes及Bilibili/Opus/系统媒体原生桥、共享Go来源与许可。包中无provisioning profile、AGENTS.md、私钥或环境配置文件。构建后只计算一次SHA-256，后续检查复用该值：
+
+```text
+663fc7a052a758b00cfb45e35b9e595d7587060c6044e3d72038a630e38279c7
+```
+
+构建日志和离线检查JSON保存在忽略目录`ZV-iOS/ios/build/`，模拟器启动截图在`.native-tools/build32-launch.png`。CocoaPods1.16.2/系统Ruby2.6无法读取新版Expo预编译配置中的filter_map，安装已自动回退源码编译；本次两种原生构建均通过，警告不等于预编译模块已启用。未上传GitHub/EAS/App Store/TestFlight；IPA需要自行签名后侧载。设备构建完成后恢复Simulator Vendor/Pods，已安装的Debug应用继续使用本地Metro。
+
+本轮未关闭的对齐项目：B站长时恢复、OBS持续重连、语音组件安装与公开开关、音乐完整/迷你播放器及队列手势、观看亮度/音量/进度手势、B站多P音乐与封面续签，以及交接清单的其他P1/P2项目。build30用户通过反馈仍只属于历史版本，不沿用为build32通过结论。
 
 
 ## 架构与边界
@@ -34,7 +270,7 @@ iOS 不是 Android Capacitor 工程的移植，也不是 Web 页面包装。`ZV-
 | 音乐 | `MusicPanel.tsx`、`MusicLibrary.tsx`、`musicQueue.ts`、`musicCollection.ts`、`personalFm.ts`、`usePersonalFm.ts` | 网易云/B站音乐、队列、歌单、一起听、私人漫游与同步确认。 |
 | 字幕/弹幕 | `Subtitles.tsx`、`subtitleParser.ts`、`subtitleSync.ts`、`Danmaku.tsx`、`danmakuImport.ts` | 原生 VLC 轨道、外部字幕、共享文本字幕与本地/在线弹幕。 |
 | 系统媒体 | `useSystemMedia.ts`、`modules/zviewer-native/ios/ZVSystemMedia.swift`、`plugins/with-system-media.cjs` | Now Playing、锁屏/控制中心命令、后台音频声明与原生播放事件。 |
-| 语音/投屏 | `VoicePanel.tsx`、`livekitProtocol.ts`、`ScreenShare.tsx`、`voiceProtocol.ts`、`with-voice-audio.cjs` | 房间语音用 LiveKit；投屏接收使用 WebRTC；分别维护麦克风权限和 VLC 音频会话共存。 |
+| 语音/投屏 | `VoicePanel.tsx`、`livekitProtocol.ts`、`ScreenShare.tsx`、`ScreenShareHost.tsx`、`native/screen-share/` | 房间语音用LiveKit；投屏收发复用同一WebRTC，build34主动共享处于真机测试阶段。 |
 | 配置与原生模块 | `app.json`、`plugins/`、`modules/zviewer-native/` | Expo CNG/config plugin 与本地 Swift/Objective-C Expo Module；原生更改要经插件或模块源码重现。 |
 
 `ios/` 是 Continuous Native Generation 生成目录。除非维护流程明确要求，不直接手改生成的 iOS 项目或 `node_modules` 作为唯一修复；将持久改动写入 `app.json`、本地 Expo Module 或 config plugin，并从干净依赖重跑 prebuild 验证。
@@ -53,7 +289,7 @@ iOS 不是 Android Capacitor 工程的移植，也不是 Web 页面包装。`ZV-
 | 网易云导航 | `MusicNavigation.tsx`、`MusicPanel.tsx` | 导航菜单与头像操作互斥，设置入口统一从头像菜单进入；横屏内容限高滚动、浮层采用不透明主题背景。 |
 | 播放显示状态 | `usePlayerDisplay.ts`、`playerDisplay.ts` | 历史 1.9.0 进入全屏默认横屏；现行 iPhone 按实际解码宽高锁向、退出恢复自动，iPad 方向由系统窗口管理且不声称锁定成功，详见下文显示偏好。 |
 
-这些界面组件不改变原生媒体内核。继续保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 的单一 VLCKit 播放链，语音使用 LiveKit，投屏使用 WebRTC 接收。若改动播放器或媒体身份，要检查组件拆分没有复制播放器实例、重复订阅原生事件或重置当前房间媒体。
+这些界面组件不改变原生媒体内核。继续保持 `NativeMediaAdapter → VlcPlayer → VlcVideo` 的单一VLCKit播放链，语音使用LiveKit，投屏收发复用LiveKitWebRTC。若改动播放器或媒体身份，要检查组件拆分没有复制播放器实例、重复订阅原生事件或重置当前房间媒体。
 
 ## 会话、安全和服务端协议
 
@@ -99,7 +335,7 @@ Emby/Jellyfin 使用真实 Item ID、Episode ID 与 MediaSourceId；访问图片
 
 房间语音用服务端 `/api/voice/token` 返回的 URL/token 与 identity 加入 LiveKit，管理 mute/kick 使用服务端接口和 participant identity。默认加入只听，用户主动开启麦克风才请求权限；管理员解禁不能覆盖用户主动闭麦。`voiceProtocol.ts`、`voiceBinding.ts`、`voiceMicrophone.ts` 与 `with-voice-audio.cjs` 分别处理身份合同、生命周期绑定、权限和原生音频共存。离房、切房、踢出、断网及组件释放要清除本地/远端音轨并停止采集。
 
-屏幕共享客户端仅作 WebRTC 接收端，不含屏幕采集端。LiveKit、WebRTC、麦克风、VLC 音频路由及后台播放会竞争原生音频资源，升级 Pods 或 Expo 插件时检查锁定版本、Podfile.lock、Info.plist 和配置 plugin 生成结果。Expo Go 不含这些自定义原生模块。
+build33及以前只有WebRTC接收；build34补入原生主动共享测试版，架构、签名要求与未验范围见上方build34记录。LiveKit、WebRTC、麦克风、VLC音频路由及后台播放会竞争原生音频资源，升级Pods或Expo插件时检查锁定版本、Podfile.lock、Info.plist和plugin生成结果。Expo Go不含这些自定义原生模块。
 
 ## 来源、界面与片级策略的实现合同
 
@@ -195,16 +431,16 @@ iOS 麦克风授权弹窗造成的临时 inactive 不销毁现有只听会话，
 
 ## 投屏接收与资源释放
 
-本轮按用户最新要求只完善 **iOS 作为接收端** 的 WebRTC 和 OBS HTTP-FLV 观看。没有加入 iOS 自身屏幕共享、ReplayKit 采集、发送端配置或采集权限流程；上文历史保留项中的 ReplayKit 发送专项不属于本轮交付或待验收范围。
+本节维护既有WebRTC/OBS接收合同；历史接收端轮次没有主动采集。build34主动共享测试版独立记录在本文开头，不能以接收端测试替代发送端验收。
 
 - `ScreenShare.tsx` 负责接收画布、原生 RTCView/VLC 绑定、本机暂停/音量/静音、方向与全屏、状态和错误展示。房间页在加入成功后挂载接收端；未获审批、被踢、离房或切模式时由房间生命周期卸载。观看不请求麦克风或屏幕采集权限，不发房主控制/分享事件。
 - `screenReceiver.ts` 为每个房间连接管理一个接收 PC 及其合并 MediaStream。消费现有 `signal-offer`、`signal-ice-candidate`，只向对应共享端发送 answer/ICE，并以 `viewer-ready` 请求共享端提供画面。独立 stream 与 streamless 的 `event.track` 均加入同一个渲染流，不能让后到的音轨替换屏幕视频。播放/暂停与接收增益也立即应用于后到的轨道。
 - 接收态必须同时有实际 `connectionState=connected` 和可用、未 muted 的远端视频；收到 ontrack 或 answer 完成不等于画面已通。已安装的 RN WebRTC 库在远端移除轨道时可能发 `mute` 而不改变 readyState，因此同时监听 mute/unmute/ended；视频 muted 时清除画面接收态，unmute 可恢复。本机暂停使用 enabled，本机音量使用远端音轨增益，不断开信令或改变共享端状态。
 - 每个异步 SDP 步骤之后核对当前 PC/连接代次。早到 ICE 有界缓冲，坏候选不阻断其余候选或 answer；构造候选的同步异常同样隔离。`sharer-ready` 是后端鉴权后的重启通知，必须创建新 PC 并重发 viewer-ready，即使旧 PC 尚未从 connected 变为 disconnected。不能用旧 connected 状态吞掉重启。
 - `viewer-ready` / answer 的拒绝、`sharer-error`、房主断开和媒体连接超时分别展示真实状态。刷新、重连、共享端重启和卸载先移除回调，关闭旧 PC，并 stop/release 所持远端轨道和 MediaStream；旧 Promise、定时器或轨道回调不得写入新会话。
-- OBS 仍通过 `NativeMediaAdapter` 与 VLC 接收。`screenFlvUrl()` 保留 HTTPS 反向代理前缀，HTTP 默认使用服务端主机的 3335 端口，允许现有设置中指定 HTTP(S) 服务 base；不接受含用户密码、查询或片段的 base。streamKey 只用于当前拉流，不写入日志、文档或公共测试证据。
+- OBS通过`NativeMediaAdapter`与VLC接收；build32起使用`streamPush.ts`的房间观看ticket合同，保留逻辑服务器和反向代理前缀，不再由streamKey拼地址或默认推断3335。用户自定义FLV入口仍校验HTTP(S)服务base，不向第三方发送NAS认证。
 - `loadScreenPull()` 每次先串行清空旧来源，再以零位置、暂停意图准备新直播输入，完成后应用最新本机播放意图。直播同 URL 刷新不能沿用 `NativeMediaAdapter` 的 VOD 保位逻辑，否则会把此前已运行的秒数作为不可 seek 直播的新定位目标。测试使用真实 adapter 验证旧时钟 30 秒后重拉只应用零秒。退役加载不能在清空之后重新开始旧来源。
-- OBS `stream-status=offline` 会卸载画面并显示等待；后续 live 自动重拉。重连、换房、换 streamKey/服务器/连接身份时将旧 offline 缓存恢复为 unknown，防止断线期间错过 live 广播后永远停在等待。拉流效果绑定房间身份，旧房间任务不得继续写播放器。HTTP 200 或只有 FLV header 不能视为已接收媒体，界面接收态以原生实际播放事件为准。
+- OBS `stream-status=offline`会卸载画面并显示等待；后续live重新领票拉流。重连、换房或服务器/连接身份变化时将旧offline缓存恢复为unknown，防止错过live广播后永久等待。拉流效果绑定房间身份，旧任务不得写新播放器。HTTP200或只有FLV header不能视为已接收媒体，接收态以原生实际播放事件为准。
 - 接收端只有一套控制栏。常规控制等距自适应，保留暂停/继续、本机静音、方向、全屏、设置与刷新；全屏隐藏连接标签，安全区内保留必要控制。单击等待双击判定后显隐，双击暂停/继续；拖动、长按和多指取消待判定手势，控制本身不穿透到画布。横屏自动全屏，同一横屏尺寸手动退出后不立即强拉。暂停/错误文案使用深色半透明底，避免在亮色共享内容上失去对比。已有 VLC PiP 仅在物理设备的 OBS 设置内按实际播放能力尝试，失败展示错误，未将模拟器行为当成 PiP 验收。
 - Debug 下媒体连接后最多三次、间隔 5 秒读取 RTC getStats，只输出 video/audio bytesReceived、framesDecoded、width、height。离房/退役取消；Release 不运行。该诊断不输出 IP、SDP、地址或凭据，计数仍须有实际日志才能作为音视频接收证据，不能因代码存在就宣称已测。
 
@@ -248,7 +484,7 @@ iOS 麦克风授权弹窗造成的临时 inactive 不销毁现有只听会话，
 | OBS接收 | iPhone运动彩条、约9分钟后刷新及11:11时间码继续，停推清屏后重推自动出现画面。 | FLV200/头不是通过依据；延迟、持续帧率、PiP、耗电和全部编码组合待验。 |
 | 语音 | 原生只听/UDP选中线路有实测。 | 双向麦克风、蓝牙、来电、音频路由与实际远端听感需实体设备。 |
 
-ReplayKit发送未实现，依用户约定不属于本轮接收端范围；不列成已交付能力。iOS没有独立原生房间业务Socket，系统音频会话正常不保证JS长期存活。用户新反馈优先于自动检查及模拟器正向。
+以上属于历史接收端证据；当时ReplayKit发送未实现。build34新增专用于共享信令的原生Socket，但通用房间业务仍在JS，不能据此声称聊天、审批或一起听自动切曲已具备后台执行。用户新反馈优先于自动检查及模拟器正向。
 
 ### 后续验收矩阵
 
@@ -286,7 +522,7 @@ npm start
 
 清理后 `npm run check` 只运行VLC持久补丁检查、ESLint和TypeScript，已移除指向被清理测试的命令。Expo Go/Web适合界面和JS流程，不包含本项目全部原生能力。`scripts/launch-simulator-debug.py` 是原生Simulator启动工具；`inspect-unsigned-ipa.py`、`verify-ios-native-symbols.cjs` 和native来源/补丁守卫继续保留。
 
-共享Go来源固定在 `scripts/native-core-baseline.json` 的12个文件与来源提交736452e。`--verify-only`只核验；真正准备前不带该参数暂存到 `.native-staging/`。模块最低Go1.26.8，工具链固定1.27.1；显式 `ZVIEWER_USE_SYSTEM_GO=1` 只允许精确版本，默认下载摘要验证保留。本次删除 `_test.go` 不改变生产Go来源清单。
+共享Go来源固定在 `scripts/native-core-baseline.json` 的12个文件与来源提交7ebacfb。`--verify-only`只核验；真正准备前不带该参数暂存到 `.native-staging/`。模块最低Go1.26.8，工具链固定1.27.1；显式 `ZVIEWER_USE_SYSTEM_GO=1` 只允许精确版本，默认下载摘要验证保留。历史删除 `_test.go` 不改变生产Go来源清单。
 
 只有收到明确IPA构建指示后，在Mac按需要执行：
 
@@ -297,8 +533,10 @@ node scripts/stage-native-core.cjs
 npm run native:patch
 bash scripts/prepare-native-ios.sh
 bash scripts/build-unsigned-ios.sh
-python3 scripts/inspect-unsigned-ipa.py /absolute/path/to/ZViewer-unsigned.ipa
+python3 scripts/inspect-unsigned-ipa.py /absolute/path/to/ZViewer-unsigned.ipa --skip-sha256
 ```
+
+`build-unsigned-ios.sh`在打包后计算一次SHA-256；随后离线检查传`--skip-sha256`复用已有摘要，仍检查包结构与原生合同。只有单独检查且没有已有摘要时才保留检查脚本默认计算。
 
 `prepare-native-ios*.sh` 仍调用 `bili-signing-smoke.m` 与 `opus-smoke.c` 验证原生库签名和Opus构建，二者属于现行构建依赖，保留以防准备脚本断链。`generate-bili-probe-fixtures.m/.sh` 用于重新生成生产解码能力探测的自主合成关键帧，不能当普通测试夹具删除。device与Simulator ARM64 Vendor/Pods分开，构建设备后恢复Simulator环境，不混用。
 

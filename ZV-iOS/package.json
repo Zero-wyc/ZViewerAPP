@@ -1,7 +1,7 @@
 {
   "name": "zv-ios",
   "main": "expo-router/entry",
-  "version": "2.1.10",
+  "version": "2.3.6",
   "dependencies": {
     "@config-plugins/react-native-webrtc": "^15.0.2",
     "@expo/ui": "~57.0.21",
@@ -62,6 +62,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
+    "test:contracts": "node --experimental-strip-types --test scripts/ios-contracts.test.mjs scripts/music-queue.test.mjs",
     "ios:run": "expo run:ios",
     "native:patch": "node scripts/patch-vlc-native.cjs && node scripts/patch-vlc-native.cjs --check",
     "check": "npm run native:patch && npm run lint && npm run typecheck"

@@ -5,6 +5,7 @@ import { useSession } from '@/state/session';
 import { useAppearance } from '@/state/appearance';
 import type { Movie } from '@/lib/sources';
 import { resolveLibrary, type LibraryMedia } from '@/lib/mediaLibrary';
+import { fetchLibraryMovieSource, libraryMediaSourceId, libraryMovieSourceUrl } from '@/lib/movieSourceResolver';
 import { biliSelection } from '@/lib/biliSelection';
 import { readMovieBiliPolicy, resolveInputBili } from '@/lib/biliNative';
 import { useMediaPreferences } from '@/hooks/useMediaPreferences';
@@ -31,7 +32,10 @@ export function MovieSourceSettings({ movie, roomId, canEdit, reload }: { movie:
     if (library) {
       if (!page.path || !page.mountId) throw new Error('该分集缺少媒体库条目身份，请重新添加整季');
       const media = await resolveLibrary(request, kind, page.mountId, page.path, signal);
-      await update({ path: page.path, url: `/api/${kind}/stream?movieId=${movie.id}&ep=${page.page}`, currentPage: page.page, format: media.format, duration: media.duration, audioCodec: media.audioCodec || '', multiVersion: media.multiVersion }, signal);
+      const url = movie.directLink === true
+        ? libraryMovieSourceUrl(media, true, session!.serverUrl)
+        : `/api/${kind}/stream?${new URLSearchParams({ movieId: String(movie.id), ep: String(page.page) })}`;
+      await update({ path: page.path, url, directLink: movie.directLink === true, currentPage: page.page, format: media.format, duration: media.duration, audioCodec: media.audioCodec || '', multiVersion: media.multiVersion }, signal);
       setVersions([]); setVersionId(''); return;
     }
     if (kind === 'bilibili') {
@@ -42,13 +46,16 @@ export function MovieSourceSettings({ movie, roomId, canEdit, reload }: { movie:
     }
   });
   const loadVersions = () => task(async signal => {
-    const data = await request<LibraryMedia>(`/api/${kind}/movie-source?movieId=${movie.id}`, { signal }); checkAbort(signal); setVersions(data.versions); setVersionId(new URL(movie.url, 'https://source.invalid').searchParams.get('ms') || data.mediaSourceId);
+    if (kind !== 'emby' && kind !== 'jellyfin') return;
+    const data = await fetchLibraryMovieSource(request, kind, movie.id, movie.url, movie.directLink === true, signal); checkAbort(signal); setVersions(data.versions); setVersionId(libraryMediaSourceId(movie.url) || data.mediaSourceId);
   });
   const changeVersion = (id: string) => task(async signal => {
     if (!canEdit || !versions.some(item => item.id === id)) return;
-    const data = await request<LibraryMedia>(`/api/${kind}/movie-source?${new URLSearchParams({ movieId: String(movie.id), ms: id })}`, { signal });
-    if (!data.streamUrl) throw new Error('服务器未提供可供房间观众播放的地址');
-    await update({ url: data.streamUrl, format: data.format, duration: data.duration, audioCodec: data.audioCodec || '', multiVersion: data.multiVersion }, signal); setVersionId(data.mediaSourceId);
+    if (kind !== 'emby' && kind !== 'jellyfin') return;
+    const params = new URLSearchParams({ movieId: String(movie.id), ms: id, ...(movie.directLink ? { direct: '1' } : {}) });
+    const data = await request<LibraryMedia>(`/api/${kind}/movie-source?${params}`, { signal });
+    const url = libraryMovieSourceUrl(data, movie.directLink === true, session!.serverUrl);
+    await update({ url, directLink: movie.directLink === true, format: data.format, duration: data.duration, audioCodec: data.audioCodec || '', multiVersion: data.multiVersion }, signal); setVersionId(data.mediaSourceId);
   });
   return <View style={{ gap: 8 }}>
     {movie.pages && movie.pages.length > 1 ? <SourceDropdown wrap={display.fullNames} label={library ? '切换分集' : '分 P / 番剧选集'} testID="movie-page" value={String(movie.currentPage || 1)} options={movie.pages.map(item => ({ id: String(item.page), name: `${item.page} · ${item.part}` }))} disabled={!canEdit || busy} onChange={changePage} /> : null}

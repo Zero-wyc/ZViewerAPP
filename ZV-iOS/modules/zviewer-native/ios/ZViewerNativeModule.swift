@@ -6,6 +6,7 @@ public class ZViewerNativeModule: Module {
   private let voice = ZVVoiceEngine()
   private lazy var systemMedia = ZVSystemMedia()
   private let hlsRelay = ZVHLSRelayManager()
+  private let screenShare = ZVScreenShareCoordinator()
   private let biliQueue = DispatchQueue(label: "zviewer.bili", qos: .userInitiated)
   private let connectionOwner = UUID().uuidString
   private func configureConnection(_ server: String, _ allow: Bool, _ promise: Promise) {
@@ -33,6 +34,12 @@ public class ZViewerNativeModule: Module {
   }
   public func definition() -> ModuleDefinition {
     Name("ZViewerNative")
+    AsyncFunction("screenShareCapability") { self.screenShare.capability() }.runOnQueue(.main)
+    AsyncFunction("screenSharePrepare") { (json: String) in try self.screenShare.prepare(json) }.runOnQueue(.main)
+    AsyncFunction("screenSharePresent") { (id: String) in try self.screenShare.present(id) }.runOnQueue(.main)
+    AsyncFunction("screenShareControl") { (id: String, json: String) in try self.screenShare.control(id, json) }.runOnQueue(.main)
+    AsyncFunction("screenShareSnapshot") { (id: String) in self.screenShare.snapshot(id) }.runOnQueue(.main)
+    AsyncFunction("screenShareStop") { (id: String) in self.screenShare.stop(id) }.runOnQueue(.main)
     Events("onVoiceFrame", "onVoiceStatus", "onMediaCommand", "onHlsRelayError")
     AsyncFunction("configureServerConnection") { (server: String, allow: Bool, promise: Promise) in self.configureConnection(server, allow, promise) }.runOnQueue(.main)
     AsyncFunction("probeServerConnection") { (server: String, promise: Promise) in self.probeConnection(server, promise) }.runOnQueue(.main)
@@ -118,6 +125,7 @@ public class ZViewerNativeModule: Module {
         if ZVServerConnectionTransport.shared.remove(owner: owner) != nil { _ = ZVBiliBridge.configureServer("", allow: false) }
       }
       self.hlsRelay.shutdown()
+      DispatchQueue.main.async { self.screenShare.shutdown() }
       DispatchQueue.main.async { self.voiceRevision += 1; self.systemMedia.shutdown() }
       self.voice.queue.async { self.voice.stop() }
       self.biliQueue.async { _ = ZVBiliBridge.perform("stop", value: "") }

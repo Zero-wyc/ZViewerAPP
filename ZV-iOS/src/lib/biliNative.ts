@@ -8,6 +8,7 @@ import { isUnverifiedBiliHdr, parseResolvedMedia } from './resolvers';
 import { serverBiliSource } from './biliRoomProtocol';
 import { detectLibraryHls } from './libraryHls';
 import { connectionUrl } from './connectionTransport';
+import { resolveMoviePlaybackSource } from './movieSourceResolver';
 export type BiliStatus = { ready: boolean; loggedIn: boolean; sessionVersion: number; loginError?: string; user?: { name: string; vipStatus: number } };
 export type BiliMedia = { videoUrl: string; audioUrl?: string; format?: string; resolvedUrl?: string; cid?: number; epId?: number; seasonId?: number; title: string; duration?: number; currentQn: number; currentPage?: number; pages?: { page: number; cid: number; part: string; epId?: number; seasonId?: number; duration?: number }[]; fallbackReason?: string; sessionVersion: number; isHdr?: boolean; hdrType?: string; videoCodec?: string; audioCodec?: string; videoCodecid?: number };
 export type BiliPolicy = NonNullable<PlaybackSource['biliPolicy']>;
@@ -147,6 +148,18 @@ function biliMusicOptions(format: PlaybackSource['format']): string[] {
 }
 export async function playbackSource(source: PlaybackSource, server: string, token: string, signal?: AbortSignal): Promise<NativeVideoSource> {
   if (source.sourceType !== 'bilibili') {
+    const canonicalSourceUrl = source.sourceUrl;
+    source = await resolveMoviePlaybackSource(source, server, async <T,>(path: string, init?: RequestInit) => {
+      const response = await fetchLimited(`${server.replace(/\/+$/, '')}${path}`, {
+        ...init,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...init?.headers },
+      }, 45000, async result => {
+        const data = await result.json().catch(() => ({})) as T & { success?: boolean; message?: string };
+        if (!result.ok || data.success === false) throw new Error(data.message || `影片资源刷新失败（HTTP ${result.status}）`);
+        return data as T;
+      }, signal);
+      return response;
+    }, signal);
     if (['anime', 'kazumi', 'cms'].includes(source.sourceType || '')) source = await resolveAggregateSource(source, async <T,>(path: string, init?: RequestInit) => fetchLimited(`${server.replace(/\/+$/, '')}${path}`, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } }, 45000, async response => {
       if (!response.ok) throw new Error(`数据源解析失败（HTTP ${response.status}）`);
       return await response.json() as T;
@@ -154,7 +167,9 @@ export async function playbackSource(source: PlaybackSource, server: string, tok
     const native = await detectLibraryHls(nativeVideoSource(source, server, token), server, token,
       uri => fetchLimited(uri, { method: 'HEAD', headers: { Authorization: `Bearer ${token}` }, redirect: 'error' }, 10000,
         async response => response.ok ? response.headers.get('content-type') || '' : '', signal), signal);
-    return native.hlsProxy || native.libraryHls ? (await import('./hlsNative')).prepareNativeHls(native, signal) : native;
+    const prepared = native.hlsProxy || native.libraryHls ? await (await import('./hlsNative')).prepareNativeHls(native, signal) : native;
+    if (source.movieId && ['emby', 'jellyfin'].includes(source.sourceType || '')) prepared.identity = canonicalSourceUrl;
+    return prepared;
   }
   source = { ...source, sourceUrl: biliSelection(source.sourceUrl).url };
   const policy = source.biliPolicy ?? (source.movieId ? await readMovieBiliPolicy(server, source.movieId) : defaultBiliPolicy);

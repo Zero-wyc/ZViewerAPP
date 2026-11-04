@@ -139,14 +139,6 @@ export class ScreenReceiver {
   dispose() { this.disposed = true; this.retire(); }
 }
 
-export function screenFlvUrl(serverUrl: string, streamKey: string, customBase = '') {
-  if (!streamKey.trim()) throw new Error('尚未收到推流密钥，等待共享端开始推流');
-  const server = new URL(serverUrl); const base = new URL(customBase.trim() || serverUrl);
-  if (!['http:', 'https:'].includes(base.protocol) || !base.hostname || base.username || base.password || base.search || base.hash) throw new Error('请输入有效的 HTTP-FLV 服务地址');
-  if (!customBase.trim() && server.protocol === 'http:') { base.port = '3335'; base.pathname = '/'; }
-  return `${base.toString().replace(/\/+$/, '')}/live/${encodeURIComponent(streamKey)}.flv`;
-}
-
 /** Live pulls always start at the new live edge, never at a prior VOD clock. */
 export async function loadScreenPull(adapter: Pick<NativeMediaAdapter, 'apply'>, sourceUrl: string, serverUrl: string, accessToken: string, current: () => boolean, revision = 0) {
   await adapter.apply(null, serverUrl, accessToken);

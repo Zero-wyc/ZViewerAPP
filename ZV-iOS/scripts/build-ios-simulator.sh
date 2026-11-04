@@ -4,6 +4,7 @@ cd "$(cd "$(dirname "$0")/.." && pwd)"
 test "$(uname -s)" = Darwin || { echo 'Requires macOS.' >&2; exit 1; }
 node scripts/stage-native-core.cjs --verify-only
 node scripts/patch-vlc-native.cjs --check
+node scripts/verify-screen-share-project.cjs
 python3 - <<'PY'
 import plistlib
 from pathlib import Path

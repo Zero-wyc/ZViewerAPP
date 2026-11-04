@@ -5,7 +5,14 @@ type Subscription = { remove(): void };
 export type VoiceFrame = { data: string; mediaTs: number };
 export type MediaCommand = { sessionId: string; mediaId: string; action: string; value?: number };
 export type SystemMediaState = { sessionId: string; mediaId: string; kind: 'video' | 'audio'; title: string; artist?: string; album?: string; cover?: string; host: boolean; uri: string; ownerId?: string; inputRevision?: number; playing: boolean; position: number; duration: number; playbackRate: number; actions: string[] };
+export type ScreenShareSnapshot = { id: string; phase: 'idle' | 'requesting-permission' | 'awaiting-host' | 'starting' | 'sharing' | 'paused' | 'stopped' | 'error'; message?: string; viewers?: number; capturedFrames?: number; audioSamples?: number; width?: number; height?: number; quality?: string; framesPerSecond?: number };
 type Bridge = {
+  screenShareCapability?(): Promise<{ available: boolean; systemAudio: boolean; microphone: boolean; message?: string }>;
+  screenSharePrepare?(configuration: string): Promise<{ id: string }>;
+  screenSharePresent?(id: string): Promise<void>;
+  screenShareControl?(id: string, command: string): Promise<void>;
+  screenShareSnapshot?(id: string): Promise<ScreenShareSnapshot>;
+  screenShareStop?(id: string): Promise<void>;
   debugMediaState?(): Promise<Record<string, unknown>>;
   debugLaunchConfiguration?(): Promise<string | null>;
   isolateServerAuthCookies?(serverUrl: string): Promise<boolean>;

@@ -17,7 +17,9 @@ export function stackedMediaHeight(bodyHeight: number) {
 }
 
 export function landscapeColumns(bodyWidth: number) {
-  const sidebarWidth = Math.min(320, Math.max(240, bodyWidth * 0.34));
+  const sidebarWidth = bodyWidth >= 900
+    ? Math.min(440, Math.max(360, bodyWidth * 0.38))
+    : Math.min(320, Math.max(240, bodyWidth * 0.34));
   return {
     media: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: Math.max(0, bodyWidth - sidebarWidth - 12), height: '100%' },
     sidebar: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: sidebarWidth, height: '100%' },

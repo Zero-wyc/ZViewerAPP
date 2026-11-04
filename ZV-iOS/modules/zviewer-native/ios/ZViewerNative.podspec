@@ -11,6 +11,7 @@ Pod::Spec.new do |s|
   s.swift_version = '5.9'
   s.static_framework = true
   s.dependency 'ExpoModulesCore'
+  s.dependency 'ZViewerScreenShare'
   s.source_files = '*.{h,m,swift}'
   s.public_header_files = 'ZVBiliBridge.h', 'ZVVoiceCodec.h'
   s.vendored_frameworks = 'Vendor/Bilicore.xcframework'
@@ -18,5 +19,6 @@ Pod::Spec.new do |s|
   s.resource_bundles = { 'ZViewerNativeLicenses' => ['Vendor/*-LICENSE', 'Vendor/*-source-*.json'] }
   s.libraries = 'resolv'
   s.frameworks = 'AVFoundation', 'AudioToolbox', 'Security', 'VideoToolbox', 'MediaPlayer', 'Network'
-  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'HEADER_SEARCH_PATHS' => '$(inherited) "$(PODS_TARGET_SRCROOT)/Vendor/opus"' }
+  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'HEADER_SEARCH_PATHS' => '$(inherited) "$(PODS_TARGET_SRCROOT)/Vendor/opus"',
+    'OTHER_LDFLAGS[sdk=iphoneos*]' => '$(inherited) -weak_framework ScreenCaptureKit' }
 end

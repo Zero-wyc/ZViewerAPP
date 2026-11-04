@@ -45,6 +45,7 @@ type SessionContextValue = {
   certificateException: boolean;
   connectionError: string;
   login: (server: string, mode: 'account' | 'guest', username?: string, password?: string, allowUntrustedCertificate?: boolean) => Promise<void>;
+  detectServer: (server: string, allowUntrustedCertificate?: boolean) => Promise<string>;
   logout: () => Promise<void>;
   revokeCertificateException: () => Promise<void>;
   ensureFresh: (options?: FreshnessOptions) => Promise<Session>;
@@ -259,6 +260,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => { mounted = false; };
   }, [current, request, update]);
 
+  // First step of the shared two-step connect form: resolve the address only.
+  const detectServer = useCallback(async (server: string, allowUntrustedCertificate = false) => {
+    setConnectionError('');
+    await saveServerPolicy(server, allowUntrustedCertificate);
+    return selectServerUrl(server, async url => {
+      if (nativeBridge?.probeServerConnection) return nativeBridge.probeServerConnection(connectionUrl(url));
+      if (nativeBridge?.serverProbe) return nativeBridge.serverProbe(connectionUrl(url));
+      try { await fetchJson(`${url}/api/auth/public-settings`, { credentials: 'omit', redirect: 'error' }); return { ok: true, code: 'response' }; }
+      catch { return { ok: false, code: 'network' }; }
+    }, url => applyServerPolicy(url, allowUntrustedCertificate));
+  }, []);
+
   const login = useCallback(async (server: string, mode: 'account' | 'guest', username = '', password = '', allowUntrustedCertificate = false) => {
     const lease = current.current.capture();
     setConnectionError('');
@@ -352,7 +365,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
   }, [session, request, ensureFresh]);
 
-  const value = useMemo(() => ({ session, savedServer, restoring, socket, connected, certificateException, connectionError, login, logout, revokeCertificateException, request, requestText, ensureFresh }), [session, savedServer, restoring, socket, connected, certificateException, connectionError, login, logout, revokeCertificateException, request, requestText, ensureFresh]);
+  const value = useMemo(() => ({ session, savedServer, restoring, socket, connected, certificateException, connectionError, login, detectServer, logout, revokeCertificateException, request, requestText, ensureFresh }), [session, savedServer, restoring, socket, connected, certificateException, connectionError, login, detectServer, logout, revokeCertificateException, request, requestText, ensureFresh]);
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 
