@@ -1,5 +1,13 @@
 export type QueueIdentity = { id: number; songId: number; biliBvid?: string; biliCid?: number };
+export type MusicSource = 'ncm' | 'bili';
 export const musicKey = (song: Omit<QueueIdentity, 'id'>) => song.biliBvid ? `bili:${song.biliBvid}:${song.biliCid || 0}` : `ncm:${song.songId}`;
+export const musicSource = (key: string | null): MusicSource => key?.startsWith('bili:') ? 'bili' : 'ncm';
+export function sourceQueue<T extends QueueIdentity>(items: T[], source: MusicSource): T[] {
+  return items.filter(item => source === 'bili' ? !!item.biliBvid : !item.biliBvid);
+}
+export function activeMusicQueue<T extends QueueIdentity>(items: T[], key: string | null): T[] {
+  return sourceQueue(items, musicSource(key));
+}
 // Queue position is local: v4.2.1 does not have a queue-item field in sync state.
 export class QueueCursor {
   id: number | null = null;

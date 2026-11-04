@@ -8,14 +8,45 @@
 
 | 项目 | 当前状态 |
 | --- | --- |
-| 应用 | 2.1.10 / build38 本地未签名IPA，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
+| 应用 | 2.1.10 / build39 本地未签名IPA，`com.zviewer.mobile`，最低iOS/iPadOS16.4，支持iPhone/iPad。 |
 | 工程 | 独立Expo SDK57 / React Native0.86；唯一视频/音乐内核为VLCKit4.0.0a25，语音LiveKit，投屏WebRTC/OBS接收及原生主动共享测试版。 |
 | 用户验收 | 用户对build30反馈“测试通过”；build31保持该播放/房间逻辑，仅统一2.1.10版本元数据并重建发布。没有给出的设备OS、时长和逐项结果不作扩展认定。 |
-| 发布 | 历史build31未签名device ARM64 IPA位于 `client-v2.1.10` Release；build32至build38仅在本地交付。Android/HarmonyOS参考源码为2.3.6/236。自行签名后侧载，未使用App Store/TestFlight。 |
-| 源码 | 完整后续iOS源码在main；原Release标签保留双端最初快照，标签自动归档不含全部后续iOS修复。 |
-| 本次Mac工作 | build38同步用户修改的倍速选择、共享等待提示与共享设置界面，完成本地IPA及双模拟器安装启动。build37的竖屏方向修复仍待用户真机复测；本次未改动原生共享逻辑、Android/HarmonyOS或NAS。 |
+| 发布 | 历史build31未签名device ARM64 IPA位于 `client-v2.1.10` Release；build32至build39仅在本地交付。Android/HarmonyOS参考源码为2.3.6/236。自行签名后侧载，未使用App Store/TestFlight。 |
+| 源码 | build39位于本地分支`codex/ios-music-queue-build39`，承接main的build38；Windows交接包提供相对`e4d1c48`的完整Mac增量。原Release标签保留历史快照，发布时应使用合并后的main。 |
+| 本次Mac工作 | build39保留用户一起听导航、扫码登录与设置界面，补齐来源列表、清空入口和来源内切歌，验证歌单全部播放替换；完成双模拟器验证与本地IPA。build37共享方向仍待用户真机复测；本次未改动Android/HarmonyOS或NAS。 |
 
 所有客户端修改及Git操作在本仓库。iOS设备构建需用户明确指示；Windows日常先用Expo Go/Web检查可用界面，原生VLC、Go、LiveKit、Keychain及系统音频必须在对应原生环境验收。跨平台来源对照见 [Android维护文档](android-maintenance-architecture.md) 和 [HarmonyOS维护文档](harmonyos-maintenance-architecture.md)。
+
+## 2026-11-04 build39 一起听播放列表与Windows交接
+
+用户明确要求在其一起听界面改动上补齐三项功能、模拟器验证及IPA构建，并澄清“全部播放”是歌单详情按钮。版本保持2.1.10，构建号由38递增至39。保留用户的`MusicNavigation.tsx`、扫码登录弹窗与新增`MusicSettings.tsx`，没有回退用户改动。
+
+- `musicQueue.ts`集中定义来源过滤；`MusicQueueDialog.tsx`提供网易云/B站两组列表、各自计数和空态。小播放器按当前浏览来源打开，完整播放器按当前播放来源打开，弹窗内可切换来源。
+- `MusicPanel.tsx`的上一首、下一首、随机、顺序播放边界与自然结束均读取当前播放来源列表，避免混合房间队列导致跨来源切歌；共享协议仍保留单一房间队列。
+- 两处队列入口共用清空确认。按钮明确为“清空全部播放列表”，确认提示会影响网易云、B站及全房间；权限沿用`musicQueue`矩阵，等待服务端ACK，失败保留弹窗并显示原因，不先清本地数据。
+- 收到空队列后停止私人漫游及B站续播请求，清理当前歌曲与游标；房主广播停止状态，避免服务端仍保留已清空曲目的播放状态。
+- 歌单详情“全部播放”完整读取、校验全部分页后清空整个房间播放列表，逐首确认入队，最后确认首曲并从头播放；“全部加入播放列表”保留追加行为。复用并验证现有`applyCollection`合同，统一清空入口；未新增服务端原子替换接口，中途断线仍可能留下已确认的部分歌曲，界面报告完成数量，不宣称整体事务回滚。
+
+验证在iPhone18Pro/iOS27.2和iPad Pro13英寸M5/iPadOS27.2 Simulator的原生Debug应用完成，设备型号由模拟器库存取得。使用本机Go服务端独立测试房间，网易云歌单/音频为隔离的合成响应，Socket队列与同步状态由实际Go处理器确认，没有连接NAS或更改第三方账号歌单：
+
+| 实际操作 | 观察结果 |
+| --- | --- |
+| 混排NCM/B站各2首，分别打开来源列表 | 两端各组只显示本来源2首；iPad横屏弹窗无遮挡。 |
+| NCM旧曲一点击下一首 | Go状态为`ncm:39102`，跳过混排中的B站条目，原4首保留。 |
+| 清空确认后取消 | 原列表保留，确认文案明确两源全部4首。 |
+| 歌单详情点击全部播放 | 两端Go队列只含`39201/39202/39203`，无旧NCM/B站项，从`ncm:39201`开始播放。 |
+| 全部加入播放列表 | 队列3首增至6首，当前曲和连续进度保留。 |
+| 完整播放器打开队列并确认清空 | Go队列为空，`trackKey/trackSongId=null`、`isPlaying=false`、`positionSec=0`；弹窗两源计数0且清空按钮禁用。 |
+
+VLC持久补丁、ESLint、TypeScript及18/18合同测试通过。新增测试覆盖来源内next/prev/shuffle/order、清空ACK拒绝、权限变化、部分失败、105首分页完整加载后替换，以及追加保留当前播放。Xcode27.2 Simulator Debug与设备Release均构建成功；12个共享Go来源仍为`7ebacfb2ca2dbd6f359a04ea44016cfacb883bc6`，原生依赖未变。本轮不代替真实网易云/B站媒体、实体设备听感、后台切歌及Android/HarmonyOS互通验收。
+
+交付`ZV-iOS/release-assets/ZViewer-iOS-2.1.10-build39-unsigned.ipa`及Downloads同名副本，48,605,142字节，生产JS6,739,375字节。离线检查确认宿主与广播扩展均为2.1.10/build39、iOS平台2/ARM64、未签名，最低16.4且支持iPhone/iPad；需自行签名后侧载。构建时仅计算一次SHA，后续检查使用`--skip-sha256`复用：
+
+```text
+fe08152a826e05969fb05c4c08d927d40506da3186edf221a9962052064e3dd3
+```
+
+构建日志、离线检查JSON、模拟器截图和Go状态记录保存在忽略目录`.native-tools/build39-*`。`expo prebuild --no-clean`同步宿主/扩展版本；生成过程改写的npm启动脚本已恢复原来的Expo启动命令。Windows私有交接包包含最新源码快照、相对`e4d1c48`的Git增量包、IPA、精简验证证据、合并说明及按规定结构编写的发行说明草稿。源码快照排除AGENTS.md、账号、依赖缓存、临时会话和签名材料；交接ZIP不要作为公开Release附件。未使用EAS云额度，未推送、合并远端或发布Release。
 
 ## 2026-11-04 build38 前端同步与本地构建
 
