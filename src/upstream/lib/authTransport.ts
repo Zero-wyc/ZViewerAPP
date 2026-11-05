@@ -83,11 +83,12 @@ export function buildAuthHeaders(): Record<string, string> {
 /**
  * 构建 socket.io 握手鉴权载荷。
  * - HTTPS：返回空（cookie 自动携带，后端从 handshake.headers.cookie 读取）
- * - HTTP ：附加 `{ token }`（后端 socket.io 中间件兼容 auth.token 字段）
+ * - 原生客户端附加 token / refreshToken，支持服务端在原 Socket 内续期。
  */
 export function buildSocketAuth(): Record<string, string> {
   const token = getAccessToken()
-  return token ? { token } : {}
+  const refreshToken = getRefreshToken()
+  return token ? { token, ...(refreshToken ? { refreshToken } : {}) } : {}
 }
 
 /** Stored JWT expiry is a hint only; server-scoped 401/403 remains authoritative. */

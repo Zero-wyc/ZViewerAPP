@@ -27,6 +27,7 @@ import { useSubtitles, type EmbeddedSource } from '@/hooks/useSubtitles'
 import { useCliAgent } from '@/hooks/useCliAgent'
 import { useRoomStore } from '@/store/roomStore'
 import { useDanmakuStore } from '@/store/danmakuStore'
+import { useAuthStore } from '@/store/authStore'
 import { useCliAgentStore } from '@/store/cliAgentStore'
 import { getBilibiliParseOptions } from '@/modules/bilibili/parseOptions'
 import {
@@ -444,6 +445,7 @@ export function WatchTogetherCore({
   // ── 弹幕状态 ─────────────────────────────────────────
   const danmakuLayerRef = useRef<DanmakuLayerHandle | null>(null)
   const danmakuItemsRef = useRef<DanmakuItem[]>([])
+  const pendingSelfEchoRef = useRef<{ text: string; at: number; sender: string }[]>([])
   const loadedTracksRef = useRef<Set<string>>(new Set())
   const [danmakuEnabled, setDanmakuEnabled] = useState(true)
 
@@ -671,6 +673,7 @@ export function WatchTogetherCore({
 
   // 实时弹幕接收（'danmaku' 事件）：上屏 + 记录到实时弹幕列表
   useEffect(() => {
+    pendingSelfEchoRef.current = []
     if (!socket) return
     const handleDanmaku = (payload: {
       id?: string
@@ -678,6 +681,14 @@ export function WatchTogetherCore({
       sender?: string
     }) => {
       if (!payload?.text) return
+      const pending = pendingSelfEchoRef.current
+      const now = Date.now()
+      while (pending.length && now - pending[0].at > 10_000) pending.shift()
+      const index = pending.findIndex(entry => entry.text === payload.text && entry.sender === payload.sender)
+      if (index >= 0) {
+        pending.splice(index, 1)
+        return
+      }
       danmakuLayerRef.current?.sendDanmaku(payload.text, {
         sender: payload.sender,
       })
@@ -694,7 +705,7 @@ export function WatchTogetherCore({
     return () => {
       socket.off('danmaku', handleDanmaku)
     }
-  }, [socket, addRealtime, videoRef])
+  }, [socket, roomId, addRealtime, videoRef])
 
   // 视频加载后，仅在 store 中尚未获得权威 duration 时，用 video.duration 兜底填充。
   useEffect(() => {
@@ -1330,6 +1341,7 @@ export function WatchTogetherCore({
       addRealtime({ ...item, self: true, sender: '我' })
 
       if (!socket) return
+      pendingSelfEchoRef.current.push({ text: trimmed, at: Date.now(), sender: useAuthStore.getState().user?.username ?? '' })
       // 发送评论（持久化 + 广播 new-comment）
       socket.emit(
         'send-comment',

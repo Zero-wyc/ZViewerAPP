@@ -87,11 +87,8 @@ export function RoomInfoPanel({
   const roomName = useRoomStore((state) => state.roomName)
   const roomMode = useRoomStore((state) => state.mode)
   const roomSettings = useRoomStore((state) => state.roomSettings)
-  const addMutedViewer = useRoomStore((state) => state.addMutedViewer)
-  const removeMutedViewer = useRoomStore((state) => state.removeMutedViewer)
   const setRoomSettings = useRoomStore((state) => state.setRoomSettings)
   const moderators = useRoomStore((state) => state.moderators)
-  const setModerators = useRoomStore((state) => state.setModerators)
   const autoApproveRequests = useRoomStore((state) => state.autoApproveRequests)
   const toggleAutoApproveRequests = useRoomStore(
     (state) => state.toggleAutoApproveRequests
@@ -155,26 +152,6 @@ export function RoomInfoPanel({
   useEffect(() => {
     if (!socket) return
 
-    const handleViewerMuted = (payload: { userId: number; muted: boolean }) => {
-      if (!payload || typeof payload.userId !== 'number') return
-      if (payload.muted) {
-        addMutedViewer(payload.userId)
-      } else {
-        removeMutedViewer(payload.userId)
-      }
-      // 自己被禁言/解禁时给出提示
-      const isSelf =
-        currentUserId != null &&
-        String(payload.userId) === String(currentUserId)
-      if (isSelf) {
-        if (payload.muted) {
-          message.warning('您已被房主禁言')
-        } else {
-          message.success('您已被解除禁言')
-        }
-      }
-    }
-
     const handleHostTransferred = (payload: {
       newHostSocketId: string
       oldHostSocketId: string
@@ -213,46 +190,18 @@ export function RoomInfoPanel({
       // 退出房间由全局导航处理
     }
 
-    const handleModeratorsChanged = (payload: {
-      roomId: string
-      moderators: number[]
-    }) => {
-      if (!payload || !Array.isArray(payload.moderators)) return
-      const prev = useRoomStore.getState().moderators
-      setModerators(payload.moderators)
-      // 自己被任命/撤销房管时给出提示
-      if (currentUserId != null) {
-        const wasModerator = prev.includes(Number(currentUserId))
-        const isNowModerator = payload.moderators.includes(
-          Number(currentUserId)
-        )
-        if (!wasModerator && isNowModerator) {
-          message.success('您已被任命为房管')
-        } else if (wasModerator && !isNowModerator) {
-          message.info('您的房管权限已被撤销')
-        }
-      }
-    }
-
-    socket.on('viewer-muted', handleViewerMuted)
     socket.on('host-transferred', handleHostTransferred)
     socket.on('room-settings-updated', handleRoomSettingsUpdated)
     socket.on('viewer-kicked', handleViewerKicked)
-    socket.on('moderators-changed', handleModeratorsChanged)
 
     return () => {
-      socket.off('viewer-muted', handleViewerMuted)
       socket.off('host-transferred', handleHostTransferred)
       socket.off('room-settings-updated', handleRoomSettingsUpdated)
       socket.off('viewer-kicked', handleViewerKicked)
-      socket.off('moderators-changed', handleModeratorsChanged)
     }
   }, [
     socket,
-    addMutedViewer,
-    removeMutedViewer,
     setRoomSettings,
-    setModerators,
     currentUserId,
   ])
 
@@ -370,13 +319,22 @@ export function RoomInfoPanel({
 
   // 房主任命/撤销房管（仅房主可操作）
   const handleToggleModerator = (userId: number, username?: string) => {
-    if (!socket) return
+    if (!socket?.connected) {
+      message.error('未连接到房间')
+      return
+    }
+    const socketId = socket.id
     const isModerator = moderators.includes(userId)
     const event = isModerator ? 'dismiss-moderator' : 'appoint-moderator'
-    socket.emit(
+    socket.timeout(5000).emit(
       event,
       { roomId, userId },
-      (response: { success: boolean; message?: string }) => {
+      (error: Error | null, response?: { success: boolean; message?: string }) => {
+        if (socket.id !== socketId || useRoomStore.getState().roomId !== roomId) return
+        if (error || !response) {
+          message.error('操作失败，请重试')
+          return
+        }
         if (response.success) {
           message.success(
             isModerator

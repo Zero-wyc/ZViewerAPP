@@ -9,7 +9,6 @@ import { executeSeek, getAdaptiveSeekThreshold, shouldSoftSync } from '@/modules
 import type { SeekToResult } from '@/modules/sync-playback/services'
 import { safePlay } from '@/modules/sync-playback/safePlay'
 import { createAckGuard } from '@/modules/sync-playback/ackGuard'
-import { isBilibiliUrlExpired } from '../services/url-expiry'
 import type { CheckStatusAckData } from '../types'
 
 export interface UseServerHeartbeatOptions {
@@ -68,7 +67,6 @@ export function useServerHeartbeat(options: UseServerHeartbeatOptions): void {
         media = identity(); guard.cancel(); catchUp = false
         stall = { time: -1, advancedAt: Date.now(), reloadedAt: 0 }
       }
-      if (!state.bufferMode && isBilibiliUrlExpired(state.sourceUrl)) return
       baseRate = state.playbackRate > 0 ? state.playbackRate : 1
       o.suppressEventsRef.current = true
       try {

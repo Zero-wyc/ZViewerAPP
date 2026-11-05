@@ -23,6 +23,9 @@ import {
 import { resolveBilibiliWithOptions } from '@/modules/bilibili/bilibiliApi'
 import { resolveBilibiliViaCli, buildCliProxyUrl } from '@/modules/bilibili/cliApi'
 import { getActiveCliProxyUrl } from '@/modules/room/watch-together/movie-source-resolver'
+import { getApiUrl } from '@/lib/api'
+import { useAuthStore } from '@/store/authStore'
+import { getCachedBiliVideoSource, setCachedBiliVideoSource } from './biliAudioCache'
 import {
   getMusicVideo,
   subscribeMusicVideo,
@@ -83,6 +86,8 @@ export function useMusicVideoBackground(
   serverDash = false
 ): MusicVideoBackgroundState {
   const dashDisabled = useSystemSettingsStore(s => s.dashDisabled)
+  const server = getApiUrl()
+  const userId = useAuthStore(state => state.user?.id)
   const proxySession = useSyncExternalStore(subscribeEmbeddedProxy, () => `${getEmbeddedProxyStatus().sessionVersion}:${getEmbeddedProxyStatus().ready}:${getEmbeddedProxyStatus().loggedIn}`)
   // 关联变化（弹窗保存/删除）即时感知：外部 store 快照经 useSyncExternalStore
   // 订阅（getMusicVideo 引用稳定，见 musicVideoStore 的解析缓存）
@@ -113,6 +118,12 @@ export function useMusicVideoBackground(
       // 无关联歌曲：直接回退封面背景
       if (!binding) {
         setState({ status: 'idle', source: null, binding: null, via: null })
+        return
+      }
+      const cacheKey = `${server}|${userId}|${proxySession}|${binding.bvid}:${binding.cid}|${cliEnabled}|${qn}|${serverDash}|${dashDisabled}`
+      const cached = getCachedBiliVideoSource<{ source: MusicVideoSource; via: 'cli' | 'server' }>(cacheKey)
+      if (cached) {
+        setState({ status: 'ready', binding, ...cached })
         return
       }
       setState((prev) => ({
@@ -164,7 +175,7 @@ export function useMusicVideoBackground(
               pageUrl,
               qn > 0 ? qn : undefined,
               undefined,
-              { forceDash: true }
+              { forceDash: true, cid: binding.cid }
             )
             resolved = {
               url: r.videoUrl,
@@ -179,7 +190,7 @@ export function useMusicVideoBackground(
               pageUrl,
               DEFAULT_QN,
               undefined,
-              { preferMp4: true }
+              { preferMp4: true, cid: binding.cid }
             )
             resolved = {
               url: r.videoUrl,
@@ -197,6 +208,7 @@ export function useMusicVideoBackground(
           setState({ status: 'error', source: null, binding, via })
           return
         }
+        setCachedBiliVideoSource(cacheKey, { ...resolved, source: resolved, via })
         setState({ status: 'ready', source: resolved, binding, via })
       } catch (err) {
         console.warn('[useMusicVideoBackground] 视频背景解析失败:', err)
@@ -208,7 +220,7 @@ export function useMusicVideoBackground(
     return () => {
       cancelled = true
     }
-  }, [songId, binding, cliEnabled, qn, serverDash, dashDisabled, proxySession])
+  }, [songId, binding, cliEnabled, qn, serverDash, dashDisabled, proxySession, server, userId])
 
   return state
 }

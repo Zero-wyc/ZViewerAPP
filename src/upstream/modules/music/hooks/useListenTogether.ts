@@ -13,6 +13,7 @@ import type { FmSongItem } from '../personal-fm'
 import type { Socket } from 'socket.io-client'
 import { useShallow } from 'zustand/react/shallow'
 import { useRoomStore } from '@/store/roomStore'
+import { useAuthStore } from '@/store/authStore'
 import {
   ROOM_MEDIA_TEARDOWN_EVENT,
   type RoomMediaTeardownDetail,
@@ -24,6 +25,13 @@ import { resolveBilibiliWithOptions } from '@/modules/bilibili/bilibiliApi'
 import { resolveBilibiliViaCli, buildCliProxyUrl } from '@/modules/bilibili/cliApi'
 import { getActiveCliProxyUrl } from '@/modules/room/watch-together/movie-source-resolver'
 import { message } from '@/components/ui/message'
+import { refreshAccessToken } from '@/lib/api'
+import { isAccessTokenExpired } from '@/lib/authTransport'
+import {
+  beginBiliResolve, clearBiliAudioCache, commitBiliResolve,
+  getCachedBiliAudioUrl,
+} from './biliAudioCache'
+import { createMusicStreamRecovery } from './musicStreamRecovery'
 import { compensatePositionSec } from '../utils/syncMath'
 import {
   useMusicStore,
@@ -220,32 +228,16 @@ function isBiliItem(item: MusicQueueItem): boolean {
 /**
  * B站 视频音频地址缓存（`<bvid>:<cid>` → { url, 解析时间 }）。
  * playBiliSong 点击时解析写入；B站 音频不入后端队列，仅本地会话有效。
- * **带 TTL**：B站 直链（代理 URL 背后的 CDN 地址/鉴权参数）通常 1~4 小时
- * 过期，长会话中切回旧歌若命中过期地址会 403 黑屏——超过 2 小时的条目
- * 视为失效并重新解析。
+ * 优先按实际 CDN deadline 判废；读不到 deadline 时使用两小时兜底。
  */
-const BILI_AUDIO_URL_TTL_MS = 2 * 60 * 60 * 1000
-const biliAudioUrlMap = new Map<string, { url: string; at: number }>()
-
 function biliAudioCacheKey(item: MusicQueueItem): string {
-  return `${item.biliBvid}:${item.biliCid ?? 0}|${useMusicSettingsStore.getState().musicVideoCli}|${getEmbeddedProxyStatus().sessionVersion}|${getApiUrl()}`
-}
-
-/** 读取缓存（未过期返回 URL，过期/不存在返回 null 并清除条目） */
-function getCachedBiliAudioUrl(mapKey: string): string | null {
-  const cached = biliAudioUrlMap.get(mapKey)
-  if (!cached) return null
-  if (Date.now() - cached.at > BILI_AUDIO_URL_TTL_MS) {
-    biliAudioUrlMap.delete(mapKey)
-    return null
-  }
-  return cached.url
+  return `${item.biliBvid}:${item.biliCid ?? 0}|${useMusicSettingsStore.getState().musicVideoCli}|${getEmbeddedProxyStatus().sessionVersion}|${getApiUrl()}|${useAuthStore.getState().user?.id ?? ''}`
 }
 
 /** 正在懒解析中的 B站 条目（key → 解析 Promise；同 key 并发请求挂起等待） */
 const biliResolvingPromises = new Map<string, Promise<void>>()
 
-subscribeEmbeddedProxy(() => { biliAudioUrlMap.clear(); biliResolvingPromises.clear() })
+subscribeEmbeddedProxy(() => { clearBiliAudioCache(); biliResolvingPromises.clear() })
 
 /** Video quality is irrelevant to the independent audio representation. */
 const BILI_DEFAULT_QN = 64
@@ -256,13 +248,15 @@ const BILI_DEFAULT_QN = 64
  *（队列/同步场景下 B站 条目可能尚未解析过）。
  */
 async function resolveBiliAudio(
-  item: MusicQueueItem
+  item: MusicQueueItem,
+  opts?: { force?: boolean; noCache?: boolean; variant?: 'mp4' }
 ): Promise<{ playUrl: string; durationMs: number }> {
   if (!item.biliBvid) throw new Error('缺少 B站 视频信息')
   const mapKey = biliAudioCacheKey(item)
-  const cached = getCachedBiliAudioUrl(mapKey)
+  const cached = opts?.force ? null : getCachedBiliAudioUrl(mapKey)
   if (cached) return { playUrl: cached, durationMs: item.durationMs }
   const session = getEmbeddedProxyStatus().sessionVersion
+  const generation = opts?.noCache ? 0 : beginBiliResolve(mapKey)
   const pageUrl = `https://www.bilibili.com/video/${item.biliBvid}`
   const proxyUrl = useMusicSettingsStore.getState().musicVideoCli
     ? getActiveCliProxyUrl()
@@ -286,19 +280,21 @@ async function resolveBiliAudio(
     // Request the independent audio representation even when the visual MV uses
     // MP4. A hidden <audio> playing a muxed video still creates a video pipeline,
     // which mobile Web engines may suspend when the application is backgrounded.
-    const r = await resolveBilibiliAudioWithFallback(options => resolveBilibiliWithOptions(
-      pageUrl,
-      BILI_DEFAULT_QN,
-      undefined,
-      { ...options, cid: item.biliCid }
-    ))
+    const r = opts?.variant === 'mp4'
+      ? await resolveBilibiliWithOptions(pageUrl, BILI_DEFAULT_QN, undefined, { preferMp4: true, audioOnly: true, cid: item.biliCid })
+      : await resolveBilibiliAudioWithFallback(options => resolveBilibiliWithOptions(
+        pageUrl,
+        BILI_DEFAULT_QN,
+        undefined,
+        { ...options, cid: item.biliCid }
+      ))
     // Older servers may still return a muxed MP4; retain that compatibility,
     // but never mistake a video-only DASH representation for an audio stream.
     playUrl = buildProxyUrl(selectBilibiliAudioStream(r))
     if (r.duration) durationMs = Math.round(r.duration * 1000)
   }
   if (session !== getEmbeddedProxyStatus().sessionVersion || mapKey !== biliAudioCacheKey(item)) throw new Error('B 站解析设置或账号已切换，请重试')
-  biliAudioUrlMap.set(mapKey, { url: playUrl, at: Date.now() })
+  if (!opts?.noCache && !commitBiliResolve(mapKey, generation, playUrl)) throw new Error('B站解析结果已被新请求替代')
   return { playUrl, durationMs }
 }
 
@@ -534,6 +530,7 @@ export function useListenTogether({
   // ===== Refs =====
   /** 音频元素（惰性创建，不挂 DOM） */
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const streamRecoveryRef = useRef<ReturnType<typeof createMusicStreamRecovery> | null>(null)
   /** 无缝衔接预载元素；与主元素共用本机输出音量策略。 */
   const preloadRef = useRef<HTMLAudioElement | null>(null)
   /** 换曲后的起始进度（loadedmetadata 时应用） */
@@ -627,7 +624,7 @@ export function useListenTogether({
       // 也全房间广播）；trackSongId 仅为兼容保留（B站 曲目恒为 null）
       trackSongId: parsed && parsed.source === 'ncm' ? parsed.songId : null,
       trackKey: store.currentKey,
-      isPlaying: audio ? !audio.paused : false,
+      isPlaying: audio ? (audio.error || streamRecoveryRef.current?.isRecovering() ? store.isPlaying : !audio.paused) : false,
       positionSec: audio ? audio.currentTime : 0,
       playMode: store.playMode,
       updatedAt: Date.now(),
@@ -892,7 +889,7 @@ export function useListenTogether({
   const [audioHandlers] = useState<{
     timeupdate: (e: Event) => void
     play: () => void
-    pause: () => void
+    pause: (e: Event) => void
     ended: () => void
     loadedmetadata: (e: Event) => void
     error: (e: Event) => void
@@ -900,11 +897,15 @@ export function useListenTogether({
     timeupdate: (e) => {
       const el = e.currentTarget as HTMLAudioElement
       useMusicStore.getState().setPositionSec(el.currentTime)
+      const preload = preloadRef.current
+      if (preload && preload.preload !== 'auto' && Number.isFinite(el.duration) && el.duration - el.currentTime <= 45) preload.preload = 'auto'
+      streamRecoveryRef.current?.check()
     },
     play: () => {
       useMusicStore.getState().setPlaying(true)
     },
-    pause: () => {
+    pause: (e) => {
+      if ((e.currentTarget as HTMLAudioElement).error || streamRecoveryRef.current?.isRecovering()) return
       useMusicStore.getState().setPlaying(false)
     },
     ended: () => {
@@ -933,6 +934,7 @@ export function useListenTogether({
         el.error?.message
       )
       if (audioErrorHandlerRef.current()) return
+      if (streamRecoveryRef.current?.recover(true)) return
       message.error('音频加载失败，请稍后重试或切换其他曲目')
     },
   }))
@@ -1006,9 +1008,9 @@ export function useListenTogether({
       resetAudioElement(existing)
     }
     preloadRef.current = null
-    if (!gaplessPlayback || !target || targetUrl == null) return
+    if (!gaplessPlayback || !target || !targetUrl) return
     const el = new Audio()
-    el.preload = 'auto'
+    el.preload = 'metadata'
     // 预载元素同步主元素的音量/静音（升格接管时仍会再校准一次）
     const currentAudio = audioRef.current
     if (currentAudio) {
@@ -1142,7 +1144,7 @@ export function useListenTogether({
       }
 
       // ===== 原路径（未命中预载） =====
-      if (audio.src === url && audio.readyState >= 1) {
+      if (audio.src === url && audio.readyState >= 1 && !audio.error) {
         // 同一曲目且元数据已就绪（重播/循环）：直接 seek
         try {
           audio.currentTime = positionSec
@@ -1152,7 +1154,7 @@ export function useListenTogether({
       } else {
         // 新曲目或仍在加载：记录起始进度，待 loadedmetadata 后应用
         pendingSeekRef.current = positionSec
-        if (audio.src !== url) {
+        if (audio.src !== url || audio.error) {
           audio.src = url
           audio.load()
         }
@@ -1169,6 +1171,46 @@ export function useListenTogether({
   useEffect(() => {
     loadAndPlaySongRef.current = loadAndPlaySong
   }, [loadAndPlaySong])
+
+  useEffect(() => {
+    const recovery = createMusicStreamRecovery({
+      read: () => {
+        const store = useMusicStore.getState()
+        const key = store.currentKey
+        const item = store.queue.find(item => musicItemKey(item) === key) ??
+          (store.biliItem && musicItemKey(store.biliItem) === key ? store.biliItem : null)
+        const audio = audioRef.current
+        if (!key || !item || !audio || !audio.isConnected || !roomIdRef.current || !socketRef.current?.connected) return null
+        const cacheKey = biliAudioCacheKey(item)
+        return { key, item, audio, cacheKey, playing: store.isPlaying,
+          identity: `${roomIdRef.current}|${key}|${loadRequestRef.current}|${cacheKey}` }
+      },
+      resolve: resolveBiliAudio,
+      refresh: async fromError => {
+        if (fromError || isAccessTokenExpired()) await refreshAccessToken()
+      },
+      play: (state, _url, position, playing, rate) => {
+        loadAndPlaySong(state.item, position, playing)
+        if (audioRef.current) audioRef.current.playbackRate = rate
+        if (isHostRef.current) broadcastSyncState({ positionSec: position, isPlaying: playing })
+      },
+      failed: () => message.error('音频加载失败，请稍后重试或切换其他曲目'),
+    })
+    streamRecoveryRef.current = recovery
+    const check = () => recovery.check()
+    const onVisibility = () => { if (document.visibilityState === 'visible') check() }
+    const onTeardown = () => recovery.dispose()
+    const timer = setInterval(check, 10_000)
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener(ROOM_MEDIA_TEARDOWN_EVENT, onTeardown)
+    return () => {
+      recovery.dispose()
+      if (streamRecoveryRef.current === recovery) streamRecoveryRef.current = null
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener(ROOM_MEDIA_TEARDOWN_EVENT, onTeardown)
+    }
+  }, [currentKey, roomId, socket, loadAndPlaySong, broadcastSyncState])
 
   /**
    * 切歌核心：按播放模式计算目标并加载播放；房主额外广播同步状态。
@@ -1484,9 +1526,12 @@ export function useListenTogether({
     fmPlayRequestRef.current++
     usePersonalFmStore.getState().invalidate()
     const audio = getAudio()
-    const wantPlay = audio.paused
+    const wantPlay = streamRecoveryRef.current?.isRecovering()
+      ? !useMusicStore.getState().isPlaying : audio.paused
+    useMusicStore.getState().setPlaying(wantPlay)
     fmRecovery.setPlaying(wantPlay)
     if (wantPlay) {
+      if (audio.error && streamRecoveryRef.current?.retry()) return
       // 通知栏 play 按钮在后台触发时同样可能被自动播放策略拒绝，走重试
       playAudioWithRetry(audio, () => {
         message.error('播放失败，请重试')
@@ -1692,6 +1737,7 @@ export function useListenTogether({
       }
       switch (action) {
         case 'pause':
+          useMusicStore.getState().setPlaying(false)
           fmRecovery.setPlaying(false)
           pauseAudioWithCancel(audio)
           broadcastSyncState({
@@ -1700,8 +1746,10 @@ export function useListenTogether({
           })
           break
         case 'play':
+          useMusicStore.getState().setPlaying(true)
           fmRecovery.setPlaying(true)
           if (useMusicStore.getState().currentKey == null) return
+          if (audio.error && streamRecoveryRef.current?.retry()) break
           // 房主可能在后台收到观众的播放申请，同样走重试
           playAudioWithRetry(audio)
           broadcastSyncState({
@@ -1747,9 +1795,12 @@ export function useListenTogether({
       const audio = getAudio()
       switch (action) {
         case 'play':
+          useMusicStore.getState().setPlaying(true)
+          if (audio.error && streamRecoveryRef.current?.retry()) break
           playAudioWithRetry(audio)
           break
         case 'pause':
+          useMusicStore.getState().setPlaying(false)
           pauseAudioWithCancel(audio)
           break
         case 'next':
@@ -1864,6 +1915,7 @@ export function useListenTogether({
 
       // 2. 同曲目：播放状态对齐
       if (store.isPlaying !== payload.isPlaying) {
+        store.setPlaying(payload.isPlaying)
         if (payload.isPlaying) {
           // 观众端多处于后台：跟随房主恢复播放被拒时重试，否则会一直停在
           // 暂停态等下一次心跳

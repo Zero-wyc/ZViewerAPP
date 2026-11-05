@@ -1,6 +1,6 @@
 # ZViewer HarmonyOS
 
-This is the ArkTS/ArkWeb host for the shared React client. Current source version is **2.3.6 / versionCode 236**. The host supplies the `zviewerNative` bridge, native connection and media services, microphone permission, orientation, system media and local Bilibili resolution.
+This is the ArkTS/ArkWeb host for the shared React client. Current source version is **2.3.7 / versionCode 237**. The host supplies the `zviewerNative` bridge, native connection and media services, microphone permission, orientation, system media and local Bilibili resolution.
 
 ## Build the web payload
 

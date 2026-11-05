@@ -10,6 +10,8 @@ ZViewer 是一款手机和平板客户端，用来和朋友一起看视频、一
 
 Android / HarmonyOS 当前版本为 **2.3.6（236）**；iOS / iPadOS 当前版本为 **2.3.6（build 40）**，三端安装包集中在同一个 Release。
 
+当前源码另含 Android / HarmonyOS **2.3.7（237）本地验证版**，对齐服务端 v5.1.8 的会话续期、房间成员和播放恢复；尚未公开发布，以上下载仍为 2.3.6。详见 [更新记录](CHANGELOG.md)及双端维护文档。
+
 | 平台 | 版本与下载 | 安装方式与系统要求 |
 | --- | --- | --- |
 | Android | **2.3.6（236）** · [APK](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.3.6/ZViewer-Client-2.3.6-android.apk) | 允许安装该来源的应用后安装。要求 Android 7.0 / API 24 或更高版本、64 位设备；APK 包含 ARM64 / x86_64。 |

@@ -42,7 +42,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
   const { socket, connected, recoveryError } = useSocket()
   const screenShareCapability = useScreenShareCapabilities()
   const location = useLocation()
-  useViewerList()
+  useViewerList(roomId)
   const room = useMobileRoom(socket, roomId, location.state || {})
   const mode = useRoomStore(s => s.mode)
   const name = useRoomStore(s => s.roomName)
