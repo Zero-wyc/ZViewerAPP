@@ -4,31 +4,31 @@
 
 ZViewer 是一款手机和平板客户端，用来和朋友一起看视频、一起听音乐、接收投屏和进行房间语音。使用前需要准备可访问的 [ZViewer 服务端](https://github.com/Zero-wyc/ZViewer)，再在 App 中填写地址并登录。
 
-[下载当前版本](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.3.6) · [发行说明](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.3.6) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [历史更新](CHANGELOG.md)
+[下载当前版本](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.3.7) · [发行说明](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.3.7) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [历史更新](CHANGELOG.md)
 
 ## 下载与安装
 
-Android / HarmonyOS 当前版本为 **2.3.6（236）**；iOS / iPadOS 当前版本为 **2.3.6（build 40）**，三端安装包集中在同一个 Release。
+Android / HarmonyOS 当前版本为 **2.3.7（237）**；iOS / iPadOS 当前版本为 **2.3.6（build 40）**，iOS 安装包保留在 2.3.6 Release。
 
-当前源码另含 Android / HarmonyOS **2.3.7（237）本地验证版**，对齐服务端 v5.1.8 的会话续期、房间成员和播放恢复；尚未公开发布，以上下载仍为 2.3.6。详见 [更新记录](CHANGELOG.md)及双端维护文档。
+2.3.7 对齐服务端 v5.1.8 的会话续期、房间成员和播放恢复，提供 Android APK、HarmonyOS HAP 及构建时记录的 SHA256SUMS。源码使用 GitHub 自动归档，详见 [更新记录](CHANGELOG.md)及双端维护文档。
 
 | 平台 | 版本与下载 | 安装方式与系统要求 |
 | --- | --- | --- |
-| Android | **2.3.6（236）** · [APK](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.3.6/ZViewer-Client-2.3.6-android.apk) | 允许安装该来源的应用后安装。要求 Android 7.0 / API 24 或更高版本、64 位设备；APK 包含 ARM64 / x86_64。 |
-| HarmonyOS | **2.3.6（236）** · [HAP](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.3.6/ZViewer-Client-2.3.6-harmonyos.hap) | 要求 HarmonyOS 6.1 / API 23 或更高版本。通过 DevEco Studio、HDC 等设备支持的开发者安装方式安装，签名及设备授权需匹配；当前不是应用商店安装包。 |
+| Android | **2.3.7（237）** · [APK](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.3.7/ZViewer-Client-2.3.7-android.apk) | 允许安装该来源的应用后安装。要求 Android 7.0 / API 24 或更高版本、64 位设备；APK 包含 ARM64 / x86_64。 |
+| HarmonyOS | **2.3.7（237）** · [HAP](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.3.7/ZViewer-Client-2.3.7-harmonyos.hap) | 要求 HarmonyOS 6.1 / API 23 或更高版本。通过 DevEco Studio、HDC 等设备支持的开发者安装方式安装，签名及设备授权需匹配；当前不是应用商店安装包。 |
 | iOS / iPadOS | **2.3.6（build 40）** · [未签名 IPA](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.3.6/ZViewer-iOS-2.3.6-build40-unsigned.ipa) | 要求 iOS / iPadOS 16.4 或更高版本，支持 iPhone 和 iPad。需使用自己的有效证书及设备授权签名后侧载，不能直接点击 IPA 安装。 |
 
 iOS 安装包已经内置运行所需的 JavaScript，安装后无需 Expo Go、Metro 或连接开发电脑。Android 和 HarmonyOS 也将界面、播放器打包在 App 内，仍需连接服务端获取房间和媒体。
 
 Android / HarmonyOS 沿用既有发布签名；签名一致时可按平台规则覆盖旧正式版。iOS 更新需保持兼容的个人签名身份。卸载前请保存服务器地址和设置，卸载会清除本机数据。
 
-## 2.3.6 更新了什么
+## 2.3.7 更新了什么
 
-- 修复鸿蒙原生 HTTP / 自签名 HTTPS 通道连接 IPv6 地址时遗漏地址族，导致登录或房间实时连接失败的问题。
-- 补充 IPv6 方括号、端口、路径前缀、媒体地址与 WebSocket 映射回归，保持服务器之间的连接隔离。
-- Android / HarmonyOS 完成本地 IPv6 地址的登录、入房与聊天回显回归；HTTPS 自签名证书仍需用户对当前服务器明确授权。
-- iOS 一起听按网易云、B站分组显示播放列表，切歌限制在当前来源；新增清空全部确认，歌单详情“全部播放”完整加载后替换整个房间列表并从首曲播放。
-- iOS 同步一起听导航、扫码登录与音乐设置，修复 OBS 观看票据、媒体库资源刷新和评论分页，加入原生主动屏幕共享测试能力及画质/帧率设置。
+- 支持新版服务端在原 Socket 连接内续期，所有房间模式自动修复成员、房管和禁言状态。
+- B站一起看与一起听按真实地址有效期提前续签，恢复保留进度、倍速及用户暂停意图。
+- 统一一起听备用地址与错误恢复，减少重复解析和提前预载；换曲、断连或离房后隔离旧任务。
+- 修复自己发送的弹幕重复显示、音乐玻璃菜单文字配色及关闭悬停位移时的布局偏移。
+- 双端继续使用中文移动界面，系统要求、发布签名和依赖保持不变；iOS 本轮未修改或构建。
 
 ## 第一次连接
 
