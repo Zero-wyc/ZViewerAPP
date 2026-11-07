@@ -36,17 +36,19 @@ export function usePiikShareStats(
   useEffect(() => {
     if (!active) return
     let cancelled = false
+    let polling = false
     const tick = () => {
       const session = sessionRef.current
-      if (!session) return
+      if (!session || polling) return
+      polling = true
       void session
         .stats()
         .then((list) => {
-          if (!cancelled) setEdges(list)
+          if (!cancelled && sessionRef.current === session) setEdges(list)
         })
         .catch(() => {
-          // 连接正在关闭时 getStats 会抛；保留上一次的值，别把面板清成横线。
-        })
+          if (!cancelled && sessionRef.current === session) setEdges(EMPTY_EDGES)
+        }).finally(() => { polling = false })
     }
     // 首帧排进微任务再取：在 effect 体里同步 setState 会多渲染一轮，
     // 而这里本来就要等 getStats 的异步结果。

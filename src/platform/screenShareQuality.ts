@@ -9,6 +9,15 @@ export const screenShareResolutions = [
 ] as const
 export const screenShareFrameRates = [30, 60, 90] as const
 
+export function lowerScreenShareQuality(options: ScreenShareVideoOptions): ScreenShareVideoOptions | null {
+  if (options.frameRate > 30) return { ...options, frameRate: 30 }
+  const ladder = ['native', '2160p', '1440p', '1080p', '720p'] as const
+  const index = ladder.indexOf(options.resolution)
+  // Native size is unknown here; 720p is the conservative bounded fallback.
+  const resolution = index === 0 ? '720p' : ladder[index + 1]
+  return resolution ? { ...options, resolution } : null
+}
+
 export function screenShareVideoOptions(options: Pick<ScreenShareStart, 'resolution' | 'frameRate'>): ScreenShareVideoOptions {
   return {
     resolution: screenShareResolutions.some(value => value.value === options.resolution) ? options.resolution! : '720p',

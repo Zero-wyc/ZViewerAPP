@@ -56,6 +56,7 @@ public final class ScreenSharePlugin extends Plugin {
     private boolean bound;
     private int width, height;
     private int maxLongSide = 1280, maxShortSide = 720, targetFrameRate = 30;
+    private String videoResolution = "720p", videoReason;
     private volatile long frames;
     private long lastFrameTime;
     private long lastFrames, lastSample;
@@ -79,7 +80,7 @@ public final class ScreenSharePlugin extends Plugin {
         JSObject value = new JSObject();
         value.put("video", true); value.put("microphone", true); value.put("systemAudio", Build.VERSION.SDK_INT >= 29);
         value.put("background", true); value.put("experimental", false);
-        value.put("maxFrameRate", 90);
+        value.put("maxFrameRate", captureFrameRateLimit());
         value.put("reason", "系统音频受播放应用的录制策略限制；房间语音使用麦克风时，共享麦克风会自动让出");
         call.resolve(value);
     }
@@ -93,8 +94,10 @@ public final class ScreenSharePlugin extends Plugin {
             microphoneRequested = call.getBoolean("microphone", false);
             paused = false;
             targetFrameRate = call.getInt("frameRate", 30);
-            targetFrameRate = Math.max(1, Math.min(90, targetFrameRate));
-            switch (call.getString("resolution", "720p")) {
+            targetFrameRate = Math.max(1, Math.min(captureFrameRateLimit(), targetFrameRate));
+            videoResolution = call.getString("resolution", "720p"); videoReason = null;
+            if (call.getInt("frameRate", 30) > targetFrameRate) videoReason = "目标已收窄到当前屏幕刷新率与原生采集上限";
+            switch (videoResolution) {
                 case "native": maxLongSide = maxShortSide = 0; break;
                 case "1080p": maxLongSide = 1920; maxShortSide = 1080; break;
                 case "1440p": maxLongSide = 2560; maxShortSide = 1440; break;
@@ -271,6 +274,33 @@ public final class ScreenSharePlugin extends Plugin {
     private JSObject settings() {
         JSObject value = new JSObject(); value.put("width", width); value.put("height", height); value.put("frameRate", measuredFps);
         value.put("targetFrameRate", targetFrameRate);
+        value.put("frameRateMeasured", lastSample > 0 && lastFrames > 0);
+        JSObject quality = new JSObject(); quality.put("resolution", videoResolution); quality.put("frameRate", targetFrameRate);
+        value.put("videoOptions", quality);
+        value.put("videoReason", videoReason == null ? "原生采集 API 不返回配置帧率，请以采集实测和逐连接编码统计为准" : videoReason);
+        JSArray encoders = new JSArray();
+        for (Map.Entry<String, Peer> entry : peers.entrySet()) {
+            RtpSender sender = entry.getValue().videoSender;
+            if (sender == null) continue;
+            try {
+                RtpParameters parameters = sender.getParameters();
+                if (parameters.encodings.isEmpty()) {
+                    JSObject row = new JSObject(); row.put("connectionId", entry.getKey()); row.put("reason", "编码参数等待协商回读"); encoders.put(row);
+                }
+                for (RtpParameters.Encoding encoding : parameters.encodings) {
+                    JSObject row = new JSObject(); row.put("connectionId", entry.getKey());
+                    if (encoding.maxFramerate != null) row.put("maxFrameRate", encoding.maxFramerate);
+                    else row.put("reason", "系统未返回编码帧率上限");
+                    if (encoding.maxBitrateBps != null) row.put("maxBitrate", encoding.maxBitrateBps);
+                    if (encoding.scaleResolutionDownBy != null) row.put("scaleResolutionDownBy", encoding.scaleResolutionDownBy);
+                    row.put("active", encoding.active); encoders.put(row);
+                    if (parameters.degradationPreference != null) row.put("degradationPreference", parameters.degradationPreference.name().toLowerCase(Locale.ROOT));
+                }
+            } catch (RuntimeException ignored) {
+                JSObject row = new JSObject(); row.put("connectionId", entry.getKey()); row.put("reason", "连接变更中，编码参数暂不可读"); encoders.put(row);
+            }
+        }
+        value.put("encoders", encoders);
         boolean systemAudio = audioCapture != null && audioCapture.hasSystemAudio();
         boolean microphone = audioCapture != null && audioCapture.hasMicrophone();
         value.put("audio", systemAudio || microphone); value.put("systemAudio", systemAudio); value.put("microphone", microphone);
@@ -278,6 +308,25 @@ public final class ScreenSharePlugin extends Plugin {
         value.put("microphoneSuppressed", suppressed);
         if (suppressed) value.put("microphoneSuppressionReason", microphoneAdminMuted ? "admin-muted" : "voice");
         return value;
+    }
+    private int captureFrameRateLimit() {
+        WindowManager manager = (WindowManager) getContext().getSystemService(Context.WINDOW_SERVICE);
+        float refresh = manager.getDefaultDisplay().getRefreshRate();
+        return Float.isFinite(refresh) && refresh >= 1 ? Math.max(1, Math.min(90, Math.round(refresh))) : 60;
+    }
+    private void configureSender(RtpSender sender, int rate) {
+        RtpParameters params = sender.getParameters();
+        if (params.encodings.isEmpty()) return;
+        for (RtpParameters.Encoding encoding : params.encodings) {
+            encoding.maxFramerate = rate; encoding.maxBitrateBps = null; encoding.scaleResolutionDownBy = null;
+        }
+        if (!sender.setParameters(params)) throw new IllegalStateException("Encoder rejected parameters");
+        for (RtpParameters.Encoding encoding : sender.getParameters().encodings) {
+            if ((encoding.maxFramerate != null && encoding.maxFramerate != rate) ||
+                encoding.maxBitrateBps != null || (encoding.scaleResolutionDownBy != null && encoding.scaleResolutionDownBy != 1.0)) {
+                throw new IllegalStateException("Encoder readback differs");
+            }
+        }
     }
     private void sample(String id) {
         worker.postDelayed(() -> {
@@ -392,8 +441,11 @@ public final class ScreenSharePlugin extends Plugin {
     @PluginMethod public void setVideoOptions(PluginCall call) {
         worker.post(() -> {
             if (!current(call) || source == null) { call.reject("共享会话已结束", "cancelled"); return; }
-            targetFrameRate = Math.max(1, Math.min(90, call.getInt("frameRate", targetFrameRate)));
-            switch (call.getString("resolution", "720p")) {
+            final int oldRate = targetFrameRate, oldLong = maxLongSide, oldShort = maxShortSide;
+            final String oldResolution = videoResolution;
+            targetFrameRate = Math.max(1, Math.min(captureFrameRateLimit(), call.getInt("frameRate", targetFrameRate)));
+            videoResolution = call.getString("resolution", "720p");
+            switch (videoResolution) {
                 case "native": maxLongSide = maxShortSide = 0; break;
                 case "1080p": maxLongSide = 1920; maxShortSide = 1080; break;
                 case "1440p": maxLongSide = 2560; maxShortSide = 1440; break;
@@ -404,14 +456,23 @@ public final class ScreenSharePlugin extends Plugin {
                 resizeFromDisplay(session);
                 source.adaptOutputFormat(width, height, targetFrameRate);
                 for (Peer peer : peers.values()) {
-                    RtpParameters params = peer.videoSender.getParameters();
-                    for (RtpParameters.Encoding encoding : params.encodings) {
-                        encoding.maxFramerate = targetFrameRate; encoding.maxBitrateBps = null;
-                    }
-                    if (!peer.videoSender.setParameters(params)) { call.reject("编码器未接受画质设置", "encoder-failed"); return; }
+                    configureSender(peer.videoSender, targetFrameRate);
                 }
+                videoReason = call.getInt("frameRate", targetFrameRate) > targetFrameRate ? "目标已收窄到当前屏幕刷新率与原生采集上限" : null;
                 emitSettings(); call.resolve(settings());
-            } catch (RuntimeException ignored) { call.reject("画质设置未生效", "encoder-failed"); }
+            } catch (RuntimeException ignored) {
+                targetFrameRate = oldRate; maxLongSide = oldLong; maxShortSide = oldShort; videoResolution = oldResolution;
+                try {
+                    resizeFromDisplay(session);
+                    source.adaptOutputFormat(width, height, targetFrameRate);
+                    for (Peer peer : peers.values()) configureSender(peer.videoSender, targetFrameRate);
+                    videoReason = "设备拒绝新画质，已恢复原参数"; emitSettings();
+                } catch (RuntimeException rollbackFailure) {
+                    String id = session;
+                    endFromSystem(id);
+                }
+                call.reject("设备拒绝画质设置，已尝试恢复原参数", "encoder-failed");
+            }
         });
     }
     @PluginMethod public void getConnectionStats(PluginCall call) {
@@ -421,7 +482,7 @@ public final class ScreenSharePlugin extends Plugin {
             peer.pc.getStats(report -> worker.post(() -> {
                 if (currentPeer(call) != peer) { call.reject("媒体连接已失效", "cancelled"); return; }
                 JSArray rows = new JSArray();
-                Set<String> allowed = new HashSet<>(Arrays.asList("kind", "mediaType", "bytesSent", "bytesReceived",
+                Set<String> allowed = new HashSet<>(Arrays.asList("kind", "mediaType", "active", "localId", "bytesSent", "bytesReceived",
                     "framesEncoded", "framesDecoded", "packetsSent", "packetsReceived", "packetsLost", "roundTripTime",
                     "currentRoundTripTime", "jitter", "qualityLimitationReason", "totalEncodeTime", "mediaSourceId",
                     "frames", "frameWidth", "frameHeight", "codecId", "mimeType", "selected", "nominated", "state"));
@@ -483,9 +544,8 @@ public final class ScreenSharePlugin extends Plugin {
             for (RtpTransceiver transceiver : peer.pc.getTransceivers()) {
                 if (transceiver.getMediaType() == MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO) transceiver.setCodecPreferences(codecs);
             }
-            RtpParameters params = sender.getParameters();
-            for (RtpParameters.Encoding encoding : params.encodings) { encoding.maxBitrateBps = null; encoding.maxFramerate = targetFrameRate; }
-            sender.setParameters(params);
+            try { configureSender(sender, targetFrameRate); }
+            catch (RuntimeException ignored) { videoReason = "新连接未接受编码上限，请查看该连接回读"; }
             peer.pc.createOffer(new SdpAdapter(call) {
                 @Override public void onCreateSuccess(SessionDescription description) { worker.post(() -> {
                     if (!id.equals(session) || peers.get(peerId) != peer) { call.reject("会话已结束", "cancelled"); return; }
@@ -506,6 +566,8 @@ public final class ScreenSharePlugin extends Plugin {
             peer.pc.setRemoteDescription(new SdpAdapter(call) { @Override public void onSetSuccess() { worker.post(() -> {
                 if (!Objects.equals(id, session) || peers.get(peerId) != peer) { call.reject("会话已结束", "cancelled"); return; }
                 peer.answered = true;
+                try { configureSender(peer.videoSender, targetFrameRate); }
+                catch (RuntimeException ignored) { videoReason = "新连接未接受编码上限，请查看该连接回读"; }
                 for (IceCandidate candidate : peer.ice) peer.pc.addIceCandidate(candidate);
                 peer.ice.clear(); call.resolve();
             }); } }, new SessionDescription(SessionDescription.Type.ANSWER, description.getString("sdp", "")));

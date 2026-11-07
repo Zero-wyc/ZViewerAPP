@@ -1,5 +1,19 @@
 # HarmonyOS 客户端维护文档
 
+## 2.3.9 / 239 Piik P1 与正式发行（2026-11-07）
+
+本节取代下节历史构建状态中的 P1 待办。用户已确认 2.3.8 核心适配的真机与移动网验收通过；本次 2.3.9 补全画质与恢复控制，源码和 Android / HarmonyOS 签名包一并发布。共享、语音仅支持 v5.2.1 的 Piik v24，不回退旧服。iOS 未修改或构建。
+
+- `src/mobile/screenShareSession.ts` 接入每两秒、逐 connectionId 的编码健康观察。连续两个有效窗口才降一档，每次采集最多一次；高于 30 fps 先降到 30，否则降分辨率。暂停、重连、换流或手动调整重置观察，不重置额度；采集本身出帧少、缺少证据、仅带宽拥塞不降低全房间画质。降档结果或失败原因可见，失败不循环重试。
+- 自定义整数 FPS 范围 1–60，遵守原生 AVScreenCapture 上限；不宣称网页 240 fps 或任意分辨率高刷。`harmonyScreenShare.ts` 的 videoQueue 串行更新原始 capture track 约束、现有帧变换器与每条 sender，包括暂停中 track=null 的 sender。参数拒绝或关键回读不一致时恢复原画质，回滚失败停止采集；观众在更新中离开不会导致整场失败。新连接应答与画质更新串行，沿用当前结果。
+- `ScreenShareSettings` 区分目标 FPS、原始捕获 getSettings 的配置 FPS、frame meter 实测，以及每条编码器的 maxFramerate / maxBitrate / scaleResolutionDownBy / active / degradationPreference。平台没有返回的值显示未知；系统降低采集配置、拒绝更新、尚未协商各有说明。保持原生帧变换与旋转链，不重弹系统录屏选择器，不设固定视频码率上限。
+- `ScreenShareDiagnostics.tsx` 在房主及观众提供折叠面板，展示逐边方向、连接状态、codec / 尺寸、区间 FPS / Mbps、RTT / 丢包及编码耗时。观众兼转发时汇总码率优先入边，避免双算；远端 RTCP 缺失不伪报零丢包，不暴露地址、SDP 或认证票据。
+- Piik 观众在信令重连的宽限期内保留有效媒体边，并按认证回放的 routeAssignment 对齐；缺失/失效连接主动报告重选路。协商 20 秒或持续 disconnected 12 秒后失败上报，会话累计三次媒体失败后停止并提示手动重连；WS 最多 30 次。统计四秒超时且不重叠轮询，关闭/换会话的旧采样不得回写。
+
+验证：416 项客户端回归（Piik 60、维护 171、对齐 100、B站 77、工具栏 8）、TypeScript / Vite 与 Go 原生网络 `test ./mobile` / `vet ./mobile` 通过。本地隔离 v5.2.1 服务端、真实 WebRTC 和 HarmonyOS 实际 JS port（合成 getDisplayMedia）验证 45→24 FPS 的 sender 回读，注入编码拒绝后恢复采集/编码/界面为 24，暂停摘音视频轨、暂停中改为 15 后恢复且观众解码继续；三次观众 WS 断线保持原媒体边并继续出帧。320 / 393 / 760 宽容器无横向溢出，这是 DOM 验证，不是真实移动视口截图。
+
+双端 2.3.9 / 239 正式签名包、签名连续性、版本和包内网页资源检查通过；`build-profile.json5` 的临时签名配置构建后恢复，私钥和账号均不入源码。只通过 `npm run harmony:web` 或同一前端构建后 `scripts/sync-web.mjs` 同步 rawfile/web，禁止手改生成目录。最终安装包仅构建时计算一次 SHA256，发布复用；包目录 `release/client-v2.3.9/`、发行说明 `docs/releases/client-2.3.9.md`。既有真机/移动网结论归属 2.3.8，本次 P1 的实体设备长时弱网与高负载性能未新增实测。NAS 未部署。
+
 ## 2.3.8 / 238 Piik 适配（2026-11-07，本地构建）
 
 按 [执行文档](server-5.2.1-screen-share-adaptation-2026-11-07.md) 实施，服务端合同固定为本地 `130ca3fb` / v5.2.1。用户明确选择不支持旧服务端：2.3.8 的共享和语音只使用 `piik-v24`，LiveKit token、组件安装和旧语音管理请求不再进入运行流程，已删除 `livekit-client` 依赖。一起看、一起听与 OBS 分支保留。版本为 2.3.8 / 238，签名包在 `release/client-v2.3.8/`；本轮仅本地提交，未推送或发布 Release。

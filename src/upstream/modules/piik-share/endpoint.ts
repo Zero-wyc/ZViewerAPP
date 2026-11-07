@@ -41,6 +41,7 @@ export interface ShareEndpointHandlers {
   /** 这条边收到了远端媒体。 */
   onStream: (connectionId: string, stream: MediaStream) => void
   onStateChange: (connectionId: string, state: RTCPeerConnectionState) => void
+  onRouteFailure?: () => void
 }
 
 interface Edge {
@@ -62,6 +63,7 @@ interface Edge {
   stream: MediaStream
   negotiating?: boolean
   needsNegotiation?: boolean
+  recoveryTimer?: ReturnType<typeof setTimeout>
 }
 
 /**
@@ -254,8 +256,8 @@ export class ShareEndpoint {
   async stats(): Promise<ShareEdgeStats[]> {
     const out: ShareEdgeStats[] = []
     for (const [connectionId, edge] of this.edges) {
-      const report = await edge.pc.getStats().catch(() => null)
-      if (!report) continue
+      const report = await this.statsReport(edge)
+      if (!report || !this.current(edge)) continue
       const sample = sampleShareStats(
         this.statBaselines.get(connectionId) ?? null,
         report
@@ -281,6 +283,14 @@ export class ShareEndpoint {
       })
     }
     return out
+  }
+
+  private statsReport(edge: Edge): Promise<RTCStatsReport | null> {
+    return new Promise(resolve => {
+      const timer = setTimeout(() => resolve(null), 4000)
+      edge.pc.getStats().then(report => { clearTimeout(timer); resolve(report) },
+        () => { clearTimeout(timer); resolve(null) })
+    })
   }
 
   /**
@@ -331,6 +341,7 @@ export class ShareEndpoint {
   close(): void {
     this.closed = true
     for (const edge of this.edges.values()) {
+      clearTimeout(edge.recoveryTimer)
       try {
         edge.pc.close()
       } catch {
@@ -376,6 +387,9 @@ export class ShareEndpoint {
     // 我只在「我是父」的时候主动发起。子节点等 offer，由 signal 分支建边。
     if (!update.assignment.childPeerIds.includes(candidate.childPeerId)) return
     if (this.edges.has(candidate.connectionId)) return
+    for (const [id, old] of this.edges) {
+      if (old.offerer && old.remotePeerId === candidate.childPeerId) this.dropEdge(id, old)
+    }
 
     const edge = this.createEdge(
       candidate.connectionId,
@@ -487,6 +501,7 @@ export class ShareEndpoint {
       stream: new MediaStream(),
     }
     this.edges.set(connectionId, edge)
+    if (!offerer) this.armRecovery(edge, 20_000)
 
     // 房主发自己的屏幕；观众当中间节点时发的是上游推过来的流。
     // 服务端不复制媒体，中间节点必须自己把收到的轨挂到下游连接上。
@@ -530,7 +545,8 @@ export class ShareEndpoint {
     pc.onconnectionstatechange = () => {
       if (!this.current(edge)) return
       if (!edge.offerer) this.handlers.onStateChange(connectionId, pc.connectionState)
-      if (pc.connectionState === 'connected') this.settle(edge, connectionId)
+      if (pc.connectionState === 'connected') { clearTimeout(edge.recoveryTimer); edge.recoveryTimer = undefined; this.settle(edge, connectionId) }
+      if (!edge.offerer && pc.connectionState === 'disconnected' && !edge.recoveryTimer) this.armRecovery(edge, 12_000)
       if (pc.connectionState === 'failed') this.fail(edge, connectionId)
     }
     return edge
@@ -658,17 +674,27 @@ export class ShareEndpoint {
       this.handlers.send({
         type: 'route-failed',
         revision: edge.revision || this.revision,
-        phase: 'active',
+        phase: edge.settled ? 'active' : 'prepare',
         connectionId,
       })
     }
     this.dropEdge(connectionId, edge)
+    if (!edge.offerer) this.handlers.onRouteFailure?.()
+  }
+
+  private armRecovery(edge: Edge, delay: number): void {
+    clearTimeout(edge.recoveryTimer)
+    edge.recoveryTimer = setTimeout(() => {
+      edge.recoveryTimer = undefined
+      if (this.current(edge) && edge.pc.connectionState !== 'connected') this.fail(edge, edge.connectionId)
+    }, delay)
   }
 
   /** 本地关掉一条边；不向服务端上报。 */
   private dropEdge(connectionId: string, edge: Edge): void {
     if (this.edges.get(connectionId) !== edge) return
     this.edges.delete(connectionId)
+    clearTimeout(edge.recoveryTimer)
     this.statBaselines.delete(connectionId)
     this.qualityBaselines.delete(connectionId)
     if (this.incoming === edge.stream) this.incoming = null

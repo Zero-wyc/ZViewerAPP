@@ -178,3 +178,25 @@ test('采集本身就不出帧时不算编码器饥饿', () => {
   assert.equal(monitor.observe([idle(2)], TARGET_FPS), false)
   assert.equal(monitor.observe([idle(3)], TARGET_FPS), false)
 })
+
+test('暂停和手动修改只重置观察窗口，不补充降档预算', () => {
+  const monitor = new ShareHealthMonitor()
+  const lagging = (second: number) => sample('edge', second, { framesEncoded: second * 5 })
+  monitor.observe([lagging(0)], 30)
+  monitor.observe([lagging(1)], 30)
+  monitor.resetObservation()
+  assert.equal(monitor.observe([lagging(2)], 30), false)
+  assert.equal(monitor.observe([lagging(3)], 30), false)
+  assert.equal(monitor.observe([lagging(4)], 30), true)
+  monitor.resetObservation()
+  assert.equal(monitor.exhausted, true)
+})
+
+test('旧流的一次不足不能与新流窗口拼成连续不足', () => {
+  const monitor = new ShareHealthMonitor()
+  monitor.observe([sample('edge', 0, { framesEncoded: 0 })], 30)
+  monitor.observe([sample('edge', 1, { framesEncoded: 5 })], 30)
+  assert.equal(monitor.observe([sample('edge', 2, { outboundId: 'new', framesEncoded: 0 })], 30), false)
+  assert.equal(monitor.observe([sample('edge', 3, { outboundId: 'new', framesEncoded: 5 })], 30), false)
+  assert.equal(monitor.observe([sample('edge', 4, { outboundId: 'new', framesEncoded: 10 })], 30), true)
+})

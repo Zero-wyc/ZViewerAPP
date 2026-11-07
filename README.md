@@ -4,33 +4,33 @@
 
 ZViewer 是一款手机和平板客户端，用来和朋友一起看视频、一起听音乐、接收投屏和进行房间语音。使用前需要准备可访问的 [ZViewer 服务端](https://github.com/Zero-wyc/ZViewer)，再在 App 中填写地址并登录。
 
-[下载当前版本](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.3.7) · [发行说明](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.3.7) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [历史更新](CHANGELOG.md)
+[下载当前版本](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.3.9) · [发行说明](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.3.9) · [反馈问题](https://github.com/Zero-wyc/ZViewerAPP/issues) · [历史更新](CHANGELOG.md)
 
 ## 下载与安装
 
-Android / HarmonyOS 当前已发布版本为 **2.3.7（237）**；iOS / iPadOS 当前版本为 **2.3.6（build 40）**，iOS 安装包保留在 2.3.6 Release。
+Android / HarmonyOS 当前已发布版本为 **2.3.9（239）**；iOS / iPadOS 当前版本为 **2.3.6（build 40）**，iOS 安装包保留在 2.3.6 Release。
 
-本地开发版 **2.3.8（238）** 已迁移服务端 v5.2.1 的 Piik 屏幕共享和语音，完成双端签名构建，尚未公开发布或完成实体设备验收。该开发版不支持旧服务端；iOS 的共享/语音尚未迁移至 Piik。具体功能、构建证据与待验边界见双端维护指南和 [执行记录](docs/server-5.2.1-screen-share-adaptation-2026-11-07.md)。
+2.3.9 包含服务端 v5.2.1 的 Piik 屏幕共享和语音适配，补齐自动降档、自定义帧率、参数回读及逐连接诊断。2.3.8 核心适配已由用户确认真机与移动网验收通过；新增 P1 完成本地自检，设备长时弱网与高负载性能未另实测。共享和语音仅支持 Piik v24，不兼容旧服务端；iOS 的共享/语音尚未迁移至 Piik。详见双端维护指南和 [执行记录](docs/server-5.2.1-screen-share-adaptation-2026-11-07.md)。
 
-2.3.7 对齐服务端 v5.1.8 的会话续期、房间成员和播放恢复，提供 Android APK、HarmonyOS HAP 及构建时记录的 SHA256SUMS。源码使用 GitHub 自动归档，详见 [更新记录](CHANGELOG.md)及双端维护文档。
+发行提供 Android APK、HarmonyOS HAP 及构建时记录的 SHA256SUMS。源码使用 GitHub 自动归档，详见 [更新记录](CHANGELOG.md)及双端维护文档。
 
 | 平台 | 版本与下载 | 安装方式与系统要求 |
 | --- | --- | --- |
-| Android | **2.3.7（237）** · [APK](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.3.7/ZViewer-Client-2.3.7-android.apk) | 允许安装该来源的应用后安装。要求 Android 7.0 / API 24 或更高版本、64 位设备；APK 包含 ARM64 / x86_64。 |
-| HarmonyOS | **2.3.7（237）** · [HAP](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.3.7/ZViewer-Client-2.3.7-harmonyos.hap) | 要求 HarmonyOS 6.1 / API 23 或更高版本。通过 DevEco Studio、HDC 等设备支持的开发者安装方式安装，签名及设备授权需匹配；当前不是应用商店安装包。 |
+| Android | **2.3.9（239）** · [APK](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.3.9/ZViewer-Client-2.3.9-android.apk) | 允许安装该来源的应用后安装。要求 Android 7.0 / API 24 或更高版本、64 位设备；APK 包含 ARM64 / x86_64。 |
+| HarmonyOS | **2.3.9（239）** · [HAP](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.3.9/ZViewer-Client-2.3.9-harmonyos.hap) | 要求 HarmonyOS 6.1 / API 23 或更高版本。通过 DevEco Studio、HDC 等设备支持的开发者安装方式安装，签名及设备授权需匹配；当前不是应用商店安装包。 |
 | iOS / iPadOS | **2.3.6（build 40）** · [未签名 IPA](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.3.6/ZViewer-iOS-2.3.6-build40-unsigned.ipa) | 要求 iOS / iPadOS 16.4 或更高版本，支持 iPhone 和 iPad。需使用自己的有效证书及设备授权签名后侧载，不能直接点击 IPA 安装。 |
 
 iOS 安装包已经内置运行所需的 JavaScript，安装后无需 Expo Go、Metro 或连接开发电脑。Android 和 HarmonyOS 也将界面、播放器打包在 App 内，仍需连接服务端获取房间和媒体。
 
 Android / HarmonyOS 沿用既有发布签名；签名一致时可按平台规则覆盖旧正式版。iOS 更新需保持兼容的个人签名身份。卸载前请保存服务器地址和设置，卸载会清除本机数据。
 
-## 2.3.7 更新了什么
+## 2.3.9 更新了什么
 
-- 支持新版服务端在原 Socket 连接内续期，所有房间模式自动修复成员、房管和禁言状态。
-- B站一起看与一起听按真实地址有效期提前续签，恢复保留进度、倍速及用户暂停意图。
-- 统一一起听备用地址与错误恢复，减少重复解析和提前预载；换曲、断连或离房后隔离旧任务。
-- 修复自己发送的弹幕重复显示、音乐玻璃菜单文字配色及关闭悬停位移时的布局偏移。
-- 双端继续使用中文移动界面，系统要求、发布签名和依赖保持不变；iOS 本轮未修改或构建。
+- 屏幕共享与房间语音迁移至 Piik v24，支持观众协助转发、换父及共享和语音独立启停。
+- 自定义帧率、共享中调画质和有界自动降档，区分请求目标、采集实测与编码参数。
+- 房主和观众均可展开连接与画质面板，查看逐连接帧率、码率、丢包和受限原因。
+- 修复信令断线恢复后的画面停滞，参数拒绝时回滚并提示。
+- 不再兼容旧共享/语音服务端，移除 LiveKit 依赖；沿用系统要求和发布签名，iOS 本轮未修改或构建。
 
 ## 第一次连接
 
@@ -40,7 +40,7 @@ Android / HarmonyOS 沿用既有发布签名；签名一致时可按平台规则
 4. 在大厅加入房间，或在拥有权限时创建房间。有密码或入房审批的房间需要按提示完成准入。
 5. 进入房间后选择一起看、一起听或投屏。添加媒体、控制播放和管理成员仍由房主身份与服务端权限决定。
 
-建议使用 HTTPS。局域网 HTTP 也受支持；使用反向代理时，需要让 API 和 Socket.IO 连接正常通过。
+建议使用 HTTPS。局域网 HTTP 也受支持；反向代理需放行 API、Socket.IO 与 Piik `/signal` WebSocket，并保留站点票据。
 
 ## 可以做什么
 

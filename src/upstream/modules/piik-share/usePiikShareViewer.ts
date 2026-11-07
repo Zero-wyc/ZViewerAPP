@@ -70,11 +70,11 @@ export function usePiikShareViewer(
     const session = new PiikShareSession(roomId, {
       onStatus: (status) => {
         if (disposed) return
-        if (status !== 'open') { setConnectionState('disconnected'); setRemoteStream(null) }
+        if (status === 'closed') { setConnectionState('disconnected'); setRemoteStream(null) }
         setState((prev) => ({
           ...prev,
           recovering: status === 'reconnecting',
-          ...(status !== 'open' ? { active: false, hasVideo: false } : {}),
+          ...(status === 'closed' ? { active: false, hasVideo: false } : {}),
         }))
       },
       onStream: (_connectionId, stream) => {
@@ -117,6 +117,10 @@ export function usePiikShareViewer(
       onAuthenticated: () =>
         setState((prev) => ({ ...prev, joined: true, error: null, exhausted: false })),
       onError: (message) => setState((prev) => ({ ...prev, error: message })),
+      onRecoveryExhausted: () => {
+        setRemoteStream(null)
+        setState(prev => ({ ...prev, active: false, hasVideo: false, recovering: false, exhausted: true }))
+      },
     })
     sessionRef.current = session
     void session.start().catch((error: unknown) => {

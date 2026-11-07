@@ -8,6 +8,10 @@ import { requestCredentials, sessionScope } from '@/modules/piik-signal/credenti
 import { DEFAULT_ROUTE_POLICY, SIGNALING_PROTOCOL, type PiikServerMessage, type PiikIceConfig, type PiikRouteUpdate } from '@/modules/piik-signal/protocol'
 import { sampleShareStats, type StatsBaseline } from '@/modules/screen-sharing/core/stats'
 import type { ShareEdgeStats } from '@/modules/screen-sharing/core/edge-stats'
+import { samplePeerQuality, type PeerQualityBaseline } from '@/modules/screen-sharing/core/peer-quality'
+import { ShareHealthMonitor } from '@/modules/piik-share/health'
+import type { ShareHealthSample } from '@/modules/piik-share/endpoint'
+import { lowerScreenShareQuality, screenShareVideoOptions } from '../platform/screenShareQuality'
 
 export interface ScreenShareSocket {
   connected: boolean
@@ -22,6 +26,8 @@ export interface ScreenShareSnapshot {
   directConnections?: number
   settings?: ScreenShareSettings
   edges?: ShareEdgeStats[]
+  videoChanging?: boolean
+  autoDowngrade?: string
   error?: string
 }
 interface Edge {
@@ -31,6 +37,7 @@ interface Edge {
   offered: boolean
   candidates: RTCIceCandidateInit[]
   baseline: StatsBaseline | null
+  qualityBaseline: PeerQualityBaseline | null
 }
 
 /** Native capture stays native; only connection-scoped Piik DTOs cross this boundary. */
@@ -52,6 +59,15 @@ export function createScreenShareSession(options: {
   let iceConfig: PiikIceConfig = { iceServers: [] }, path = '/signal'
   let pendingStart: Promise<void> | undefined, pendingStop: Promise<void> | undefined
   let disposed = false, changing = false, polling = false
+  let videoQueue = Promise.resolve()
+  let qualityEpoch = 0, qualityPending = 0
+  let video = screenShareVideoOptions({})
+  const health = new ShareHealthMonitor()
+  const resetObservation = () => {
+    qualityEpoch++
+    health.resetObservation()
+    for (const edge of peers.values()) { edge.baseline = null; edge.qualityBaseline = null }
+  }
   let unsubscribe: (() => void) | undefined
   let ackTimer: ReturnType<typeof setTimeout> | undefined
   const publish = (patch: Partial<ScreenShareSnapshot>) => {
@@ -72,7 +88,7 @@ export function createScreenShareSession(options: {
     peers.delete(connectionId)
     void native.removePeer(peer.ref).catch(() => {})
   }
-  const clearEdges = () => { for (const id of [...peers.keys()]) drop(id); publish({ edges: [], directConnections: 0 }) }
+  const clearEdges = () => { for (const id of [...peers.keys()]) drop(id); resetObservation(); publish({ edges: [], directConnections: 0 }) }
   const beginBroadcast = () => {
     if (!sessionId || !captured || !client.connected || generation) return
     if (client.authenticated?.role !== 'host') { void stop(); publish({ error: '当前身份不是房主，无法发布屏幕' }); return }
@@ -96,9 +112,10 @@ export function createScreenShareSession(options: {
         !update.assignment.childPeerIds.includes(candidate.childPeerId) || peers.has(candidate.connectionId)) {
       transport(); return
     }
+    for (const [key, old] of peers) if (old.ref.remotePeerId === candidate.childPeerId) drop(key)
     const edge: Edge = {
       ref: { sessionId: id, connectionId: candidate.connectionId, remotePeerId: candidate.childPeerId, revision, iceServers: iceConfig.iceServers },
-      state: 'connecting', offered: false, candidates: [], queue: Promise.resolve(), baseline: null,
+      state: 'connecting', offered: false, candidates: [], queue: Promise.resolve(), baseline: null, qualityBaseline: null,
     }
     peers.set(candidate.connectionId, edge)
     edge.queue = native.createOffer(edge.ref).then(description => {
@@ -218,12 +235,16 @@ export function createScreenShareSession(options: {
     if (disposed || sessionId || pendingStop || !client.connected || !snapshot.ready) return Promise.resolve()
     const id = options.newId()
     sessionId = id
-    publish({ state: 'requesting-permission', error: undefined, settings: undefined })
+    video = screenShareVideoOptions(audio)
+    health.reset()
+    resetObservation()
+    publish({ state: 'requesting-permission', error: undefined, settings: undefined, autoDowngrade: undefined })
     // Authentication is prepared before the click; do not delay the system picker with REST.
     pendingStart = native.start({ sessionId: id, iceServers: iceConfig.iceServers, ...audio }).then(async settings => {
       await listening
       if (!active(id)) { await native.stop({ sessionId: id }); return }
       captured = true
+      video = settings.videoOptions ?? video
       publish({ settings })
       beginBroadcast()
     }).catch(async error => {
@@ -237,6 +258,7 @@ export function createScreenShareSession(options: {
     const id = sessionId
     if (!id || changing || !confirmed) return
     changing = true
+    resetObservation()
     try {
       await (paused ? native.pause({ sessionId: id }) : native.resume({ sessionId: id }))
       if (!active(id)) return
@@ -244,7 +266,7 @@ export function createScreenShareSession(options: {
       client.send({ type: 'set-sharing-paused', shareGeneration: generation, paused })
       publish({ state: paused ? 'paused' : 'sharing' })
     } catch { if (active(id)) { await stop(); publish({ error: '暂停状态未能同步，请重新开始共享' }) } }
-    finally { changing = false }
+    finally { changing = false; resetObservation() }
   }
   const setAudioOptions = async (audio: ScreenShareAudioOptions) => {
     const id = sessionId
@@ -252,23 +274,71 @@ export function createScreenShareSession(options: {
     try { const settings = await native.setAudioOptions({ sessionId: id, ...audio }); if (active(id)) publish({ settings }) }
     catch { if (active(id)) publish({ error: '声音设置失败，请重试' }) }
   }
-  const setVideoOptions = async (video: ScreenShareVideoOptions) => {
+  const setVideoOptions = (next: ScreenShareVideoOptions, automatic = false): Promise<boolean> => {
     const id = sessionId
-    if (!id || !captured) return
-    try { const settings = await native.setVideoOptions({ sessionId: id, ...video }); if (active(id)) publish({ settings }) }
-    catch { if (active(id)) publish({ error: '画质设置未生效，请重试' }) }
+    if (!id || !captured) return Promise.resolve(false)
+    qualityPending++
+    resetObservation()
+    publish({ videoChanging: true, error: undefined })
+    const operation = videoQueue.then(async () => {
+      if (!active(id)) return false
+      try {
+        const settings = await native.setVideoOptions({ sessionId: id, ...next })
+        if (!active(id)) return false
+        video = settings.videoOptions ?? next
+        publish({ settings, ...(automatic ? { autoDowngrade: `连续编码受限，已自动调整为 ${video.resolution === 'native' ? '本机' : video.resolution} / ${video.frameRate} fps（本次共享最多一次）` } : {}) })
+        return true
+      } catch {
+        if (active(id)) publish({ error: automatic ? '自动降档未被设备接受，请手动调整画质；本次不再自动重试' : '设备未接受画质设置，已尝试恢复原参数；请查看画质回读' })
+        return false
+      } finally { resetObservation() }
+    })
+    videoQueue = operation.then(() => {})
+    return operation.finally(() => {
+      qualityPending--
+      if (!disposed) publish({ videoChanging: qualityPending > 0 })
+    })
   }
+  const withStatsTimeout = <T,>(work: Promise<T>): Promise<T | null> => new Promise(resolve => {
+    const timeout = setTimeout(() => resolve(null), 4000)
+    work.then(value => { clearTimeout(timeout); resolve(value) }, () => { clearTimeout(timeout); resolve(null) })
+  })
   const timer = setInterval(() => {
     if (polling || !captured || disposed) return
     polling = true
+    const epoch = qualityEpoch
     void Promise.all([...peers.values()].map(async edge => {
-      const sample = await native.getConnectionStats(edge.ref).catch(() => null)
-      if (!sample || !current(edge)) return null
-      const report = new Map(sample.reports.map((row, index) => [String(row.id ?? index), row])) as unknown as RTCStatsReport
+      const sample = await withStatsTimeout(native.getConnectionStats(edge.ref))
+      if (!sample || !current(edge) || epoch !== qualityEpoch) return null
+      const report = new Map(sample.reports.map((row, index) => [String(row.id ?? index), { ...row, kind: row.kind ?? row.mediaType }])) as unknown as RTCStatsReport
       const result = sampleShareStats(edge.baseline, report)
       edge.baseline = result.baseline
-      return { connectionId: edge.ref.connectionId, direction: 'outbound', state: edge.state, stats: result.stats } as ShareEdgeStats
-    })).then(edges => { if (!disposed) publish({ edges: edges.filter((edge): edge is ShareEdgeStats => !!edge) }) })
+      const quality = samplePeerQuality(edge.qualityBaseline, report)
+      edge.qualityBaseline = quality.baseline
+      const outbound = sample.reports.filter(row => row.type === 'outbound-rtp' && (row.kind ?? row.mediaType) === 'video' && row.active !== false)
+        .sort((a, b) => Number(b.bytesSent ?? 0) - Number(a.bytesSent ?? 0))[0]
+      const source = sample.reports.find(row => row.id === outbound?.mediaSourceId)
+      const encoder: ShareHealthSample | null = outbound && typeof outbound.framesEncoded === 'number' ? {
+        connectionId: edge.ref.connectionId, outboundId: String(outbound.id), sourceId: source ? String(source.id) : null,
+        timestamp: Number(outbound.timestamp ?? sample.timestamp), framesEncoded: outbound.framesEncoded,
+        sourceFrames: typeof source?.frames === 'number' ? source.frames : null,
+        limitation: result.stats.qualityLimitationReason,
+      } : null
+      return { edge, view: { connectionId: edge.ref.connectionId, direction: 'outbound', state: edge.state,
+        stats: result.stats, quality: quality.quality } as ShareEdgeStats, encoder }
+    })).then(rows => {
+      if (disposed || epoch !== qualityEpoch) return
+      const live = rows.filter(row => row && current(row.edge))
+      publish({ edges: live.map(row => row!.view) })
+      if (desiredPaused || changing || qualityPending || !confirmed) { health.resetObservation(); return }
+      // Without source counters a static desktop cannot prove encoder starvation.
+      const samples = live.flatMap(row => row!.encoder && row!.edge.state === 'connected' &&
+        row!.encoder.limitation !== 'bandwidth' &&
+        (row!.encoder.sourceFrames !== null || row!.encoder.limitation === 'cpu') ? [row!.encoder] : [])
+      const lower = lowerScreenShareQuality(video)
+      if (lower && health.observe(samples, video.frameRate)) void setVideoOptions(lower, true)
+    })
+      .catch(() => { health.resetObservation() })
       .finally(() => { polling = false })
   }, 2000)
   const disconnected = () => { void stop() }

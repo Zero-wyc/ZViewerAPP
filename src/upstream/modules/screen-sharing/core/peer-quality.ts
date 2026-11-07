@@ -198,7 +198,7 @@ export function samplePeerQuality(
   // 分母用「发送数」而不是「接收数」——发送数在本机是准的，接收数要靠对端报。
   const lost = delta(baseline.packetsLost, previous.packetsLost)
   const sent = delta(baseline.packetsSent, previous.packetsSent)
-  if (lost !== null && sent !== null && sent + lost > 0) {
+  if (remote && previous.remoteId !== null && lost !== null && sent !== null && sent + lost > 0) {
     quality.packetLossRate = lost / (sent + lost)
   }
 

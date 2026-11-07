@@ -31,6 +31,7 @@ import type { P2PStatus } from '@/modules/p2p/types'
 import { usePiikShareViewer } from '../../piik-share/usePiikShareViewer'
 import { RemoteVideoPlayer } from './RemoteVideoPlayer'
 import { WatchControlsBar } from './WatchControlsBar'
+import { ScreenShareDiagnostics } from '../../../../mobile/ScreenShareDiagnostics'
 
 /** 观众端 P2P 状态快照 */
 export interface ViewerP2PStateSnapshot {
@@ -133,6 +134,7 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
     connectionState,
     retry: createPc,
     state: shareState,
+    edges,
   } = usePiikShareViewer({
     roomId,
     videoRef,
@@ -337,6 +339,7 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
       }
     >
       <PlayerGestureNotice text={gestureNotice} />
+      {!inlinePiP && !isPictureInPicture && <ScreenShareDiagnostics edges={edges} overlay />}
       <RemoteVideoPlayer
         videoRef={videoRef}
         setVideoRef={setVideoRef}

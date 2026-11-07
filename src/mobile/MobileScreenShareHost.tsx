@@ -7,8 +7,9 @@ import { useScreenShareCapabilities } from './useScreenShareCapabilities'
 import { createScreenShareSession } from './screenShareSession'
 import type { ScreenShareSnapshot } from './screenShareSession'
 import { ROOM_MEDIA_TEARDOWN_EVENT } from '@/lib/mediaTeardown'
-import { screenShareFrameRates, screenShareResolutions } from '../platform/screenShareQuality'
+import { screenShareResolutions } from '../platform/screenShareQuality'
 import type { ScreenShareVideoOptions } from '../platform/contracts'
+import { ScreenShareDiagnostics } from './ScreenShareDiagnostics'
 
 const labels = { idle: '准备就绪', 'requesting-permission': '等待系统授权', starting: '已采集，等待开播确认', sharing: '正在共享', paused: '共享已暂停', stopping: '正在停止', stopped: '共享已结束', error: '共享未成功' }
 const transportLabels = { idle: '尚未连接', 'waiting-viewers': '等待观众', connecting: '正在连接观众', connected: '观众已连接', disconnected: '网络已断开' }
@@ -19,6 +20,12 @@ export default function MobileScreenShareHost({ socket, roomId, streamPush, room
   const [controller, setController] = useState<ReturnType<typeof createScreenShareSession>>()
   const [audioOptions, setAudioOptions] = useState({ systemAudio: true, microphone: false })
   const [videoOptions, setVideoOptions] = useState<ScreenShareVideoOptions>({ resolution: '720p', frameRate: 30 })
+  const [frameRateInput, setFrameRateInput] = useState('30')
+  useEffect(() => {
+    if (snapshot.videoChanging || !snapshot.settings?.videoOptions) return
+    setVideoOptions(snapshot.settings.videoOptions)
+    setFrameRateInput(String(snapshot.settings.videoOptions.frameRate))
+  }, [snapshot.settings?.videoOptions, snapshot.videoChanging])
   useEffect(() => {
     setController(undefined)
     setSnapshot({ state: 'idle', transport: 'idle', viewers: 0 })
@@ -38,6 +45,20 @@ export default function MobileScreenShareHost({ socket, roomId, streamPush, room
   }, [socket, roomId, streamPush])
   const running = snapshot.state === 'sharing' || snapshot.state === 'paused'
   const busy = ['requesting-permission', 'starting', 'stopping'].includes(snapshot.state)
+  const videoBusy = busy || snapshot.videoChanging
+  const maxFrameRate = capability?.maxFrameRate ?? 30
+  const changeVideo = (next: ScreenShareVideoOptions) => {
+    if (running) void controller?.setVideoOptions(next)
+    else { setVideoOptions(next); setFrameRateInput(String(next.frameRate)) }
+  }
+  const commitFrameRate = (input: HTMLInputElement) => {
+    if (!input.checkValidity() || !Number.isInteger(Number(input.value))) {
+      setFrameRateInput(String(videoOptions.frameRate))
+      return
+    }
+    const frameRate = Number(input.value)
+    if (frameRate !== videoOptions.frameRate) changeVideo({ ...videoOptions, frameRate })
+  }
   const selectedAudio = { systemAudio: !!capability?.systemAudio && audioOptions.systemAudio, microphone: !!capability?.microphone && audioOptions.microphone }
   const changeAudio = (key: 'systemAudio' | 'microphone', enabled: boolean) => {
     const next = { ...selectedAudio, [key]: enabled }
@@ -60,11 +81,12 @@ export default function MobileScreenShareHost({ socket, roomId, streamPush, room
       {!!snapshot.settings?.width && !!snapshot.settings?.height && <p className="mobile-screen-share-quality">实际采集 {snapshot.settings.width} × {snapshot.settings.height}{snapshot.settings.frameRateMeasured || snapshot.settings.frameRate > 0 ? <> · 采集实测 {snapshot.settings.frameRate} fps</> : <> · 尚无实测帧率</>}</p>}
       {capability && !capability.video && <p className="mobile-screen-share-message" role="status">{capability.reason}</p>}
       <div className="mobile-screen-share-video-options">
-        <label>分辨率<select aria-label="共享分辨率" value={videoOptions.resolution} disabled={busy || !capability?.video} onChange={event => { const next = { ...videoOptions, resolution: event.target.value as ScreenShareVideoOptions['resolution'] }; setVideoOptions(next); if (running) void controller?.setVideoOptions(next) }}>{screenShareResolutions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-        <label>目标帧率<select aria-label="共享帧率" value={videoOptions.frameRate} disabled={busy || !capability?.video} onChange={event => { const next = { ...videoOptions, frameRate: Number(event.target.value) }; setVideoOptions(next); if (running) void controller?.setVideoOptions(next) }}>{screenShareFrameRates.map(rate => <option key={rate} value={rate} disabled={!!capability?.maxFrameRate && rate > capability.maxFrameRate}>{rate} fps{capability?.maxFrameRate && rate > capability.maxFrameRate ? '（系统不支持）' : ''}</option>)}</select></label>
+        <label>分辨率<select aria-label="共享分辨率" value={videoOptions.resolution} disabled={videoBusy || !capability?.video} onChange={event => changeVideo({ ...videoOptions, resolution: event.target.value as ScreenShareVideoOptions['resolution'] })}>{screenShareResolutions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+        <label>目标帧率（fps）<input type="number" inputMode="numeric" aria-label="共享帧率" min={1} max={maxFrameRate} step={1} value={frameRateInput} disabled={videoBusy || !capability?.video} onChange={event => setFrameRateInput(event.target.value)} onBlur={event => commitFrameRate(event.currentTarget)} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }} /></label>
       </div>
       <p className="mobile-screen-share-quality-hint">按屏幕比例缩放，不放大原始画面。实际画质和帧率受设备性能、屏幕刷新率与网络影响。</p>
       {capability?.maxFrameRate && <p className="mobile-screen-share-quality-hint">当前设备采集上限 {capability.maxFrameRate} fps；实际帧率以采集实测为准。</p>}
+      {snapshot.autoDowngrade && <p className="mobile-screen-share-quality-hint" role="status">{snapshot.autoDowngrade}</p>}
       <div className="mobile-screen-share-options">
         <label className="mobile-screen-share-audio-option" data-unavailable={!capability?.systemAudio}>
           <Volume2 size={20} aria-hidden="true" /><span><strong>系统音频</strong><small>{systemAudioHint}</small></span>
@@ -75,6 +97,7 @@ export default function MobileScreenShareHost({ socket, roomId, streamPush, room
           <input type="checkbox" role="switch" aria-label="共享麦克风" checked={selectedAudio.microphone} disabled={!capability?.microphone || busy} onChange={event => changeAudio('microphone', event.target.checked)} />
         </label>
       </div>
+      {running && <ScreenShareDiagnostics edges={snapshot.edges ?? []} settings={snapshot.settings} />}
       {snapshot.state === 'paused' && <p className="mobile-screen-share-message">画面和声音已暂停发送。停止共享后，系统采集才会结束。</p>}
       {!running && <p className="mobile-screen-share-privacy"><ShieldCheck size={16} aria-hidden="true" /><span>开始后需在系统弹窗中授权，请注意隐藏屏幕上的个人信息。</span></p>}
       <div className="mobile-screen-share-actions">

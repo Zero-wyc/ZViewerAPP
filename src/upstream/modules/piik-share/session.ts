@@ -51,6 +51,7 @@ export interface ShareSessionHandlers {
   onRoomClosed?: (reason: string) => void
   /** 认证成功，拿到 peerId。 */
   onAuthenticated?: (peerId: string) => void
+  onRecoveryExhausted?: () => void
 }
 
 /**
@@ -100,6 +101,8 @@ export class PiikShareSession {
   private started = false
   private readonly scope = sessionScope()
   private signalPath = '/signal'
+  private mediaFailures = 0
+  private reconcileAfterReconnect = false
 
   get receivingPeer(): RTCPeerConnection | null {
     return this.endpoint?.receivingPeer ?? null
@@ -111,12 +114,19 @@ export class PiikShareSession {
       send: (message) => this.client?.send(message) ?? false,
       onStream: this.handlers.onStream,
       onStateChange: this.handlers.onStateChange,
+      onRouteFailure: () => {
+        if (++this.mediaFailures < 3) return
+        this.stop()
+        this.handlers.onError('媒体连接恢复已达 3 次上限，请检查网络后手动重连')
+        this.handlers.onRecoveryExhausted?.()
+      },
     })
   }
 
   private status(status: SignalStatus): void {
     if (!this.started) return
-    if (status === 'reconnecting' || status === 'closed') {
+    if (status === 'reconnecting') this.reconcileAfterReconnect = true
+    if (status === 'closed' || (status === 'reconnecting' && this.role === 'host')) {
       this.shareGeneration = ''
       this.resetEndpoint()
     }
@@ -307,6 +317,9 @@ export class PiikShareSession {
           role?: 'host' | 'viewer'
           hostOnline?: boolean
           hostPaused?: boolean
+          routeRevision?: number
+          routeAssignment?: import('../piik-signal/protocol.ts').PiikRouteAssignment
+          connectionId?: string | null
         }
         this.role = authenticated.role ?? this.role
         if (authenticated.iceConfig) {
@@ -315,6 +328,18 @@ export class PiikShareSession {
         }
         this.handlers.onAuthenticated?.(String(authenticated.peerId ?? ''))
         this.handlers.onHostStatus?.({ online: !!authenticated.hostOnline, paused: !!authenticated.hostPaused })
+        if (authenticated.routeAssignment && typeof authenticated.routeRevision === 'number') {
+          this.endpoint?.handle({ type: 'route-update', phase: 'active',
+            revision: authenticated.routeRevision, assignment: authenticated.routeAssignment })
+        }
+        if (this.role === 'viewer' && this.reconcileAfterReconnect && authenticated.connectionId) {
+          const state = this.endpoint?.stateOf(authenticated.connectionId)
+          if (!state || state === 'closed' || state === 'failed') {
+            this.client?.send({ type: 'route-failed', phase: 'active',
+              revision: authenticated.routeRevision ?? 0, connectionId: authenticated.connectionId })
+          }
+        }
+        this.reconcileAfterReconnect = false
         if (this.role === 'host') {
           // 复用连接时可能已经补过一次开播，别开第二个代际。
           if (!this.shareGeneration) this.startSharing()

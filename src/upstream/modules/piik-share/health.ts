@@ -10,7 +10,7 @@
  *  2. **边消失就清基线**。观众离开、换父之后边会被关掉；留着它的基线，
  *     下一个复用的 connectionId 会拿旧计数器做差，一上来就判成饥饿。
  *  3. **换流不算饥饿**。`replaceTrack` 换源后 `framesEncoded` 归零，这一窗口
- *     没有意义，既不能算不达标，也不该清零已有的计数（那会让降档永远等不到）。
+ *     没有意义；新流必须重新积累连续不足的证据。
  *
  * 与旧实现的差别只有降档动作：旧链路走 `updateProfile`（重下发采集约束），
  * 这里走 setParameters 的 `scaleResolutionDownBy`——共享屏幕重采集会重新弹
@@ -70,7 +70,8 @@ export class ShareHealthMonitor {
 
       if (!baseline) continue
       if (!comparable(baseline, sample)) {
-        // 换流 / 计数器归零：这一窗口没有信息量，保留原计数以便接上。
+        // A new source must collect consecutive evidence of its own.
+        this.starved.delete(sample.connectionId)
         continue
       }
       const sustains = encoderSustainsTarget(baseline, sample, targetFrameRate)
@@ -99,9 +100,14 @@ export class ShareHealthMonitor {
 
   /** 换一档之后重新观察（降档本身会改目标帧率）。 */
   reset(): void {
+    this.resetObservation()
+    this.downgrades = 0
+  }
+
+  /** Pause, reconnect and manual quality updates must not replenish the capture's budget. */
+  resetObservation(): void {
     this.baselines.clear()
     this.starved.clear()
-    this.downgrades = 0
   }
 }
 
@@ -128,6 +134,10 @@ function comparable(
   current: ShareHealthSample
 ): boolean {
   if (current.timestamp <= baseline.timestamp) return false
+  if (baseline.framesEncoded !== null && current.framesEncoded !== null &&
+      current.framesEncoded < baseline.framesEncoded) return false
+  if (baseline.sourceFrames !== null && current.sourceFrames !== null &&
+      current.sourceFrames < baseline.sourceFrames) return false
   // 部分浏览器不给 mediaSourceId，null 不作数，有值时才比对。
   if (
     baseline.outboundId !== null &&

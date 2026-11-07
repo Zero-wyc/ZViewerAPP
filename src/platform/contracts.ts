@@ -77,11 +77,23 @@ export interface ScreenShareSettings {
   targetFrameRate?: number
   configuredFrameRate?: number
   frameRateMeasured?: boolean
+  videoOptions?: ScreenShareVideoOptions
+  videoReason?: string
+  encoders?: ScreenShareEncoderSettings[]
   audio: boolean
   systemAudio?: boolean
   microphone?: boolean
   microphoneSuppressed?: boolean
   microphoneSuppressionReason?: 'voice' | 'admin-muted'
+}
+export interface ScreenShareEncoderSettings {
+  connectionId: string
+  maxFrameRate?: number
+  maxBitrate?: number
+  scaleResolutionDownBy?: number
+  active?: boolean
+  degradationPreference?: string
+  reason?: string
 }
 export interface ScreenShareEvent extends ScreenShareSession {
   type: 'state' | 'capture-ended' | 'error' | 'ice' | 'peer-state' | 'stats'

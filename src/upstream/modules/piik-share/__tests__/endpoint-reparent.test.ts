@@ -296,7 +296,51 @@ test('作为父节点时，下游候选会主动 offer 并挂上游流转发', a
       ),
       '父节点要发 offer'
     )
+    endpoint.handle(prepare(6, 'viewer-4', 'conn-replacement', { kind: 'peer', peerId: 'host' }, ['viewer-4']))
+    await flush()
+    assert.equal(downPc.closed, true, '同一个子节点的新连接必须释放旧发送槽位')
+    assert.equal(endpoint.connectionIds().includes('conn-down'), false)
+    endpoint.close()
   } finally {
     restore()
   }
+})
+
+test('协商超过 20 秒只上报一次失败，关闭后不再重试', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const restore = installFake()
+  const { endpoint, sent } = harness()
+  try {
+    endpoint.handle(prepare(2, 'me', 'slow', { kind: 'peer', peerId: 'host' }))
+    endpoint.handle(offer('slow', 'host') as never)
+    for (let i = 0; i < 20; i++) await Promise.resolve()
+    t.mock.timers.tick(19_999)
+    assert.equal(sent.filter(message => message.type === 'route-failed').length, 0)
+    t.mock.timers.tick(1)
+    assert.equal(sent.filter(message => message.type === 'route-failed').length, 1)
+    assert.equal(endpoint.connectionIds().length, 0)
+    t.mock.timers.tick(300_000)
+    assert.equal(sent.filter(message => message.type === 'route-failed').length, 1)
+  } finally { endpoint.close(); restore() }
+})
+
+test('短暂断连恢复取消计时，持续断连 12 秒后交给服务端重新选路', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const restore = installFake()
+  const { endpoint, sent } = harness()
+  try {
+    endpoint.handle(prepare(2, 'me', 'weak', { kind: 'peer', peerId: 'host' }))
+    endpoint.handle(offer('weak', 'host') as never)
+    for (let i = 0; i < 20; i++) await Promise.resolve()
+    const pc = FakePeerConnection.instances[0]
+    pc.reach('connected')
+    pc.reach('disconnected')
+    t.mock.timers.tick(5000)
+    pc.reach('connected')
+    t.mock.timers.tick(12_000)
+    assert.equal(sent.filter(message => message.type === 'route-failed').length, 0)
+    pc.reach('disconnected')
+    t.mock.timers.tick(12_000)
+    assert.equal(sent.filter(message => message.type === 'route-failed').length, 1)
+  } finally { endpoint.close(); restore() }
 })

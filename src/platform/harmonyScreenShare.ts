@@ -1,4 +1,4 @@
-import type { ScreenShareAudioOptions, ScreenShareEvent, ScreenShareNativePort, ScreenShareSettings, ScreenSharePeer } from './contracts'
+import type { ScreenShareAudioOptions, ScreenShareEvent, ScreenShareNativePort, ScreenShareSettings, ScreenSharePeer, ScreenShareVideoOptions, ScreenShareEncoderSettings } from './contracts'
 import { getHarmonyBridge } from './runtime'
 import { microphoneCapture } from './microphoneCapture'
 import type { MicrophoneLease } from './microphoneCapture'
@@ -28,6 +28,9 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
   let frameMeter: ReturnType<typeof createScreenShareFrameMeter>
   let stopResize: (() => void) | undefined
   let audioQueue = Promise.resolve()
+  let videoQueue = Promise.resolve()
+  let videoOptions: ScreenShareVideoOptions = { resolution: '720p', frameRate: 30 }
+  let videoReason: string | undefined
   let transform: ReturnType<typeof createScreenShareVideoTransform> | undefined
   const peers = new Map<string, { pc: RTCPeerConnection; ice: RTCIceCandidateInit[]; ref: ScreenSharePeer }>()
   const peerFor = (ref: ScreenSharePeer) => {
@@ -41,16 +44,50 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
     }
   }
   const emit = (event: ScreenShareEvent) => window.dispatchEvent(new CustomEvent('zviewer:screen-share', { detail: event }))
+  const videoSenders = (pc: RTCPeerConnection) => pc.getTransceivers()
+    .filter(value => value.receiver.track.kind === 'video').map(value => value.sender)
+  const configureSender = async (sender: RTCRtpSender, frameRate: number) => {
+    const params = sender.getParameters()
+    if (!params.encodings?.length) return
+    params.encodings.forEach(encoding => { encoding.maxFramerate = frameRate; delete encoding.maxBitrate; delete encoding.scaleResolutionDownBy })
+    await sender.setParameters(params)
+    const accepted = sender.getParameters().encodings
+    if (accepted?.some(value => (value.maxFramerate !== undefined && value.maxFramerate !== frameRate) ||
+        value.maxBitrate !== undefined || (value.scaleResolutionDownBy !== undefined && value.scaleResolutionDownBy !== 1))) {
+      throw new Error('编码器回读与请求不一致')
+    }
+  }
+  const configurePeer = async (peer: { pc: RTCPeerConnection; ref: ScreenSharePeer }, frameRate: number) => {
+    if (peerFor(peer.ref)?.pc !== peer.pc) return
+    try {
+      for (const sender of videoSenders(peer.pc)) await configureSender(sender, frameRate)
+    } catch (error) {
+      if (peerFor(peer.ref)?.pc === peer.pc) throw error
+    }
+  }
+  const encoderSettings = (): ScreenShareEncoderSettings[] => [...peers.entries()].flatMap(([connectionId, peer]) => videoSenders(peer.pc).flatMap((sender): ScreenShareEncoderSettings[] => {
+    try {
+      const parameters = sender.getParameters(), values = parameters.encodings
+      if (!values?.length) return [{ connectionId, reason: '编码参数等待协商回读' }]
+      return values.map(value => ({ connectionId, maxFrameRate: value.maxFramerate, maxBitrate: value.maxBitrate,
+        scaleResolutionDownBy: value.scaleResolutionDownBy, active: value.active,
+        degradationPreference: parameters.degradationPreference,
+        ...(!Number.isFinite(value.maxFramerate) ? { reason: '系统未返回编码帧率上限' } : {}) }))
+    } catch { return [{ connectionId, reason: '连接变更中，编码参数暂不可读' }] }
+  }))
   const settings = (): ScreenShareSettings => {
     const value = sendingVideo?.getSettings()
     const measuredRate = frameMeter?.sample()
     const measuredSize = frameMeter?.dimensions()
-    const configuredFrameRate = Number.isFinite(value?.frameRate) ? Math.max(0, value!.frameRate!) : 0
+    const captureRate = stream?.getVideoTracks()[0]?.getSettings().frameRate
+    const configuredFrameRate = Number.isFinite(captureRate) ? Math.max(0, captureRate!) : 0
     // getSettings.frameRate is the configured track rate, not a measured frame rate.
     const systemAudio = !paused && audioOptions.systemAudio && !!stream?.getAudioTracks().some(t => t.readyState === 'live')
     const microphoneSuppressed = audioOptions.microphone && !microphoneCapture.getSnapshot().shareMicrophoneAllowed
     const mic = !paused && audioOptions.microphone && !!microphone?.stream.getAudioTracks().some(t => t.readyState === 'live') && !microphoneSuppressed
-    return { width: measuredSize?.width || value?.width || 0, height: measuredSize?.height || value?.height || 0, frameRate: measuredRate ?? 0, frameRateMeasured: measuredRate !== undefined, targetFrameRate, configuredFrameRate, audio: systemAudio || mic, systemAudio, microphone: mic, microphoneSuppressed,
+    return { width: measuredSize?.width || value?.width || 0, height: measuredSize?.height || value?.height || 0, frameRate: measuredRate ?? 0, frameRateMeasured: measuredRate !== undefined, targetFrameRate, configuredFrameRate,
+      videoOptions, videoReason: videoReason ?? (configuredFrameRate && configuredFrameRate < targetFrameRate ? '系统采集配置低于目标帧率' : !configuredFrameRate ? '系统未返回采集配置帧率，实测值另行统计' : undefined),
+      encoders: encoderSettings(), audio: systemAudio || mic, systemAudio, microphone: mic, microphoneSuppressed,
       ...(microphoneSuppressed ? { microphoneSuppressionReason: microphoneCapture.getSnapshot().adminMuted ? 'admin-muted' as const : 'voice' as const } : {}) }
   }
   const applyAudio = () => {
@@ -148,6 +185,8 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
         const quality = screenShareVideoOptions(options)
         // The system AVScreenCapture API documents 60 FPS as its maximum. ArkWeb may deliver less.
         if (quality.frameRate > 60) quality.frameRate = 60
+        videoOptions = quality
+        videoReason = options.frameRate && options.frameRate > 60 ? '系统采集上限为 60 fps，已收窄目标' : undefined
         targetFrameRate = quality.frameRate
         const display = typeof screen === 'undefined' ? { width: 0, height: 0 } : screen
         const ratio = typeof devicePixelRatio === 'number' && devicePixelRatio > 0 ? devicePixelRatio : 1
@@ -223,22 +262,49 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
     },
     stop,
     setAudioOptions,
-    async setVideoOptions(options) {
-      check(options.sessionId)
-      const quality = screenShareVideoOptions(options)
-      quality.frameRate = Math.min(60, quality.frameRate)
-      await stream!.getVideoTracks()[0].applyConstraints({ frameRate: { ideal: quality.frameRate, max: quality.frameRate } })
-      check(options.sessionId)
-      targetFrameRate = quality.frameRate
-      transform?.setQuality(quality)
-      for (const peer of peers.values()) for (const sender of peer.pc.getSenders()) {
-        if (sender.track?.kind !== 'video') continue
-        const params = sender.getParameters()
-        if (!params.encodings?.length) continue
-        params.encodings.forEach(encoding => { encoding.maxFramerate = quality.frameRate; delete encoding.maxBitrate })
-        await sender.setParameters(params)
-      }
-      return settings()
+    setVideoOptions(options) {
+      const operation = videoQueue.then(async () => {
+        const id = options.sessionId
+        check(id)
+        const previous = videoOptions
+        const quality = screenShareVideoOptions(options)
+        quality.frameRate = Math.min(60, quality.frameRate)
+        try {
+          await stream!.getVideoTracks()[0].applyConstraints({ frameRate: { ideal: quality.frameRate, max: quality.frameRate } })
+          check(id)
+          transform?.setQuality(quality)
+          for (const peer of peers.values()) {
+            await configurePeer(peer, quality.frameRate)
+            check(id)
+          }
+          targetFrameRate = quality.frameRate
+          videoOptions = quality
+          videoReason = options.frameRate > 60 ? '系统采集上限为 60 fps，已收窄目标' : undefined
+          return settings()
+        } catch (error) {
+          if (id === sessionId) {
+            try {
+              await stream!.getVideoTracks()[0].applyConstraints({ frameRate: { ideal: previous.frameRate, max: previous.frameRate } })
+              check(id)
+              transform?.setQuality(previous)
+              for (const peer of peers.values()) {
+                await configurePeer(peer, previous.frameRate)
+                check(id)
+              }
+              videoReason = '设备拒绝新画质，已恢复原参数'
+              emit({ sessionId: id, type: 'stats', settings: settings() })
+            } catch {
+              if (id === sessionId) {
+                await stop({ sessionId: id })
+                emit({ sessionId: id, type: 'error', code: 'encoder-failed' })
+              }
+            }
+          }
+          throw error
+        }
+      })
+      videoQueue = operation.then(() => {}, () => {})
+      return operation
     },
     async getConnectionStats(ref) {
       const peer = peerFor(ref)
@@ -246,7 +312,7 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
       const stats = await peer.pc.getStats()
       if (peerFor(ref) !== peer) throw new Error('媒体连接已失效')
       const reports: Record<string, string | number | boolean>[] = []
-      const fields = ['id', 'type', 'kind', 'mediaType', 'timestamp', 'bytesSent', 'bytesReceived', 'framesEncoded', 'framesDecoded', 'packetsSent', 'packetsReceived', 'packetsLost', 'roundTripTime', 'currentRoundTripTime', 'jitter', 'qualityLimitationReason', 'totalEncodeTime', 'mediaSourceId', 'frames', 'frameWidth', 'frameHeight', 'codecId', 'mimeType', 'selected', 'nominated', 'state']
+      const fields = ['id', 'type', 'kind', 'mediaType', 'active', 'localId', 'timestamp', 'bytesSent', 'bytesReceived', 'framesEncoded', 'framesDecoded', 'packetsSent', 'packetsReceived', 'packetsLost', 'roundTripTime', 'currentRoundTripTime', 'jitter', 'qualityLimitationReason', 'totalEncodeTime', 'mediaSourceId', 'frames', 'frameWidth', 'frameHeight', 'codecId', 'mimeType', 'selected', 'nominated', 'state']
       stats.forEach(value => {
         if (!['outbound-rtp', 'remote-inbound-rtp', 'inbound-rtp', 'media-source', 'candidate-pair', 'codec'].includes(value.type)) return
         const row: Record<string, string | number | boolean> = {}
@@ -287,6 +353,10 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
       await peer.pc.setRemoteDescription(description)
       if (peerFor(ref) !== peer) return
       for (const candidate of peer.ice.splice(0)) await peer.pc.addIceCandidate(candidate)
+      await videoQueue
+      if (peerFor(ref) !== peer) return
+      try { await configurePeer(peer, targetFrameRate) }
+      catch { if (peerFor(ref) === peer) videoReason = '新连接未接受编码上限，请查看该连接回读' }
     },
     async addIceCandidate(ref) {
       const { candidate } = ref
