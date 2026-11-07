@@ -1,5 +1,11 @@
 # HarmonyOS 客户端维护文档
 
+## 服务端 v5.2.1 兼容性审计（2026-11-07，待实施）
+
+本地服务端源码已从 `7b504728` 同步至上游 main `130ca3fb`，包含 v5.2.1 的 Piik 共享 / 语音迁移。当前客户端仍为 2.3.7 / 237，旧 Socket.IO 屏幕共享信令、LiveKit `/api/voice/token` 与组件安装流程不能直接适用于新合同；下方 2.3.7 的对齐结论只对应当时 `7b504728` 服务端。
+
+具体接口、ArkWeb 采集复用、严格 HTTPS Cookie / WS 通道、观众互助、语音管理缺口及验收批次见 [v5.2.1 屏幕共享适配执行文档](server-5.2.1-screen-share-adaptation-2026-11-07.md)。本轮只更新审计文档，未修改客户端程序、构建或发布安装包，未新增 ArkWeb 实体设备验收，NAS 未部署。
+
 ## 2.3.7 / 237 正式发行（2026-11-06）
 
 用户授权将下节本地验证版的源码推送到 `Zero-wyc/ZViewerAPP` 的 main，并发布 `client-v2.3.7`，标题为 **ZViewer-Client V2.3.7**。发行包含 Android APK、HarmonyOS HAP 与 `SHA256SUMS.txt`，复用下节最终签名包及构建记录，不重新构建或计算包摘要；GitHub 自动源码归档对应发行标签，不另打 Source Code 附件。
