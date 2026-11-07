@@ -11,7 +11,7 @@ import {
   Volume2,
   VolumeX,
   UserX,
-  Download,
+  RefreshCw,
 } from 'lucide-react'
 import type { Socket } from 'socket.io-client'
 import { useVoiceChat, type VoiceMember } from '../hooks/useVoiceChat'
@@ -76,15 +76,9 @@ export function VoiceChatPanel({
     muteVoiceMember,
     kickVoiceMember,
   } = useVoiceChat({ roomId, username })
-  const { status: component, busy: componentBusy, requesting, install } =
+  const { status: component, busy: componentBusy, refresh } =
     useVoiceComponent(Boolean(roomId), roomId)
   const componentMissing = !component.available
-  const downloading = componentBusy || requesting
-  const downloadLabel = component.state === 'installing'
-    ? '正在安装…'
-    : component.state === 'downloading'
-      ? component.total > 0 ? `正在下载 ${Math.round(component.progress)}%` : '正在下载…'
-      : component.state === 'error' ? '重新下载语音组件' : '下载语音组件'
 
   useEffect(() => { onConnectionChange?.(joined) }, [joined, onConnectionChange])
   useEffect(() => { onAudioSessionChange?.(joining || joined) }, [joining, joined, onAudioSessionChange])
@@ -277,7 +271,7 @@ export function VoiceChatPanel({
                     </button>
                   )}
                   {/* 语音管理：房主/房管可禁言/踢出其他成员 */}
-                  {canManageVoice && !me && (
+                  {canManageVoice && component.backend !== 'piik' && !me && (
                     <>
                       <button
                         onClick={() => {
@@ -345,14 +339,9 @@ export function VoiceChatPanel({
       )}
       {componentMissing && !joined && (
         <div className="mb-3 min-w-0 text-xs text-[var(--md-sys-color-on-surface-variant)]">
-          <p>服务器尚未安装语音组件</p>
+          <p>{component.message}</p>
           {component.state === 'error' && component.message && (
             <p role="alert" className="mt-1 break-words text-[var(--md-sys-color-error)]">{component.message}</p>
-          )}
-          {downloading && (
-            <progress aria-label="语音组件下载进度" max={100}
-              value={component.total > 0 ? component.progress : undefined}
-              className="mt-2 h-1 w-full" />
           )}
         </div>
       )}
@@ -400,9 +389,9 @@ export function VoiceChatPanel({
           </>
         ) : componentMissing ? (
           <Button variant="primary" size="sm" block className="min-h-11"
-            loading={downloading} disabled={!socket?.connected || downloading}
-            icon={<Download className="h-3.5 w-3.5" />} onClick={() => void install()}>
-            {downloadLabel}
+            loading={componentBusy} disabled={!socket?.connected || componentBusy}
+            icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={refresh}>
+            {componentBusy ? '正在查询语音服务' : '重新检查语音服务'}
           </Button>
         ) : (
           <Button

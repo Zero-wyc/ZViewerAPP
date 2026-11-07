@@ -60,6 +60,7 @@ async function loadHarmonyConnection() {
     const instance = {
       tls, sent: [],
       on(name, callback) { listeners.set(name, callback) },
+      receive(value) { listeners.get('message')({ message: new TextEncoder().encode(value).buffer }) },
       async bind(address) { this.bound = address },
       async connect(options) {
         this.connected = options
@@ -108,6 +109,7 @@ for (const [scheme, host, family, exception] of [
   ['https', `[${ipv6}]`, 2, true],
   ['http', '127.0.0.1', 1, false],
   ['https', 'media.example.com', 1, true],
+  ['https', `[${ipv6}]`, 2, false],
 ]) {
   test(`Harmony ${scheme} tunnel connects ${host} with matching address family and preserves Upgrade`, async () => {
     const { connection, servers, remotes } = await loadHarmonyConnection()
@@ -138,15 +140,38 @@ for (const [scheme, host, family, exception] of [
     assert.ok(forwarded.includes('\r\nUpgrade: websocket\r\n'))
     assert.ok(forwarded.includes('\r\nConnection: Upgrade\r\n'))
     assert.ok(forwarded.includes('\r\nRange: bytes=0-31\r\n'))
-    if (exception) assert.equal(remote.connected.skipRemoteValidation, true)
+    if (scheme === 'https') assert.equal(remote.connected.skipRemoteValidation, exception)
     await connection.configure({ url: '', allowUntrustedCertificate: false })
   })
 }
 
-test('valid-certificate HTTPS IPv6 remains on the verified platform transport', async () => {
+test('strict HTTPS IPv6 uses the cookie tunnel while retaining certificate validation', async () => {
   const { connection, servers, remotes } = await loadHarmonyConnection()
   const target = `https://[${ipv6}]:3333/edge`
-  assert.equal((await connection.configure({ url: target, allowUntrustedCertificate: false })).url, target)
-  assert.equal(servers.length, 0)
+  assert.ok((await connection.configure({ url: target, allowUntrustedCertificate: false })).url.startsWith('http://127.0.0.1:'))
+  assert.equal(servers.length, 1)
   assert.equal(remotes.length, 0)
+})
+
+for (const scheme of ['https', 'http']) test(`Harmony ${scheme} Piik cookie respects prefix, path, Secure and deletion`, async () => {
+  const { connection, servers, remotes } = await loadHarmonyConnection()
+  const configured = new URL((await connection.configure({ url: `${scheme}://[${ipv6}]:3333/edge`, allowUntrustedCertificate: false })).url)
+  async function request(path) {
+    const listeners = new Map()
+    servers[0].connect({ on(name, callback) { listeners.set(name, callback) }, async send() {}, async close() {} })
+    const wire = `GET ${configured.pathname}${path} HTTP/1.1\r\nHost: ${configured.host}\r\nOrigin: https://zviewer.local\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n`
+    listeners.get('message')({ message: new TextEncoder().encode(wire).buffer })
+    await new Promise(resolve => setImmediate(resolve))
+    return remotes.at(-1)
+  }
+  const issued = await request('/api/share/piik/session')
+  issued.receive('HTTP/1.1 200 OK\r\nSet-Cookie: zv_piik_site=fixture; Path=/signal; Max-Age=600; Secure; HttpOnly\r\nContent-Length: 0\r\n\r\n')
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal((await request('/signal?scope=1')).sent.join('').includes('Cookie: zv_piik_site=fixture'), scheme === 'https')
+  assert.equal((await request('/signaling')).sent.join('').includes('Cookie:'), false)
+  const deleted = await request('/api/share/piik/session')
+  deleted.receive('HTTP/1.1 200 OK\r\nSet-Cookie: zv_piik_site=fixture; Path=/signal; Max-Age=0; Expires=Fri, 01 Jan 2100 00:00:00 GMT; Secure\r\nContent-Length: 0\r\n\r\n')
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal((await request('/signal')).sent.join('').includes('Cookie:'), false)
+  await connection.configure({ url: '', allowUntrustedCertificate: false })
 })

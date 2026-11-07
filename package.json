@@ -1,6 +1,6 @@
 {
   "name": "zviewer-client",
-  "version": "2.3.7",
+  "version": "2.3.8",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,6 +13,7 @@
     "android:open": "cap open android",
     "postinstall": "patch-package --error-on-fail",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "test:piik": "node --experimental-strip-types --experimental-vm-modules --test scripts/piik-session.test.mjs src/upstream/modules/piik-signal/__tests__/*.test.ts src/upstream/modules/piik-share/__tests__/*.test.ts src/upstream/modules/piik-voice/__tests__/*.test.ts",
     "test:music:toolbar": "node --test scripts/music-toolbar.test.mjs scripts/music-quality.test.mjs",
     "test:bilibili": "node --experimental-vm-modules --test scripts/bilibili-native-recovery.test.mjs scripts/bilibili-source-cancellation.test.mjs scripts/bilibili-recovery-sync.test.mjs scripts/bilibili-native-proxy.test.mjs scripts/bilibili-dash-index.test.mjs",
     "test:alignment": "node --experimental-vm-modules --test scripts/bilibili-part-alignment.test.mjs scripts/socket-auth-recovery.test.mjs scripts/flv-live-recovery.test.mjs scripts/voice-component.test.mjs scripts/long-session.test.mjs",
@@ -41,8 +42,7 @@
     "react-router-dom": "^6.30.4",
     "socket.io-client": "^4.8.3",
     "tailwind-merge": "^3.6.0",
-    "zustand": "^5.0.14",
-    "livekit-client": "^2.22.3"
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@babel/parser": "^7.29.9",
@@ -52,11 +52,11 @@
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.0",
+    "patch-package": "^8.0.0",
     "postcss": "^8.5.0",
     "socket.io": "^4.8.4",
     "tailwindcss": "^3.4.19",
     "typescript": "^7.0.2",
-    "vite": "^8.3.1",
-    "patch-package": "^8.0.0"
+    "vite": "^8.3.1"
   }
 }

@@ -133,6 +133,15 @@ export function getApiUrl(): string {
   return connectionUrl(computeApiUrl()).replace(/\/$/, '')
 }
 
+/** Selected remote address before native loopback mapping. */
+export function getLogicalApiUrl(): string {
+  return computeApiUrl()
+}
+
+export function getAuthSessionEpoch(): number {
+  return authGeneration
+}
+
 /** 实时获取当前生效的 socket.io 地址（每次从 localStorage 读取，确保最新） */
 export function getSocketUrl(): string {
   return connectionUrl(computeSocketUrl())
@@ -261,6 +270,7 @@ let authGeneration = 0
 export function cancelAuthRefresh(): void {
   authGeneration++
   inflightRefresh = null
+  if (typeof Event === 'function' && typeof window.dispatchEvent === 'function') window.dispatchEvent(new Event('zviewer:auth-session-changed'))
 }
 
 /** 重置 session 过期状态（登录成功后调用） */

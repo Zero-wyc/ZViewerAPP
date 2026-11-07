@@ -8,7 +8,7 @@ export interface ConnectionResult { url: string; }
 export interface ProbeResult { ok: boolean; code: string; status?: number; }
 interface PublicSettings { roomCreationMode?: string; registrationMode?: string; }
 interface PublicResponse { success?: boolean; settings?: PublicSettings; }
-interface CookieEntry { name: string; value: string; path: string; expires: number; }
+interface CookieEntry { name: string; value: string; path: string; expires: number; secure: boolean; }
 
 const LOCAL_ORIGIN = 'https://zviewer.local';
 const MAX_HEADER = 32768;
@@ -32,6 +32,7 @@ class ConnectionTunnel {
   private localBase: string;
   private prefix: string;
   private cookies: Map<string, CookieEntry>;
+  private allowUntrustedCertificate: boolean;
   private onClosed: () => void;
   private remote: socket.TLSSocket | socket.TCPSocket;
   private initial = new Uint8Array(0);
@@ -55,10 +56,10 @@ class ConnectionTunnel {
   private bodyComplete: boolean = false;
 
   constructor(local: socket.TCPSocketConnection, target: url.URL,
-    localBase: string, prefix: string, cookies: Map<string, CookieEntry>, onClosed: () => void) {
+    localBase: string, prefix: string, cookies: Map<string, CookieEntry>, allowUntrustedCertificate: boolean, onClosed: () => void) {
     this.local = local; this.target = target; this.localBase = localBase; this.prefix = prefix;
     this.remote = target.protocol === 'https:' ? socket.constructTLSSocketInstance() : socket.constructTCPSocketInstance();
-    this.cookies = cookies; this.onClosed = onClosed;
+    this.cookies = cookies; this.allowUntrustedCertificate = allowUntrustedCertificate; this.onClosed = onClosed;
     local.on('message', (event: socket.SocketMessageInfo) => this.receive(new Uint8Array(event.message)));
     local.on('close', () => this.close());
     local.on('error', () => this.close());
@@ -118,7 +119,8 @@ class ConnectionTunnel {
     forwarded += `Referer: ${this.target.origin}/\r\nAccept-Encoding: identity\r\nConnection: ${upgrade ? 'Upgrade' : 'keep-alive'}\r\n`;
     const cookieValues: string[] = [];
     for (const cookie of this.cookies.values()) {
-      if (cookie.expires > Date.now() && (this.path.split('?')[0] === cookie.path || this.path.startsWith(cookie.path.endsWith('/') ? cookie.path : cookie.path + '/'))) cookieValues.push(`${cookie.name}=${cookie.value}`);
+      if (cookie.expires > Date.now() && (!cookie.secure || this.target.protocol === 'https:') &&
+        (this.path.split('?')[0] === cookie.path || this.path.split('?')[0].startsWith(cookie.path.endsWith('/') ? cookie.path : cookie.path + '/'))) cookieValues.push(`${cookie.name}=${cookie.value}`);
     }
     if (cookieValues.length > 0) forwarded += `Cookie: ${cookieValues.join('; ')}\r\n`;
     const body = this.initial.slice(end); this.initial = new Uint8Array(0);
@@ -134,7 +136,7 @@ class ConnectionTunnel {
       if (this.target.protocol === 'https:') {
         return (this.remote as socket.TLSSocket).connect({ address,
           secureOptions: { protocols: [socket.Protocol.TLSv12, socket.Protocol.TLSv13] },
-          skipRemoteValidation: true, ALPNProtocols: ['http/1.1'], timeout: 10000 });
+          skipRemoteValidation: this.allowUntrustedCertificate, ALPNProtocols: ['http/1.1'], timeout: 10000 });
       }
       return (this.remote as socket.TCPSocket).connect({ address, timeout: 10000 }); });
     this.send(joinBytes(bytes(forwarded + '\r\n'), body));
@@ -154,15 +156,23 @@ class ConnectionTunnel {
   private storeCookie(line: string): void {
     const fields = line.slice(line.indexOf(':') + 1).trim().split(';');
     const pair = fields[0]; const equal = pair.indexOf('='); if (equal < 1) return;
-    const entry: CookieEntry = { name: pair.slice(0, equal), value: pair.slice(equal + 1), path: this.path.slice(0, this.path.lastIndexOf('/') + 1) || '/', expires: Number.MAX_SAFE_INTEGER };
+    const requestPath = this.path.split('?')[0];
+    const entry: CookieEntry = { name: pair.slice(0, equal), value: pair.slice(equal + 1), path: requestPath.slice(0, requestPath.lastIndexOf('/')) || '/', expires: Number.MAX_SAFE_INTEGER, secure: false };
+    let maxAge: number | undefined;
     for (const field of fields.slice(1)) {
-      const split = field.indexOf('='); const key = field.slice(0, split).trim().toLowerCase(); const value = field.slice(split + 1).trim();
+      const split = field.indexOf('='); const key = (split < 0 ? field : field.slice(0, split)).trim().toLowerCase(); const value = split < 0 ? '' : field.slice(split + 1).trim();
       if (key === 'domain' && value.replace(/^\./, '').toLowerCase() !== this.target.hostname.toLowerCase()) return;
       if (key === 'path' && value.startsWith('/')) entry.path = value;
-      if (key === 'max-age') entry.expires = Date.now() + Number(value) * 1000;
+      if (key === 'secure') entry.secure = true;
+      if (key === 'max-age' && Number.isFinite(Number(value))) maxAge = Number(value);
       if (key === 'expires' && Number.isFinite(Date.parse(value))) entry.expires = Date.parse(value);
     }
-    this.cookies.set(entry.name + entry.path, entry);
+    if (maxAge !== undefined) entry.expires = Date.now() + maxAge * 1000;
+    const servicePrefix = this.target.pathname.replace(/\/$/, '');
+    if (entry.name === 'zv_piik_site' && entry.path === '/signal' && servicePrefix) entry.path = servicePrefix + '/signal';
+    const key = entry.name + entry.path;
+    if (entry.expires <= Date.now()) this.cookies.delete(key);
+    else this.cookies.set(key, entry);
   }
   private reply(data: Uint8Array): void {
     if (this.closed) return;
@@ -240,7 +250,7 @@ export class ServerConnection {
     const epoch = ++this.generation;
     for (const tunnel of this.tunnels) tunnel.close(); this.tunnels.clear(); this.cookies.clear();
     const previous = this.server; this.server = null; if (previous) await previous.close();
-    if (disconnect || (!policy.allowUntrustedCertificate && target.protocol === 'https:')) return { url: policy.url };
+    if (disconnect) return { url: policy.url };
     if (policy.allowUntrustedCertificate && target.protocol !== 'https:') throw new Error('证书例外仅适用于 HTTPS');
     const server = socket.constructTCPSocketServerInstance();
     await server.listen({ address: '127.0.0.1', port: 0 });
@@ -251,7 +261,7 @@ export class ServerConnection {
     const prefix = '/' + token; const localBase = `http://127.0.0.1:${address.port}${prefix}`;
     server.on('connect', (local: socket.TCPSocketConnection) => {
       if (epoch !== this.generation || this.tunnels.size >= 64) { local.close().catch(() => {}); return; }
-      const tunnel = new ConnectionTunnel(local, target, localBase, prefix, this.cookies, () => { this.tunnels.delete(tunnel); });
+      const tunnel = new ConnectionTunnel(local, target, localBase, prefix, this.cookies, policy.allowUntrustedCertificate, () => { this.tunnels.delete(tunnel); });
       this.tunnels.add(tunnel);
     });
     this.server = server;

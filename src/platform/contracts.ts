@@ -53,11 +53,21 @@ export interface ScreenShareCapabilities {
   reason?: string
 }
 export interface ScreenShareSession { sessionId: string }
-export interface ScreenSharePeer extends ScreenShareSession { peerId: string }
+export interface ScreenSharePeer extends ScreenShareSession {
+  connectionId: string
+  remotePeerId: string
+  revision: number
+  iceServers?: RTCIceServer[]
+}
 export interface ScreenShareAudioOptions { systemAudio: boolean; microphone: boolean }
 export type ScreenShareResolution = 'native' | '720p' | '1080p' | '1440p' | '2160p'
-export interface ScreenShareVideoOptions { resolution: ScreenShareResolution; frameRate: 30 | 60 | 90 }
-export interface ScreenShareStart extends ScreenShareSession { iceServers: RTCIceServer[]; systemAudio?: boolean; microphone?: boolean; resolution?: ScreenShareResolution; frameRate?: 30 | 60 | 90 }
+export interface ScreenShareVideoOptions { resolution: ScreenShareResolution; frameRate: number }
+export interface ScreenShareStart extends ScreenShareSession { iceServers: RTCIceServer[]; systemAudio?: boolean; microphone?: boolean; resolution?: ScreenShareResolution; frameRate?: number }
+export interface ScreenShareConnectionStats {
+  timestamp: number
+  connectionId: string
+  reports: Record<string, string | number | boolean>[]
+}
 export interface ScreenShareSettings {
   width: number
   height: number
@@ -77,7 +87,9 @@ export interface ScreenShareEvent extends ScreenShareSession {
   type: 'state' | 'capture-ended' | 'error' | 'ice' | 'peer-state' | 'stats'
   state?: ScreenShareState
   code?: ScreenShareErrorCode
-  peerId?: string
+  connectionId?: string
+  remotePeerId?: string
+  revision?: number
   candidate?: RTCIceCandidateInit
   connectionState?: RTCPeerConnectionState
   settings?: ScreenShareSettings
@@ -89,6 +101,8 @@ export interface ScreenShareNativePort {
   pause(options: ScreenShareSession): Promise<void>
   resume(options: ScreenShareSession): Promise<void>
   setAudioOptions(options: ScreenShareSession & ScreenShareAudioOptions): Promise<ScreenShareSettings>
+  setVideoOptions(options: ScreenShareSession & ScreenShareVideoOptions): Promise<ScreenShareSettings>
+  getConnectionStats(options: ScreenSharePeer): Promise<ScreenShareConnectionStats>
   createOffer(options: ScreenSharePeer): Promise<RTCSessionDescriptionInit>
   setAnswer(options: ScreenSharePeer & { description: RTCSessionDescriptionInit }): Promise<void>
   addIceCandidate(options: ScreenSharePeer & { candidate: RTCIceCandidateInit }): Promise<void>

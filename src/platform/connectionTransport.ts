@@ -7,7 +7,10 @@ export function bindConnectionTransport(server: string, transport: string) {
     prefix: local.pathname.slice(0, local.pathname.length - remote.pathname.replace(/\/$/, '').length).replace(/\/$/, ''),
   }
 }
-export function clearConnectionTransport() { binding = null }
+export function clearConnectionTransport() {
+  binding = null
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof Event === 'function') window.dispatchEvent(new Event('zviewer:connection-transport-changed'))
+}
 /** Strip the private connection channel before persisting or broadcasting URLs. */
 export function logicalConnectionUrl(raw: string): string {
   if (!binding) return raw

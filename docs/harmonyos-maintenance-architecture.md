@@ -1,10 +1,34 @@
 # HarmonyOS 客户端维护文档
 
-## 服务端 v5.2.1 兼容性审计（2026-11-07，待实施）
+## 2.3.8 / 238 Piik 适配（2026-11-07，本地构建）
 
-本地服务端源码已从 `7b504728` 同步至上游 main `130ca3fb`，包含 v5.2.1 的 Piik 共享 / 语音迁移。当前客户端仍为 2.3.7 / 237，旧 Socket.IO 屏幕共享信令、LiveKit `/api/voice/token` 与组件安装流程不能直接适用于新合同；下方 2.3.7 的对齐结论只对应当时 `7b504728` 服务端。
+按 [执行文档](server-5.2.1-screen-share-adaptation-2026-11-07.md) 实施，服务端合同固定为本地 `130ca3fb` / v5.2.1。用户明确选择不支持旧服务端：2.3.8 的共享和语音只使用 `piik-v24`，LiveKit token、组件安装和旧语音管理请求不再进入运行流程，已删除 `livekit-client` 依赖。一起看、一起听与 OBS 分支保留。版本为 2.3.8 / 238，签名包在 `release/client-v2.3.8/`；本轮仅本地提交，未推送或发布 Release。
 
-具体接口、ArkWeb 采集复用、严格 HTTPS Cookie / WS 通道、观众互助、语音管理缺口及验收批次见 [v5.2.1 屏幕共享适配执行文档](server-5.2.1-screen-share-adaptation-2026-11-07.md)。本轮只更新审计文档，未修改客户端程序、构建或发布安装包，未新增 ArkWeb 实体设备验收，NAS 未部署。
+### 合同与源码
+
+- `src/upstream/modules/piik-signal/credentials.ts` 验证入房后的 share/voice Piik session REST 合同；逻辑地址保留前缀、端口和 IPv6 后只映射一次本地通道。401 走现有有限续期，只有已验证的房主未就绪 409 可以有界等待，403、503、旧版和未知协议不回退旧实现。
+- `piik-signal/client.ts` / `link.ts` 管理裸 WS、认证和连接超时、有限退避、每次重连重新领取凭证，以及按服务器、认证代次、ZViewer 房间与房间生命周期隔离的引用计数连接池。共享和语音共用唯一房主连接，任一功能退出只释放自己的引用；终止状态不会复活旧连接。
+- `src/mobile/screenShareSession.ts` 预先认证，用户点击时直接启动既有系统授权流程；采集准备后才发送新 shareGeneration 的 start-sharing，收到 sharing-started 后显示共享成功。普通停止发 stop-sharing 并释放捕获，语音仍可保留房间 WS；不调用 DELETE 结束整个房间。
+- `src/platform/harmonyScreenShare.ts` 继续使用 ArkWeb getDisplayMedia 和 `ScreenShareCaptureHandler`、`ScreenShareCapturePolicy.ets`。保留 `screenShareVideoTransform.ts` 的横竖屏几何和 `screenShareFrameMeter.ts` 实测，未改成另一套 ArkTS Sender。PC 用 connectionId 管理，所有桥调用和事件校验 sessionId、remotePeerId、revision 与当前实例；每条新边使用最新 ICE。暂停摘除音视频 sender，恢复当前轨，暂停中新边也停发。
+- `piik-share/session.ts` / `endpoint.ts` / `usePiikShareViewer.ts` 按服务端路由接收、转发、换父；预留发送槽位，晚到的新轨可 replaceTrack，旧边不误报 route-failed，关房关闭重试。手机先声明 1 条转发容量，房间协议上限 20 位，房主最多 3 条出边；成员快照数和本机直连数分开。现有播放器、横竖屏、亮度/音量手势和平台小窗边界保留，Piik 不使用旧 DataChannel P2P 开关。
+- `piik-voice/usePiikVoice.ts` / `endpoint.ts` 按 publication 收发授权协商，应答方在 answer 前挂麦克风；单人无边为就绪。继续复用 `microphoneCapture` 租约、共享麦克风抑制、音量、电平、监听与声音恢复。语音占用时不经共享重复发送同一麦克风；共享系统声时关闭监听，避免重复录入。
+- `useVoiceComponent.ts` 只接受可用的顶层 available/backend=piik；旧状态和未实现的 SFU 分支禁用加入，不展示下载组件。Piik 暂无房主强制禁言/移出命令，界面隐藏管理动作，本机成员音量可调。远端仅显示短成员标识，不假设它是已经认证的 ZViewer 用户名。
+
+### 原生 Cookie 与 TLS
+
+`entry/src/main/ets/services/ServerConnection.ets` 对 HTTP、严格 HTTPS 和用户授权证书例外均建立单服务器通道，使 REST 和 WS Upgrade 共用原生 Cookie 仓库。严格 HTTPS 使用 skipRemoteValidation=false，只有用户显式例外才为 true；保留 TLS 1.2/1.3、ALPN HTTP/1.1、IPv6 地址族、Host/Origin 与目标一致及换服销毁。Cookie 支持 Secure、Path 边界、过期和 Max-Age 优先；`zv_piik_site` 的内部 /signal Path 按外部服务前缀映射，票据不暴露给 JS。
+
+403 优先检查是否已加入并通过准入；HOST_NOT_SHARING 等待房主，503 检查服务端 Piik 状态，PROTOCOL 检查版本；不可用时不会假装回退 SFU/TURN。换父需按新 connectionId 检查帧增量；服务端默认保留 20 秒断线宽限，跨流累计帧数重置属于正常现象。
+
+### 构建、验证与边界
+
+运行 `npm run test:piik`、`test:maintenance`、`test:alignment`、`test:bilibili`、`test:music:toolbar` 和 `npm run typecheck`。网页只经 `npm run harmony:web` 或同次 Vite 构建后的 `node ZV-HarmonyOS/scripts/sync-web.mjs` 更新，禁止手改 rawfile/web。DevEco Hvigor 在 ZV-HarmonyOS 内执行 Release assembleHap，私有签名配置临时注入并在 finally 恢复；PowerShell 5.1 读取签名 JSON 必须明确 UTF-8，编译警告不能被脚本误判为失败。
+
+403 项脚本回归（Piik 47、维护 171、对齐 100、B站 77、工具栏 8）、类型检查与生产构建通过。Go 通道真实验证 HTTP/严格 HTTPS/例外、Cookie 和 Upgrade；真实 ETS 由 NetworkKit 替身验证 IPv4/IPv6、严格 TLS 标记、WS 转发、票据前缀/Path、Secure 与 Max-Age 删除优先级。隔离新服务端加浏览器实际 PC 验证四观众解码及真实中转、暂停/恢复、约 22 秒换父、双方语音包与非零电平、共享和语音独立启停。合成捕获和原生 port 替身不算 ArkWeb 真机录屏或音频验收。浏览器窗口最小化，未取得截图，不计入截图或跨视口视觉验收。
+
+双端新增 setVideoOptions、结构化 getConnectionStats；HarmonyOS 动态采集和发送上限保持 60fps，Android 为 90fps，现有 UI 仍是 30/60/90 档。保留目标/采集实测的区别，取消任意视频 maxBitrate 硬上限。自动降档尚未接入手机控制器；自定义 FPS 输入、编码参数完整回读及逐边可视化面板属于后续 P1，不能以纯函数测试代替已交付。
+
+最终 Release HAP 为 debug=false，最低 6.1 / API 23，版本和签名身份沿用既有发行；APK/HAP 包内宿主网页资源逐项匹配，无私有签名源文件或 Agents.md，每包仅在构建时计算一次 SHA256。ADB/HDC 无在线实体设备，严格 HTTPS 的真实 NetworkKit 握手、系统授权取消/终止、旋转、后台、音频路由、H.264/VP8 互通、蜂窝跨网与长时弱网仍待真机。iOS 未修改或构建，NAS 未部署。
 
 ## 2.3.7 / 237 正式发行（2026-11-06）
 

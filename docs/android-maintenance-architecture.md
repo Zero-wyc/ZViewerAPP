@@ -1,10 +1,34 @@
 # Android 客户端维护文档
 
-## 服务端 v5.2.1 兼容性审计（2026-11-07，待实施）
+## 2.3.8 / 238 Piik 适配（2026-11-07，本地构建）
 
-本地服务端源码已从 `7b504728` 同步至上游 main `130ca3fb`，包含 v5.2.1 的 Piik 共享 / 语音迁移。当前客户端仍为 2.3.7 / 237，旧 Socket.IO 屏幕共享信令、LiveKit `/api/voice/token` 与组件安装流程不能直接适用于新合同；下方 2.3.7 的对齐结论只对应当时 `7b504728` 服务端。
+按 [执行文档](server-5.2.1-screen-share-adaptation-2026-11-07.md) 实施，服务端合同固定为本地 `130ca3fb` / v5.2.1。用户明确选择不支持旧服务端：2.3.8 的共享和语音只使用 `piik-v24`，不再调用 LiveKit token/install/mute/kick 接口，`livekit-client` 已移除。一起看、一起听和 OBS 的原有分支继续保留。版本号为 2.3.8 / 238，安装包在 `release/client-v2.3.8/`，本轮仅本地提交；未推送或发布 Release。
 
-具体接口、Android 原生发送与连接桥修改、共用 WS、观众互助、语音管理缺口及验收批次见 [v5.2.1 屏幕共享适配执行文档](server-5.2.1-screen-share-adaptation-2026-11-07.md)。本轮只更新审计文档，未修改客户端程序、构建或发布安装包，未新增设备验收，NAS 未部署。
+### 合同与源码
+
+- `src/upstream/modules/piik-signal/credentials.ts`：入房后 POST `/api/share/piik/session` 或 `/api/voice/piik/session`；验证 protocol、角色、映射房间码、凭证、ICE 和 signalPath。从逻辑服务器地址保留前缀、端口与 IPv6，再映射一次原生通道。只有已确认的“房主未开始共享 / 未进入语音”409 可以等待重试；403、503、未知协议均明确拒绝。
+- `piik-signal/client.ts` / `link.ts`：裸 WS，一次 JSON 编码，认证/连接超时、最多 30 次有界退避；每次重连重新领取凭证。连接按逻辑/物理服务器、认证代次、ZViewer 房间和房间生命周期隔离。共享与语音引用计数复用，释放订阅者不遗留回调；关房、离房、换服、换号和 SESSION_REPLACED 会终止旧连接。
+- `src/mobile/screenShareSession.ts`：提前完成房主认证，再由用户点击直接进入 MediaProjection 授权。采集成功后发送新 shareGeneration 的 `start-sharing`，等待 `sharing-started` 才显示正在共享。普通停止只发送 `stop-sharing`，不 DELETE 房间；重连会重建路由边和开播代际。
+- `ScreenSharePlugin.java`：PC 以 connectionId 管理，并校验 sessionId、remotePeerId、revision 和当前 PC 实例。每次新边使用最新认证 ICE，原生帧不经过 JS。最多 3 条本机出边是复制预算，不是房间观众上限。暂停时摘除每条出边的音视频 sender，恢复挂回当前轨；保留系统采集、前台服务、旋转和现有混音。
+- `piik-share/session.ts` / `endpoint.ts` / `usePiikShareViewer.ts`：按 route-update 接收、结算、转发和换父，预留媒体槽位，首轨晚到时使用 replaceTrack；忽略过时路由与旧 PC 回调。观众保守声明 1 条转发容量，房间协议上限 20 位；实际成员数来自房间快照，房主直连数单独展示。播放器、小窗、横竖屏、亮度与本机音量手势保留，退出旧 DataChannel/P2P 信令。
+- `piik-voice/usePiikVoice.ts` / `endpoint.ts`：复用相同 WS，按 publication 的收发授权协商；应答方在 answer 前挂麦克风，单人语音没有边时视为就绪。继续使用 `microphoneCapture` 租约、共享麦克风让出策略、电平、音量、监听及自动播放恢复。远端暂显示短成员标识，不冒充已验证的 ZViewer 用户映射。
+- `useVoiceComponent.ts` 读取顶层 available/backend，只接受可用 Piik；SFU、旧 status 和未知结构不启用加入。Piik 尚无房主强制禁言/移出合同，面板隐藏这些操作，本机成员音量仍可调节。
+
+### 原生网络与排障
+
+`native/bilicore/mobile/server_connection.go` 现在对 HTTP、严格 HTTPS 和用户授权的证书例外统一使用单服务器 Cookie jar。严格 HTTPS 的 InsecureSkipVerify 仍为 false；仅显式例外才跳过。REST 的 HttpOnly 站点票据留在原生仓库，Upgrade 按真实远端路径发送，Origin 与目标一致；反代前缀下专门映射 `zv_piik_site` 的 `/signal` Path。换服销毁旧通道；不记录凭证、Cookie、SDP 或能力 token。
+
+共享按钮等待服务端认证是正常状态；403 检查房间准入，409 等待房主，503 检查 Piik 是否启用，PROTOCOL 要核对服务器版本。直连失败不能宣称已回退 SFU/TURN。中间节点离线存在服务端默认 20 秒宽限，换父应按新 connectionId 的帧增量检查，不能跨流比较重置的累计帧数。
+
+### 构建、验证与边界
+
+命令：`npm run test:piik`、`npm run test:maintenance`、`npm run test:alignment`、`npm run test:bilibili`、`npm run test:music:toolbar`；原生连接执行 `cd native/bilicore; go test ./mobile`。`npm run android:sync` 重建前端并同步 Capacitor，Gradle assembleRelease 会重建修改后的 Go AAR；本机 gomobile 生成工具显式选用 Go 1.26.8。正式签名仍通过环境提供，构建后本地提交，不写入源码。
+
+403 项脚本回归（Piik 47、维护 171、对齐 100、B站 77、工具栏 8）、类型检查和生产构建通过。Go 通道实测 HTTP、严格 HTTPS 的未信任拒绝/受信任成功、证书例外、Cookie Path、Upgrade 双向数据及 IPv6；鸿蒙 ETS 同类合同由接口替身验证，含票据前缀/Path、Secure 与 Max-Age 删除优先级。隔离本地新服务端和真实浏览器 PC 验证四观众解码、实际中转、暂停/恢复、约 22 秒换父恢复、双向语音包与非零电平，以及停共享保留语音、退出语音保留画面。浏览器房主使用合成流和原生 port 替身，不能记作 Android MediaProjection 真机验收。浏览器窗口最小化，截图不可用，未计入截图或跨视口视觉验收。
+
+已新增双端 `setVideoOptions` 和结构化 `getConnectionStats`，支持共享中调画质，Android 数值范围 1–90fps、HarmonyOS 1–60fps，现有 UI 仍提供 30/60/90 离散目标。采集实测与请求目标分开，无固定视频码率硬上限。自动降档监控尚未接入手机控制器；逐边统计可视化、完整编码参数回读与覆盖原因、自定义 FPS 输入列入后续 P1。
+
+双端 Release 包签名、版本及宿主网页资源比对通过，沿用既有签名；每个最终包只在对应构建时计算一次 SHA256。ADB/HDC 无在线实体设备，系统授权取消/终止、真实音频路由、H.264/VP8 双向互通、后台、旋转、蜂窝跨网和长时弱网恢复仍待真机。iOS 未修改或构建，NAS 未部署。
 
 ## 2.3.7 / 237 正式发行（2026-11-06）
 

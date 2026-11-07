@@ -90,6 +90,7 @@ export function createScreenShareVideoTransform(source: MediaStreamTrack, option
     resize(w: number, h: number) {
       if (active && options.current() && Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) { width = w; height = h }
     },
+    setQuality(quality: ScreenShareVideoOptions) { options.quality = quality },
     stop,
   }
 }

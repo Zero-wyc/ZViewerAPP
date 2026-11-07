@@ -1,122 +1,49 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { apiFetch, getApiUrl, safeJson } from '@/lib/api'
-import { useAuthStore } from '@/store/authStore'
+import { useCallback, useEffect, useState } from 'react'
+import { apiFetch, getApiUrl, getAuthSessionEpoch } from '@/lib/api'
 
 export interface VoiceComponentStatus {
   available: boolean
-  state: 'idle' | 'downloading' | 'installing' | 'ready' | 'error' | 'external'
-  progress: number
-  received: number
-  total: number
+  backend: 'piik' | 'sfu' | 'unknown'
+  state: 'loading' | 'ready' | 'error'
   message: string
-  version: string
-  external: boolean
 }
-
 const UNKNOWN: VoiceComponentStatus = {
-  available: true,
-  state: 'ready',
-  progress: 0,
-  received: 0,
-  total: 0,
-  message: '',
-  version: '',
-  external: false,
+  available: false, backend: 'unknown', state: 'loading', message: '正在查询语音服务',
 }
 
-function readStatus(value: Partial<VoiceComponentStatus>): VoiceComponentStatus {
-  const progress = Number(value.progress)
+export function parseVoiceStatus(value: unknown): VoiceComponentStatus {
+  const data = value as { success?: boolean; available?: boolean; backend?: string } | null
+  if (data?.success !== true || typeof data.available !== 'boolean' || !['piik', 'sfu'].includes(data.backend ?? '')) {
+    return { available: false, backend: 'unknown', state: 'error', message: '服务端语音协议不受支持，请升级至 5.2.1 或更新版本' }
+  }
+  const backend = data.backend as 'piik' | 'sfu'
   return {
-    ...UNKNOWN,
-    ...value,
-    progress: Number.isFinite(progress) ? Math.min(100, Math.max(0, progress)) : 0,
+    available: backend === 'piik' && data.available,
+    backend,
+    state: backend === 'piik' && data.available ? 'ready' : 'error',
+    message: backend === 'sfu' ? '当前客户端需要服务端启用 Piik 语音' : data.available ? '' : '服务器语音服务暂不可用',
   }
 }
 
 export function useVoiceComponent(enabled = true, scope = '') {
-  const user = useAuthStore(state => state.user)
-  const server = getApiUrl()
-  const [status, setStatus] = useState<VoiceComponentStatus>(UNKNOWN)
-  const [requesting, setRequesting] = useState(false)
-  const lifecycle = useRef({
-    revision: 0,
-    controller: new AbortController(),
-    refreshing: false,
-    installing: false,
-  })
-
-  const request = useCallback(async (install: boolean) => {
-    const current = lifecycle.current
-    if (!enabled || current.controller.signal.aborted ||
-      (install ? current.installing : current.refreshing || current.installing)) return
-    if (install) ++current.revision
-    const revision = current.revision
-    const active = () => lifecycle.current === current &&
-      !current.controller.signal.aborted && getApiUrl() === server &&
-      useAuthStore.getState().user === user
-    if (install) {
-      current.installing = true
-      setRequesting(true)
-    } else current.refreshing = true
-    try {
-      const response = await apiFetch(install ? '/api/voice/install' : '/api/voice/status', {
-        method: install ? 'POST' : 'GET',
-        signal: AbortSignal.any([current.controller.signal, AbortSignal.timeout(15000)]),
-        refreshAuth: 'unauthorized',
-      })
-      const data = await safeJson<{
-        success?: boolean
-        status?: Partial<VoiceComponentStatus>
-        message?: string
-      }>(response, {})
-      if (!active() || revision !== current.revision) return
-      if (response.ok && data.success && data.status) {
-        setStatus(readStatus(data.status))
-      } else if (install) {
-        setStatus(previous => ({
-          ...previous, available: false, state: 'error',
-          message: data.message || '下载请求失败，请稍后重试',
-        }))
-      }
-      // Older servers have no status endpoint; their existing join flow remains available.
-    } catch {
-      if (install && active()) {
-        setStatus(previous => ({
-          ...previous, available: false, state: 'error',
-          message: '下载请求失败，请检查网络后重试',
-        }))
-      }
-    } finally {
-      if (install) current.installing = false
-      else current.refreshing = false
-      if (install && active()) setRequesting(false)
-    }
-  }, [enabled, scope, server, user])
-
-  const refresh = useCallback(() => request(false), [request])
-  const install = useCallback(() => request(true), [request])
-
+  const [status, setStatus] = useState(UNKNOWN)
+  const [revision, setRevision] = useState(0)
+  const server = getApiUrl(), identity = getAuthSessionEpoch()
+  const refresh = useCallback(() => setRevision(value => value + 1), [])
   useEffect(() => {
-    lifecycle.current.controller.abort()
-    const current = {
-      revision: 0,
-      controller: new AbortController(),
-      refreshing: false,
-      installing: false,
-    }
-    lifecycle.current = current
+    const abort = new AbortController()
     setStatus(UNKNOWN)
-    setRequesting(false)
-    if (enabled) void refresh()
-    return () => current.controller.abort()
-  }, [enabled, refresh])
-
-  const busy = status.state === 'downloading' || status.state === 'installing'
-  useEffect(() => {
-    if (!enabled || !busy) return
-    const timer = setInterval(() => void refresh(), 1000)
-    return () => clearInterval(timer)
-  }, [enabled, busy, refresh])
-
-  return { status, busy, requesting, install, refresh }
+    if (enabled) void apiFetch('/api/voice/status', {
+      signal: AbortSignal.any([abort.signal, AbortSignal.timeout(15000)]),
+    }).then(async response => {
+      const data = await response.json().catch(() => null)
+      if (!abort.signal.aborted && server === getApiUrl() && identity === getAuthSessionEpoch()) {
+        setStatus(response.ok ? parseVoiceStatus(data) : { available: false, backend: 'unknown', state: 'error', message: response.status === 401 ? '请重新登录后加入语音' : '无法查询语音服务，请重试' })
+      }
+    }).catch(() => {
+      if (!abort.signal.aborted) setStatus({ available: false, backend: 'unknown', state: 'error', message: '无法查询语音服务，请检查网络后重试' })
+    })
+    return () => abort.abort()
+  }, [enabled, scope, server, identity, revision])
+  return { status, busy: status.state === 'loading', refresh }
 }

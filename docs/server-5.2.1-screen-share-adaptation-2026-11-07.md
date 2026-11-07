@@ -1,6 +1,22 @@
 # 服务端 v5.2.1 更新解读与 Android / HarmonyOS 屏幕共享适配执行文档
 
-日期：2026-11-07。状态：源码审计与实施方案，客户端尚未实施。
+日期：2026-11-07。状态：2.3.8 / 238 已完成适配代码、双端签名构建及本地验证；实体设备验收待完成。下方审计章节保留实施前基线，当前落实情况以本节和双端维护指南为准。
+
+## 0. 实施结果（2026-11-07）
+
+用户在执行中明确“可以不用支持旧服务端”，因此本次只实现 v5.2.1 / `130ca3fb` 的 Piik 合同，删除 LiveKit 依赖及组件安装入口，不维护旧服回退。客户端修改和 Git 提交均在指定 ZViewer-client；iOS 未修改/构建，NAS 未部署。
+
+| 批次 | 已落实 | 验收边界 |
+| --- | --- | --- |
+| A | 逻辑 URL、前缀/IPv6、一次原生映射、严格 HTTPS Cookie 通道、凭证验证、有限连接恢复、身份和生命周期隔离、引用计数 WS | Go 真实 HTTP/TLS/Cookie/Upgrade 及 ETS 替身通过；双端打包 App 的认证仍待设备 |
+| B | Android/HarmonyOS 原生房主 port 接入 Piik；观众接收；等待开播确认；暂停、停止及新代际重开 | 合成捕获/port 替身加真实浏览器 PC 已出帧；两端真实系统采集、声音、旋转和交叉观看待设备 |
+| C | 观众转发、预留媒体槽位、换父清理；Piik 双向语音；麦克风租约及独立启停 | 本地真实服务端四观众实际解码且含中转；切断中转后新 connectionId 持续出帧，恢复约 22 秒（含服务端 20 秒宽限）；双向语音音频包/非零电平通过，停共享不关语音、离语音不关画面通过。后台和蜂窝跨网待设备 |
+| D | 原生 setVideoOptions、getConnectionStats、目标与采集实测分离、共享中画质更新、删除固定视频 maxBitrate | 未接入自动降档控制；自定义 FPS UI、编码参数完整回读/覆盖原因、逐边可视化面板和长时弱网列为后续 P1 |
+| E | 2.3.8 / 238 双端 Release 签名构建，维护文档、源码回归及本地提交 | 403 项脚本回归、类型检查、Go 原生连接及包检查通过；无 ADB/HDC 在线实体设备，不宣称完成真机验收。未推送/发布 Release |
+
+协议源码位于 `src/upstream/modules/piik-signal`、`piik-share`、`piik-voice`，原生房主控制器为 `src/mobile/screenShareSession.ts`；平台入口和排障、构建方法已经写入 [Android 维护指南](android-maintenance-architecture.md) 与 [HarmonyOS 维护指南](harmonyos-maintenance-architecture.md)。观众当前保守声明 1 条下游容量；房主出边预算 3、房间观众上限 20，和 ZViewer 房间成员数分别处理。Piik 房主语音禁言/移出、已认证用户名映射、SFU/TURN 仍需服务端协作。
+
+验证入口为 `npm run test:piik`（47）、`test:maintenance`（171）、`test:alignment`（100）、`test:bilibili`（77）、`test:music:toolbar`（8），共 403 项；`native/bilicore` 中执行 `go test ./mobile` 和 `go vet ./mobile`。包与本地记录位于忽略目录 `release/client-v2.3.8/`。一次换父检查曾因跨 MediaStream 比较已重置的累计帧数而误报超时；最终按新连接及新流窗口验证，未将该误报写成原生问题修复。窗口最小化未取得截图，不计入截图或跨视口视觉验收。
 
 ## 1. 本轮实际完成与基线
 
@@ -13,7 +29,7 @@
 | 最新正式版 | v5.2.1，发行提交 `f23ac89307864ca155da2cc9273ded10cf2dacae`；北京时间 2026-11-06 22:44:45 发布 |
 | main 与正式版区别 | main 在正式版后另有 3 个提交，见第 2 节 |
 | 客户端目录 | `E:/Codex-bulid/ZViewer/ZViewer-client` |
-| 当前客户端 | 2.3.7 / 237，`52a67278321bf02386dd9d7b997fc98f705a1a2c` |
+| 审计客户端（实施前） | 2.3.7 / 237，`52a67278321bf02386dd9d7b997fc98f705a1a2c` |
 | 本轮改动 | 本文及双端维护指南的兼容性说明；没有修改客户端程序、构建安装包或发布 Release |
 | 部署边界 | 更新的是本地源码，未更新 NAS 容器，未连接 NAS SSH |
 
@@ -256,7 +272,7 @@ Piik peer 与 ZViewer 用户 / 房间成员的映射也不能从 LiveKit identit
 
 ## 12. 兼容旧服务端与其他房间模式
 
-推荐保留清晰的协议分派，避免对可连接的旧服造成回归：
+原方案建议的兼容性分派如下。执行时用户已明确不支持旧服务端，因此 2.3.8 只启用第一行的 Piik 分支；SFU、旧合同与真实 404 均提示不支持，不执行下表原先可选的旧服回退。
 
 | 服务端响应 | 共享 / 语音选择 |
 | --- | --- |

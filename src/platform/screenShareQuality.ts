@@ -12,7 +12,7 @@ export const screenShareFrameRates = [30, 60, 90] as const
 export function screenShareVideoOptions(options: Pick<ScreenShareStart, 'resolution' | 'frameRate'>): ScreenShareVideoOptions {
   return {
     resolution: screenShareResolutions.some(value => value.value === options.resolution) ? options.resolution! : '720p',
-    frameRate: screenShareFrameRates.includes(options.frameRate!) ? options.frameRate! : 30,
+    frameRate: Number.isFinite(options.frameRate) ? Math.max(1, Math.min(90, Math.round(options.frameRate!))) : 30,
   }
 }
 

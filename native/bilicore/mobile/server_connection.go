@@ -63,9 +63,6 @@ func ConfigureServer(raw string, allow bool) (string, error) {
 	connectionMu.Lock()
 	defer connectionMu.Unlock()
 	stopConnectionLocked()
-	if !allow && target.Scheme == "https" {
-		return asJSON(map[string]any{"url": raw}), nil
-	}
 	if allow && target.Scheme != "https" {
 		return "", fmt.Errorf("证书例外仅适用于 HTTPS")
 	}
@@ -115,7 +112,13 @@ func ConfigureServer(raw string, allow bool) (string, error) {
 		r.Header.Set("X-Forwarded-Proto", target.Scheme)
 	}
 	proxy.ModifyResponse = func(res *http.Response) error {
-		jar.SetCookies(res.Request.URL, res.Cookies())
+		cookies := res.Cookies()
+		for _, cookie := range cookies {
+			if cookie.Name == "zv_piik_site" && cookie.Path == "/signal" {
+				cookie.Path = strings.TrimRight(target.Path, "/") + "/signal"
+			}
+		}
+		jar.SetCookies(res.Request.URL, cookies)
 		res.Header.Del("Set-Cookie")
 		if location := res.Header.Get("Location"); location != "" {
 			destination, err := res.Request.URL.Parse(location)

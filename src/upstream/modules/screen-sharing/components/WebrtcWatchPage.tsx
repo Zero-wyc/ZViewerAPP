@@ -27,10 +27,8 @@ import { RoomLayout } from '@/modules/room/components/RoomLayout'
 import { RoomInfoPanel } from '@/modules/room/components/RoomInfoPanel'
 import { useScreenShareDisplay } from '../../../../mobile/useScreenShareDisplay'
 import { PlayerGestureNotice } from '../../../../mobile/PlayerGestureNotice'
-import { useP2PTunnel } from '@/modules/p2p'
 import type { P2PStatus } from '@/modules/p2p/types'
-import { useViewerPeerConnection } from '../hooks/useViewerPeerConnection'
-import { useSignalingChannel } from '../hooks/useSignalingChannel'
+import { usePiikShareViewer } from '../../piik-share/usePiikShareViewer'
 import { RemoteVideoPlayer } from './RemoteVideoPlayer'
 import { WatchControlsBar } from './WatchControlsBar'
 
@@ -128,22 +126,17 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
     return () => { document.removeEventListener('keydown', close); window.removeEventListener('resize', clamp) }
   }, [inlinePiP])
 
-  // 观众 PC hook
   const {
     pc,
     hasRemoteStream,
     hasRemoteAudio,
     connectionState,
-    create: createPc,
-    cleanup: cleanupPc,
-    handleSignalOffer,
-    handleSignalIceCandidate,
-    handleSharerReady,
-  } = useViewerPeerConnection({
-    socket,
+    retry: createPc,
+    state: shareState,
+  } = usePiikShareViewer({
     roomId,
     videoRef,
-    videoMountedVersion: videoVersion,
+    videoVersion,
   })
 
   useEffect(() => {
@@ -154,86 +147,6 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
     setInlinePiP(false)
     setIsPictureInPicture(false)
   }, [hasRemoteStream])
-
-  // 挂载时自动创建 PC，卸载时自动清理
-  // 替代原 WatchPage 中 useJoinRoom.onApprovedScreenShare / onRoomModeChanged 的 PC 创建逻辑
-  useEffect(() => {
-    createPc()
-    return () => {
-      cleanupPc()
-      if (videoRef.current) videoRef.current.srcObject = null
-    }
-  }, [createPc, cleanupPc])
-
-  // 信令 channel hook（订阅 signal-offer / signal-ice-candidate）
-  useSignalingChannel({
-    socket,
-    onSignalOffer: handleSignalOffer,
-    onSignalIceCandidate: handleSignalIceCandidate,
-  })
-
-  useEffect(() => {
-    if (!socket) return
-    const failed = (data: { roomId: string }) => {
-      if (data.roomId !== roomId) return
-      cleanupPc()
-      setFrameReady(false)
-      // Remote error text can contain private details; show a fixed actionable message.
-      message.error('房主屏幕共享未成功，请等待房主重新开始')
-    }
-    socket.on('sharer-error', failed)
-    return () => { socket.off('sharer-error', failed) }
-  }, [socket, roomId, cleanupPc])
-
-  // P2P 直连隧道（观众为 receiver，remotePeerId 由 offer 自动填充）
-  const [p2pFallbackNotice, setP2pFallbackNotice] = useState(false)
-  const { enableP2P, disableP2P, p2pEnabled, p2pPC, p2pStatus } = useP2PTunnel({
-    socket,
-    roomId,
-    role: 'receiver',
-    onStatusChange: (status, didFallback) => {
-      if (didFallback) {
-        setP2pFallbackNotice(true)
-        message.warning('P2P 连接失败，已回退到服务器中转')
-      } else if (status === 'connected') {
-        setP2pFallbackNotice(false)
-        message.success('P2P 直连已建立')
-      } else if (status === 'connecting') {
-        setP2pFallbackNotice(false)
-      }
-    },
-  })
-
-  // 观众接收房主 P2P 模式广播：同步开关状态
-  useEffect(() => {
-    if (!socket) return
-    const handleP2PModeChange = (data: {
-      roomId: string
-      enabled: boolean
-    }) => {
-      if (data.roomId !== roomId) return
-      if (data.enabled) {
-        void enableP2P()
-      } else {
-        disableP2P()
-      }
-    }
-    socket.on('p2p-mode-change', handleP2PModeChange)
-    return () => {
-      socket.off('p2p-mode-change', handleP2PModeChange)
-    }
-  }, [socket, roomId, enableP2P, disableP2P])
-
-  const handleToggleP2P = useCallback(
-    (enabled: boolean) => {
-      if (enabled) {
-        void enableP2P()
-      } else {
-        disableP2P()
-      }
-    },
-    [enableP2P, disableP2P]
-  )
 
   // WebRTC 控制栏自动隐藏（逻辑仿照 WatchTogetherCore）
   const { controlBarVisible: webrtcControlBarVisible, gestureNotice } = useScreenShareDisplay({ stage: webrtcStageRef, video: videoRef,
@@ -250,19 +163,6 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [isWebFullscreen])
-
-  // 订阅 sharer-ready 事件：房主开始共享时触发，观众重建 PC 并重发 viewer-ready
-  useEffect(() => {
-    if (!socket) return
-    const handleSharerReadyEvent = (data: { roomId: string }) => {
-      if (data.roomId !== roomId) return
-      handleSharerReady()
-    }
-    socket.on('sharer-ready', handleSharerReadyEvent)
-    return () => {
-      socket.off('sharer-ready', handleSharerReadyEvent)
-    }
-  }, [socket, roomId, handleSharerReady])
 
   // video 元素 resolution / PiP 监听
   useEffect(() => {
@@ -418,9 +318,8 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
   }, [])
 
   const handleRefresh = useCallback(() => {
-    cleanupPc()
-    setTimeout(() => createPc(), 0)
-  }, [cleanupPc, createPc])
+    createPc()
+  }, [createPc])
 
   const playerContent = (
     <div
@@ -444,7 +343,9 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
         isMuted={isMuted}
         hasRemoteStream={hasRemoteStream}
         peerConnection={pc}
+        statusText={shareState.error || (shareState.recovering ? '正在恢复连接…' : !shareState.sharing ? '等待房主开始共享' : '正在接收画面…')}
       />
+      {shareState.paused && hasRemoteStream && <div role="status" className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 text-sm text-white">房主已暂停共享</div>}
       {hasRemoteStream && hasRemoteAudio && isMuted && (
         <button type="button" onClick={handleUnmute}
           className="absolute left-1/2 top-4 z-20 flex min-h-11 max-w-[90%] -translate-x-1/2 items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white shadow-lg"
@@ -505,11 +406,6 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
       peerConnection={pc}
       sharingRole="receiver"
       sharingActive
-      p2pEnabled={p2pEnabled}
-      p2pPC={p2pPC}
-      p2pStatus={p2pStatus}
-      p2pFallbackNotice={p2pFallbackNotice}
-      onToggleP2P={handleToggleP2P}
       webFullscreen={isWebFullscreen}
       rightPanel={<CommentPanel socket={socket} roomId={roomId} commentsOnly />}
       controls={<RoomInfoPanel roomId={roomId} isHost={false} />}

@@ -1,4 +1,4 @@
-import type { ScreenShareAudioOptions, ScreenShareEvent, ScreenShareNativePort, ScreenShareSettings } from './contracts'
+import type { ScreenShareAudioOptions, ScreenShareEvent, ScreenShareNativePort, ScreenShareSettings, ScreenSharePeer } from './contracts'
 import { getHarmonyBridge } from './runtime'
 import { microphoneCapture } from './microphoneCapture'
 import type { MicrophoneLease } from './microphoneCapture'
@@ -28,7 +28,18 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
   let frameMeter: ReturnType<typeof createScreenShareFrameMeter>
   let stopResize: (() => void) | undefined
   let audioQueue = Promise.resolve()
-  const peers = new Map<string, { pc: RTCPeerConnection; ice: RTCIceCandidateInit[] }>()
+  let transform: ReturnType<typeof createScreenShareVideoTransform> | undefined
+  const peers = new Map<string, { pc: RTCPeerConnection; ice: RTCIceCandidateInit[]; ref: ScreenSharePeer }>()
+  const peerFor = (ref: ScreenSharePeer) => {
+    const peer = peers.get(ref.connectionId)
+    return sessionId === ref.sessionId && peer?.ref.remotePeerId === ref.remotePeerId && peer.ref.revision === ref.revision ? peer : undefined
+  }
+  const setSending = async () => {
+    for (const peer of peers.values()) for (const transceiver of peer.pc.getTransceivers()) {
+      const track = transceiver.receiver.track.kind === 'video' ? sendingVideo : audioOutput?.stream.getAudioTracks()[0]
+      await transceiver.sender.replaceTrack(paused ? null : track ?? null).catch(() => {})
+    }
+  }
   const emit = (event: ScreenShareEvent) => window.dispatchEvent(new CustomEvent('zviewer:screen-share', { detail: event }))
   const settings = (): ScreenShareSettings => {
     const value = sendingVideo?.getSettings()
@@ -62,7 +73,7 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
     cancelStart?.(); cancelStart = undefined
     abort?.abort(); abort = undefined
     clearInterval(timer)
-    stopResize?.(); stopResize = undefined
+    stopResize?.(); stopResize = undefined; transform = undefined
     sendingVideo = undefined
     frameMeter?.stop(); frameMeter = undefined
     microphoneInput?.disconnect(); microphoneInput = undefined
@@ -161,6 +172,7 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
             if (id === sessionId) void stop({ sessionId: id }).finally(() => emit({ sessionId: id, type: 'capture-ended', code: 'capture-ended' }))
           },
         })
+        transform = transformed
         sendingVideo = transformed.track
         let nativeDisplaySize = false
         const nativeResize = (event: Event) => {
@@ -211,41 +223,78 @@ export function createHarmonyScreenShare(): ScreenShareNativePort {
     },
     stop,
     setAudioOptions,
-    async pause({ sessionId: id }) { check(id); paused = true; if (sendingVideo) sendingVideo.enabled = false; stream!.getVideoTracks().forEach(track => { track.enabled = false }); applyAudio() },
-    async resume({ sessionId: id }) { check(id); paused = false; if (sendingVideo) sendingVideo.enabled = true; stream!.getVideoTracks().forEach(track => { track.enabled = true }); applyAudio(); await audioContext?.resume() },
-    async createOffer({ sessionId: id, peerId }) {
+    async setVideoOptions(options) {
+      check(options.sessionId)
+      const quality = screenShareVideoOptions(options)
+      quality.frameRate = Math.min(60, quality.frameRate)
+      await stream!.getVideoTracks()[0].applyConstraints({ frameRate: { ideal: quality.frameRate, max: quality.frameRate } })
+      check(options.sessionId)
+      targetFrameRate = quality.frameRate
+      transform?.setQuality(quality)
+      for (const peer of peers.values()) for (const sender of peer.pc.getSenders()) {
+        if (sender.track?.kind !== 'video') continue
+        const params = sender.getParameters()
+        if (!params.encodings?.length) continue
+        params.encodings.forEach(encoding => { encoding.maxFramerate = quality.frameRate; delete encoding.maxBitrate })
+        await sender.setParameters(params)
+      }
+      return settings()
+    },
+    async getConnectionStats(ref) {
+      const peer = peerFor(ref)
+      if (!peer) throw new Error('媒体连接已失效')
+      const stats = await peer.pc.getStats()
+      if (peerFor(ref) !== peer) throw new Error('媒体连接已失效')
+      const reports: Record<string, string | number | boolean>[] = []
+      const fields = ['id', 'type', 'kind', 'mediaType', 'timestamp', 'bytesSent', 'bytesReceived', 'framesEncoded', 'framesDecoded', 'packetsSent', 'packetsReceived', 'packetsLost', 'roundTripTime', 'currentRoundTripTime', 'jitter', 'qualityLimitationReason', 'totalEncodeTime', 'mediaSourceId', 'frames', 'frameWidth', 'frameHeight', 'codecId', 'mimeType', 'selected', 'nominated', 'state']
+      stats.forEach(value => {
+        if (!['outbound-rtp', 'remote-inbound-rtp', 'inbound-rtp', 'media-source', 'candidate-pair', 'codec'].includes(value.type)) return
+        const row: Record<string, string | number | boolean> = {}
+        for (const key of fields) if (['number', 'string', 'boolean'].includes(typeof value[key])) row[key] = value[key]
+        reports.push(row)
+      })
+      return { connectionId: ref.connectionId, timestamp: Date.now(), reports }
+    },
+    async pause({ sessionId: id }) { check(id); paused = true; if (sendingVideo) sendingVideo.enabled = false; stream!.getVideoTracks().forEach(track => { track.enabled = false }); applyAudio(); await setSending() },
+    async resume({ sessionId: id }) { check(id); paused = false; if (sendingVideo) sendingVideo.enabled = true; stream!.getVideoTracks().forEach(track => { track.enabled = true }); applyAudio(); await setSending(); await audioContext?.resume() },
+    async createOffer(ref) {
+      const { sessionId: id, connectionId } = ref
       check(id)
-      peers.get(peerId)?.pc.close()
-      const pc = new RTCPeerConnection(config), peer = { pc, ice: [] as RTCIceCandidateInit[] }
-      peers.set(peerId, peer)
+      peers.get(connectionId)?.pc.close()
+      if (!peers.has(connectionId) && peers.size >= 3) throw new Error('当前设备发送连接已达上限')
+      const pc = new RTCPeerConnection(ref.iceServers ? { iceServers: ref.iceServers } : config), peer = { pc, ice: [] as RTCIceCandidateInit[], ref }
+      peers.set(connectionId, peer)
       const outgoing = new MediaStream([sendingVideo!, ...(audioOutput?.stream.getAudioTracks() ?? [])])
       for (const track of outgoing.getTracks()) pc.addTrack(track, outgoing)
+      if (paused) for (const sender of pc.getSenders()) await sender.replaceTrack(null)
       const codecs = typeof RTCRtpSender !== 'undefined' ? RTCRtpSender.getCapabilities?.('video')?.codecs : undefined
       if (codecs) {
         const preferred = [...codecs].sort((a, b) => Number(!/h264/i.test(a.mimeType)) - Number(!/h264/i.test(b.mimeType)))
         for (const transceiver of pc.getTransceivers()) if (transceiver.sender.track?.kind === 'video') transceiver.setCodecPreferences?.(preferred)
       }
-      pc.onicecandidate = event => { if (id === sessionId && peers.get(peerId) === peer && event.candidate) emit({ sessionId: id, type: 'ice', peerId, candidate: event.candidate.toJSON() }) }
-      pc.onconnectionstatechange = () => { if (id === sessionId && peers.get(peerId) === peer) emit({ sessionId: id, type: 'peer-state', peerId, connectionState: pc.connectionState }) }
+      pc.onicecandidate = event => { if (peerFor(ref) === peer && event.candidate) emit({ ...ref, type: 'ice', candidate: event.candidate.toJSON() }) }
+      pc.onconnectionstatechange = () => { if (peerFor(ref) === peer) emit({ ...ref, type: 'peer-state', connectionState: pc.connectionState }) }
       const offer = await pc.createOffer()
-      if (id !== sessionId || peers.get(peerId) !== peer) throw Object.assign(new Error('会话已结束'), { code: 'cancelled' })
+      if (peerFor(ref) !== peer) throw Object.assign(new Error('会话已结束'), { code: 'cancelled' })
       await pc.setLocalDescription(offer)
+      if (peerFor(ref) !== peer) throw Object.assign(new Error('会话已结束'), { code: 'cancelled' })
       return { type: 'offer', sdp: offer.sdp }
     },
-    async setAnswer({ sessionId: id, peerId, description }) {
-      check(id)
-      const peer = peers.get(peerId)
+    async setAnswer(ref) {
+      const { description } = ref
+      const peer = peerFor(ref)
       if (!peer) return
       await peer.pc.setRemoteDescription(description)
+      if (peerFor(ref) !== peer) return
       for (const candidate of peer.ice.splice(0)) await peer.pc.addIceCandidate(candidate)
     },
-    async addIceCandidate({ sessionId: id, peerId, candidate }) {
-      check(id)
-      const peer = peers.get(peerId)
+    async addIceCandidate(ref) {
+      const { candidate } = ref
+      const peer = peerFor(ref)
       if (!peer) return
       if (peer.pc.remoteDescription) await peer.pc.addIceCandidate(candidate)
       else if (peer.ice.length < 128) peer.ice.push(candidate)
     },
-    async removePeer({ sessionId: id, peerId }) { if (sessionId === id) { peers.get(peerId)?.pc.close(); peers.delete(peerId) } },
+    async removePeer(ref) { const peer = peerFor(ref); if (peer) { peers.delete(ref.connectionId); peer.pc.onconnectionstatechange = null; peer.pc.onicecandidate = null; peer.pc.close() } },
   }
 }

@@ -215,7 +215,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
           <div className="mobile-player-stage"><div className="mobile-player" data-testid="player">
             {mode === 'screen-share'
               ? room.isHost
-                ? <MobileScreenShareHost socket={socket} roomId={roomId} streamPush={shareMethod === 'stream-push'} />
+                ? <MobileScreenShareHost socket={socket} roomId={roomId} streamPush={shareMethod === 'stream-push'} roomViewerCount={viewers.length} />
                 : shareMethod === 'stream-push'
                 ? <StreamPushViewer roomId={roomId} streamStatus={streamStatus} playerOnly />
                 : <WebrtcWatchPage roomId={roomId} playerOnly />

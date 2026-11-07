@@ -64,6 +64,9 @@ public final class ScreenSharePlugin extends Plugin {
     private List<PeerConnection.IceServer> iceServers = new ArrayList<>();
     private static final class Peer {
         PeerConnection pc;
+        String remotePeerId;
+        int revision;
+        RtpSender videoSender, audioSender;
         boolean answered;
         final List<IceCandidate> ice = new ArrayList<>();
     }
@@ -76,6 +79,7 @@ public final class ScreenSharePlugin extends Plugin {
         JSObject value = new JSObject();
         value.put("video", true); value.put("microphone", true); value.put("systemAudio", Build.VERSION.SDK_INT >= 29);
         value.put("background", true); value.put("experimental", false);
+        value.put("maxFrameRate", 90);
         value.put("reason", "系统音频受播放应用的录制策略限制；房间语音使用麦克风时，共享麦克风会自动让出");
         call.resolve(value);
     }
@@ -89,7 +93,7 @@ public final class ScreenSharePlugin extends Plugin {
             microphoneRequested = call.getBoolean("microphone", false);
             paused = false;
             targetFrameRate = call.getInt("frameRate", 30);
-            if (targetFrameRate != 30 && targetFrameRate != 60 && targetFrameRate != 90) targetFrameRate = 30;
+            targetFrameRate = Math.max(1, Math.min(90, targetFrameRate));
             switch (call.getString("resolution", "720p")) {
                 case "native": maxLongSide = maxShortSide = 0; break;
                 case "1080p": maxLongSide = 1920; maxShortSide = 1080; break;
@@ -295,7 +299,12 @@ public final class ScreenSharePlugin extends Plugin {
         try {
             paused = pause;
             audioCapture.configure(systemAudioRequested, microphoneRequested, microphoneSuppressed(), paused);
-            video.setEnabled(!pause); audio.setEnabled(!pause); emitSettings(); call.resolve();
+            video.setEnabled(!pause); audio.setEnabled(!pause);
+            for (Peer peer : peers.values()) {
+                if (peer.videoSender != null) peer.videoSender.setTrack(pause ? null : video, false);
+                if (peer.audioSender != null) peer.audioSender.setTrack(pause ? null : audio, false);
+            }
+            emitSettings(); call.resolve();
         } catch (RuntimeException ignored) { call.reject("音频采集未能恢复", "capture-start-failed"); endFromSystem(session); }
     }); }
     @PluginMethod public void setAudioOptions(PluginCall call) {
@@ -355,14 +364,93 @@ public final class ScreenSharePlugin extends Plugin {
     @PluginMethod public void stop(PluginCall call) {
         worker.post(() -> { if (current(call)) cleanup(); call.resolve(); });
     }
+    private Peer currentPeer(PluginCall call) {
+        Peer peer = peers.get(call.getString("connectionId", ""));
+        return current(call) && peer != null &&
+            Objects.equals(peer.remotePeerId, call.getString("remotePeerId", "")) &&
+            peer.revision == call.getInt("revision", -1) ? peer : null;
+    }
+    private JSObject peerEvent(String id, String type, String connectionId, Peer peer) {
+        JSObject value = event(id, type);
+        value.put("connectionId", connectionId); value.put("remotePeerId", peer.remotePeerId);
+        value.put("revision", peer.revision); return value;
+    }
+    private List<PeerConnection.IceServer> connectionIce(PluginCall call) throws JSONException {
+        JSArray servers = call.getArray("iceServers");
+        if (servers == null) return iceServers;
+        List<PeerConnection.IceServer> result = new ArrayList<>();
+        for (int i = 0; i < servers.length(); i++) {
+            JSONObject value = servers.getJSONObject(i);
+            Object urls = value.get("urls");
+            List<String> list = new ArrayList<>();
+            if (urls instanceof JSONArray) for (int n = 0; n < ((JSONArray) urls).length(); n++) list.add(((JSONArray) urls).getString(n));
+            else list.add(String.valueOf(urls));
+            result.add(PeerConnection.IceServer.builder(list).setUsername(value.optString("username", "")).setPassword(value.optString("credential", "")).createIceServer());
+        }
+        return result;
+    }
+    @PluginMethod public void setVideoOptions(PluginCall call) {
+        worker.post(() -> {
+            if (!current(call) || source == null) { call.reject("共享会话已结束", "cancelled"); return; }
+            targetFrameRate = Math.max(1, Math.min(90, call.getInt("frameRate", targetFrameRate)));
+            switch (call.getString("resolution", "720p")) {
+                case "native": maxLongSide = maxShortSide = 0; break;
+                case "1080p": maxLongSide = 1920; maxShortSide = 1080; break;
+                case "1440p": maxLongSide = 2560; maxShortSide = 1440; break;
+                case "2160p": maxLongSide = 3840; maxShortSide = 2160; break;
+                default: maxLongSide = 1280; maxShortSide = 720;
+            }
+            try {
+                resizeFromDisplay(session);
+                source.adaptOutputFormat(width, height, targetFrameRate);
+                for (Peer peer : peers.values()) {
+                    RtpParameters params = peer.videoSender.getParameters();
+                    for (RtpParameters.Encoding encoding : params.encodings) {
+                        encoding.maxFramerate = targetFrameRate; encoding.maxBitrateBps = null;
+                    }
+                    if (!peer.videoSender.setParameters(params)) { call.reject("编码器未接受画质设置", "encoder-failed"); return; }
+                }
+                emitSettings(); call.resolve(settings());
+            } catch (RuntimeException ignored) { call.reject("画质设置未生效", "encoder-failed"); }
+        });
+    }
+    @PluginMethod public void getConnectionStats(PluginCall call) {
+        worker.post(() -> {
+            Peer peer = currentPeer(call);
+            if (peer == null) { call.reject("媒体连接已失效", "cancelled"); return; }
+            peer.pc.getStats(report -> worker.post(() -> {
+                if (currentPeer(call) != peer) { call.reject("媒体连接已失效", "cancelled"); return; }
+                JSArray rows = new JSArray();
+                Set<String> allowed = new HashSet<>(Arrays.asList("kind", "mediaType", "bytesSent", "bytesReceived",
+                    "framesEncoded", "framesDecoded", "packetsSent", "packetsReceived", "packetsLost", "roundTripTime",
+                    "currentRoundTripTime", "jitter", "qualityLimitationReason", "totalEncodeTime", "mediaSourceId",
+                    "frames", "frameWidth", "frameHeight", "codecId", "mimeType", "selected", "nominated", "state"));
+                for (RTCStats stat : report.getStatsMap().values()) {
+                    if (!Arrays.asList("outbound-rtp", "remote-inbound-rtp", "inbound-rtp", "media-source", "candidate-pair", "codec").contains(stat.getType())) continue;
+                    JSObject row = new JSObject(); row.put("id", stat.getId()); row.put("type", stat.getType());
+                    row.put("timestamp", stat.getTimestampUs() / 1000.0);
+                    for (Map.Entry<String, Object> entry : stat.getMembers().entrySet()) if (allowed.contains(entry.getKey())) {
+                        Object value = entry.getValue();
+                        if (value instanceof Number || value instanceof Boolean || value instanceof String) row.put(entry.getKey(), value);
+                    }
+                    rows.put(row);
+                }
+                JSObject value = new JSObject(); value.put("connectionId", call.getString("connectionId"));
+                value.put("timestamp", System.currentTimeMillis()); value.put("reports", rows); call.resolve(value);
+            }));
+        });
+    }
     @PluginMethod public void createOffer(PluginCall call) {
         worker.post(() -> {
             if (!current(call) || video == null) { call.reject("共享会话已结束", "cancelled"); return; }
-            final String id = session, peerId = call.getString("peerId", "");
-            if (peerId.isEmpty() || (peers.size() >= 4 && !peers.containsKey(peerId))) { call.reject("观众连接数量已达上限", "transport-failed"); return; }
+            final String id = session, peerId = call.getString("connectionId", "");
+            if (peerId.isEmpty() || (peers.size() >= 3 && !peers.containsKey(peerId))) { call.reject("设备发送连接数量已达上限", "transport-failed"); return; }
             closePeer(peerId);
             Peer peer = new Peer(); peers.put(peerId, peer);
-            PeerConnection.RTCConfiguration config = new PeerConnection.RTCConfiguration(iceServers);
+            peer.remotePeerId = call.getString("remotePeerId", ""); peer.revision = call.getInt("revision", 0);
+            PeerConnection.RTCConfiguration config;
+            try { config = new PeerConnection.RTCConfiguration(connectionIce(call)); }
+            catch (JSONException ignored) { closePeer(peerId); call.reject("ICE 配置无效", "transport-failed"); return; }
             config.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN;
             peer.pc = factory.createPeerConnection(config, new PeerConnection.Observer() {
                 public void onSignalingChange(PeerConnection.SignalingState state) {}
@@ -377,42 +465,42 @@ public final class ScreenSharePlugin extends Plugin {
                 public void onAddTrack(RtpReceiver receiver, MediaStream[] streams) {}
                 public void onConnectionChange(PeerConnection.PeerConnectionState state) { worker.post(() -> {
                     if (!id.equals(session) || peers.get(peerId) != peer) return;
-                    JSObject value = event(id, "peer-state"); value.put("peerId", peerId); value.put("connectionState", state.name().toLowerCase(Locale.ROOT)); send(value);
+                    JSObject value = peerEvent(id, "peer-state", peerId, peer); value.put("connectionState", state.name().toLowerCase(Locale.ROOT)); send(value);
                 }); }
                 public void onIceCandidate(IceCandidate candidate) { worker.post(() -> {
                     if (!id.equals(session) || peers.get(peerId) != peer) return;
                     JSObject ice = new JSObject(); ice.put("candidate", candidate.sdp); ice.put("sdpMid", candidate.sdpMid); ice.put("sdpMLineIndex", candidate.sdpMLineIndex);
-                    JSObject value = event(id, "ice"); value.put("peerId", peerId); value.put("candidate", ice); send(value);
+                    JSObject value = peerEvent(id, "ice", peerId, peer); value.put("candidate", ice); send(value);
                 }); }
             });
             if (peer.pc == null) { closePeer(peerId); call.reject("无法建立观众连接", "transport-failed"); return; }
             RtpSender sender = peer.pc.addTrack(video, Collections.singletonList("screen-share"));
-            peer.pc.addTrack(audio, Collections.singletonList("screen-share"));
+            peer.videoSender = sender;
+            peer.audioSender = peer.pc.addTrack(audio, Collections.singletonList("screen-share"));
+            if (paused) { peer.videoSender.setTrack(null, false); peer.audioSender.setTrack(null, false); }
             List<RtpCapabilities.CodecCapability> codecs = new ArrayList<>(factory.getRtpSenderCapabilities(MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO).codecs);
             codecs.sort((a, b) -> Boolean.compare(!"H264".equalsIgnoreCase(a.name), !"H264".equalsIgnoreCase(b.name)));
             for (RtpTransceiver transceiver : peer.pc.getTransceivers()) {
                 if (transceiver.getMediaType() == MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO) transceiver.setCodecPreferences(codecs);
             }
             RtpParameters params = sender.getParameters();
-            // Scale the quality budget with actual captured pixels and requested FPS; congestion
-            // control may still reduce it. A fixed 720p/30 sender cap would defeat the quality UI.
-            int bitrate = (int) Math.min(32_000_000, Math.max(2_500_000, width * (double) height * 2.8 * Math.sqrt(targetFrameRate / 30.0)));
-            for (RtpParameters.Encoding encoding : params.encodings) { encoding.maxBitrateBps = bitrate; encoding.maxFramerate = targetFrameRate; }
+            for (RtpParameters.Encoding encoding : params.encodings) { encoding.maxBitrateBps = null; encoding.maxFramerate = targetFrameRate; }
             sender.setParameters(params);
             peer.pc.createOffer(new SdpAdapter(call) {
                 @Override public void onCreateSuccess(SessionDescription description) { worker.post(() -> {
                     if (!id.equals(session) || peers.get(peerId) != peer) { call.reject("会话已结束", "cancelled"); return; }
-                    peer.pc.setLocalDescription(new SdpAdapter(call) { @Override public void onSetSuccess() {
+                    peer.pc.setLocalDescription(new SdpAdapter(call) { @Override public void onSetSuccess() { worker.post(() -> {
+                        if (!id.equals(session) || peers.get(peerId) != peer) { call.reject("会话已结束", "cancelled"); return; }
                         JSObject value = new JSObject(); value.put("type", "offer"); value.put("sdp", description.description); call.resolve(value);
-                    } }, description);
+                    }); } }, description);
                 }); }
             }, new MediaConstraints());
         });
     }
     @PluginMethod public void setAnswer(PluginCall call) {
         worker.post(() -> {
-            String peerId = call.getString("peerId", ""); final String id = session;
-            Peer peer = peers.get(peerId);
+            String peerId = call.getString("connectionId", ""); final String id = session;
+            Peer peer = currentPeer(call);
             JSObject description = call.getObject("description", new JSObject());
             if (!current(call) || peer == null || !"answer".equals(description.getString("type"))) { call.reject("观众连接已失效", "cancelled"); return; }
             peer.pc.setRemoteDescription(new SdpAdapter(call) { @Override public void onSetSuccess() { worker.post(() -> {
@@ -425,7 +513,7 @@ public final class ScreenSharePlugin extends Plugin {
     }
     @PluginMethod public void addIceCandidate(PluginCall call) {
         worker.post(() -> {
-            Peer peer = peers.get(call.getString("peerId", ""));
+            Peer peer = currentPeer(call);
             if (!current(call) || peer == null) { call.resolve(); return; }
             JSObject value = call.getObject("candidate", new JSObject());
             IceCandidate candidate = new IceCandidate(value.getString("sdpMid", "0"), value.getInteger("sdpMLineIndex", 0), value.getString("candidate", ""));
@@ -433,7 +521,7 @@ public final class ScreenSharePlugin extends Plugin {
             call.resolve();
         });
     }
-    @PluginMethod public void removePeer(PluginCall call) { worker.post(() -> { if (current(call)) closePeer(call.getString("peerId", "")); call.resolve(); }); }
+    @PluginMethod public void removePeer(PluginCall call) { worker.post(() -> { if (currentPeer(call) != null) closePeer(call.getString("connectionId", "")); call.resolve(); }); }
     private void closePeer(String peerId) { Peer peer = peers.remove(peerId); if (peer != null && peer.pc != null) { peer.pc.close(); peer.pc.dispose(); peer.ice.clear(); } }
     private static class SdpAdapter implements SdpObserver {
         final PluginCall call;
