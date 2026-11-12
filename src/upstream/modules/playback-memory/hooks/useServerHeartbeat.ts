@@ -72,6 +72,7 @@ export function useServerHeartbeat(options: UseServerHeartbeatOptions): void {
       try {
         if (state.isPlaying && video.paused) void safePlay(video)
         else if (!state.isPlaying && !video.paused) video.pause()
+        if (state.isLive === true) { catchUp = false; video.playbackRate = 1; return }
         const delta = state.currentTime - video.currentTime
         if (Math.abs(delta) <= getAdaptiveSeekThreshold(baseRate)) {
           catchUp = false; video.playbackRate = baseRate

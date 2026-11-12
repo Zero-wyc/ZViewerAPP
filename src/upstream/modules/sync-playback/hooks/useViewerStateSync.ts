@@ -190,15 +190,18 @@ export function useViewerStateSync({
         await applySourceToVideo(
           video,
           state,
-          state.currentTime || undefined,
+          state.isLive === true ? undefined : state.currentTime || undefined,
           blobs
         )
         // applySourceToVideo 后视频元素可能已替换，重新获取
         const currentVideo = videoRef.current
         if (!currentVideo || !current()) return
+        if (state.isLive === true && currentVideo.playbackRate !== 1) {
+          currentVideo.playbackRate = 1
+        }
 
         // 源变化时完整同步所有字段
-        if (Number.isFinite(state.currentTime) && state.currentTime >= 0 &&
+        if (state.isLive !== true && Number.isFinite(state.currentTime) && state.currentTime >= 0 &&
           Math.abs(currentVideo.currentTime - state.currentTime) > 0.05) {
           try {
             currentVideo.currentTime = state.currentTime
@@ -207,6 +210,7 @@ export function useViewerStateSync({
           }
         }
         if (
+          state.isLive !== true &&
           state.playbackRate > 0 &&
           currentVideo.playbackRate !== state.playbackRate
         ) {
@@ -221,7 +225,7 @@ export function useViewerStateSync({
         // 更新缓存
         lastAppliedStateRef.current = state
         lastAppliedIsPlayingRef.current = state.isPlaying
-        if (state.playbackRate > 0) {
+        if (!state.isLive && state.playbackRate > 0) {
           lastAppliedPlaybackRateRef.current = state.playbackRate
         }
         return
@@ -245,7 +249,7 @@ export function useViewerStateSync({
           (lastAppliedPlaybackRateRef.current as number) - state.playbackRate
         ) > 0.01
       ) {
-        if (state.playbackRate > 0) {
+        if (!state.isLive && state.playbackRate > 0) {
           if (video.playbackRate !== state.playbackRate) {
             video.playbackRate = state.playbackRate
           }
@@ -253,7 +257,7 @@ export function useViewerStateSync({
         }
       }
 
-      if (forceSync && Number.isFinite(state.currentTime) && state.currentTime >= 0) {
+      if (state.isLive !== true && forceSync && Number.isFinite(state.currentTime) && state.currentTime >= 0) {
         const done = await executeSeek({ video, targetTime: state.currentTime, state, seekTo,
           suppressEventsRef, isReloadingRef, onSeekFailed: reloadVideo })
         if (!done && current()) video.currentTime = state.currentTime
@@ -324,6 +328,7 @@ export function useViewerStateSync({
       const video = videoRef.current
       if (!video || disposed) return
       const identity = currentMediaIdentity()
+      if (useRoomStore.getState().watchTogether.isLive && ['seek', 'rate'].includes(payload.action)) return
 
       // seek 到未缓冲区域：交给 executeSeek 处理（内部管理锁 + suppressEventsRef）
       if (payload.action === 'seek' && typeof payload.value === 'number') {
@@ -446,6 +451,7 @@ export function useViewerHeartbeat({
       // suppressed 标记的心跳仅存活检测，不用于状态同步
       if (payload.suppressed) return
 
+      if (useRoomStore.getState().watchTogether.isLive) return
       // 从心跳提取 playbackRate（兼容旧版本缺失，缺省按 1x）
       const rate =
         typeof payload.playbackRate === 'number' && payload.playbackRate > 0

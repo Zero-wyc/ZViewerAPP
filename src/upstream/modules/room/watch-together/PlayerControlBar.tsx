@@ -280,6 +280,9 @@ export function PlayerControlBar({
   const landscape = useLandscapeControls()
   const currentTime = useVideoCurrentTime(videoRef)
   const duration = useVideoDuration(videoRef, watchTogether.duration)
+  // 直播源：隐藏进度条/时间/倍速。直播没有总时长与可回看区间，
+  // 进度条本身既无意义又会诱导用户拖动（拖了只能看缓冲里的几秒）。
+  const isLive = watchTogether.isLive === true
   const progress =
     duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0
   const bufferedProgress = useVideoBuffered(videoRef, duration)
@@ -551,80 +554,86 @@ export function PlayerControlBar({
           controlBarVisible || keepControlsVisible ? 'zart-controlbar-enter' : 'zart-controlbar-exit'
         )}
       >
-        {/* 进度条：轨道 + 缓冲 + 已播放 + 服务器同步线 */}
-        <div
-          ref={progressRef}
-          role="slider"
-          aria-label={canControl ? '播放进度' : '播放进度（仅房主可拖动）'}
-          aria-valuemin={0}
-          aria-valuemax={duration}
-          aria-valuenow={currentTime}
-          aria-disabled={!canControl}
-          className={cn(
-            'group relative h-1.5 md:h-2 w-full cursor-pointer overflow-visible rounded-full transition-all',
-            canControl && 'hover:h-2 md:hover:h-2.5'
-          )}
-          style={{ backgroundColor: 'rgba(128, 128, 128, 0.4)' }}
-          onPointerDown={handleProgressPointerDown}
-        >
-          {/* 缓冲进度 */}
+        {/* 进度条：轨道 + 缓冲 + 已播放 + 服务器同步线（直播源不渲染） */}
+        {!isLive && (
           <div
-            className="absolute top-0 h-full rounded-full transition-[width] duration-150"
-            style={{
-              width: `${bufferedProgress * 100}%`,
-              backgroundColor: 'rgba(255, 255, 255, 0.35)',
-            }}
-          />
-          {/* 已播放进度 */}
-          <div
-            className="absolute top-0 h-full rounded-full bg-[var(--md-sys-color-primary)] transition-[width] duration-100"
-            style={{ width: `${progress * 100}%` }}
-          />
-          {/* 服务器/房主进度同步线：始终显示，差异越大越明显，带平滑位移动画 */}
-          {serverProgress !== null && duration > 0 && (
-            <div
-              className="pointer-events-none absolute top-1/2 z-10 flex -translate-y-1/2 flex-col items-center transition-all duration-150 ease-linear"
-              style={{
-                left: `${serverProgress * 100}%`,
-                opacity: Math.min(1, Math.max(0.35, absDiffSeconds / 3)),
-              }}
-              title={`${canControl ? '服务器进度' : '房主进度'}: ${formatDuration(watchTogether.currentTime)}${
-                absDiffSeconds > 0.5
-                  ? ` (${serverTimeDiff > 0 ? '落后' : '超前'} ${formatDuration(absDiffSeconds)})`
-                  : ''
-              }`}
-            >
-              <div
-                className="h-3.5 w-[3px] rounded-full shadow-[0_0_6px_rgba(0,0,0,0.5)]"
-                style={{
-                  backgroundColor:
-                    absDiffSeconds > 3
-                      ? 'var(--md-sys-color-error)'
-                      : 'var(--md-sys-color-tertiary)',
-                }}
-              />
-              <div
-                className="absolute -top-0.5 h-1.5 w-1.5 rounded-full"
-                style={{
-                  backgroundColor:
-                    absDiffSeconds > 3
-                      ? 'var(--md-sys-color-error)'
-                      : 'var(--md-sys-color-tertiary)',
-                }}
-              />
-            </div>
-          )}
-          {/* 拖动/悬停指示器（缩小尺寸） */}
-          <div
+            ref={progressRef}
+            role="slider"
+            aria-label={
+              canControl
+                ? '播放进度'
+                : '播放进度（仅房主可拖动）'
+            }
+            aria-valuemin={0}
+            aria-valuemax={duration}
+            aria-valuenow={currentTime}
+            aria-disabled={!canControl}
             className={cn(
-              'absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-[var(--md-sys-color-primary)] bg-[var(--md-sys-color-on-primary)] shadow transition-opacity duration-150',
-              dragging || canControl
-                ? 'opacity-100'
-                : 'opacity-0 group-hover:opacity-100'
+              'group relative h-1.5 md:h-2 w-full cursor-pointer overflow-visible rounded-full transition-all',
+              canControl && 'hover:h-2 md:hover:h-2.5'
             )}
-            style={{ left: `calc(${progress * 100}% - 5px)` }}
-          />
-        </div>
+            style={{ backgroundColor: 'rgba(128, 128, 128, 0.4)' }}
+            onPointerDown={handleProgressPointerDown}
+          >
+            {/* 缓冲进度 */}
+            <div
+              className="absolute top-0 h-full rounded-full transition-[width] duration-150"
+              style={{
+                width: `${bufferedProgress * 100}%`,
+                backgroundColor: 'rgba(255, 255, 255, 0.35)',
+              }}
+            />
+            {/* 已播放进度 */}
+            <div
+              className="absolute top-0 h-full rounded-full bg-[var(--md-sys-color-primary)] transition-[width] duration-100"
+              style={{ width: `${progress * 100}%` }}
+            />
+            {/* 服务器/房主进度同步线：始终显示，差异越大越明显，带平滑位移动画 */}
+            {serverProgress !== null && duration > 0 && (
+              <div
+                className="pointer-events-none absolute top-1/2 z-10 flex -translate-y-1/2 flex-col items-center transition-all duration-150 ease-linear"
+                style={{
+                  left: `${serverProgress * 100}%`,
+                  opacity: Math.min(1, Math.max(0.35, absDiffSeconds / 3)),
+                }}
+                title={`${canControl ? '服务器进度' : '房主进度'}: ${formatDuration(watchTogether.currentTime)}${
+                  absDiffSeconds > 0.5
+                    ? ` (${serverTimeDiff > 0 ? '落后' : '超前'} ${formatDuration(absDiffSeconds)})`
+                    : ''
+                }`}
+              >
+                <div
+                  className="h-3.5 w-[3px] rounded-full shadow-[0_0_6px_rgba(0,0,0,0.5)]"
+                  style={{
+                    backgroundColor:
+                      absDiffSeconds > 3
+                        ? 'var(--md-sys-color-error)'
+                        : 'var(--md-sys-color-tertiary)',
+                  }}
+                />
+                <div
+                  className="absolute -top-0.5 h-1.5 w-1.5 rounded-full"
+                  style={{
+                    backgroundColor:
+                      absDiffSeconds > 3
+                        ? 'var(--md-sys-color-error)'
+                        : 'var(--md-sys-color-tertiary)',
+                  }}
+                />
+              </div>
+            )}
+            {/* 拖动/悬停指示器（缩小尺寸） */}
+            <div
+              className={cn(
+                'absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-[var(--md-sys-color-primary)] bg-[var(--md-sys-color-on-primary)] shadow transition-opacity duration-150',
+                dragging || canControl
+                  ? 'opacity-100'
+                  : 'opacity-0 group-hover:opacity-100'
+              )}
+              style={{ left: `calc(${progress * 100}% - 5px)` }}
+            />
+          </div>
+        )}
 
         {/* 移动端弹幕输入行：放在进度条与按钮行之间，避免与按钮竞争空间 */}
         <div className={`player-mobile-composer ${composerOpen ? 'is-open' : ''} flex items-center gap-1 md:hidden`}>
@@ -662,12 +671,26 @@ export function PlayerControlBar({
             </ControlButton>
           )}
 
-          {/* 时间 */}
-          <div className="player-time select-none px-0.5 md:px-1 text-[10px] md:text-xs font-medium tabular-nums text-[var(--md-sys-color-on-surface)]">
-            <span>{formatDuration(currentTime)}</span>
-            <span className="mx-0.5 opacity-60">/</span>
-            <span className="opacity-80">{formatDuration(duration)}</span>
-          </div>
+          {/* 时间：直播源显示 LIVE 徽标（无总时长可展示） */}
+          {isLive ? (
+            <div className="flex items-center gap-1 select-none px-0.5 md:px-1">
+              <span className="flex items-center gap-1 rounded-full bg-[var(--md-sys-color-error)] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-[var(--md-sys-color-on-error)]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--md-sys-color-on-error)]" />
+                {'直播'}
+              </span>
+              {watchTogether.duration > 0 && (
+                <span className="text-[10px] opacity-70 md:text-xs">
+                  {formatDuration(currentTime)}
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="select-none px-0.5 md:px-1 text-[10px] md:text-xs font-medium tabular-nums text-[var(--md-sys-color-on-surface)]">
+              <span>{formatDuration(currentTime)}</span>
+              <span className="mx-0.5 opacity-60">/</span>
+              <span className="opacity-80">{formatDuration(duration)}</span>
+            </div>
+          )}
 
           {/* 弹幕开关：开启时不显示底色，通过图标是否带斜线区分状态 */}
           <ControlButton
@@ -694,6 +717,7 @@ export function PlayerControlBar({
           </div>
 
           {/* 倍速 */}
+          {!isLive && (
           <div ref={rateContainerRef} className="player-secondary relative">
             <ControlButton
               ref={rateButtonRef}
@@ -718,6 +742,7 @@ export function PlayerControlBar({
               </div>
             ))}
           </div>
+          )}
 
           {/* 音量：容器包含按钮和弹窗，使用延迟关闭避免移动鼠标到弹窗时隐藏；
               点外立即关闭见 volumeContainerRef 的 document pointerdown 捕获 */}
@@ -757,7 +782,7 @@ export function PlayerControlBar({
           </div>
 
           {/* 房主专属：同步进度（桌面端直接显示） */}
-          {isHost && (
+          {isHost && !isLive && (
             <div className="player-secondary hidden md:block">
               <ControlButton label="同步进度" onClick={onSync}>
                 <RotateCcw size={18} />
@@ -798,12 +823,12 @@ export function PlayerControlBar({
                   className="flex w-full items-center gap-2 p-2 text-xs">
                   <MessageSquare size={16} />{composerOpen ? '收起弹幕输入' : '发送弹幕'}
                 </button>
-                <div className="player-rate-options" aria-label="播放倍速">
+                {!isLive && <div className="player-rate-options" aria-label="播放倍速">
                   {RATES.map(rate => <button key={rate} type="button" disabled={!canControl}
                     aria-label={`${rate}倍速`} aria-pressed={Math.abs(playbackRate - rate) < 0.01}
                     onClick={() => { handleRateSelect(rate); setMoreOpen(false) }}>{rate}x</button>)}
-                </div>
-                {isHost && (
+                </div>}
+                {isHost && !isLive && (
                   <button
                     type="button"
                     onClick={() => {

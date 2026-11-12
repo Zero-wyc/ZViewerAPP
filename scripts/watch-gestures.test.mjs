@@ -5,7 +5,7 @@ import { stripTypeScriptTypes } from 'node:module'
 import { SourceTextModule, SyntheticModule, createContext } from 'node:vm'
 import { attachWatchVideoGestures } from '../src/mobile/watchVideoGestures.ts'
 
-async function player(t, canControl = true) {
+async function player(t, canControl = true, isLive = false) {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   let now = 0
   t.mock.method(performance, 'now', () => now)
@@ -28,6 +28,7 @@ async function player(t, canControl = true) {
   const context = createContext({ Node: Surface, console })
   const module = new SourceTextModule(stripTypeScriptTypes(await readFile(new URL('../src/upstream/modules/room/watch-together/useWatchGestures.ts', import.meta.url), 'utf8')), { context })
   const imports = {
+    '@/store/roomStore': { useRoomStore: { getState: () => ({ watchTogether: { isLive } }) } },
     react: { useEffect: fn => effects.push(fn), useLayoutEffect: fn => fn(), useRef: current => ({ current }) },
     '@/lib/utils': { formatDuration: value => String(Math.round(value)) },
     '../../../../platform/runtime': { isGlobalAppearanceRuntime: () => true },
@@ -64,6 +65,16 @@ async function player(t, canControl = true) {
   t.after(cleanup)
   return { element, video, calls, notice, event, tap, tick, cleanup, brightness }
 }
+
+test('live side double taps and horizontal drags cannot seek, while center playback works', async t => {
+  const p = await player(t, true, true)
+  p.tap(50); p.tap(50); p.tick(320)
+  p.event('pointerdown', 200); p.event('pointermove', 480); p.event('pointerup', 480)
+  assert.equal(p.video.currentTime, 100)
+  assert.equal(p.calls.some(c => Array.isArray(c) && c[0] === 'seek-request'), false)
+  p.tap(300); p.tap(300)
+  assert.equal(p.video.paused, true)
+})
 
 test('single taps toggle once after the double-tap window, including synthesized click', async t => {
   const p = await player(t)

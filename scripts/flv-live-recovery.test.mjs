@@ -44,9 +44,10 @@ function fixture(withHandlers = true) {
     onRetrying: (attempt, max) => retries.push({ attempt, max, at: now }),
     onReady: () => counts.ready++, onExhausted: () => counts.exhausted++, onStreamEnd: () => counts.ended++,
   }
+  const urls = []
   const flvjs = {
     Events: { ERROR: 'error', MEDIA_INFO: 'media-info', STATISTICS_INFO: 'statistics', LOADING_COMPLETE: 'loading-complete' },
-    isSupported: () => true, createPlayer: () => player,
+    isSupported: () => true, createPlayer: options => { urls.push(options.url); return player },
   }
   const utils = stripTypeScriptTypes(readFileSync(new URL('../src/upstream/modules/player/utils.ts', import.meta.url), 'utf8'))
     .replace(/\bexport (?=(?:async )?function|let|const)/g, '')
@@ -55,18 +56,18 @@ function fixture(withHandlers = true) {
     'setTimeout', 'clearTimeout', 'DOMException', `${utils}\nreturn waitForMetadata`
   )(setTimeout, clearTimeout, DOMException)
   const engine = new Function(
-    'flvjs', 'resetVideoElement', 'waitForMetadata', 'resolveProxyUrl', 'setTimeout', 'clearTimeout', 'console',
+    'flvjs', 'resetVideoElement', 'waitForMetadata', 'resolveProxyUrl', 'setTimeout', 'clearTimeout', 'console', 'buildProxyUrl',
     `${code}\nreturn { flvEngine, attachLiveHandlers }`
   )(flvjs, () => {}, (...args) => {
     metadataWaits++
     return waitForMetadata(...args)
-  }, url => url, setTimeout, clearTimeout, { log() {}, warn() {} })
+  }, url => url, setTimeout, clearTimeout, { log() {}, warn() {} }, url => `http://fixture.invalid/api/stream/proxy?url=${encodeURIComponent(url)}`)
   const dispose = withHandlers ? engine.attachLiveHandlers(video, player, events) : () => {}
   const emit = (event, ...args) => {
     for (const listener of [...(listeners.get(event) ?? [])]) listener(...args)
   }
   return {
-    ...engine, video, events, counts, retries, listeners, dispose, emit,
+    ...engine, video, events, counts, retries, listeners, dispose, emit, urls,
     emitVideo: event => { for (const listener of [...(videoListeners.get(event) ?? [])]) listener() },
     metadataWaits: () => metadataWaits,
     videoListenerCount: () => [...videoListeners.values()].reduce((count, handlers) => count + handlers.size, 0),
@@ -86,6 +87,23 @@ function fixture(withHandlers = true) {
     },
   }
 }
+
+test('a live direct source falls back once to proxy and releases both instances', async () => {
+  const f = fixture(false)
+  const url = 'https://cdn.bilivideo.com/live.flv'
+  const controller = new AbortController()
+  const attached = await f.flvEngine.attach(f.video, { url, format: 'flv', isLive: true, liveDirect: true, signal: controller.signal })
+  assert.deepEqual(f.urls, [url])
+  f.emit('error', 'network', 'cors'); f.advance(1000)
+  f.emit('error', 'network', 'cors'); f.advance(2000)
+  f.emit('error', 'network', 'cors')
+  assert.equal(f.urls.length, 2)
+  assert.match(f.urls[1], /\/api\/stream\/proxy\?url=/)
+  for (let i = 0; i < 5; i++) { f.emit('error', 'network', 'upstream'); f.advance(20000) }
+  assert.equal(f.urls.length, 2, 'proxy failures cannot create a direct/proxy loop')
+  controller.abort(); attached.cleanup()
+  assert.equal(f.counts.destroy, 2); assert.equal(f.pending(), 0); assert.equal(f.videoListenerCount(), 0)
+})
 
 test('normal live completion reconnects while the viewer remains mounted', () => {
   const f = fixture()

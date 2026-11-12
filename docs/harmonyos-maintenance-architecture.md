@@ -1,5 +1,25 @@
 # HarmonyOS 客户端维护文档
 
+## 2.4.0 / 240 直播与服务端增量对齐（2026-11-12）
+
+服务端合同固定到 main `ebddfb990552b2971bbdd37b53747ce5728db9da`（从 `130ca3fb` 快进 18 个提交），文件级映射和范围见 [适配与验收记录](server-alignment-2026-11-12.md)。本版发布 Android / HarmonyOS，iOS 不参与；共享和语音继续要求 Piik v24。
+
+- `bilibili/live.ts` 识别标准、blanc、h5、blackboard 直播间链接并生成规范链接；`bilibiliApi.ts` 通过既有 apiFetch 调用 `/api/stream/resolve-bilibili-live`，携带 qn / movieId，处理 15 秒超时与父级取消。无效主机、非 HTTP(S) 和含凭据链接不会被当作直播间。
+- `MoviePushPanel.tsx` 支持直播清晰度、封面和未开播添加；公共添加封装保留 serverProxy，新增直播默认中转，不写入 CLI/DASH 点播偏好。`MovieListPanel.tsx` 使用直播接口返回的画质，绕过原生点播选择器及点播 VIP 筛选；观众跟随房主直播画质。
+- `BilibiliLiveSettings.tsx` 用图标与加粗中文按钮提供“优先直连 / 服务器中转”。房主保存、刷新影片并确认目标路线后，才重载当前直播；REST 与推送先后均可，换房、换服务器或会话过期不执行旧回调，观众不可修改。
+- `movie-source-resolver.ts` 每次重新获取直播签名地址，绕过点播缓存、旧 URL 恢复和本机点播代理。`isLive / liveDirect` 贯穿状态合并、广播与播放器来源标识；同 URL 改路线也重挂载。FLV / HLS 保留移动端传输映射、取消和清理；FLV 直连持续失败后有界切换代理，不形成直连 / 代理循环。
+- `useWatchTogether`、`useVideoSource`、`useViewerStateSync`、视频事件和心跳跳过直播进度 / 倍速校正；进入直播归一到 1 倍。控制栏隐藏时轴、倍速和手动同步，手势、键盘、审批与系统媒体入口阻止直播 seek，保留播放 / 暂停、亮度、音量和全屏。`WatchTogetherCore` 内嵌字幕在 canplay 后 800ms 探测，8 秒兜底，切源清理计时器和监听；`Dropdown` 修复向上展开定位。
+
+HarmonyOS 保留 ArkWeb、NetworkKit 与现有原生桥接；直播不进入本机点播代理和点播恢复。HAP 为 debug=false，最低 HarmonyOS 6.1 / API 23；现有开发者签名及设备授权要求保持。
+
+构建：`npm run harmony:web`，或复用同次生产构建后运行 `node ZV-HarmonyOS/scripts/sync-web.mjs`；禁止手改生成的 rawfile/web。在 `ZV-HarmonyOS` 执行 Hvigor Release assembleHap，私有 signingConfigs 临时注入并在 finally 恢复原文件。 安装包在 `release/client-v2.4.0/`，最终包仅在构建时计算一次 SHA256，发布复用记录。发行说明为 [client-2.4.0.md](releases/client-2.4.0.md)。每次完成版本构建后在指定客户端仓库本地提交。
+
+验证：`npm run test:alignment` 101、`test:bilibili` 77、`test:maintenance` 172、`test:piik` 60、`test:music:toolbar` 8、`test:live` 7，共 425 项；TypeScript、生产前端和双端签名构建通过。服务端 B站 / API / mediaapi / Emby / Jellyfin / FTP / WebDAV / proxy / NMS Go 测试及独立后端构建通过。隔离本地真实服务验证 HTTP 登录、Socket 建房、直播添加、两种线路回读、401 鉴权和 400 参数 / 影片归属校验；真实直播间接口验证 liveStatus=0 时无流地址。
+
+浏览器以实际添加面板、直播线路、控制栏和 API 传输配合模拟接口，验证开播 / 未开播添加的真实请求、推送先后两种时序、观众禁用和 320 / 393 / 760 / 852 宽 DOM 无溢出。鸿蒙模拟器完成签名 HAP 安装、启动、2.4.0 / 240 回读及 ArkWeb / 原生桥接加载。双端签名延续与包内网页资源逐项比对通过；源码及包内私有文件审计无命中。当前 ADB 仅离线模拟器，HDC 为模拟器；这些证据不等于实体手机、真实开播 CDN、声音、后台或长时弱网验收。NAS 未连接或部署。
+
+排障：404 先核对服务端是否包含直播解析端点；401 / 403 检查登录和房间准入；“未开播”允许先添加，开播后重载重新取流。直连失败可切服务器中转；清晰度和可用流受房主服务端 B站账号及上游状态约束，不能用本机点播登录代替服务端 Cookie。Jellyfin、挂载首播和 OBS 序列头修复位于服务端，客户端 REST 路径保持兼容。
+
 ## 2.3.9 / 239 Piik P1 与正式发行（2026-11-07）
 
 本节取代下节历史构建状态中的 P1 待办。用户已确认 2.3.8 核心适配的真机与移动网验收通过；本次 2.3.9 补全画质与恢复控制，源码和 Android / HarmonyOS 签名包一并发布。共享、语音仅支持 v5.2.1 的 Piik v24，不回退旧服。iOS 未修改或构建。

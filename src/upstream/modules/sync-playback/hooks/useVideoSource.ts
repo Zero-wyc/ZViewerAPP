@@ -72,9 +72,10 @@ async function ensureViewerLocalOverride(
   state: WatchTogetherState,
   forceRefresh = false
 ): Promise<ViewerLocalOverride | null> {
+  if (state.isLive === true) return null
   // Playback state can arrive before current-movie and the REST movie list.
   // Native viewers must resolve with their own account, never attach the host's loopback URL.
-  if (isEmbeddedBilibiliHost() && state.sourceType === 'bilibili' && state.sourceUrl) {
+  if (!state.isLive && isEmbeddedBilibiliHost() && state.sourceType === 'bilibili' && state.sourceUrl) {
     const roomId = useRoomStore.getState().roomId
     const initialMovieId = useRoomStore.getState().currentMovieId
     await startEmbeddedProxy()
@@ -287,8 +288,22 @@ function toPlayerSource(
     // 传入后端权威时长：B站 fMP4 流的 mvhd.duration 为 0，
     // MSE 引擎需用此值显式设置 mediaSource.duration
     duration: state.duration,
+    // 直播源：FLV 引擎据此启用 isLive（延迟追赶 / 断线重连 / 缓冲清理）
+    isLive: state.isLive === true,
+    // 直播线路：直链时浏览器直接拉 CDN（失败由 FLV 引擎回退代理）
+    liveDirect: state.isLive === true && state.liveDirect === true,
   }
-  if (startTime !== undefined && startTime > 0) {
+  // 直播中断提示：FLV 引擎内部会按指数退避重连，重连耗尽后必须让用户
+  // 知道「不是卡了」——否则画面停住却没有进度条可看，只能干等。
+  // 重载按钮（或重新播放该影片）会重新取流，主播换流地址后即可恢复。
+  if (state.isLive === true) {
+    source.flvRuntimeEvents = {
+      onStreamEnd: () => message.info("直播已结束"),
+      onExhausted: () =>
+        message.warning("直播流连接中断，点「重载」可重新连接"),
+    }
+  }
+  if (!state.isLive && startTime !== undefined && startTime > 0) {
     source.startTime = startTime
   }
   if (blobs) {
@@ -302,7 +317,7 @@ function toPlayerSource(
   // 房主广播原始 B站 CDN URL；观众/房主各自在 attach 前决定是否走自己的 CLI 代理。
   // cliOnly（仅允许CLI模式）影片强制包装——即使本机偏好未开 CLI，
   // 媒体流也必须经本机 CLI（观众无 CLI 时已被 ensureViewerLocalOverride 拦截）。
-  if (state.sourceType === 'bilibili' && movieId != null) {
+  if (!state.isLive && state.sourceType === 'bilibili' && movieId != null) {
     const movie = useRoomStore.getState().movies.find((m) => m.id === movieId)
     const { cliEnabled } = getBilibiliParseOptions(movieId)
     const cliOnly = movie?.cliOnly === true
@@ -317,7 +332,7 @@ function toPlayerSource(
       }
     }
   }
-  if (isEmbeddedBilibiliHost() && state.sourceType === 'bilibili' && cliProxyActive) source.attachTimeoutMs = 30000
+  if (!state.isLive && isEmbeddedBilibiliHost() && state.sourceType === 'bilibili' && cliProxyActive) source.attachTimeoutMs = 30000
   return source
 }
 
@@ -456,7 +471,7 @@ export function useVideoSource({
   const recoverNative = useCallback(async (error: Error, original?: NativeRecoverySnapshot) => {
     const store = useRoomStore.getState()
     const movie = store.movies.find(item => item.id === store.currentMovieId)
-    if (!movie || store.watchTogether.sourceType !== 'bilibili' || store.watchTogether.isPreview || !getBilibiliParseOptions(movie.id).cliEnabled || !getActiveCliProxyUrl()) throw error
+    if (store.watchTogether.isLive || !movie || store.watchTogether.sourceType !== 'bilibili' || store.watchTogether.isPreview || !getBilibiliParseOptions(movie.id).cliEnabled || !getActiveCliProxyUrl()) throw error
     const video = videoRef.current
     if (!video) throw error
     const server = getApiUrl()
@@ -477,7 +492,7 @@ export function useVideoSource({
         current.currentMovieId === movie.id && current.movies.find(item => item.id === movie.id)?.cid === movie.cid &&
         current.movies.find(item => item.id === movie.id)?.url === movie.url &&
         current.pendingReloadBilibili === store.pendingReloadBilibili && current.pendingViewerSourceReload === store.pendingViewerSourceReload &&
-        current.watchTogether.sourceType === 'bilibili' && !current.watchTogether.isPreview &&
+        current.watchTogether.sourceType === 'bilibili' && !current.watchTogether.isLive && !current.watchTogether.isPreview &&
         isHostRef.current === host && getEmbeddedProxyStatus().sessionVersion === sessionVersion &&
         getQualitySelectionRevision(movie.id) === selectionRevision
     }
@@ -617,6 +632,11 @@ export function useVideoSource({
   // blob revoke 后的 code 25 噪音。新增观众端挂载路径时必须经过此函数。
   const resolveViewerEffectiveState = useCallback(
     async (state: WatchTogetherState, forceRefresh = false): Promise<WatchTogetherState> => {
+      if (state.isLive) {
+        useRoomStore.getState().setViewerCliRequiredMovieId(null)
+        useRoomStore.getState().setViewerCliResolvedSource(null)
+        return state
+      }
       if (isHostRef.current || !state.sourceUrl || state.isPreview) return state
       const room = useRoomStore.getState()
       const movie = room.movies.find(m => m.id === room.currentMovieId)
@@ -631,7 +651,7 @@ export function useVideoSource({
       if (override && override.movieId === useRoomStore.getState().currentMovieId) {
         return withViewerOverride(state, override.resolved)
       }
-      if (isEmbeddedBilibiliHost() && state.sourceType === 'bilibili' && isCliProxyUrl(state.sourceUrl)) {
+      if (!state.isLive && isEmbeddedBilibiliHost() && state.sourceType === 'bilibili' && isCliProxyUrl(state.sourceUrl)) {
         throw new Error('房主的本地播放地址不可用于当前设备，请重载视频')
       }
       return state
@@ -671,11 +691,11 @@ export function useVideoSource({
       try {
         await attachSource(video, toPlayerSource(effectiveState, startTime, blobs))
         const movieId = useRoomStore.getState().currentMovieId
-        if (isEmbeddedBilibiliHost() && movieId != null && effectiveState.currentQn) recordNativeQuality(movieId, effectiveState.currentQn, effectiveState.acceptQuality ?? [])
-        if (isEmbeddedBilibiliHost() && movieId != null && effectiveState.sourceType === 'bilibili') lastNativeSource.current = { movieId, cid: useRoomStore.getState().movies.find(movie => movie.id === movieId)?.cid, sessionVersion: getEmbeddedProxyStatus().sessionVersion, state: effectiveState, policy: { ...getNativeQualityPolicy(movieId) } }
+        if (!effectiveState.isLive && isEmbeddedBilibiliHost() && movieId != null && effectiveState.currentQn) recordNativeQuality(movieId, effectiveState.currentQn, effectiveState.acceptQuality ?? [])
+        if (!effectiveState.isLive && isEmbeddedBilibiliHost() && movieId != null && effectiveState.sourceType === 'bilibili') lastNativeSource.current = { movieId, cid: useRoomStore.getState().movies.find(movie => movie.id === movieId)?.cid, sessionVersion: getEmbeddedProxyStatus().sessionVersion, state: effectiveState, policy: { ...getNativeQualityPolicy(movieId) } }
       } catch (err) {
         if (!video.isConnected || (err instanceof DOMException && err.name === 'AbortError')) return
-        if (!isEmbeddedBilibiliHost() || effectiveState.sourceType !== 'bilibili' || blobs) throw err
+        if (effectiveState.isLive || !isEmbeddedBilibiliHost() || effectiveState.sourceType !== 'bilibili' || blobs) throw err
         const store = useRoomStore.getState()
         const previous = lastNativeSource.current
         if (store.currentMovieId != null && getNativeQualityPolicy(store.currentMovieId).mode === 'manual' && previous?.movieId === store.currentMovieId && previous.cid === store.movies.find(movie => movie.id === store.currentMovieId)?.cid && previous.sessionVersion === getEmbeddedProxyStatus().sessionVersion) {
@@ -750,7 +770,7 @@ export function useVideoSource({
     const startTime = state.currentTime > 0 ? state.currentTime : undefined
     void applySourceToVideo(video, state, startTime)
       .then(() => {
-        if (state.currentTime > 0) {
+        if (!state.isLive && state.currentTime > 0) {
           video.currentTime = state.currentTime
         }
         if (video.playbackRate !== state.playbackRate) {
@@ -794,7 +814,7 @@ export function useVideoSource({
       const state = useRoomStore.getState().watchTogether
       if (!state.sourceUrl) return
       const movieId = useRoomStore.getState().currentMovieId
-      if (isEmbeddedBilibiliHost() && state.sourceType === 'bilibili' && !state.isPreview && movieId != null && getBilibiliParseOptions(movieId).cliEnabled && getActiveCliProxyUrl()) {
+      if (!state.isLive && isEmbeddedBilibiliHost() && state.sourceType === 'bilibili' && !state.isPreview && movieId != null && getBilibiliParseOptions(movieId).cliEnabled && getActiveCliProxyUrl()) {
         nativeRecoveryController.current?.abort(new DOMException('Manual reload', 'AbortError'))
         nativeRecoveryAttempts.current.clear()
         await recoverNative(new Error('正在刷新 B站播放地址'), { time: snapshot.currentTime, playing: !snapshot.paused && !wasUserPaused(video), rate: snapshot.playbackRate })
@@ -804,7 +824,15 @@ export function useVideoSource({
       // 观众端必须与 applySourceToVideo 同源（resolveViewerEffectiveState）：
       // 若此处直接用广播源重挂，seek 失败兜底/手动重载会把本地覆盖源
       // （MP4→经典引擎）替换为房主广播源（DASH→dash 引擎），引发引擎反复翻转
-      const effectiveState = await resolveViewerEffectiveState(state, true)
+      const context = useRoomStore.getState()
+      let effectiveState = await resolveViewerEffectiveState(state, true)
+      if (state.isLive && movieId != null) {
+        const movie = context.movies.find(m => m.id === movieId)
+        if (!movie) return
+        const resolved = await resolveBilibiliOnline(movie, undefined, { forceRefresh: true })
+        if (!isPlaybackSessionCurrent(context, useRoomStore.getState(), state)) return
+        effectiveState = { ...state, ...resolved }
+      }
 
       suppressEventsRef.current = true
       useRoomStore.getState().setReloadingState(true, snapshot.currentTime)
@@ -813,7 +841,11 @@ export function useVideoSource({
           video,
           toPlayerSource(effectiveState, snapshot.currentTime)
         )
-        await restoreSnapshot(video, snapshot)
+        if (effectiveState.isLive) {
+          video.playbackRate = 1
+          if (!snapshot.paused && !wasUserPaused(video)) await safePlay(video)
+          else video.pause()
+        } else await restoreSnapshot(video, snapshot)
       } catch (err) {
         console.error('[useVideoSource] 重载视频源失败:', err)
         message.error(err instanceof Error ? err.message : '视频重载失败')

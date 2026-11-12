@@ -1,3 +1,4 @@
+import { useRoomStore } from '@/store/roomStore'
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import type Artplayer from 'artplayer'
 import { formatDuration } from '@/lib/utils'
@@ -21,6 +22,7 @@ export function useWatchGestures({ art, video, stage, mediaKey, canControl, isPl
     const brightness = createBrightnessGesture(text => { art.notice.show = text })
     let drag: { kind: WatchDrag; time: number; duration: number; volume: number; target: number | null } | null = null
     const seek = (position: number) => {
+      if (useRoomStore.getState().watchTogether.isLive) return
       if (commands.current.canControl) video.currentTime = position
       else commands.current.requestSeek(position)
     }
@@ -36,6 +38,7 @@ export function useWatchGestures({ art, video, stage, mediaKey, canControl, isPl
           } else if (commands.current.isPlaying) commands.current.requestPause()
           else commands.current.requestPlay()
         } else {
+          if (useRoomStore.getState().watchTogether.isLive) return
           if (!Number.isFinite(video.duration) || video.duration <= 0 || !Number.isFinite(video.currentTime)) return
           seek(Math.max(0, Math.min(video.duration, video.currentTime + region * 15)))
           art.notice.show = `${commands.current.canControl ? '' : '申请'}${region < 0 ? '后退' : '前进'} 15 秒`
@@ -54,7 +57,7 @@ export function useWatchGestures({ art, video, stage, mediaKey, canControl, isPl
           video.volume = volume
           video.muted = volume === 0
           art.notice.show = `音量 ${Math.round(volume * 100)}%`
-        } else if (Number.isFinite(drag.duration) && drag.duration > 0 && Number.isFinite(drag.time)) {
+        } else if (!useRoomStore.getState().watchTogether.isLive && Number.isFinite(drag.duration) && drag.duration > 0 && Number.isFinite(drag.time)) {
           // One screen width covers at most three minutes; commit once, on release.
           drag.target = Math.max(0, Math.min(drag.duration, drag.time + fraction * Math.min(180, drag.duration)))
           art.notice.show = `${commands.current.canControl ? '跳转' : '申请跳转'} ${formatDuration(drag.target)} / ${formatDuration(drag.duration)}`

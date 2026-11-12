@@ -20,9 +20,11 @@ import { useFullMediaNames } from '@/hooks/useFullMediaNames'
 import { useRoomStore, type Movie } from '@/store/roomStore'
 import {
   resolveBilibiliWithOptions,
+  resolveBilibiliLive,
   filterQualitiesByVip,
   getBilibiliUserInfo,
 } from '@/modules/bilibili/bilibiliApi'
+import { extractLiveRoomId } from '@/modules/bilibili/live'
 import {
   extractBvid,
   extractBangumiId,
@@ -31,6 +33,7 @@ import {
 } from '@/modules/bilibili/cliApi'
 import type { ResolvedSource } from '@/modules/bilibili/types'
 import { BilibiliParseSettings } from './BilibiliParseSettings'
+import { BilibiliLiveSettings } from './BilibiliLiveSettings'
 import {
   getEffectivePreferMp4,
   getActiveCliProxyUrl,
@@ -309,7 +312,7 @@ export function MovieListPanel({
 
     // cliOnly（仅允许CLI模式）：CLI 未连接时阻止切清晰度——切完也无法播放
     // （解析/挂载链路均强制 CLI），提前给出可操作提示
-    if (movie.cliOnly === true && !getActiveCliProxyUrl()) {
+    if (!extractLiveRoomId(movie.url) && movie.cliOnly === true && !getActiveCliProxyUrl()) {
       message.error(
         '该影片已开启「仅允许CLI模式」：请登录 B 站或重启内置代理后操作'
       )
@@ -319,6 +322,62 @@ export function MovieListPanel({
     const operation = ++operationSeq.current
     const session = getEmbeddedProxyStatus().sessionVersion
     const current = () => operation === operationSeq.current && useRoomStore.getState().roomId === roomId && useRoomStore.getState().movies.find(m => m.id === movie.id)?.cid === movie.cid && getEmbeddedProxyStatus().sessionVersion === session
+    // 直播间：每个清晰度对应一条独立的签名地址，切换 = 重新取流。
+    // 不走 playurl / DASH / CLI 那套点播解析（直播间没有 cid、没有 m4s）。
+    if (extractLiveRoomId(movie.url) > 0) {
+      setQualityLoadingId(movie.id)
+      try {
+        const live = await resolveBilibiliLive(movie.url, {
+          qn,
+          movieId: movie.id,
+        })
+        if (live.liveStatus !== 1 || !live.videoUrl) {
+          throw new Error("主播当前未开播，请开播后再播放")
+        }
+        if (!current()) return
+        // 未登录/无权限时上游会把请求档位降级（如要原画只给超清），
+        // currentQn 回传的是实际档位——明确告知，避免用户反复点击却「没变化」。
+        if (live.currentQn !== qn) {
+          const actual = live.qualities?.find((q) => q.id === live.currentQn)
+          message.info(
+            `B站已将清晰度降级为 ${actual?.label ?? String(live.currentQn)}（该档位需登录或更高权限）`
+          )
+        }
+        await updateMovie(roomId, movie.id, {
+          format: live.format,
+          duration: 0,
+          currentQn: live.currentQn,
+          acceptQuality: live.qualities,
+        })
+        if (current() && movie.id === currentMovieId) {
+          setPendingQualityChange({
+            movieId: movie.id,
+            resolved: {
+              title: live.title,
+              videoUrl: live.videoUrl,
+              format: live.format,
+              duration: 0,
+              currentQn: live.currentQn,
+              acceptQuality: live.qualities,
+              isLive: true,
+              roomId: live.roomId,
+              uname: live.uname,
+              cover: live.cover,
+              liveStatus: live.liveStatus,
+              expiresAt: live.expiresAt,
+              resolvedUrl: live.resolvedUrl,
+            },
+          })
+        }
+      } catch (err) {
+        console.error('[MovieListPanel] live quality change error:', err)
+        if (current()) message.error(err instanceof Error ? err.message : "切换清晰度失败")
+      } finally {
+        if (operation === operationSeq.current) setQualityLoadingId(null)
+      }
+      return
+    }
+
     setQualityLoadingId(movie.id)
     try {
       const parsePrefs = getBilibiliParseOptions(movie.id)
@@ -397,6 +456,12 @@ export function MovieListPanel({
    */
   const handleViewerQualityChange = async (movie: Movie, value: string) => {
     if (isHost || isScreenShare) return
+    // 直播间的清晰度对应不同的取流地址，观众端拿不到房主的 B站 身份，
+    // 各自切档会与房主广播的源互相覆盖——统一由房主设置。
+    if (extractLiveRoomId(movie.url) > 0) {
+      message.info("直播清晰度由房主统一设置")
+      return
+    }
     const qn = Number(value)
     if (!Number.isFinite(qn) || qn === movie.currentQn) return
 
@@ -690,19 +755,12 @@ export function MovieListPanel({
                   <div
                     className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--md-sys-shape-corner)]"
                     style={{
-                      background: isActive
-                        ? 'var(--md-sys-color-primary)'
-                        : 'color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent)',
+                      backgroundColor:
+                        'var(--md-sys-color-secondary-container)',
+                      color: 'var(--md-sys-color-on-secondary-container)',
                     }}
                   >
-                    <Film
-                      className="h-3 w-3"
-                      style={{
-                        color: isActive
-                          ? 'var(--md-sys-color-on-primary)'
-                          : 'var(--md-sys-color-primary)',
-                      }}
-                    />
+                    <Film className="h-3 w-3" />
                   </div>
                   <div className="min-w-0 overflow-hidden">
                     <Paragraph
@@ -721,6 +779,19 @@ export function MovieListPanel({
                             movie.format.toUpperCase()
                           : SOURCE_LABELS[movie.sourceType] || movie.sourceType}
                       </Tag>
+                      {extractLiveRoomId(movie.url) > 0 && (
+                        <Tag
+                          className="inline-flex items-center gap-1"
+                          style={{
+                            backgroundColor:
+                              'color-mix(in srgb, var(--md-sys-color-error-container) calc(var(--glass-strength) * 100%), transparent)',
+                            color: 'var(--md-sys-color-on-error-container)',
+                          }}
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                          {"直播"}
+                        </Tag>
+                      )}
                       {movie.pages && movie.pages.length > 1 && (
                         <Tag
                           className="inline-flex items-center gap-1"
@@ -841,7 +912,7 @@ export function MovieListPanel({
                 {movie.sourceType !== 'bilibili' && !isScreenShare && <MovieRuntimeSettings movie={movie} isHost={isHost} />}
                 {/* B站解析设置：每个 B站 影片独享一份配置；房主可操作，观众可查看并独立开启 CLI 代理 */}
                 {movie.sourceType === 'bilibili' && !isScreenShare && (
-                  <BilibiliParseSettings movieId={movie.id} isHost={isHost} />
+                  extractLiveRoomId(movie.url) > 0 ? <BilibiliLiveSettings movieId={movie.id} isHost={isHost} /> : <BilibiliParseSettings movieId={movie.id} isHost={isHost} />
                 )}
               </div>
             )
@@ -945,18 +1016,20 @@ function BilibiliQualitySelect({
     (s) => s.localOnline && s.agents.length > 0
   )
 
-  // 使用生效的播放模式：CLI 未连接时强制 MP4，清晰度选择随之禁用
-  const effectivePreferMp4 = getEffectivePreferMp4(movie.id)
+  // 使用生效的播放模式：CLI 未连接时强制 MP4，清晰度选择随之禁用。
+  // 直播间不受此约束：直播没有 DASH/MP4 之分，每个清晰度都是独立的流地址。
+  const isLiveRoom = extractLiveRoomId(movie.url) > 0
+  const effectivePreferMp4 = !isLiveRoom && getEffectivePreferMp4(movie.id)
 
   // 观众端未启用 CLI 时不显示清晰度选择器
-  if (!isHost && !parsePrefs.cliEnabled) {
+  if (!isHost && (isLiveRoom || !parsePrefs.cliEnabled)) {
     return null
   }
 
   const canChangeQuality =
     isHost || (parsePrefs.cliEnabled && cliAgentAvailable)
 
-  if (isEmbeddedBilibiliHost() && getActiveCliProxyUrl() && parsePrefs.cliEnabled) return <NativeQualitySelect movieId={movie.id} isHost={isHost} disabled={isScreenShare || qualityLoadingId === movie.id || effectivePreferMp4} />
+  if (!isLiveRoom && isEmbeddedBilibiliHost() && getActiveCliProxyUrl() && parsePrefs.cliEnabled) return <NativeQualitySelect movieId={movie.id} isHost={isHost} disabled={isScreenShare || qualityLoadingId === movie.id || effectivePreferMp4} />
 
   return (
     <Select
@@ -965,7 +1038,7 @@ function BilibiliQualitySelect({
       value={String(
         selectedQn ?? movie.currentQn ?? movie.acceptQuality?.[0]?.id
       )}
-      options={filterQualitiesByVip(movie.acceptQuality, bilibiliVip).map(
+      options={(isLiveRoom ? movie.acceptQuality ?? [] : filterQualitiesByVip(movie.acceptQuality, bilibiliVip)).map(
         (q) => ({
           label: q.resolution ? `${q.label} · ${q.resolution}` : q.label,
           value: String(q.id),

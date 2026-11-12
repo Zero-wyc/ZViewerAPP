@@ -14,9 +14,10 @@ import { resolveKazumiEpisode, buildKazumiProxyUrl } from '@/modules/kazumi'
 import type { Movie } from '@/store/roomStore'
 import { useRoomStore } from '@/store/roomStore'
 import { detectMediaFormat, type MediaFormat } from '@/lib/mediaFormat'
-import { resolveBilibiliWithOptions } from '@/modules/bilibili/bilibiliApi'
+import { resolveBilibiliWithOptions, resolveBilibiliLive } from '@/modules/bilibili/bilibiliApi'
 import { extractBvid, extractBangumiId, resolveBangumiViaCli, resolveBilibiliViaCli } from '@/modules/bilibili/cliApi'
 import { normalizeBilibiliInput, isBilibiliShortLink } from '@/modules/bilibili/input'
+import { extractLiveRoomId } from '@/modules/bilibili/live'
 import { useCliAgentStore } from '@/store/cliAgentStore'
 import { getBilibiliParseOptions } from '@/modules/bilibili/parseOptions'
 import { useSystemSettingsStore } from '@/store/systemSettingsStore'
@@ -88,6 +89,16 @@ export interface ResolvedMovieSource {
    * 直接向用户提示错误，保持"源站直传、服务器零媒体流量"的直链语义。
    */
   noProxyFallback?: boolean
+  /**
+   * 直播源标记（B站 直播间）：sourceUrl 是直播 FLV/HLS 长连接，
+   * duration 恒为 0，一起看侧按直播处理（不 seek、不做进度校正）。
+   */
+  isLive?: boolean
+  /**
+   * 直播线路直链（movie.serverProxy !== true）：浏览器直接拉 B站 直播 CDN，
+   * 不经服务器中转。观众数越多省下的服务器出口带宽越多。
+   */
+  liveDirect?: boolean
 }
 
 export interface ResolveMovieSourceOptions {
@@ -220,6 +231,7 @@ function mapResolvedSourceToMovieSource(
     duration?: number
     currentQn?: number
     acceptQuality?: QualityOption[]
+    isLive?: boolean
   },
   movie: Movie
 ): ResolvedMovieSource {
@@ -241,6 +253,7 @@ function mapResolvedSourceToMovieSource(
     acceptQuality: resolved.acceptQuality ?? movie.acceptQuality,
     headers: undefined,
     reusedRecoveryUrl: false,
+    isLive: resolved.isLive === true,
   }
 }
 
@@ -299,6 +312,38 @@ export async function resolveBilibiliOnline(
   onProgress?: (step: string, message: string) => void,
   options?: { preferMp4?: boolean; forceRefresh?: boolean; timeoutMs?: number; page?: number; useHostCookie?: boolean; signal?: AbortSignal }
 ): Promise<ResolvedMovieSource> {
+  options?.signal?.throwIfAborted()
+  // 直播间影片：URL 里只有房间号，走独立的直播取流接口。
+  //
+  // 不缓存解析结果：直播地址带签名有效期，且每次开播/换流都会变，
+  // 复用旧地址只会让播放器对着已结束的流反复重连。
+  const liveRoomId = extractLiveRoomId(movie.url)
+  if (liveRoomId > 0) {
+    const live = await resolveBilibiliLive(movie.url, {
+      signal: options?.signal,
+      qn: movie.currentQn,
+      // 与点播同语义：用房主的 B站 身份取流（大会员能拿到原画）
+      movieId: options?.useHostCookie !== false ? movie.id : undefined,
+    })
+    if (live.liveStatus !== 1 || !live.videoUrl) {
+      throw new Error("主播当前未开播，请开播后再播放")
+    }
+    return {
+      sourceUrl: live.videoUrl,
+      format: live.format,
+      duration: 0,
+      currentQn: live.currentQn,
+      acceptQuality: live.qualities,
+      headers: undefined,
+      reusedRecoveryUrl: false,
+      isLive: true,
+      // 线路由影片级开关决定（默认中转）：直播每个观众独立拉流，
+      // 直链可让服务器出口带宽归零，但依赖 CDN 的 CORS/Referer 策略，
+      // 因此默认仍走中转，由房主在影片卡片的设置里按需切换。
+      liveDirect: movie.serverProxy !== true,
+    }
+  }
+
   options?.signal?.throwIfAborted()
   const parsePrefs = getBilibiliParseOptions(movie.id)
   const policy = getNativeQualityPolicy(movie.id)
@@ -554,6 +599,7 @@ export async function resolveMovieSource({
   onProgress,
 }: ResolveMovieSourceOptions): Promise<ResolvedMovieSource> {
   if (sourceType === 'bilibili') {
+    if (extractLiveRoomId(movie.url) > 0) return resolveBilibiliOnline(movie, onProgress)
     // 恢复场景且旧 URL 可用：直接复用，跳过在线解析
     if (movie.cliOnly !== true && recovery?.sourceUrl && !isEmbeddedBilibiliHost()) {
       // B站 源的防盗链由服务器代理（m4s）或直连（MP4）处理，不需要前端 headers。

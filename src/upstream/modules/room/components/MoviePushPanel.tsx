@@ -1,3 +1,4 @@
+import { extractLiveRoomId, mapBilibiliLiveSource } from '@/modules/bilibili/live'
 import { CmsSelector } from '@/modules/cms/CmsSelector'
 import { enumerateSeriesPages } from '@/modules/emby/seriesPages'
 import { logicalConnectionUrl } from '../../../../platform/connectionTransport'
@@ -50,6 +51,7 @@ import {
   type FTPParams,
 } from '@/modules/room/watch-together/resolveSource'
 import {
+  resolveBilibiliLive,
   resolveBilibiliWithOptions,
   filterQualitiesByVip,
 } from '@/modules/bilibili/bilibiliApi'
@@ -199,7 +201,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
         ...payload,
         sourceMountId: ['webdav', 'ftp', 'openlist', 'emby', 'jellyfin'].includes(payload.source ?? '') ? (payload.sourceMountId ?? selectedMountRef.current) : undefined,
         directLink: payload.source === 'mp4' ? true : payload.directLink,
-        serverProxy: ['anime', 'kazumi', 'cms'].includes(payload.source || '') ? serverProxy : undefined,
+        serverProxy: ['anime', 'kazumi', 'cms'].includes(payload.source || '') ? serverProxy : payload.serverProxy,
         playsvideoEnabled:
           payload.source === 'bilibili' ? true : playsvideoEnabled,
       }),
@@ -916,6 +918,14 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
     setLoading(true)
     setResolveProgress('正在初始化解析...')
     try {
+      if (extractLiveRoomId(inputUrl) > 0) {
+        setResolveProgress('正在解析直播间...')
+        const live = await resolveBilibiliLive(inputUrl)
+        resolvedViaCliRef.current = false
+        setResolvedMovie(mapBilibiliLiveSource(live))
+        if (live.liveStatus !== 1) message.warning('主播当前未开播，仍可添加到影片列表')
+        return
+      }
       const bvid = extractBvid(inputUrl)
       const shortLink = isBilibiliShortLink(inputUrl)
       // PGC（番剧 ep/ss 链接）：CLI 分支按 epId 走番剧解析
@@ -1022,6 +1032,11 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
     setResolveProgress('正在切换清晰度...')
     try {
       const inputUrl = normalizeBilibiliInput(resolvedMovie.resolvedUrl || url)
+      if (resolvedMovie.isLive === true) {
+        const live = await resolveBilibiliLive(inputUrl, { qn })
+        setResolvedMovie(mapBilibiliLiveSource(live))
+        return
+      }
       const bvid = extractBvid(inputUrl)
       const bangumiId = extractBangumiId(inputUrl)
       const page = bangumiId ? undefined : resolvedMovie.currentPage ?? extractBilibiliPage(inputUrl)
@@ -1241,6 +1256,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
           url: movieUrl,
           title,
           source: 'bilibili',
+          ...(resolvedMovie.isLive ? { cover: resolvedMovie.cover, serverProxy: true } : {}),
           cliOnly: !!extractBangumiId(movieUrl) && useSystemSettingsStore.getState().bilibiliPgcDefaultMode === 'cliOnly',
           audioUrl: resolvedMovie.audioUrl,
           format: resolvedMovie.format,
@@ -1261,7 +1277,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
         // - 服务器路径：按管理员基础设置的默认解析参数物化
         //   （普通视频走「默认解析模式」，番剧/影视走「番剧/影视默认模式」）
         // 均可在影片的解析设置中手动更改。
-        if (added) {
+        if (added && !resolvedMovie.isLive) {
           const sysSettings = useSystemSettingsStore.getState()
           const pgc = isBilibiliPgcMovie(added)
           // 番剧/影视默认模式为「仅 CLI」时物化 Movie.cliOnly：
@@ -2105,11 +2121,11 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
                     resolvedMovie.currentQn ??
                       resolvedMovie.acceptQuality[0]?.id
                   )}
-                  options={filterQualitiesByVip(
+                  options={(resolvedMovie.isLive ? resolvedMovie.acceptQuality : filterQualitiesByVip(
                     resolvedMovie.acceptQuality,
                     bilibiliUser?.vipStatus === 1 ||
                       resolvedMovie.vipStatus === 1
-                  ).map((q) => ({
+                  )).map((q) => ({
                     label: q.resolution
                       ? `${q.label} · ${q.resolution}`
                       : q.label,

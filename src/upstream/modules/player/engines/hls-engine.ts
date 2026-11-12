@@ -40,7 +40,7 @@ function canPlayNativeHls(video: HTMLVideoElement): boolean {
  * 否则 hls.js 会基于代理 URL 解析 m3u8 中的相对路径 ts 分片，导致拼接错误。
  */
 function createProxyLoader(sourceUrl: string, headers?: Record<string, string>,
-  options: { noProxyFallback?: boolean; directTimeoutMs?: number } = {}) {
+  options: { noProxyFallback?: boolean; liveDirect?: boolean; directTimeoutMs?: number } = {}) {
   const BaseLoader = Hls.DefaultConfig.loader
   const logicalUrl = logicalConnectionUrl
   const transportUrl = connectionUrl
@@ -253,6 +253,7 @@ export const hlsEngine: PlayerEngine = {
 
     const targetUrl = resolveProxyUrl(source.url, source.headers, source.format, {
       noProxyFallback: source.noProxyFallback === true,
+      liveDirect: source.isLive === true && source.liveDirect === true,
     })
     console.log('[hls-engine] attach start', {
       originalUrl: source.url?.slice(0, 80),
@@ -275,6 +276,7 @@ export const hlsEngine: PlayerEngine = {
         startPosition: source.startTime ?? -1,
         loader: createProxyLoader(targetUrl, source.headers, {
           noProxyFallback: source.noProxyFallback === true,
+          liveDirect: source.isLive === true && source.liveDirect === true,
           directTimeoutMs: Math.max(1, Math.min(6000, (source.attachTimeoutMs ?? 15000) / 2)),
         }),
         // 内存控制：hls.js 默认 maxMaxBufferLength=600s、backBufferLength=Infinity——

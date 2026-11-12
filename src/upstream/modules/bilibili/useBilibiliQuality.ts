@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { RefObject, MutableRefObject } from 'react'
-import { resolveBilibiliWithOptions } from './bilibiliApi'
+import { resolveBilibiliLive, resolveBilibiliWithOptions } from './bilibiliApi'
+import { mapBilibiliLiveSource } from './live'
 import type { QualityOption, ResolvedSource } from './types'
 import { useRoomStore } from '@/store/roomStore'
 import { message } from '@/components/ui/message'
@@ -110,7 +111,7 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
       // 因此有 preResolved 时跳过 format 检查。
       if (
         state.sourceType !== 'bilibili' ||
-        (!preResolved && state.format !== 'dash')
+        (!preResolved && !state.isLive && state.format !== 'dash')
       )
         return
 
@@ -125,13 +126,19 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
       const isCurrent = () => video.isConnected && useRoomStore.getState().currentMovieId === movie.id && useRoomStore.getState().movies.find(item => item.id === movie.id)?.cid === movie.cid && getEmbeddedProxyStatus().sessionVersion === sessionVersion && getQualitySelectionRevision(movie.id) === revision
       const preserveTime = video.currentTime
       const shouldPlay = !video.paused
+      // 直播源：切清晰度等于换一条流，没有可保留的播放位置
+      const isLive = state.isLive === true
 
       try {
-        if (isEmbeddedBilibiliHost() && !preResolved) selectNativeQuality(movie.id, qn)
+        if (!isLive && isEmbeddedBilibiliHost() && !preResolved) selectNativeQuality(movie.id, qn)
         revision = getQualitySelectionRevision(movie.id)
         let resolved: ResolvedSource
         if (preResolved) {
           resolved = preResolved
+        } else if (isLive) {
+          const live = await resolveBilibiliLive(movie.url, { qn, movieId: movie.id })
+          if (live.liveStatus !== 1 || !live.videoUrl) throw new Error('主播当前未开播，请开播后再播放')
+          resolved = mapBilibiliLiveSource(live)
         } else {
           const parsePrefs = getBilibiliParseOptions(movie.id)
           // cliOnly（仅允许CLI模式）：解析前强制校验 CLI 已连接——CLI 未连接
@@ -197,7 +204,7 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
           throw new Error('未获取到对应清晰度的播放地址')
         }
         assertVideoCodecSupported(resolved)
-        if (isEmbeddedBilibiliHost() && resolved.currentQn) recordNativeQuality(movie.id, resolved.currentQn, resolved.acceptQuality ?? [])
+        if (!isLive && isEmbeddedBilibiliHost() && resolved.currentQn) recordNativeQuality(movie.id, resolved.currentQn, resolved.acceptQuality ?? [])
 
         const newState: WatchTogetherState = {
           ...state,
@@ -212,7 +219,7 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
           currentQn: resolved.currentQn ?? qn,
           acceptQuality: resolved.acceptQuality,
           isPlaying: shouldPlay,
-          currentTime: preserveTime,
+          currentTime: isLive ? 0 : preserveTime,
           // 缓冲模式：清晰度切换后保持与用户偏好一致。仅 DASH 源启用。
           // 若缓冲下载失败则降级为 URL 播放（下方 if 块内重置）。
           bufferMode:
@@ -237,7 +244,9 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
         ctx.setWatchTogether(newState)
         await ctx.applySourceToVideo(video, newState, undefined, blobs)
         if (!isCurrent()) return
-        video.currentTime = preserveTime
+        if (!isLive && preserveTime > 0) {
+          video.currentTime = preserveTime
+        }
         if (shouldPlay && !wasUserPaused(video)) {
           void safePlay(video)
         }
@@ -264,7 +273,7 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
         // 回退到原 source
         try {
           await ctx.applySourceToVideo(video, state)
-          if (preserveTime > 0) {
+          if (!isLive && preserveTime > 0) {
             video.currentTime = preserveTime
           }
           if (shouldPlay && !wasUserPaused(video)) {
@@ -302,7 +311,7 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
   const syncFromState = useCallback((state: WatchTogetherState) => {
     if (
       state.sourceType === 'bilibili' &&
-      state.format === 'dash' &&
+      (state.isLive || state.format === 'dash') &&
       state.sourceUrl
     ) {
       const nextQualities = state.acceptQuality ?? []

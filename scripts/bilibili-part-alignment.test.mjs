@@ -6,6 +6,7 @@ import { SourceTextModule, SyntheticModule, createContext } from 'node:vm'
 import { parse } from '@babel/parser'
 import { normalizeBiliPages, pickBiliPartMeta } from '../src/upstream/modules/music/utils/biliPartName.ts'
 import { normalizeBilibiliInput, isBilibiliShortLink } from '../src/upstream/modules/bilibili/input.ts'
+import { extractLiveRoomId } from '../src/upstream/modules/bilibili/live.ts'
 
 const playlistPath = '../src/upstream/modules/music/bilibiliPlaylist.ts'
 const cliPath = '../src/upstream/modules/bilibili/cliApi.ts'
@@ -235,7 +236,7 @@ async function push({ embedded = true, proxy = true, input = `https://www.bilibi
   const calls = [], values = [], selectors = [], errors = []
   const globals = {
     isHost: true, roomId: 'room', sourceType: 'bilibili', url: input,
-    normalizeBilibiliInput, isBilibiliShortLink,
+    normalizeBilibiliInput, isBilibiliShortLink, extractLiveRoomId,
     extractBvid: api.extractBvid, extractBangumiId: api.extractBangumiId, extractBilibiliPage: api.extractBilibiliPage,
     getBilibiliInputResolvePolicy: () => ({ proxyUrl: proxy ? 'http://proxy.invalid' : null, cliOnly: false }),
     isEmbeddedBilibiliHost: () => embedded,

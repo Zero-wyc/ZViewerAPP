@@ -483,6 +483,7 @@ test('center double tap delegates to the same displayed playback action during r
   const toggle = await coreCommand('handleTogglePlayback', { element, store, suppression, playing: true })
   let handlers
   const gestures = await load('../src/upstream/modules/room/watch-together/useWatchGestures.ts', {
+    '@/store/roomStore': { useRoomStore: store },
     react: { useEffect: fn => effects.push(fn), useLayoutEffect() {}, useRef: current => ({ current }) },
     '@/lib/utils': { formatDuration: value => String(value) },
     '../../../../platform/runtime': { isGlobalAppearanceRuntime: () => true },

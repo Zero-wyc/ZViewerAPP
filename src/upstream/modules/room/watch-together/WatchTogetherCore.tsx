@@ -280,18 +280,44 @@ export function WatchTogetherCore({
         void subtitles.searchAutoSubtitles(currentMovieId)
       }
     }
-    // 内嵌字幕探测需预取数 MB 文件头并占用同源连接（HTTP/1.1 同源仅
-    // 6 并发），延迟到视频首帧拉流之后发起，避免拖慢初次加载
+    // 内嵌字幕探测要预取数 MB 文件头，且与播放共用同源连接（HTTP/1.1
+    // 同源仅 6 并发）。固定等 3 秒在慢速挂载源上不够：首帧往往还没出来，
+    // 提取就开始和起播抢带宽。改为「等首帧（canplay）后再排队」，最多等
+    // 8 秒兜底——起播快的场景字幕几乎不延迟，起播慢的场景不拖慢首播。
     let embeddedTimer: ReturnType<typeof setTimeout> | undefined
+    let embeddedFallback: ReturnType<typeof setTimeout> | undefined
+    let embeddedTarget: HTMLVideoElement | null = null
+    let embeddedRun: (() => void) | null = null
+    const extractEmbedded = (path: string, url?: string) => {
+      let started = false
+      const run = () => {
+        if (started) return
+        started = true
+        if (embeddedTarget) embeddedTarget.removeEventListener('canplay', run)
+        if (embeddedFallback) clearTimeout(embeddedFallback)
+        // 首帧已出，再让出 0.8s 给播放器填缓冲，随后才开始提取
+        embeddedTimer = setTimeout(() => {
+          void subtitles.loadEmbeddedSubtitles(
+            path,
+            url,
+            // seek 感知：稀疏提取优先处理播放位置附近（跳转后字幕秒级可用）
+            () => videoRef.current?.currentTime ?? null
+          )
+        }, 800)
+      }
+      embeddedRun = run
+      const video = videoRef.current
+      if (!video || video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+        run()
+        return
+      }
+      embeddedTarget = video
+      video.addEventListener('canplay', run, { once: true })
+      embeddedFallback = setTimeout(run, 8000)
+    }
+
     if (currentMovieSourceType === 'server-files' && currentMoviePath) {
-      embeddedTimer = setTimeout(() => {
-        void subtitles.loadEmbeddedSubtitles(
-          currentMoviePath,
-          undefined,
-          // seek 感知：稀疏提取优先处理播放位置附近（跳转后字幕秒级可用）
-          () => videoRef.current?.currentTime ?? null
-        )
-      }, 3000)
+      extractEmbedded(currentMoviePath)
     }
     // 挂载源（webdav/openlist，中转或直链）：前端 MKV demux 提取内嵌
     // 字幕轨道（直链时这是唯一可用路径）
@@ -300,21 +326,19 @@ export function WatchTogetherCore({
         currentMovieSourceType === 'openlist') &&
       watchTogether.sourceUrl
     ) {
-      embeddedTimer = setTimeout(() => {
-        void subtitles.loadEmbeddedSubtitles(
-          currentMoviePath ?? '',
-          watchTogether.sourceUrl,
-          () => videoRef.current?.currentTime ?? null
-        )
-      }, 3000)
+      extractEmbedded(currentMoviePath ?? '', watchTogether.sourceUrl)
     }
     return () => {
       clearTimeout(embeddedTimer)
+      clearTimeout(embeddedFallback)
+      if (embeddedTarget && embeddedRun) {
+        embeddedTarget.removeEventListener('canplay', embeddedRun)
+      }
       // 影片切换/源变化时取消进行中的内嵌提取流：提取是独立于播放引擎的
       // Range 拉流（中转源大文件可持续数分钟），若只在「下一次加载前取消」，
       // 切到非挂载源影片（无新加载调用）或观众端早退路径（已有广播字幕）
       // 时旧流无人取消，服务器中转流量会持续到提取自然完成。新影片为
-      // 挂载源时 3 秒后会重新发起提取，不受影响。
+      // 挂载源时，首帧出来后会重新发起提取，不受影响。
       subtitles.cancelEmbeddedExtraction()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -709,6 +733,7 @@ export function WatchTogetherCore({
 
   // 视频加载后，仅在 store 中尚未获得权威 duration 时，用 video.duration 兜底填充。
   useEffect(() => {
+    if (useRoomStore.getState().watchTogether.isLive) return
     const storeDuration = useRoomStore.getState().watchTogether.duration
     if (Number.isFinite(storeDuration) && storeDuration > 0) return
 
@@ -1084,13 +1109,14 @@ export function WatchTogetherCore({
     if (!seekRequest) return
     const { viewerSocketIds, time } = seekRequest
     if (!socket || viewerSocketIds.length === 0) return
-    if (videoRef.current && Number.isFinite(time)) {
+    const accept = !useRoomStore.getState().watchTogether.isLive
+    if (accept && videoRef.current && Number.isFinite(time)) {
       videoRef.current.currentTime = time
     }
     for (const sid of viewerSocketIds) {
       socket.emit(
         'seek-response',
-        { roomId, viewerSocketId: sid, accept: true, time },
+        { roomId, viewerSocketId: sid, accept, ...(accept ? { time } : {}) },
         () => {}
       )
     }
@@ -1179,6 +1205,7 @@ export function WatchTogetherCore({
   // ── 观众申请发起（与重构前一致）─────────────────────────
   const handleRequestSeek = useCallback(
     (time: number) => {
+      if (useRoomStore.getState().watchTogether.isLive) return
       if (!socket || isHost || seekPending) return
       if (!Number.isFinite(time)) return
       setSeekPending(true)
@@ -1363,7 +1390,7 @@ export function WatchTogetherCore({
   )
 
   const handleSync = useCallback(() => {
-    if (!isHost) return
+    if (!isHost || useRoomStore.getState().watchTogether.isLive) return
     forceSync()
   }, [isHost, forceSync])
 
@@ -1427,6 +1454,7 @@ export function WatchTogetherCore({
       }
       // 方向键：左右 5s 跳转，上下 5% 音量
       const canControl = isHost || hostOffline
+      if (['ArrowLeft', 'ArrowRight'].includes(e.key) && useRoomStore.getState().watchTogether.isLive) { e.preventDefault(); return }
       if (e.key === 'ArrowLeft') {
         e.preventDefault()
         const cur = video.currentTime
@@ -1528,7 +1556,7 @@ export function WatchTogetherCore({
         position: Math.max(0, video.currentTime || 0),
         duration: Number.isFinite(video.duration) ? Math.max(0, video.duration) : 0,
         playbackRate: video.playbackRate || 1,
-        actions: ['play', 'pause', 'stop', 'seekto'],
+        actions: useRoomStore.getState().watchTogether.isLive ? ['play', 'pause', 'stop'] : ['play', 'pause', 'stop', 'seekto'],
       }
     },
     onAction(action, position) {
@@ -1539,7 +1567,7 @@ export function WatchTogetherCore({
       } else if (action === 'pause' || action === 'stop') {
         if (canControl) { markUserPaused(video); video.pause() }
         else handleRequestPause()
-      } else if (action === 'seekto' && position !== undefined && Number.isFinite(position)) {
+      } else if (!useRoomStore.getState().watchTogether.isLive && action === 'seekto' && position !== undefined && Number.isFinite(position)) {
         const target = Math.max(0, Math.min(position, Number.isFinite(video.duration) ? video.duration : Infinity))
         if (canControl) video.currentTime = target
         else handleRequestSeek(target)

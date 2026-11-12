@@ -12,7 +12,7 @@ import type { WatchTogetherState } from '../types'
 export function isSameMediaSource(a: WatchTogetherState | null, b: WatchTogetherState): boolean {
   if (!a) return false
   const fields = ['sourceUrl', 'sourceType', 'audioUrl', 'format', 'videoCodec', 'audioCodec',
-    'cid', 'hostCliEnabled', 'bufferMode', 'playsvideoEnabled', 'noProxyFallback'] as const
+    'isLive', 'liveDirect', 'cid', 'hostCliEnabled', 'bufferMode', 'playsvideoEnabled', 'noProxyFallback'] as const
   if (fields.some(key => a[key] !== b[key])) return false
   const keys = Object.keys(a.headers ?? {})
   return keys.length === Object.keys(b.headers ?? {}).length &&
@@ -98,6 +98,10 @@ export function buildStateFromVideo(
     bufferMode: storeState.bufferMode,
     playsvideoEnabled: storeState.playsvideoEnabled,
     noProxyFallback: storeState.noProxyFallback,
+    // 透传直播标记：换源后观众端仍要按直播模式处理（不 seek / 不校正进度）
+    isLive: storeState.isLive,
+    // 透传直播线路：直链/中转是播放源属性，全房间必须一致
+    liveDirect: storeState.liveDirect,
   }
 }
 
@@ -184,6 +188,8 @@ export function isStateEqual(
     a.audioCodec !== b.audioCodec ||
     a.epId !== b.epId || a.seasonId !== b.seasonId || a.seasonTitle !== b.seasonTitle || a.preview !== b.preview ||
     a.noProxyFallback !== b.noProxyFallback || a.playsvideoEnabled !== b.playsvideoEnabled ||
+    (a.isLive === true) !== (b.isLive === true) ||
+    (a.liveDirect === true) !== (b.liveDirect === true) ||
     a.cid !== b.cid
   ) {
     return false

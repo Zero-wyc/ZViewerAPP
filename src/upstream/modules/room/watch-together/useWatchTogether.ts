@@ -23,6 +23,7 @@ import { type QualityOption } from './resolveSource'
 import { useBilibiliQuality } from '@/modules/bilibili/useBilibiliQuality'
 import { isEmbeddedBilibiliHost } from '../../../../platform/bilibiliProxy'
 import { getBilibiliParseOptions } from '@/modules/bilibili/parseOptions'
+import { extractLiveRoomId } from '@/modules/bilibili/live'
 import {
   useHostSync,
   useViewerSync,
@@ -615,9 +616,9 @@ export function useWatchTogether({
 
         const newState: WatchTogetherState = {
           ...state,
-          currentTime: preserveTime,
+          currentTime: resolved.isLive ? 0 : preserveTime,
           isPlaying: shouldPlay,
-          playbackRate,
+          playbackRate: resolved.isLive ? 1 : playbackRate,
           epId: resolved.epId, seasonId: resolved.seasonId, seasonTitle: resolved.seasonTitle, preview: resolved.preview,
           duration: resolved.duration, cid: resolved.cid,
           sourceUrl: resolved.sourceUrl,
@@ -633,6 +634,10 @@ export function useWatchTogether({
           bufferMode:
             resolved.format === 'dash' &&
             getBilibiliParseOptions(movie.id).bufferMode === true,
+          // 直播标记与线路随重新解析结果更新：线路切换（直链 ↔ 中转）走的就是
+          // 这条重载路径，只沿用旧 state 会让引擎继续用旧线路拉到超时。
+          isLive: resolved.isLive === true,
+          liveDirect: resolved.liveDirect === true,
         }
 
         // 缓冲模式：重新解析后 cacheKey 变化（cid/qn 可能不同），需要重新下载 blobs
@@ -652,12 +657,12 @@ export function useWatchTogether({
         // 传入 preserveTime 作为 startTime：DASH 引擎会从该时间对应的字节位置
         // 开始 Range 下载，而非从文件头 0 字节顺序下载。否则大跨度跳转后重载会
         // 从头加载到目标位置才播放（用户看到的"加载跳转之前的部分"现象）。
-        await applySourceToVideo(video, newState, preserveTime, blobs)
+        await applySourceToVideo(video, newState, newState.isLive ? undefined : preserveTime, blobs)
         if (loadSeqRef.current !== seq || !video.isConnected) return
         newState.isPlaying = shouldPlay && !wasUserPaused(video)
         setWatchTogether(newState)
-        video.currentTime = preserveTime
-        video.playbackRate = playbackRate
+        if (!newState.isLive) video.currentTime = preserveTime
+        video.playbackRate = newState.isLive ? 1 : playbackRate
         if (shouldPlay && !wasUserPaused(video)) {
           void safePlay(video)
         }
@@ -685,8 +690,8 @@ export function useWatchTogether({
         console.error('[useWatchTogether] 重新解析 B站 视频失败:', err)
         message.error(err instanceof Error ? err.message : '重新解析失败')
         try {
-          await applySourceToVideo(video, state, preserveTime)
-          if (preserveTime > 0) {
+          await applySourceToVideo(video, state, state.isLive ? undefined : preserveTime)
+          if (!state.isLive && preserveTime > 0) {
             video.currentTime = preserveTime
           }
           if (shouldPlay && video.isConnected && !wasUserPaused(video)) {
@@ -982,11 +987,15 @@ export function useWatchTogether({
     }
 
     const loadMovie = async () => {
+      // 直播影片：URL 里是房间号，每次播放都要重新取流（地址带签名且随开播变化），
+      // 也没有「上次看到第几秒」的概念——不参与刷新恢复。
+      const liveMovie = extractLiveRoomId(movie.url) > 0
       // 房主刷新恢复：若 initialPlayback.currentMovieId 与当前加载的影片 ID 匹配，
       // 则使用 initialPlayback.currentTime 替代 0，并强制暂停而非自动播放。
       // B站 URL 每次解析都会变，因此通过 currentMovieId 匹配而非 sourceUrl。
       const recovery = initialPlaybackRef.current
       const isRecovery =
+        !liveMovie &&
         !appliedPlaybackRef.current &&
         !!recovery &&
         typeof recovery.currentMovieId === 'number' &&
@@ -1026,7 +1035,10 @@ export function useWatchTogether({
       // - 其他源：直接使用影片记录字段
       let resolved: ResolvedMovieSource
       try {
-        if (sourceType === 'bilibili' && !(isRecovery && recovery?.sourceUrl)) {
+        if (
+          sourceType === 'bilibili' &&
+          (liveMovie || !(isRecovery && recovery?.sourceUrl))
+        ) {
           resolved = await resolveOnline()
         } else if (sourceType === 'anime') {
           // ani-subs 番剧源：每次播放都通过 sourceMeta 重新解析
@@ -1082,22 +1094,28 @@ export function useWatchTogether({
         // 确保 ani-subs 等依赖防盗链的源在刷新恢复后仍能正确 MSE attach。
         headers: r.headers,
         isPlaying: !isRecovery && resumePlaying,
-        currentTime: recoveryTime,
-        playbackRate: isRecovery
+        currentTime: r.isLive ? 0 : recoveryTime,
+        playbackRate: r.isLive ? 1 : isRecovery
           ? (recovery!.playbackRate ?? watchTogether.playbackRate)
           : resumeRate,
         duration: r.duration,
         currentQn: r.currentQn,
         acceptQuality: r.acceptQuality,
         // 缓冲模式：仅 B站 DASH 源启用，根据该影片的用户偏好决定
+        // （直播是无尽长连接，没有「完整下载」的概念，必须排除）
         bufferMode:
           sourceType === 'bilibili' &&
+          r.isLive !== true &&
           r.format === 'dash' &&
           getBilibiliParseOptions(movie.id).bufferMode === true,
         // 影片级浏览器播放引擎开关（添加影片时设置），随状态广播给观众
         playsvideoEnabled: r.playsvideoEnabled !== false,
         // 挂载直链模式：直连失败不回退服务器代理，直接提示错误
         noProxyFallback: r.noProxyFallback ?? false,
+        // 直播源：观众端据此跳过进度校正/seek，各自贴近直播边缘播放
+        isLive: r.isLive === true,
+        // 直播线路：直链=观众各自拉 CDN（省服务器带宽），中转=经服务器转发
+        liveDirect: r.liveDirect === true,
       })
 
       // 4. attach 并恢复进度 / 自动播放 / 广播
@@ -1108,13 +1126,13 @@ export function useWatchTogether({
         // 恢复进度时传入 recoveryTime 作为 startTime，引擎从该时间对应的
         // 字节偏移开始下载，而非从文件头顺序下载到 recoveryTime 才播放。
         const startTime =
-          recoveryTime > 0 ? recoveryTime : undefined
+          !state.isLive && recoveryTime > 0 ? recoveryTime : undefined
         await applySourceToVideo(video, state, startTime, blobs)
         // attach 已完成但本次加载已过期（新加载进行中）：不再恢复进度/广播/动
         // suppressEventsRef（由新流程管理），避免旧状态覆盖新影片
         if (!isCurrent()) return
         video.playbackRate = state.playbackRate
-        try { video.currentTime = recoveryTime } catch { /* engine already seeks via startTime */ }
+        try { if (!state.isLive) video.currentTime = recoveryTime } catch { /* engine already seeks via startTime */ }
         const shouldPlay = !isRecovery && resumePlaying && !wasUserPaused(video)
         if (shouldPlay) await safePlay(video)
         else video.pause()
@@ -1302,7 +1320,7 @@ export function useWatchTogether({
     if (!video) return
 
     const state = useRoomStore.getState().watchTogether
-    if (state.sourceType !== 'bilibili') return
+    if (state.isLive || state.sourceType !== 'bilibili') return
 
     const MAX_AUTO_RELOADS = 3
     if (isEmbeddedBilibiliHost()) {
@@ -1333,7 +1351,7 @@ export function useWatchTogether({
     const triggerReload = () => {
       const current = useRoomStore.getState().watchTogether
       if (suppressEventsRef.current || isReloadingBilibiliRef.current ||
-        current.sourceType !== 'bilibili' || current.bufferMode) return
+        current.isLive || current.sourceType !== 'bilibili' || current.bufferMode) return
       if (autoReloadCountRef.current >= MAX_AUTO_RELOADS) {
         if (!autoReloadNotifiedRef.current) {
           autoReloadNotifiedRef.current = true
@@ -1403,7 +1421,7 @@ export function useWatchTogether({
       const store = useRoomStore.getState()
       const state = store.watchTogether
       if (disposed || !video?.isConnected || !isHostRef.current || store.roomId !== roomId ||
-        state.sourceType !== 'bilibili' || state.bufferMode || state.isPreview ||
+        state.isLive || state.sourceType !== 'bilibili' || state.bufferMode || state.isPreview ||
         suppressEventsRef.current || isReloadingBilibiliRef.current || renewal.pending) return
       const source = `${state.sourceUrl}|${state.audioUrl ?? ''}`
       if (source !== renewal.lastSource) {
