@@ -1,6 +1,7 @@
 import { chmod, cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { packWeb } from './pack-web.mjs'
 
 const hostRoot = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const clientRoot = resolve(hostRoot, '..')
@@ -32,4 +33,6 @@ async function makeWritable(directory) {
   }
 }
 await makeWritable(webRoot)
+const entries = await packWeb(webRoot)
+console.log(`Packed ${entries.filter(entry => entry.compressed).length}/${entries.length} web resources`)
 console.log(`Synced ${distRoot} to ${webRoot}`)

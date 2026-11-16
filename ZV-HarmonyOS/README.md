@@ -1,6 +1,6 @@
 # ZViewer HarmonyOS
 
-This is the ArkTS/ArkWeb host for the shared React client. Current source version is **2.5.0 / versionCode 250**. The host supplies the `zviewerNative` bridge, native connection and media services, microphone and camera permission, orientation, system media and local Bilibili resolution. The embedded ArkTS parser follows the current CLI contract; its sources are rebuilt with the HAP.
+This is the ArkTS/ArkWeb host for the shared React client. Current source version is **2.5.1 / versionCode 251**. The host supplies the `zviewerNative` bridge, native connection and media services, microphone permission, orientation, system media and local Bilibili resolution. The embedded ArkTS parser follows the current CLI contract; its sources are rebuilt with the HAP.
 
 ## Build the web payload
 
@@ -10,7 +10,7 @@ From the repository root, run after changing shared React code:
 npm run harmony:web
 ```
 
-This runs the TypeScript/Vite build and copies the generated web app to `entry/src/main/resources/rawfile/web/`. That directory is generated; make persistent fixes in `src/`, `public/`, `vendor/` or the bridge bootstrap, then rebuild it.
+This runs the TypeScript/Vite build and copies the generated web app to `entry/src/main/resources/rawfile/web/`. The sync step creates a manifest and compresses suitable files with zlib; the host decompresses them on demand with a bounded memory cache. Live2D is not supported by the mobile clients. That directory is generated; make persistent fixes in `src/`, `public/`, `vendor/` or the bridge bootstrap, then rebuild it.
 
 Open `ZV-HarmonyOS/` in DevEco Studio and build the `default` product HAP. Configure the local HarmonyOS SDK and signing identity on the build machine; signing keys, profiles, passwords and local SDK paths stay outside published source. Confirm the HAP version, signature, embedded web payload and checksum for release.
 

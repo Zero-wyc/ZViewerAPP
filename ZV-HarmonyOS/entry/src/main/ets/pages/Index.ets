@@ -1,4 +1,4 @@
-import { abilityAccessCtrl, bundleManager, common, Permissions } from '@kit.AbilityKit';
+import { abilityAccessCtrl, bundleManager, common } from '@kit.AbilityKit';
 import { webview } from '@kit.ArkWeb';
 import { window } from '@kit.ArkUI';
 import { picker } from '@kit.CoreFileKit';
@@ -9,6 +9,7 @@ import { ServerConnection, ConnectionPolicy } from '../services/ServerConnection
 import { screenShareCapturePolicy } from '../services/ScreenShareCapturePolicy';
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import settings from '@ohos.settings';
+import { LocalWebResources } from '../services/LocalWebResources';
 
 const LOCAL_ORIGIN = 'https://zviewer.local';
 const LOCAL_PAGE = `${LOCAL_ORIGIN}/index.html`;
@@ -192,6 +193,7 @@ struct Index {
   private host: HarmonyHost = new HarmonyHost(getContext(this) as common.UIAbilityContext, this.controller);
   private mainWindow: window.Window | null = null;
   private pendingFileSelection: FileSelectorResult | null = null;
+  private resources: LocalWebResources = new LocalWebResources((getContext(this) as common.UIAbilityContext).resourceManager);
   private alive: boolean = false;
   private pageReady: boolean = false;
   private areaChanged = (): void => { this.syncSafeArea(); };
@@ -235,6 +237,7 @@ struct Index {
     this.pendingFileSelection?.handleFileList([]);
     this.pendingFileSelection = null;
     this.host.dispose();
+    this.resources.clear();
     this.mainWindow?.off('avoidAreaChange', this.areaChanged);
     this.mainWindow?.off('windowSizeChange', this.areaChanged);
     this.mainWindow = null;
@@ -248,19 +251,17 @@ struct Index {
       response.setResponseCode(400);
       return response;
     }
-    try {
-      const data = (getContext(this) as common.UIAbilityContext).resourceManager
-        .getRawFileContentSync(`web/${rawPath}`);
-      const body = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+    response.setResponseIsReady(false);
+    this.resources.read(rawPath).then((body: ArrayBuffer) => {
       response.setResponseData(body);
       response.setResponseMimeType(mimeType(rawPath));
       response.setResponseEncoding('utf-8');
       response.setResponseCode(200);
       response.setReasonMessage('OK');
-    } catch (_error) {
+    }).catch(() => {
       response.setResponseCode(404);
       response.setReasonMessage('Not Found');
-    }
+    }).finally(() => response.setResponseIsReady(true));
     return response;
   }
 
@@ -273,18 +274,17 @@ struct Index {
 
   private selectDanmakuFile(event: OnShowFileSelectorEvent): boolean {
     const accepted = event.fileSelector.getAcceptType();
-    const modelArchive = accepted.some((type: string) => type === '.zip' || type === 'application/zip' || type === 'application/x-zip-compressed');
     const danmakuDocument = accepted.some((type: string) => type === '.xml' || type === '.json' ||
       type === 'application/xml' || type === 'text/xml' || type === 'application/json');
     if (event.fileSelector.getMode() !== FileSelectorMode.FileOpenMode ||
-      (!modelArchive && !danmakuDocument)) return false;
+      !danmakuDocument) return false;
     // Document imports share the system picker; keep unrelated ArkWeb file inputs unchanged.
     if (this.pendingFileSelection !== null) { event.result.handleFileList([]); return true; }
     const result = event.result;
     this.pendingFileSelection = result;
     const options = new picker.DocumentSelectOptions();
     options.maxSelectNumber = 1;
-    options.fileSuffixFilters = modelArchive ? ['角色模型包|.zip'] : ['弹幕文件|.xml,.json'];
+    options.fileSuffixFilters = ['弹幕文件|.xml,.json'];
     const documents = new picker.DocumentViewPicker(getContext(this) as common.UIAbilityContext);
     documents.select(options).then((uris: Array<string>) => {
       if (this.pendingFileSelection !== result) return;
@@ -326,25 +326,12 @@ struct Index {
           if (
             (origin !== LOCAL_ORIGIN && origin !== `${LOCAL_ORIGIN}/`) ||
             resources.length === 0 ||
-            resources.some((resource: string) => resource !== 'TYPE_AUDIO_CAPTURE' && resource !== 'TYPE_VIDEO_CAPTURE')
+            resources.some((resource: string) => resource !== 'TYPE_AUDIO_CAPTURE')
           ) {
             request.deny();
             return;
           }
-          if (resources.includes('TYPE_VIDEO_CAPTURE')) {
-            const permissions: Array<Permissions> = ['ohos.permission.CAMERA'];
-            if (resources.includes('TYPE_AUDIO_CAPTURE')) permissions.push('ohos.permission.MICROPHONE');
-            abilityAccessCtrl.createAtManager().requestPermissionsFromUser(getContext(this) as common.UIAbilityContext, permissions)
-              .then((result) => {
-                if (this.alive && result.authResults.length === permissions.length && result.authResults.every((status: number) => status === 0)) {
-                  request.grant(resources);
-                } else {
-                  request.deny();
-                }
-              }).catch(() => request.deny());
-          } else {
-            request.grant(resources);
-          }
+          request.grant(resources);
         })
         .onPageBegin(() => { this.pageReady = false; })
         .onPageEnd(() => {

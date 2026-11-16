@@ -1,5 +1,5 @@
 import { usePosterRefresh } from '@/hooks/usePosterRefresh'
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ArrowLeft, Cast, Check, Film, Headphones, MessageCircle, MonitorPlay, Music2, Palette, Plus, RefreshCw, UsersRound, WifiOff, X } from 'lucide-react'
 import { useSocket, reconnectSocket } from '@/hooks/useSocket'
@@ -35,11 +35,6 @@ import { isGlobalAppearanceRuntime } from '../platform/runtime'
 import MobileScreenShareHost from './MobileScreenShareHost'
 import { useScreenShareCapabilities } from './useScreenShareCapabilities'
 
-const RoomLive2DHost = lazy(async () => {
-  const module = await import('@/modules/live2d')
-  return { default: module.RoomLive2DHost }
-})
-
 type Tab = 'chat' | 'movies'
 
 export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeave: () => void }) {
@@ -56,7 +51,6 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
   const user = useAuthStore(s => s.user)
   const matrix = useSystemSettingsStore(s => s.roomPermissionMatrix)
   const showVoiceChatButton = useSystemSettingsStore(s => s.showVoiceChatButton)
-  const live2dEnabled = useSystemSettingsStore(s => s.live2dEnabled)
   const { isModeSwitching, handleSwitchMode } = useRoomModeSwitch(socket, roomId, room.isHost)
   const streamStatus = useStreamStatus(socket, roomId)
   const { shareMethod } = useShareMethod(socket, roomId, room.isHost)
@@ -268,9 +262,6 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
       <Modal open={leaveOpen} title="离开房间？" onClose={() => setLeaveOpen(false)} footer={<div className="mobile-dialog-actions"><button className="mobile-text-button" onClick={() => setLeaveOpen(false)}>取消</button><button className="mobile-text-button" onClick={leave}>离开</button></div>}>
         <p>{room.isHost ? '离开后将停止本机播放，房间按服务器的离线规则保留。' : '离开后将停止本机播放。'}</p>
       </Modal>
-      {ready && live2dEnabled && <Suspense fallback={null}>
-        <RoomLive2DHost roomId={roomId} socket={socket} isHost={room.isHost} />
-      </Suspense>}
     </main>
   )
 }

@@ -1,6 +1,6 @@
 {
   "name": "zviewer-client",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -19,16 +19,13 @@
     "test:alignment": "node --experimental-vm-modules --test scripts/bilibili-part-alignment.test.mjs scripts/socket-auth-recovery.test.mjs scripts/flv-live-recovery.test.mjs scripts/voice-component.test.mjs scripts/long-session.test.mjs",
     "test:maintenance": "node --experimental-vm-modules --test scripts/daily-maintenance.test.mjs scripts/ipv6-server-connection.test.mjs scripts/music-personal-fm.test.mjs scripts/music-background-audio.test.mjs scripts/music-overlay-immersive.test.mjs scripts/music-track-swipe.test.mjs scripts/playlist-play-all.test.mjs scripts/music-cover.test.mjs scripts/server-alignment.test.mjs scripts/login-session.test.mjs scripts/resource-contracts.test.mjs scripts/watch-gestures.test.mjs scripts/player-levels.test.mjs scripts/emby-playback.test.mjs scripts/music-loudness.test.mjs scripts/music-loudness-math.test.ts scripts/music-settings.test.mjs scripts/bilibili-parts.test.mjs scripts/song-favorite.test.mjs",
     "test:live": "node --experimental-vm-modules --test scripts/bilibili-live.test.mjs",
-    "test:upstream": "node --import ./scripts/register-ts-tests.mjs --experimental-strip-types --experimental-vm-modules --test scripts/anime-aggregation.test.mjs scripts/mic-level.test.mjs src/upstream/modules/live2d/__tests__/*.test.ts",
-    "predev": "node scripts/prepare-live2d-face.mjs",
-    "prebuild": "node scripts/prepare-live2d-face.mjs"
+    "test:upstream": "node --import ./scripts/register-ts-tests.mjs --experimental-strip-types --experimental-vm-modules --test scripts/anime-aggregation.test.mjs",
+    "test:packaging": "node --experimental-vm-modules --test scripts/web-resource-packaging.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
     "@capacitor/app": "^8.0.0",
     "@capacitor/core": "^8.5.2",
-    "@material/material-color-utilities": "^0.4.0",
-    "@mediapipe/tasks-vision": "0.10.35",
     "@videojs/core": "10.0.0-rc.4",
     "@videojs/dash-video": "10.0.0-rc.4",
     "@videojs/media": "10.0.0-rc.4",
@@ -40,7 +37,6 @@
     "hls.js": "^1.6.16",
     "lucide-react": "^0.544.0",
     "mediabunny": "file:vendor/mediabunny",
-    "pixi.js": "8.23.0",
     "playsvideo": "file:vendor/playsvideo",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
@@ -48,7 +44,6 @@
     "react-router-dom": "^6.30.4",
     "socket.io-client": "^4.8.3",
     "tailwind-merge": "^3.6.0",
-    "untitled-pixi-live2d-engine": "1.4.0",
     "zustand": "^5.0.14"
   },
   "devDependencies": {

@@ -4,11 +4,25 @@
 
 ## 当前维护基线（2026-11-16）
 
-- Android / HarmonyOS：2.5.0 / 250；服务端对齐快照 `ec0ac1530b6790e85b17936efc31d266bb6c2997`。这不代表 NAS 已部署。
-- Android 分发改为 ARM64：当前本地构建为 2.5.0 / 250 ARM64 包；GitHub 上原 2.5.0 安装包未替换。HarmonyOS 正式包保持原样。
-- iOS：独立 React Native / Expo 工程，2.3.6 / build40；尚未迁移 Piik，也未随双端 2.5.0 自动获得 Live2D 等更新。
-- 本轮只修改 Android ABI 打包范围及维护文档；没有改变共享页面、原生业务行为或启用 R8，没有构建 IPA，也没有新增设备验收。
-- 日常先读本节和架构索引；历次修复、测试与发布结果收在文末。旧记录里的“当前”“未发布”只代表当时状态。
+- Android / HarmonyOS：2.5.1 / 251；服务端对齐快照 `ec0ac1530b6790e85b17936efc31d266bb6c2997`。这不代表 NAS 已部署。
+- **客户端目前不支持 Live2D**：不提供角色显示、模型导入、动作表情、语音口型或摄像头动捕。已移除入口、模块、Cubism/MediaPipe/Pixi 依赖、静态资源及专用摄像头权限。后续同步服务端更新时，不得自动恢复此功能。
+- 保留 B站点播/直播、房主身份解析、番剧聚合、音乐、弹幕字幕、Piik 语音与投屏，以及完整中文字体和 FFmpeg 等在用播放器资源。
+- Android 仅发行 ARM64，启用原生库 ZIP 压缩、R8 和资源压缩；HarmonyOS 解压随包网页资源，保留离线启动能力。
+- iOS 维持 2.3.6 / build40；本轮不修改或构建 iOS。
+- 旧记录描述当时状态；2.5.0 的 Live2D 支持已在 2.5.1 移除。
+
+## 2.5.1 资源精简与压缩
+
+- Android：`useLegacyPackaging true` 压缩 ARM64 原生库；R8 保留 Capacitor 插件、JavaScriptInterface、Go JNI、WebRTC 及 `org.jni_zero` 类。模拟器发现缺失 `JniInit` 会在 JNI_OnLoad 启动时崩溃，因此不能只保留 `org.webrtc`。
+- 原生库在安装时展开，下载包体减少不等于安装占用同比减少。
+- HarmonyOS：`scripts/sync-web.mjs` 调用 `pack-web.mjs` 生成 `resources.json` 和 zlib 数据；`LocalWebResources.ets` 按原 URL 异步解压，`Index.ets` 完成响应后交给 ArkWeb。字体、JS、CSS、WASM 按实际收益选择压缩，不改变解压后的内容。
+- 鸿蒙缓存仅在内存，限 16 MiB；单文件限 32 MiB，解压串行，同路径并发去重。退出页面清理缓存并拒绝过期结果；重启或升级从安装包重读，不依赖遗留磁盘缓存。损坏或缺失资源返回失败。
+- 构建、一次 SHA 摘要及测试记录位于忽略目录 `release/client-v2.5.1/`；发布复用构建记录，不重复计算安装包摘要。
+- 正式签名包：Android 19,238,523 字节（18.35 MiB），HarmonyOS 9,621,189 字节（9.18 MiB）。相对原 2.5.0 通用 APK/HAP 的 79.89 / 29.06 MiB，分别减少约 77% / 68%；安卓还包含此前移除多余 ABI 的收益。
+- 自动验证：TypeScript 检查通过；maintenance 172、Bilibili 79、alignment 102、Piik 60、music toolbar 8、live 11、upstream 5、packaging 6，共 443 项通过。资源测试覆盖损坏重试、并发去重、缓存上限与退出竞态。
+- 安装包：APK v2 签名及 HAP verify-app 通过，HAP 证书与上一正式版一致；APK 仅含两个压缩 ARM64 原生库，`JniInit` 保留。APK 33 项、HAP 32 项网页文件与生成资源一致；鸿蒙清单中的压缩数据可完整解压，原始内容与前端输出一致。包内无 Live2D 或私密源文件。
+- 模拟器：Android 17 x86_64 的 ARM64 转译环境、HarmonyOS Pura 90 Pro 安装正式签名包，验证本地界面、游客登录、房间列表、入房、合成 MP4 播放及进度推进、评论、音乐歌单与播放器入口。测试服务器从本地 `ec0ac153` 源码构建，媒体和账号为隔离合成数据。
+- 语音：权限入口/面板可用；隔离环境中的 Piik 媒体连接未完成，不能据此认定语音通话或投屏收发已通过。B站真实账号/线路、MKV 特殊音轨、蓝牙、后台长时播放及实体设备的跨端同步仍需实机复验；未声称全场景功能验收通过。
 
 ## 共享架构与鸿蒙适配入口
 
@@ -19,7 +33,7 @@
 - 共享发送端使用 `harmonyScreenShare.ts` 内 ArkWeb `getDisplayMedia` / `RTCPeerConnection`，`ScreenShareCapturePolicy.ets` 提供原生授权门与清理。不要把 Android MediaProjection/随包 WebRTC 库复制到鸿蒙。
 - 鸿蒙 B站解析是 ArkTS 实现，并不链接 Android 的 Go AAR。可共用脱敏协议样例/测试，保留原生网络与凭据隔离。
 - 原 2.5.0 HAP 为 29.06 MiB；其中 Web 文件未压缩，MediaPipe WASM 10.64 MiB、模型 3.58 MiB、粗体字体 6.10 MiB。APK 的 37.96 MiB 是本轮只保留 ARM64 后的实测值，两包不能按运行框架名称推断大小。
-- 后续字体策略和可选动捕资源下载可同时惠及双端；本轮没有改变资源或重建 HAP。系统能力仍需鸿蒙真机单独验收。
+- 上述 2.5.0 体积仅作历史对照；2.5.1 已移除 Live2D 并压缩随包资源，以顶部维护基线为准。系统能力仍需鸿蒙真机单独验收。
 
 ## 架构与源码入口
 

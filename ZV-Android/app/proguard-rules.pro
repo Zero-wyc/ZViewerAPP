@@ -1,21 +1,12 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Capacitor plugins and WebView entry points are invoked by reflection.
+-keepattributes RuntimeVisibleAnnotations,RuntimeInvisibleAnnotations,AnnotationDefault,Signature,InnerClasses,EnclosingMethod
+-keep public class * extends com.getcapacitor.Plugin { *; }
+-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
-
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
-
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# gomobile and WebRTC use names embedded in native libraries.
+-keep class go.** { *; }
+-keep class mobile.** { *; }
+-keep class org.webrtc.** { *; }
+# WebRTC JNI_OnLoad resolves these helper classes by name, outside Java calls.
+-keep class org.jni_zero.** { *; }
+-keepclasseswithmembernames,includedescriptorclasses class * { native <methods>; }
