@@ -20,6 +20,10 @@ function fixture(withHandlers = true) {
   const video = {
     readyState: 0,
     error: null,
+    paused: false,
+    seeking: false,
+    currentTime: 0,
+    buffered: { length: 0, start: () => 0, end: () => 0 },
     addEventListener(event, listener) {
       if (!videoListeners.has(event)) videoListeners.set(event, new Set())
       videoListeners.get(event).add(listener)
@@ -56,12 +60,12 @@ function fixture(withHandlers = true) {
     'setTimeout', 'clearTimeout', 'DOMException', `${utils}\nreturn waitForMetadata`
   )(setTimeout, clearTimeout, DOMException)
   const engine = new Function(
-    'flvjs', 'resetVideoElement', 'waitForMetadata', 'resolveProxyUrl', 'setTimeout', 'clearTimeout', 'console', 'buildProxyUrl',
+    'flvjs', 'resetVideoElement', 'waitForMetadata', 'resolveProxyUrl', 'isCliProxyUrl', 'setTimeout', 'clearTimeout', 'console', 'buildProxyUrl',
     `${code}\nreturn { flvEngine, attachLiveHandlers }`
   )(flvjs, () => {}, (...args) => {
     metadataWaits++
     return waitForMetadata(...args)
-  }, url => url, setTimeout, clearTimeout, { log() {}, warn() {} }, url => `http://fixture.invalid/api/stream/proxy?url=${encodeURIComponent(url)}`)
+  }, url => url, () => false, setTimeout, clearTimeout, { log() {}, warn() {} }, url => `http://fixture.invalid/api/stream/proxy?url=${encodeURIComponent(url)}`)
   const dispose = withHandlers ? engine.attachLiveHandlers(video, player, events) : () => {}
   const emit = (event, ...args) => {
     for (const listener of [...(listeners.get(event) ?? [])]) listener(...args)
@@ -166,6 +170,28 @@ test('readiness cancels a pending retry and restores the fast retry interval', (
   assert.equal(f.nextDelay(), 1000)
   assert.equal(f.retries.at(-1).attempt, 1)
   f.dispose()
+})
+
+test('live FLV chases the buffered edge only when latency grows and stops after cleanup', () => {
+  const f = fixture()
+  f.video.readyState = 2
+  f.video.currentTime = 10
+  let edge = 11.4
+  f.video.buffered = { length: 1, start: () => 0, end: () => edge }
+
+  f.emitVideo('timeupdate')
+  assert.equal(f.video.currentTime, 10, 'small live latency should not trigger a seek')
+  edge = 13
+  f.emitVideo('timeupdate')
+  assert.equal(f.video.currentTime, 12.5, 'large latency should seek close to the buffered edge')
+  edge = 20
+  f.emitVideo('timeupdate')
+  assert.equal(f.video.currentTime, 19.5)
+
+  f.dispose()
+  assert.equal(f.pending(), 0)
+  f.advance(10000)
+  assert.equal(f.video.currentTime, 19.5, 'cleanup must stop future chase ticks')
 })
 
 test('a synchronous reconnect failure schedules a later attempt', () => {

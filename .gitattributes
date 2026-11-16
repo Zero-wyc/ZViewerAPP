@@ -8,3 +8,5 @@
 *.flac binary
 *.mp4 binary
 *.jar binary
+public/live2d/core/live2dcubismcore.min.js binary
+public/live2d/face/*.task binary

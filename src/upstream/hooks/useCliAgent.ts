@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { useSocket } from './useSocket'
 import { useAuthStore } from '@/store/authStore'
 import { useCliAgentStore } from '@/store/cliAgentStore'
+import type { CliAgentInfo } from '@/store/cliAgentStore'
 import { isEmbeddedBilibiliHost, useEmbeddedProxyStatus } from '../../platform/bilibiliProxy'
 import { getRuntimePlatform } from '../../platform/runtime'
 
@@ -37,13 +38,7 @@ function isLocalPage(): boolean {
   )
 }
 
-interface CliAgentAvailablePayload {
-  socketId: string
-  proxyUrl: string
-  agent?: string
-  version?: string
-  user?: string
-}
+type CliAgentAvailablePayload = CliAgentInfo
 
 interface CliAgentsPayload {
   roomId?: string

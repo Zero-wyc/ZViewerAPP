@@ -16,6 +16,7 @@ export interface ModalProps {
   children: React.ReactNode
   footer?: React.ReactNode
   className?: string
+  container?: HTMLElement | null
   expandable?: boolean
   /** 保留关闭时的内容挂载，供需要持续监听房间事件的面板使用。 */
   keepMounted?: boolean
@@ -29,6 +30,7 @@ export function Modal({
   children,
   footer,
   className,
+  container,
   expandable = false,
   keepMounted = false,
 }: ModalProps) {
@@ -155,7 +157,7 @@ export function Modal({
         )}
       </div>
     </div>,
-    document.body
+    container ?? document.body
   )
 }
 

@@ -22,6 +22,7 @@ import {
   getEffectivePreferMp4,
 } from '@/modules/room/watch-together/movie-source-resolver'
 import { isEmbeddedBilibiliHost, getEmbeddedProxyStatus } from '../../../platform/bilibiliProxy'
+import { getBilibiliResolveSource } from '../../../platform/bilibiliResolvePreference'
 import { getNativeQualityPolicy, selectNativeQuality, recordNativeQuality, restoreNativeQuality, getQualitySelectionRevision } from './nativeQualityPolicy'
 
 function qualitiesEqual(a: QualityOption[], b: QualityOption[]): boolean {
@@ -145,14 +146,31 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
           // 时服务器解析会产出裸 CDN URL，挂载后媒体流无法经本机 CLI（违反
           // cliOnly 零媒体转发语义），直接报错阻止切换
           const cliOnly = movie.cliOnly === true
+          const resolveSource = getBilibiliResolveSource()
           const proxyUrl =
-            cliOnly || parsePrefs.cliEnabled ? getActiveCliProxyUrl() : null
+            cliOnly || parsePrefs.cliEnabled
+              ? getActiveCliProxyUrl({ allowLoggedOut: resolveSource === 'host' })
+              : null
           if (cliOnly && !proxyUrl) {
             throw new Error(
               '该影片已开启「仅允许CLI模式」：请安装并连接 ZViewer CLI 后观看'
             )
           }
-          if (proxyUrl) {
+          if (proxyUrl && resolveSource === 'host') {
+            resolved = await resolveBilibiliWithOptions(
+              movie.url,
+              qn,
+              undefined,
+              {
+                preferMp4: false,
+                forceDash: true,
+                movieId: movie.id,
+                page: movie.currentPage,
+                cliHost: true,
+                skipCdnCheck: true,
+              }
+            )
+          } else if (proxyUrl) {
             // PGC（番剧 ep/ss 链接）：按 epId 走 CLI 番剧解析分支
             const bangumiId = extractBangumiId(movie.url)
             if (bangumiId?.epId) {
@@ -174,7 +192,8 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
                   movie.cid,
                   qn,
                   false,
-                  true
+                  true,
+                  { signal: undefined, page: movie.currentPage }
                 )
               } else {
                 throw new Error('无法提取 BV 号或 cid，无法使用 CLI 代理')

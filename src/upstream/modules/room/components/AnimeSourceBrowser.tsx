@@ -8,6 +8,7 @@ import type {
   AniSubsSearchResult,
   AniSubsSource,
 } from '@/modules/anisubs'
+import { getAniSubsSearchResultKey } from '@/modules/anisubs/source-key'
 import { Select } from '@/components/ui/Select'
 import { message } from '@/components/ui/message'
 import { AnimePoster } from './AnimePoster'
@@ -44,7 +45,7 @@ export function AnimeSourceBrowser({
   const [sourceId, setSourceId] = useState('')
   const [sourceError, setSourceError] = useState('')
   const [addingSeries, setAddingSeries] = useState(false)
-  const shows = useRef<AniSubsSearchResult[]>([])
+  const shows = useRef(new Map<string, AniSubsSearchResult>())
   const selections = useRef(new Map<string, AnimeEpisodeSelection>())
   const posters = useRef(new Map<string, { cover?: string; referer: string }>())
   const episodes = useRef(new Map<string, EmbyDirectoryEntry[]>())
@@ -55,7 +56,7 @@ export function AnimeSourceBrowser({
 
   const roomRevision = useRoomStore(state => state.roomSessionRevision)
   const server = getApiUrl()
-  useEffect(() => () => { ++sourceGeneration.current; selections.current.clear(); episodes.current.clear(); shows.current = []; failedSeries.current.clear(); posters.current.clear() }, [open, roomRevision, server])
+  useEffect(() => () => { ++sourceGeneration.current; selections.current.clear(); episodes.current.clear(); shows.current = new Map(); failedSeries.current.clear(); posters.current.clear() }, [open, roomRevision, server])
   useEffect(() => {
     setAddingSeries(false)
     if (!open) return
@@ -84,15 +85,20 @@ export function AnimeSourceBrowser({
   const mapShows = useCallback(
     (items: AniSubsSearchResult[]): EmbyDirectoryEntry[] =>
       items.map((show) => {
-        posters.current.set(show.id, { cover: show.cover, referer: show.id })
+        const path = getAniSubsSearchResultKey(show, sourceId)
+        posters.current.set(path, { cover: show.cover, referer: show.id })
+        shows.current.set(path, show)
+        const name = show.sourceName
+          ? `${show.title}（${show.sourceName}）`
+          : show.title
         return {
-          name: show.title,
-          path: show.id,
+          name,
+          path,
           type: 'directory',
           embyType: 'Series',
         }
       }),
-    []
+    [sourceId]
   )
 
   const doSearch = useCallback(
@@ -100,7 +106,7 @@ export function AnimeSourceBrowser({
       const generation = ++sourceGeneration.current
       const items = await search(sourceId, keyword)
       if (generation !== sourceGeneration.current) return []
-      shows.current = items
+      shows.current = new Map()
       selections.current.clear()
       episodes.current.clear()
       failedSeries.current.clear()
@@ -112,13 +118,13 @@ export function AnimeSourceBrowser({
 
   const browse = useCallback(
     async (_mountId: number, path?: string): Promise<EmbyDirectoryEntry[]> => {
-      if (!path) return mapShows(shows.current)
+      if (!path) return mapShows([...shows.current.values()])
       const cached = episodes.current.get(path)
       if (cached) return cached
-      const show = shows.current.find((item) => item.id === path)
+      const show = shows.current.get(path)
       if (!show) return []
       const generation = sourceGeneration.current
-      const items = await getEpisodes(show.source || sourceId, path)
+      const items = await getEpisodes(show.source || sourceId, show.id)
       if (generation !== sourceGeneration.current) return []
       const entries = items.map((episode): EmbyDirectoryEntry => {
         const key = JSON.stringify([path, episode.id])
@@ -233,7 +239,7 @@ export function AnimeSourceBrowser({
             onChange={(value) => {
               if (value === sourceId) return
               sourceGeneration.current++
-              shows.current = []
+              shows.current = new Map()
               selections.current.clear()
               episodes.current.clear()
               posters.current.clear()

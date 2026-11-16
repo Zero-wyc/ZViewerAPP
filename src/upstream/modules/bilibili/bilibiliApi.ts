@@ -537,6 +537,12 @@ export async function resolveBilibili(
      * 完整内容而非观众身份下的试看片段。Cookie 本身不回传。
      */
     movieId?: number
+    /** CLI 房主身份解析；服务端要求同时提供有效 movieId 并受管理员设置控制。 */
+    cliHost?: boolean
+    /** 跳过服务器侧 CDN 探测，供本机 CLI 直接拉取媒体流使用。 */
+    skipCdnCheck?: boolean
+    /** Cancel when the room source or playback session changes. */
+    signal?: AbortSignal
   }
 ): Promise<ResolvedSource> {
   let fetchUrl = `/api/stream/resolve-bilibili?url=${encodeURIComponent(url)}`
@@ -557,13 +563,22 @@ export async function resolveBilibili(
   ) {
     fetchUrl += `&page=${options.page}`
   }
-  if (options?.movieId != null && Number.isFinite(options.movieId)) {
+  if (
+    options?.movieId != null &&
+    Number.isSafeInteger(options.movieId) &&
+    options.movieId > 0
+  ) {
     fetchUrl += `&movieId=${options.movieId}`
   }
+  if (options?.cliHost) fetchUrl += '&cliHost=1'
+  if (options?.skipCdnCheck) fetchUrl += '&skipCdnCheck=1'
 
   // 整体超时兜底：后端流式响应永不结束时主动 abort，避免前端永久挂起。
   // 控制器在 parseNdjsonStream / res.json() 完成后由 finally 清理。
+  options?.signal?.throwIfAborted()
   const controller = new AbortController()
+  const abort = () => controller.abort(options?.signal?.reason)
+  options?.signal?.addEventListener('abort', abort, { once: true })
   const timer = setTimeout(() => controller.abort(), RESOLVE_TIMEOUT_MS)
   try {
     const res = await apiFetch(fetchUrl, { signal: controller.signal })
@@ -585,12 +600,14 @@ export async function resolveBilibili(
     if (!options?.audioOnly || !resolved.audioUrl) assertVideoCodecSupported(resolved)
     return resolved
   } catch (err) {
+    options?.signal?.throwIfAborted()
     if (err instanceof DOMException && err.name === 'AbortError') {
       throw new Error('解析 B站 视频超时，请稍后重试', { cause: err })
     }
     throw err
   } finally {
     clearTimeout(timer)
+    options?.signal?.removeEventListener('abort', abort)
   }
 }
 
@@ -612,6 +629,9 @@ export async function resolveBilibiliWithOptions(
     page?: number
     cid?: number
     movieId?: number
+    cliHost?: boolean
+    skipCdnCheck?: boolean
+    signal?: AbortSignal
   }
 ): Promise<ResolvedSource> {
   return resolveBilibili(url, qn, onProgress, {
@@ -621,6 +641,9 @@ export async function resolveBilibiliWithOptions(
     page: extraOptions?.page,
     cid: extraOptions?.cid,
     movieId: extraOptions?.movieId,
+    cliHost: extraOptions?.cliHost,
+    skipCdnCheck: extraOptions?.skipCdnCheck,
+    signal: extraOptions?.signal,
   })
 }
 

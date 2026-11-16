@@ -2,6 +2,7 @@
   "string": [
     { "name": "module_desc", "value": "ZViewer HarmonyOS host" },
     { "name": "EntryAbility_desc", "value": "ZViewer" },
-    { "name": "microphone_permission_reason", "value": "加入房间语音时使用麦克风" }
+    { "name": "microphone_permission_reason", "value": "加入房间语音时使用麦克风" },
+    { "name": "camera_permission_reason", "value": "开启角色动捕后在本机识别人脸表情，摄像头画面不上传" }
   ]
 }

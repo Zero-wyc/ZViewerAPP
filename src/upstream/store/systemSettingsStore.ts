@@ -33,6 +33,10 @@ export interface SystemSettings {
   bilibiliPgcDefaultMode: 'mp4' | 'dash' | 'cliOnly'
   /** 浏览器播放引擎（playsvideo）全局开关：关闭后全部原生直连播放 */
   playsvideoEnabled: boolean
+  /** 房间里是否启用 Live2D 悬浮角色 */
+  live2dEnabled: boolean
+  /** 是否允许 Live2D 等模块解析 CLI 主机地址 */
+  allowCliHostResolve: boolean
   /** 更新 CDN 加速开关：true 时更新检测和下载走 CDN 代理 */
   updateUseGitCode?: boolean
   cdnAccelerate: boolean
@@ -75,6 +79,8 @@ const DEFAULT_SETTINGS: SystemSettings = {
   bilibiliDefaultParseMode: 'mp4',
   bilibiliPgcDefaultMode: 'mp4',
   playsvideoEnabled: true,
+  live2dEnabled: true,
+  allowCliHostResolve: true,
   cdnAccelerate: false,
   cdnProxyUrl: 'https://gh-proxy.com',
   roomMultiInstanceLogin: false,

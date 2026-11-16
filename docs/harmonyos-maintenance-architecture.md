@@ -1,5 +1,26 @@
 # HarmonyOS 客户端维护文档
 
+## 2.5.0 / 250 服务端、CLI 与角色对齐（2026-11-16）
+
+服务端固定到 `ec0ac1530b6790e85b17936efc31d266bb6c2997`，文件映射及验证结果见 [本次交付记录](server-alignment-2026-11-16.md)。本节替代 2.4.0 的直播浏览器直链语义。
+
+- 鸿蒙内置解析器为 `BilibiliResolver.ets` / `BilibiliLocalProxy.ets` 的 ArkTS 原生实现，Android 对应 `native/bilicore` Go AAR。更新 CLI 源码时需同时比较两端，不能只替换 Android 库或把桌面 EXE 当作鸿蒙解析器升级。
+- 房主身份点播经既有 `apiFetch`、`movieId` / `cliHost` / `skipCdnCheck` 合同，由服务端解析、各端本地转发媒体；Cookie 不下发，`cliOnly` 仍要求本机账号资格。直播 CLI 线路使用本机 Referer / Origin 和经过安全校验的目标，不开放任意地址代理。
+- Live2D 通过 `MobileRoom` 按需加载，使用现有房间 Socket；触摸设置、表情动作、戳一戳、公共模型库与房间策略对齐上游。角色位置与大小保存为本机偏好，换房、断连与卸载清理场景和旧回调。
+- 本地 Core / MediaPipe WASM / 人脸任务模型使用 App 内置资源路径，模型库 JSON、纹理及缩略图使用所选服务器与 `connectionTransport`。网页仍只通过生产构建和 `ZV-HarmonyOS/scripts/sync-web.mjs` 生成，不手改 rawfile/web。
+- `Index.ets` 仅向可信本地 origin 开放音频 / 视频捕获；视频请求先申请系统 CAMERA 权限，拒绝时不向 ArkWeb 授权。`module.json5` 声明相机的前台使用理由，旧语音麦克风流程保留。摄像头画面仅本机推理，不发送服务端；静音 / 退出语音时口型立即停止，不重复采集麦克风。
+- AniSubs 全站聚合搜索、B站直播实际追帧与权限错误码同步共享层；保留原生 Cookie / TLS、服务器地址前缀、弱网取消和 Piik v24 传输边界。
+
+正式 HAP 版本为 2.5.0 / 250，构建时临时注入本机签名并在 finally 恢复公开配置。最终包仅构建时计算一次 SHA256。签名、资源和自动验证证据见交付记录；实体手机、真实直播 CDN、动捕精度与后台长时运行不由构建通过推定。
+
+### 2.5.0 构建与验证结果
+
+- 正式 HAP：`release/client-v2.5.0/ZViewer-Client-2.5.0-harmonyos.hap`，30,476,076 字节；SHA256 `d943056e514c62293e8a2cf5afe649d247ac51cd4f52081e94924f26218cda19`。
+- `hap-sign-tool verify-app` 通过，代码签名、权限签名和 SHA-256 摘要验证均成功；导出的证书链与上一正式包一致。版本为 `2.5.0 / 250`，Release `debug=false`，最低 API 23。
+- HAP 内 `resources/rawfile/web/` 逐项匹配最终网页输出 59 个文件；`Index.ets` 仅对可信本地 origin 授权音视频采集，并在摄像头权限拒绝时拒绝 ArkWeb 请求。包体和源码审计未发现账号、密码、私钥或 `AGENTS.md`。
+- 本轮回归共 550 项通过：Piik 60、维护 172、对齐 102、B站 79、工具栏 8、直播 11、上游角色 / 聚合 118；TypeScript、Vite、双端网页同步、原生 Go 与 HarmonyOS Release 编译均通过。
+- 本轮未连接实体 HarmonyOS 设备；上述结果不替代 ArkWeb 摄像头授权、动捕、后台运行、真实直播 CDN 和长时间弱网的真机验收。iOS 未构建，NAS 未部署。
+
 ## 2.4.0 / 240 直播与服务端增量对齐（2026-11-12）
 
 服务端合同固定到 main `ebddfb990552b2971bbdd37b53747ce5728db9da`（从 `130ca3fb` 快进 18 个提交），文件级映射和范围见 [适配与验收记录](server-alignment-2026-11-12.md)。本版发布 Android / HarmonyOS，iOS 不参与；共享和语音继续要求 Piik v24。

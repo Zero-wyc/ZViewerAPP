@@ -3,7 +3,9 @@ import { Modal } from '@/components/ui/Modal'
 import { message } from '@/components/ui/message'
 import { embeddedBilibiliProxy, isEmbeddedBilibiliHost, startEmbeddedProxy, useEmbeddedProxyStatus } from '../platform/bilibiliProxy'
 import type { BilibiliQrSession } from '../platform/contracts'
+import { setBilibiliResolvePreference, useBilibiliResolvePreference } from '../platform/bilibiliResolvePreference'
 import { getRuntimePlatform } from '../platform/runtime'
+import { useSystemSettingsStore } from '@/store/systemSettingsStore'
 
 export function BilibiliAccount({ className = '' }: { className?: string }) {
   const proxy = useEmbeddedProxyStatus()
@@ -13,6 +15,9 @@ export function BilibiliAccount({ className = '' }: { className?: string }) {
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
   const generation = useRef(0)
+  const preferredResolveSource = useBilibiliResolvePreference()
+  const allowCliHostResolve = useSystemSettingsStore(s => s.allowCliHostResolve)
+  const selectedResolveSource = allowCliHostResolve ? preferredResolveSource : 'local'
   useEffect(() => { void startEmbeddedProxy() }, [])
   useEffect(() => {
     if (!open || !qr) return
@@ -49,6 +54,24 @@ export function BilibiliAccount({ className = '' }: { className?: string }) {
     finally { if (seq === generation.current) setBusy(false) }
   }
   if (!isEmbeddedBilibiliHost()) return null
+  const resolveSourcePicker = <div className="bili-account-panel">
+    <p className="m-0">解析来源</p>
+    <div className="grid grid-cols-2 gap-1 rounded-md border border-white/10 p-1" role="group" aria-label="B站解析来源">
+      <button type="button" aria-pressed={selectedResolveSource === 'host'} disabled={!allowCliHostResolve}
+        className={`rounded px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-45 ${selectedResolveSource === 'host' ? 'bg-white/15 text-white' : 'text-white/70'}`}
+        onClick={() => setBilibiliResolvePreference('host')}>房主账号</button>
+      <button type="button" aria-pressed={selectedResolveSource === 'local'}
+        className={`rounded px-3 py-2 text-sm ${selectedResolveSource === 'local' ? 'bg-white/15 text-white' : 'text-white/70'}`}
+        onClick={() => setBilibiliResolvePreference('local')}>本机账号</button>
+    </div>
+    <p className="m-0 text-xs opacity-70">
+      {allowCliHostResolve
+        ? selectedResolveSource === 'host'
+          ? 'CLI 模式启用时使用房间房主的 B 站身份解析，媒体由本机 CLI 转发。添加影片预览没有影片编号，无法使用房主身份解析。'
+          : 'CLI 模式启用时使用本机 B 站账号；未启用 CLI 时仍按房间的服务器解析设置处理。'
+        : '管理员已关闭 CLI 房主身份解析。CLI 模式使用本机 B 站账号；未启用 CLI 时按服务器解析设置处理。'}
+    </p>
+  </div>
   return <>
     <button className={`bilibili-account-trigger ${className}`} type="button" data-logged-in={proxy.loggedIn}
       aria-label={`B 站账号 · ${proxy.loggedIn ? '已登录' : '未登录'}`} title={`B 站账号 · ${proxy.loggedIn ? '已登录' : '未登录'}`}
@@ -67,6 +90,7 @@ export function BilibiliAccount({ className = '' }: { className?: string }) {
         <p>登录后默认自动最高画质。登录凭据加密保存在本机，不发送给 ZViewer 服务器。</p>
         <button className="mobile-text-button" disabled={busy} onClick={() => void login()}>{busy ? '正在获取二维码' : qr ? '重新获取二维码' : '获取登录二维码'}</button>
       </div>}
+      {resolveSourcePicker}
       {qr && <div className="bili-account-panel">
         <img src={qr.qrDataUrl} alt="B站登录二维码" style={{ width: 220, maxWidth: '100%', display: 'block', margin: '16px auto' }} />
         <p>{status}</p>

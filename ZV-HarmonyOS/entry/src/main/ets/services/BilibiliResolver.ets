@@ -3,6 +3,18 @@ import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import { util, url } from '@kit.ArkTS';
 import { wbiMixinKey, wbiQuery } from './BilibiliWbi';
 
+export function isAllowedBilibiliLiveMediaUrl(raw: string): boolean {
+  try {
+    const parsed = new url.URL(raw);
+    const host = parsed.hostname.toLowerCase();
+    return parsed.protocol === 'https:' && parsed.username === '' && parsed.password === '' &&
+      (parsed.port === '' || parsed.port === '443') && parsed.hash === '' &&
+      (host.endsWith('.bilivideo.com') || host.endsWith('.bilivideo.cn') || host.endsWith('.bilivideo.net'));
+  } catch (_error) {
+    return false;
+  }
+}
+
 interface WbiImages { img_url: string; sub_url: string; }
 interface NavData { wbi_img: WbiImages; }
 interface NavResponse { code: number; message: string; data?: NavData; }

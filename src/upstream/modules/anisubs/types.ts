@@ -21,6 +21,10 @@ export interface AniSubsSearchResult {
   cover?: string
   description?: string
   source: string
+  /** Display name of the winning source in aggregate search results. */
+  sourceName?: string
+  /** Other source names that returned the same normalized title. */
+  altSources?: string[]
 }
 
 /** 剧集信息 */

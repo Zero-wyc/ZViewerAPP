@@ -1,5 +1,26 @@
 # Android 客户端维护文档
 
+## 2.5.0 / 250 服务端、CLI 与角色对齐（2026-11-16）
+
+本节替代 2.4.0 中直播“浏览器直链失败自动转中转”的旧语义。服务端固定到 `ec0ac1530b6790e85b17936efc31d266bb6c2997`，与旧基线相差 57 个提交；文件映射及验证结果见 [本次交付记录](server-alignment-2026-11-16.md)。
+
+- 内置解析器继续使用 `native/bilicore` Go 源码生成 Android ARM64 / x86_64 AAR，重新编译后随 APK 分发。新版 CLI 对齐应以源码合同为准，保留移动输入、画质 / 编码能力选择、取消、已授权 CDN 白名单和 Keystore Cookie 保护，不移入桌面自动注册、启动器和配置页。
+- B站点播新增房主身份与本机账号两种解析来源。房主身份通过服务端 `cliHost` / `movieId` 与 `skipCdnCheck` 解析，内置 CLI 负责媒体转发；管理员许可、房主绑定状态和房间准入由服务端判定，错误码必须保留。`cliOnly` 仍强制本机账号，不能用房主资格代替成员授权。
+- 直播的本地线路由各端内置 CLI 加 Referer / Origin 拉流，服务器中转与本机转发按新版合同处理；`isLive` / `liveDirect` 随状态同步并影响重挂载，直播不进入点播缓存与 seek / 倍速策略。FLV 追帧使用实际缓冲位置实现，切源和销毁清理计时器。
+- `modules/live2d` 与 `MobileRoom` 接入角色、模型库、表情 / 动作 / 戳一戳和房间策略。`live2dEnabled` 关闭时不加载渲染器；位置与大小是本机偏好。手机通过触摸入口打开设置，弹窗保留原生返回、视口适配和全屏容器。
+- Cubism Core、MediaPipe WASM 与人脸任务模型随包分发；`scripts/prepare-live2d-face.mjs` 在 predev / prebuild 复制固定依赖的运行时，生成目录不入源码。服务器模型 JSON / 纹理 / 缩略图经过所选服务器连接通道；不得广播带私密 loopback capability 的地址。
+- 语音口型复用 Piik 当前麦克风 Analyser，静音和退出即撤回读数；摄像头动捕由用户主动启用，画面只在本机处理，上传仅含姿态数值。关闭角色、退房和换服清理采集与监听。Android 继续使用现有 CAMERA 声明与宿主权限流程。
+- AniSubs 默认使用服务端全站聚合接口，同名结果合并并保留站点来源、分集入口；CMS / Kazumi 解析与服务端系统出口代理修复由最新服务端生效。
+
+最终网页资源使用同一生产构建同步 Android / HarmonyOS；正式包各在构建时计算一次 SHA256，发布复用记录。签名、包内资源、自动回归和设备边界在交付记录中单独登记，不继承旧版实体手机验收结论。
+
+### 2.5.0 构建与验证结果
+
+- 正式 APK：`release/client-v2.5.0/ZViewer-Client-2.5.0-android.apk`，83,767,120 字节；SHA256 `2eb5c061ca73fcc9d6682d8e6bfc726ca24fb7f5a123fbfbf9cb7593bd9cd702`。
+- `apksigner verify --verbose --print-certs` 通过，APK Signature Scheme v2 为 `true`；证书 SHA-256 `51b892a049a1650a03dc0a3baf9406db85b9fb91267851f15ee697df2d2ccc9b`，与上一正式包一致。版本为 `2.5.0 / 250`，应用 ID 为 `com.zviewer.mobile`。
+- APK 内 `assets/public/` 逐项匹配最终网页输出 61 个文件；包体和源码审计未发现账号、密码、私钥或 `AGENTS.md`。本次回归共 550 项通过：Piik 60、维护 172、对齐 102、B站 79、工具栏 8、直播 11、上游角色 / 聚合 118；TypeScript、Vite、双端网页同步、原生 Go 与 HarmonyOS 编译均通过。
+- 本轮未连接实体 Android 设备；上述结果不替代通知栏、后台播放、摄像头、直播 CDN 和长时间弱网的真机验收。iOS 未构建，NAS 未部署。
+
 ## 2.4.0 / 240 直播与服务端增量对齐（2026-11-12）
 
 服务端合同固定到 main `ebddfb990552b2971bbdd37b53747ce5728db9da`（从 `130ca3fb` 快进 18 个提交），文件级映射和范围见 [适配与验收记录](server-alignment-2026-11-12.md)。本版发布 Android / HarmonyOS，iOS 不参与；共享和语音继续要求 Piik v24。

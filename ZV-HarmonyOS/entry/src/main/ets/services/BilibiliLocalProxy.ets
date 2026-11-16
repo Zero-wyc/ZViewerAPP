@@ -1,7 +1,7 @@
 import { http, socket } from '@kit.NetworkKit';
 import { cryptoFramework } from '@kit.CryptoArchitectureKit';
-import { util } from '@kit.ArkTS';
-import { BilibiliResolution, CodecCapability, resolveBilibili } from './BilibiliResolver';
+import { util, url } from '@kit.ArkTS';
+import { BilibiliResolution, CodecCapability, isAllowedBilibiliLiveMediaUrl, resolveBilibili } from './BilibiliResolver';
 import { BilibiliCredentialStore } from './BilibiliCredentialStore';
 
 const TRUSTED_ORIGIN = 'https://zviewer.local';
@@ -119,6 +119,15 @@ function allowedCdn(raw: string): boolean {
     edge || host === 'upos-hz-mirrorakam.akamaized.net';
 }
 
+function safeCdnRedirect(location: string, current: string, live: boolean): string {
+  try {
+    const resolved = new url.URL(location, current).toString();
+    return live ? isAllowedBilibiliLiveMediaUrl(resolved) ? resolved : '' : allowedCdn(resolved) ? resolved : '';
+  } catch (_error) {
+    return '';
+  }
+}
+
 function trustedMediaCandidates(primary: string, backups: string[]): string[] {
   const result: string[] = [];
   for (const url of [primary, ...backups]) {
@@ -173,6 +182,7 @@ export class BilibiliLocalProxy {
   private userName = '';
   private vipStatus = 0;
   private targets = new Map<string, string[]>();
+  private liveTargets = new Map<string, boolean>();
   private credentials = new BilibiliCredentialStore();
   private restored = false;
 
@@ -221,6 +231,7 @@ export class BilibiliLocalProxy {
     this.vipStatus = payload.data.vipStatus;
     this.sessionVersion++;
     this.targets.clear();
+    this.liveTargets.clear();
     this.qrKey = '';
     return { status: 2, message: '登录成功', loggedIn: true, proxyStatus: this.status() };
   }
@@ -232,6 +243,7 @@ export class BilibiliLocalProxy {
     this.vipStatus = 0;
     this.sessionVersion++;
     this.targets.clear();
+    this.liveTargets.clear();
     return this.status();
   }
 
@@ -338,7 +350,8 @@ export class BilibiliLocalProxy {
     }
     const basePath = this.baseUrl.slice(this.baseUrl.indexOf('/', 8));
     const path = parts[1].split('?')[0];
-    if (path !== `${basePath}/health` && path !== `${basePath}/resolve` && path !== `${basePath}/proxy`) {
+    if (path !== `${basePath}/health` && path !== `${basePath}/resolve` &&
+      path !== `${basePath}/authorize-live` && path !== `${basePath}/proxy`) {
       this.reply(connection, 404, 'Not Found', '');
       return;
     }
@@ -348,16 +361,38 @@ export class BilibiliLocalProxy {
       this.reply(connection, 200, 'OK', parts[0] === 'HEAD' ? '' : '{"ok":true}', origin);
     } else if (path === `${basePath}/resolve` && parts[0] === 'GET') {
       this.resolveEndpoint(connection, parts[1], origin);
+    } else if (path === `${basePath}/authorize-live` && parts[0] === 'GET') {
+      this.authorizeLiveEndpoint(connection, parts[1], origin);
+    } else if (path === `${basePath}/authorize-live`) {
+      this.reply(connection, 405, 'Method Not Allowed', '');
     } else if (path === `${basePath}/proxy`) {
-      this.proxyEndpoint(connection, queryValue(parts[1], 'url'), range, parts[0], origin);
+      const ref = queryValue(parts[1], 'ref');
+      if (ref !== '' && ref !== 'live') {
+        this.reply(connection, 400, 'Bad Request', '');
+      } else {
+        this.proxyEndpoint(connection, queryValue(parts[1], 'url'), range, parts[0], origin, ref === 'live');
+      }
     } else {
       this.reply(connection, 501, 'Not Implemented', '{"success":false,"message":"媒体代理尚未就绪"}', origin);
     }
   }
 
-  private async proxyEndpoint(connection: socket.TCPSocketConnection, target: string, range: string, method: string, origin: string): Promise<void> {
-    const backups = this.targets.get(target);
-    if (!backups || !allowedCdn(target)) {
+  private authorizeLiveEndpoint(connection: socket.TCPSocketConnection, path: string, origin: string): void {
+    const target = queryValue(path, 'url');
+    if (!isAllowedBilibiliLiveMediaUrl(target)) {
+      this.reply(connection, 400, 'Bad Request', '{"success":false,"message":"直播媒体地址不受支持"}', origin);
+      return;
+    }
+    this.liveTargets.set(target, true);
+    const proxyUrl = `${this.baseUrl}/proxy?url=${encodeURIComponent(target)}&ref=live`;
+    this.reply(connection, 200, 'OK', JSON.stringify({ success: true, proxyUrl }), origin);
+  }
+
+  private async proxyEndpoint(connection: socket.TCPSocketConnection, target: string, range: string,
+    method: string, origin: string, live: boolean): Promise<void> {
+    const issued = live ? this.liveTargets.has(target) : this.targets.has(target);
+    const backups = live ? [] : this.targets.get(target) || [];
+    if (!issued || (live ? !isAllowedBilibiliLiveMediaUrl(target) : !allowedCdn(target))) {
       this.reply(connection, 403, 'Forbidden', '');
       return;
     }
@@ -365,7 +400,7 @@ export class BilibiliLocalProxy {
       this.reply(connection, 416, 'Range Not Satisfiable', '');
       return;
     }
-    const candidates = trustedMediaCandidates(target, backups);
+    const candidates = live ? [target] : trustedMediaCandidates(target, backups);
     let clientClosed = false;
     let cancelRequest: (() => void) | null = null;
     const clientDisconnected = (): void => {
@@ -383,7 +418,10 @@ export class BilibiliLocalProxy {
     try {
       for (const candidate of candidates) {
         if (clientClosed) return;
-        if (!allowedCdn(candidate)) continue;
+        if (live ? !isAllowedBilibiliLiveMediaUrl(candidate) : !allowedCdn(candidate)) continue;
+        let upstreamUrl = candidate;
+        let candidateFailed = false;
+        for (let redirectCount = 0; redirectCount <= 5; redirectCount++) {
         const request = http.createHttp();
         let destroyed = false;
         const destroyRequest = (): void => {
@@ -396,6 +434,7 @@ export class BilibiliLocalProxy {
         let queuedBytes = 0;
         let receivedBytes = 0;
         let expectedBytes = 0;
+        let redirectTarget = '';
         let pendingBeforeHeaders: ArrayBuffer[] = [];
         let chain: Promise<void> = Promise.resolve();
         // Cancellation also releases the waits if a native promise never settles.
@@ -432,11 +471,19 @@ export class BilibiliLocalProxy {
             const statusLine = headerValue(headers, 'status-line');
             const match = statusLine.match(/\s(\d{3})(?:\s|$)/);
             const status = match ? Number(match[1]) : range !== '' ? 206 : 200;
+            if (status >= 300 && status < 400) {
+              redirectTarget = headerValue(headers, 'location');
+              cancelRequest?.();
+              return;
+            }
             if (status < 200 || status >= 300) {
               cancelRequest?.();
               return;
             }
-            const contentType = headerValue(headers, 'content-type') || 'application/octet-stream';
+            let contentType = headerValue(headers, 'content-type') || 'application/octet-stream';
+            if (live && (contentType === 'application/octet-stream' || contentType.toLowerCase().includes('application/json'))) {
+              contentType = 'video/x-flv';
+            }
             const contentLength = headerValue(headers, 'content-length');
             const contentRange = headerValue(headers, 'content-range');
             expectedBytes = Number(contentLength) || 0;
@@ -468,27 +515,42 @@ export class BilibiliLocalProxy {
           });
           const header: Record<string, string> = {
             'User-Agent': 'Mozilla/5.0',
-            'Referer': `${BILIBILI_REFERER}/`,
-            'Origin': 'https://www.bilibili.com',
+            'Accept': '*/*',
+            'Referer': live ? 'https://live.bilibili.com' : `${BILIBILI_REFERER}/`,
+            'Origin': live ? 'https://live.bilibili.com' : BILIBILI_REFERER,
           };
           if (range !== '') header['Range'] = range;
-          const status = await Promise.race([request.requestInStream(candidate, {
+          const status = await Promise.race([request.requestInStream(upstreamUrl, {
             method: method === 'HEAD' ? http.RequestMethod.HEAD : http.RequestMethod.GET,
             header,
             maxRedirects: 0,
             usingCache: false,
             connectTimeout: 10000,
-            readTimeout: 30000,
+            readTimeout: live ? 0 : 30000,
           }), cancelled.then((): number => 0)]);
           await Promise.race([chain, cancelled]);
           if (clientClosed) return;
+          if (redirectTarget !== '') {
+            if (redirectCount >= 5) {
+              candidateFailed = true;
+              break;
+            }
+            const nextUrl = safeCdnRedirect(redirectTarget, upstreamUrl, live);
+            if (nextUrl === '') {
+              candidateFailed = true;
+              break;
+            }
+            upstreamUrl = nextUrl;
+            continue;
+          }
           if (!rejected && method !== 'HEAD' && expectedBytes > 0 && receivedBytes !== expectedBytes) throw new Error('Incomplete CDN stream');
           if (rejected || status < 200 || status >= 300) {
             if (sentHeaders) {
               closeClient();
               return;
             }
-            continue;
+            candidateFailed = true;
+            break;
           }
           if (!sentHeaders) throw new Error('CDN response missing headers');
           await connection.close().catch(() => {});
@@ -499,11 +561,22 @@ export class BilibiliLocalProxy {
             closeClient();
             return;
           }
+          if (redirectTarget !== '' && redirectCount < 5) {
+            const nextUrl = safeCdnRedirect(redirectTarget, upstreamUrl, live);
+            if (nextUrl !== '') {
+              upstreamUrl = nextUrl;
+              continue;
+            }
+          }
+          candidateFailed = true;
+          break;
         } finally {
           cancelRequest = null;
           pendingBeforeHeaders = [];
           destroyRequest();
         }
+        }
+        if (candidateFailed) continue;
       }
       if (!clientClosed) this.reply(connection, 502, 'Bad Gateway', '{"success":false,"message":"CDN 不可用"}', origin);
     } finally {

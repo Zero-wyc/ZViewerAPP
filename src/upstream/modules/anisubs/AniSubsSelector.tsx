@@ -2,7 +2,11 @@ import {
   AnimeSourceBrowser,
   type AnimeSourceBrowserProps,
 } from '@/modules/room/components/AnimeSourceBrowser'
-import { getAniSubsSources, searchAniSubs, getAniSubsEpisodes } from './api'
+import { getAniSubsEpisodes } from './api'
+import {
+  getAniSubsSourcesWithAggregate,
+  searchAniSubsBySource,
+} from './aggregate-search'
 
 export function AniSubsSelector(props: AnimeSourceBrowserProps) {
   return (
@@ -10,8 +14,8 @@ export function AniSubsSelector(props: AnimeSourceBrowserProps) {
       {...props}
       kind="anisubs"
       title="ani-subs 番剧源"
-      getSources={getAniSubsSources}
-      search={searchAniSubs}
+      getSources={getAniSubsSourcesWithAggregate}
+      search={searchAniSubsBySource}
       getEpisodes={getAniSubsEpisodes}
     />
   )

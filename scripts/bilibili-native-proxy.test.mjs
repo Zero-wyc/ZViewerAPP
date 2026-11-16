@@ -54,7 +54,13 @@ function fixture(responses, options = {}) {
     },
   }
   const context = vm.createContext({
-    http, socket: {}, cryptoFramework: {}, util: { TextEncoder },
+    http, socket: {}, cryptoFramework: {}, util: { TextEncoder }, url: { URL },
+    isAllowedBilibiliLiveMediaUrl: value => {
+      try {
+        const parsed = new URL(value)
+        return parsed.protocol === 'https:' && /\.bilivideo\.(com|cn|net)$/.test(parsed.hostname)
+      } catch { return false }
+    },
     BilibiliCredentialStore: class {},
     console, Promise, Map, ArrayBuffer, Uint8Array,
   })
@@ -63,7 +69,11 @@ function fixture(responses, options = {}) {
   proxy.targets.set(target, [backup])
   return {
     proxy, requests, connection,
-    start: (method = 'GET', range = 'bytes=0-3') => proxy.proxyEndpoint(connection, target, range, method, origin),
+    start: (method = 'GET', range = 'bytes=0-3') => proxy.proxyEndpoint(connection, target, range, method, origin, false),
+    startLive: (method = 'GET', range = '') => {
+      proxy.liveTargets.set(target, true)
+      return proxy.proxyEndpoint(connection, target, range, method, origin, true)
+    },
   }
 }
 
@@ -250,4 +260,34 @@ test('a failed error reply also handles failure while closing the socket', async
   await turn()
   await turn()
   assert.equal(state.connection.closeCount, 1)
+})
+
+test('authorize-live registers only a validated target and returns the loopback route', () => {
+  const state = fixture([])
+  state.proxy.baseUrl = 'http://127.0.0.1:49152/session'
+  state.proxy.port = 49152
+  state.proxy.authorizeLiveEndpoint(state.connection, `?url=${encodeURIComponent(target)}`, origin)
+  assert.equal(state.proxy.liveTargets.has(target), true)
+  assert.match(state.connection.sent[0], /"proxyUrl":"http:\/\/127\.0\.0\.1:49152\/session\/proxy\?url=/)
+
+  state.proxy.authorizeLiveEndpoint(state.connection, `?url=${encodeURIComponent('https://not-bilivideo.example/live.flv')}`, origin)
+  assert.match(state.connection.sent[1], /^HTTP\/1\.1 400 Bad Request\r\n/)
+})
+
+test('live streaming has no total read timeout and downstream closure cancels the native request', { timeout: 1000 }, async () => {
+  const state = fixture([request => {
+    request.listeners.headersReceive({
+      'status-line': 'HTTP/1.1 200 OK',
+      'content-type': 'video/x-flv',
+    })
+    return pending()
+  }])
+  const operation = state.startLive()
+  await turn()
+  assert.equal(state.requests[0].options.readTimeout, 0)
+  state.connection.emit('close')
+  await operation
+  assert.equal(state.requests[0].destroyCount, 1)
+  assert.equal(state.connection.sent.length, 1)
+  assertReleased(state)
 })

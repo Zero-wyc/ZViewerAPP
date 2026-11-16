@@ -2,7 +2,7 @@ import { resolveViewerMovieSource } from '@/modules/room/watch-together/movie-so
 import { getApiUrl, refreshAccessToken } from '@/lib/api'
 import { isAccessTokenExpired } from '@/lib/authTransport'
 import { isPlaybackSessionCurrent } from '../playbackIdentity'
-import { resolveProxyUrl } from '@/modules/player/services/url-proxy'
+import { buildProxyUrl, resolveProxyUrl } from '@/modules/player/services/url-proxy'
 import { isServerApiUrl } from '@/modules/player/services/hls-proxy'
 import { logicalConnectionUrl } from '../../../../platform/connectionTransport'
 /**
@@ -44,6 +44,7 @@ import { safePlay } from '../safePlay'
 import { executeSeek } from '../services'
 import type { SeekToResult } from '../services'
 import { getEmbeddedProxyStatus, isEmbeddedBilibiliHost, startEmbeddedProxy, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
+import { getBilibiliLiveProxyUrl, getBilibiliResolveSource } from '../../../../platform/bilibiliResolvePreference'
 import { fallbackNativeQuality, getNativeQualityPolicy, getQualitySelectionRevision, recordNativeQuality, restoreNativeQuality, type NativeQualityPolicy } from '@/modules/bilibili/nativeQualityPolicy'
 import { hasFreshBilibiliSource } from '@/modules/bilibili/sourceValidity'
 import { awaitAbortable } from '@/modules/player/utils/abortable'
@@ -97,7 +98,7 @@ async function ensureViewerLocalOverride(
     return null
   }
 
-  if (movie.cliOnly === true && !getActiveCliProxyUrl()) {
+  if (movie.cliOnly === true && !getActiveCliProxyUrl({ allowLoggedOut: getBilibiliResolveSource() === 'host' })) {
     storeState.setViewerCliRequiredMovieId(movieId)
     storeState.setViewerCliResolvedSource(null)
     return null
@@ -268,11 +269,11 @@ function waitForNativeProgress(video: HTMLVideoElement, startTime: number, shoul
  * 可选传入 blobs（缓冲模式）：从 IndexedDB 读取的本地 Blob 数据，
  * dash.js 会用 blob URL 加载，跳过服务器代理。
  */
-function toPlayerSource(
+async function toPlayerSource(
   state: WatchTogetherState,
   startTime?: number,
   blobs?: { videoBlob: Blob; audioBlob: Blob }
-): PlayerSource {
+): Promise<PlayerSource> {
   const source: PlayerSource = {
     url: state.sourceUrl,
     audioUrl: state.audioUrl,
@@ -321,7 +322,10 @@ function toPlayerSource(
     const movie = useRoomStore.getState().movies.find((m) => m.id === movieId)
     const { cliEnabled } = getBilibiliParseOptions(movieId)
     const cliOnly = movie?.cliOnly === true
-    const proxyUrl = cliEnabled || cliOnly ? getActiveCliProxyUrl() : null
+    const resolveSource = getBilibiliResolveSource()
+    const proxyUrl = cliEnabled || cliOnly
+      ? getActiveCliProxyUrl({ allowLoggedOut: resolveSource === 'host' })
+      : null
     if (cliOnly && !proxyUrl) throw new Error('本机代理不可用，请登录 B 站后重试')
     if (cliOnly) source.noProxyFallback = true
     if (proxyUrl) {
@@ -330,6 +334,19 @@ function toPlayerSource(
       if (source.audioUrl) {
         source.audioUrl = buildCliProxyUrl(proxyUrl, source.audioUrl)
       }
+    }
+  }
+  if (state.isLive === true && source.liveDirect === true) {
+    const localLiveUrl = state.format === 'hls'
+      ? null
+      : await getBilibiliLiveProxyUrl(state.sourceUrl)
+    if (localLiveUrl) {
+      source.url = localLiveUrl
+      source.liveProxyFallbackUrl = buildProxyUrl(state.sourceUrl)
+    } else {
+      // The local CLI handles Bilibili live Referer and long-lived streaming;
+      // HLS relative segments and missing local agents use server relay instead.
+      source.liveDirect = false
     }
   }
   if (!state.isLive && isEmbeddedBilibiliHost() && state.sourceType === 'bilibili' && cliProxyActive) source.attachTimeoutMs = 30000
@@ -449,7 +466,7 @@ export function useVideoSource({
       const refreshed = await refreshAccessToken()
       if (!current()) return true
       if (!refreshed) throw new Error('登录验证失败，请检查网络或重新登录')
-      const source = toPlayerSource({ ...state, isPlaying: snapshot.playing }, snapshot.time)
+      const source = await toPlayerSource({ ...state, isPlaying: snapshot.playing }, snapshot.time)
       await forceReload(video, source)
       if (!current()) return true
       video.currentTime = snapshot.time; video.playbackRate = snapshot.rate
@@ -534,7 +551,7 @@ export function useVideoSource({
             if (!stillCurrent()) return
             signal.throwIfAborted()
             const next = { ...store.watchTogether, sourceUrl: resolved.sourceUrl, audioUrl: resolved.audioUrl, format: resolved.format, videoCodec: resolved.videoCodec, audioCodec: resolved.audioCodec, currentQn: resolved.currentQn, acceptQuality: resolved.acceptQuality, currentTime: snapshot.time, playbackRate: snapshot.rate, isPlaying: snapshot.playing, cid: resolved.cid }
-            const source = toPlayerSource(next, snapshot.time)
+            const source = await toPlayerSource(next, snapshot.time)
             source.signal = signal
             source.attachTimeoutMs = Math.max(1, Math.min(25000, deadline - Date.now()))
             reloading = true
@@ -689,7 +706,7 @@ export function useVideoSource({
       const original = { time: startTime ?? video.currentTime ?? effectiveState.currentTime, playing: effectiveState.isPlaying && !wasUserPaused(video), rate: effectiveState.playbackRate }
       nativeAttachmentDepth.current++
       try {
-        await attachSource(video, toPlayerSource(effectiveState, startTime, blobs))
+        await attachSource(video, await toPlayerSource(effectiveState, startTime, blobs))
         const movieId = useRoomStore.getState().currentMovieId
         if (!effectiveState.isLive && isEmbeddedBilibiliHost() && movieId != null && effectiveState.currentQn) recordNativeQuality(movieId, effectiveState.currentQn, effectiveState.acceptQuality ?? [])
         if (!effectiveState.isLive && isEmbeddedBilibiliHost() && movieId != null && effectiveState.sourceType === 'bilibili') lastNativeSource.current = { movieId, cid: useRoomStore.getState().movies.find(movie => movie.id === movieId)?.cid, sessionVersion: getEmbeddedProxyStatus().sessionVersion, state: effectiveState, policy: { ...getNativeQualityPolicy(movieId) } }
@@ -701,7 +718,7 @@ export function useVideoSource({
         if (store.currentMovieId != null && getNativeQualityPolicy(store.currentMovieId).mode === 'manual' && previous?.movieId === store.currentMovieId && previous.cid === store.movies.find(movie => movie.id === store.currentMovieId)?.cid && previous.sessionVersion === getEmbeddedProxyStatus().sessionVersion) {
           restoreNativeQuality(store.currentMovieId, previous.policy)
           cleanup()
-          await attachSource(video, toPlayerSource(previous.state, original.time))
+          await attachSource(video, await toPlayerSource(previous.state, original.time))
           video.currentTime = original.time
           video.playbackRate = original.rate
           if (original.playing && !wasUserPaused(video)) await safePlay(video)
@@ -839,7 +856,7 @@ export function useVideoSource({
       try {
         await forceReload(
           video,
-          toPlayerSource(effectiveState, snapshot.currentTime)
+          await toPlayerSource(effectiveState, snapshot.currentTime)
         )
         if (effectiveState.isLive) {
           video.playbackRate = 1

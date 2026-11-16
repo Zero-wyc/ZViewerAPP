@@ -41,3 +41,5 @@ signing-credential.xml
 __pycache__/
 *.pyc
 [Aa][Gg][Ee][Nn][Tt][Ss].[Mm][Dd]
+/public/live2d/face/wasm/
+/.clawbench/generated/

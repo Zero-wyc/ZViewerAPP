@@ -25,6 +25,7 @@ import { microphoneCapture, type MicrophoneLease } from '../../../platform/micro
 import { sessionScope } from '../piik-signal/credentials'
 import { ROOM_MEDIA_TEARDOWN_EVENT } from '@/lib/mediaTeardown'
 import { apiFetch } from '@/lib/api'
+import { publishMicAnalyser } from '../voice-chat/lib/mic-level'
 import {
   publicationOwner,
   type PiikServerMessage,
@@ -170,6 +171,7 @@ export function usePiikVoice({
     micGainRef.current = null
     monitorGainRef.current = null
     localAnalyserRef.current = null
+    publishMicAnalyser(null)
   }, [])
 
   /** 采一条带增益与反送通路的麦克风流。 */
@@ -212,6 +214,7 @@ export function usePiikVoice({
     localAnalyserRef.current = analyser
     const track = produceDest.stream.getAudioTracks()[0]
     track.enabled = micEnabledRef.current
+    publishMicAnalyser(track.enabled ? analyser : null)
     return track
   }, [])
 
@@ -498,6 +501,7 @@ export function usePiikVoice({
     micEnabledRef.current = track.enabled
     setMicEnabled(track.enabled)
     microphoneCapture.setVoiceState({ joined: true, publishing: track.enabled })
+    publishMicAnalyser(track.enabled ? localAnalyserRef.current : null)
   }, [])
 
   const toggleMonitor = useCallback(() => {

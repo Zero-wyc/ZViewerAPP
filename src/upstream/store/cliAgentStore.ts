@@ -8,6 +8,8 @@ export interface CliAgentInfo {
   version?: string
   /** 注册时归属的用户名（CLI 配置页经 ?user= 传入；旧版 CLI 无此字段=公共代理） */
   user?: string
+  /** B 站解析来源；旧版 CLI 缺省按本机 Cookie 解析处理。 */
+  resolveSource?: 'host' | 'local'
 }
 
 interface CliAgentState {

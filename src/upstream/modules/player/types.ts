@@ -116,6 +116,8 @@ export interface PlayerSource {
    * FLV 引擎连续失败会自动回退代理，因此该开关是「优先直连」而非「强制」。
    */
   liveDirect?: boolean
+  /** Local-only FLV fallback route; never synchronized or stored in room state. */
+  liveProxyFallbackUrl?: string
   /**
    * FLV 直播运行时事件出口（仅 FLV 引擎 isLive 源使用）。
    *

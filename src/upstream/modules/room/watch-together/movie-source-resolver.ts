@@ -27,6 +27,7 @@ import { resolveMovieDirectUrl } from '@/modules/direct-link/directLinkApi'
 import { getEmbyApiMovieSource } from '@/modules/emby/embyApi'
 import { getEmbyMediaSourceId } from '@/modules/emby/playbackMode'
 import { getEmbeddedProxyStatus, isEmbeddedBilibiliHost, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
+import { getBilibiliResolveSource } from '../../../../platform/bilibiliResolvePreference'
 import { getNativeQualityPolicy, getWebViewCapabilities, nativeQualityCacheKey, recordNativeQuality } from '@/modules/bilibili/nativeQualityPolicy'
 import { hasFreshBilibiliSource } from '@/modules/bilibili/sourceValidity'
 import {
@@ -138,10 +139,12 @@ function normalizeLocalCliProxyUrl(proxyUrl: string): string {
  * 实际可用。如果 HTTP 服务确实不可用，resolveBilibiliViaCli 的 fetch
  * 会失败并报错。
  */
-export function getActiveCliProxyUrl(): string | null {
+export function getActiveCliProxyUrl(options?: { allowLoggedOut?: boolean }): string | null {
   if (isEmbeddedBilibiliHost()) {
     const local = getEmbeddedProxyStatus()
-    return local.ready && local.loggedIn ? local.proxyUrl : null
+    return local.ready && (local.loggedIn || options?.allowLoggedOut === true)
+      ? local.proxyUrl
+      : null
   }
   const { agents } = useCliAgentStore.getState()
   if (agents.length === 0) return null
@@ -191,7 +194,9 @@ export function getEffectivePreferMp4(movieId: number): boolean {
   if (moviePolicy?.cliOnly === true) return false
   if (cliEnabled) {
     // CLI 已启用：已连接走 CLI DASH，未连接回退服务器 MP4
-    return getActiveCliProxyUrl() ? false : true
+    return getActiveCliProxyUrl({ allowLoggedOut: getBilibiliResolveSource() === 'host' })
+      ? false
+      : true
   }
   // CLI 未启用：检查服务器端是否禁用了 DASH
   const settings = useSystemSettingsStore.getState()
@@ -279,11 +284,12 @@ function buildBilibiliResolveCacheKey(
   preferMp4: boolean,
   cliProxyUrl: string | null,
   useHostCookie: boolean,
-  page: number | null | undefined
+  page: number | null | undefined,
+  hostResolve: boolean
 ): string {
   return `${movieId}|${qn ?? '-'}|${preferMp4 ? 'mp4' : 'dash'}|${
     cliProxyUrl ?? 'server'
-  }|${useHostCookie ? 'host' : 'self'}|p${page ?? '-'}`
+  }|${useHostCookie ? 'host' : 'self'}|p${page ?? '-'}|${hostResolve ? 'clihost' : 'clilocal'}`
 }
 
 /** 强制绕过缓存时（旧 URL 已失败），清掉该影片的全部缓存条目避免膨胀 */
@@ -310,7 +316,7 @@ function purgeBilibiliResolveCache(movieId: number): void {
 export async function resolveBilibiliOnline(
   movie: Movie,
   onProgress?: (step: string, message: string) => void,
-  options?: { preferMp4?: boolean; forceRefresh?: boolean; timeoutMs?: number; page?: number; useHostCookie?: boolean; signal?: AbortSignal }
+  options?: { preferMp4?: boolean; forceRefresh?: boolean; timeoutMs?: number; page?: number; qn?: number; useHostCookie?: boolean; signal?: AbortSignal }
 ): Promise<ResolvedMovieSource> {
   options?.signal?.throwIfAborted()
   // 直播间影片：URL 里只有房间号，走独立的直播取流接口。
@@ -347,10 +353,14 @@ export async function resolveBilibiliOnline(
   options?.signal?.throwIfAborted()
   const parsePrefs = getBilibiliParseOptions(movie.id)
   const policy = getNativeQualityPolicy(movie.id)
-  const qn = isEmbeddedBilibiliHost() ? policy.qn : undefined
+  const qn = options?.qn ?? (isEmbeddedBilibiliHost() ? policy.qn : undefined)
   const cliOnly = movie.cliOnly === true
-  const proxyUrl = cliOnly || parsePrefs.cliEnabled ? getActiveCliProxyUrl() : null
-  if (cliOnly && !proxyUrl) throw new Error('该影片要求本机代理：请登录 B 站或重启内置代理后重试')
+  const cliResolveSource = getBilibiliResolveSource()
+  const proxyUrl = cliOnly || parsePrefs.cliEnabled
+    ? getActiveCliProxyUrl({ allowLoggedOut: cliResolveSource === 'host' })
+    : null
+  if (cliOnly && !proxyUrl) throw new Error('该影片要求本机代理：请启动或连接本机 CLI 后重试')
+  const hostResolve = !!proxyUrl && cliResolveSource === 'host' && options?.useHostCookie !== false
   const useHostCookie = options?.useHostCookie !== false
   // CLI 已启用：已连接走 CLI DASH；未连接由 getEffectivePreferMp4
   // 返回 true，回退服务器 MP4 直链
@@ -368,14 +378,15 @@ export async function resolveBilibiliOnline(
   const nativeSession = getEmbeddedProxyStatus().sessionVersion
   const capabilityKey = isEmbeddedBilibiliHost() && proxyUrl ? JSON.stringify(await getWebViewCapabilities()) : ''
   options?.signal?.throwIfAborted()
-  const requestedQn = isEmbeddedBilibiliHost() && policy.mode === 'manual' ? policy.qn : undefined
+  const requestedQn = options?.qn ?? (isEmbeddedBilibiliHost() && policy.mode === 'manual' ? policy.qn : undefined)
   const cacheKey = buildBilibiliResolveCacheKey(
     movie.id,
     requestedQn,
     effectivePreferMp4,
     proxyUrl,
     useHostCookie,
-    options?.page ?? movie.currentPage ?? 1
+    options?.page ?? movie.currentPage ?? 1,
+    hostResolve
   ) + `|${movie.url}|${movie.cid ?? ''}|${isEmbeddedBilibiliHost() ? nativeQualityCacheKey(movie.id) : ''}|${capabilityKey}`
   if (!forceRefresh) {
     const cached = bilibiliResolveCache.get(cacheKey)
@@ -387,7 +398,23 @@ export async function resolveBilibiliOnline(
   }
 
   let resolvedSource: ResolvedMovieSource
-  if (proxyUrl) {
+  if (hostResolve && proxyUrl) {
+    const resolved = await resolveBilibiliWithOptions(
+      movie.url,
+      requestedQn,
+      onProgress,
+      {
+        preferMp4: effectivePreferMp4,
+        forceDash,
+        movieId: movie.id,
+        page: options?.page ?? movie.currentPage,
+        cliHost: true,
+        skipCdnCheck: true,
+        signal: options?.signal,
+      }
+    )
+    resolvedSource = mapResolvedSourceToMovieSource(resolved, movie)
+  } else if (proxyUrl) {
     const pgc = extractBangumiId(movie.url)
     const nativeOptions = { qualityMode: policy.mode, fallbackQn: policy.fallbackQn, timeoutMs: options?.timeoutMs, seasonId: pgc?.seasonId, signal: options?.signal }
     if (pgc) {

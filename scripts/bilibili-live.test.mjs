@@ -8,8 +8,11 @@ import { extractLiveRoomId, mapBilibiliLiveSource } from '../src/upstream/module
 
 async function load(file, mocks = {}) {
   mocks = { subscribeEmbeddedProxy: () => () => {}, ...mocks }
-  const context = createContext({ URL, URLSearchParams, Response, DOMException, AbortController, setTimeout, clearTimeout, console })
-  const source = stripTypeScriptTypes(await readFile(new URL(`../src/upstream/${file}`, import.meta.url), 'utf8'))
+  const context = createContext({ URL, URLSearchParams, Response, DOMException, AbortController, AbortSignal, fetch: mocks.__fetch ?? fetch, setTimeout, clearTimeout, console })
+  const sourceUrl = file.startsWith('../')
+    ? new URL(file, import.meta.url)
+    : new URL(`../src/upstream/${file}`, import.meta.url)
+  const source = stripTypeScriptTypes(await readFile(sourceUrl, 'utf8'))
   const imports = new Map(parse(source, { sourceType: 'module' }).program.body.filter(n => n.type === 'ImportDeclaration')
     .map(n => [n.source.value, n.specifiers.map(s => s.imported?.name || 'default')]))
   const module = new SourceTextModule(source, { context })
@@ -67,6 +70,37 @@ test('live resolution ignores VOD CLI/recovery caches and refreshes signed addre
   assert.notEqual(first.sourceUrl, second.sourceUrl); assert.equal(first.isLive, true)
   assert.equal(first.duration, 0); assert.equal(first.liveDirect, false); assert.equal(second.liveDirect, true)
 })
+test('room-owner CLI resolution uses the room movie identity and skips CDN reachability checks', async () => {
+  let call
+  const resolver = await load('modules/room/watch-together/movie-source-resolver.ts', {
+    extractLiveRoomId,
+    getBilibiliParseOptions: () => ({ cliEnabled: true, preferMp4: false, configured: true }),
+    getBilibiliResolveSource: () => 'host',
+    getNativeQualityPolicy: () => ({ qn: 80, mode: 'autoMax', fallbackQn: 64 }),
+    getEmbeddedProxyStatus: () => ({ sessionVersion: 7 }),
+    isEmbeddedBilibiliHost: () => false,
+    useCliAgentStore: { getState: () => ({ agents: [{ proxyUrl: 'http://127.0.0.1:8848' }] }) },
+    resolveBilibiliWithOptions: async (url, qn, progress, options) => {
+      call = { url, qn, progress, options }
+      return { videoUrl: 'https://cdn.example/video.m4s', format: 'dash', cid: 901, currentQn: qn }
+    },
+  })
+  const controller = new AbortController()
+  const movie = { id: 42, url: 'https://www.bilibili.com/video/BV1fixture', cid: 901, currentPage: 2 }
+  await resolver.resolveBilibiliOnline(movie, undefined, {
+    qn: 80,
+    preferMp4: false,
+    page: 2,
+    signal: controller.signal,
+  })
+  assert.equal(call.url, movie.url)
+  assert.equal(call.qn, 80)
+  assert.equal(call.options.movieId, 42)
+  assert.equal(call.options.page, 2)
+  assert.equal(call.options.cliHost, true)
+  assert.equal(call.options.skipCdnCheck, true)
+  assert.equal(call.options.signal, controller.signal)
+})
 test('offline playback fails without falling through to a VOD proxy', async () => {
   const resolver = await load('modules/room/watch-together/movie-source-resolver.ts', {
     extractLiveRoomId, resolveBilibiliLive: async () => ({ ...live, liveStatus: 0, videoUrl: '' }),
@@ -82,4 +116,61 @@ test('live flags survive full broadcasts and route changes reattach even with th
   assert.equal(merge.isStateEqual(state, { ...state, liveDirect: true }), false)
   assert.equal(merge.isSameMediaSource(state, { ...state, isLive: false }), false)
   assert.equal(merge.restoreStateSnapshot(state, { ...state, isLive: false }).isLive, false)
+})
+
+test('embedded live proxy authorizes the CDN URL before returning a loopback route', async () => {
+  let requested
+  const proxyUrl = 'http://127.0.0.1:49152/session'
+  const preference = await load('../src/platform/bilibiliResolvePreference.ts', {
+    useSyncExternalStore: (_subscribe, getSnapshot) => getSnapshot(),
+    useCliAgentStore: { getState: () => ({ agents: [] }) },
+    useSystemSettingsStore: { getState: () => ({ allowCliHostResolve: true }) },
+    getEmbeddedProxyStatus: () => ({ ready: true, proxyUrl, sessionVersion: 4 }),
+    isEmbeddedBilibiliHost: () => true,
+    __fetch: async input => { requested = new URL(input); return Response.json({ success: true }) },
+  })
+  const streamUrl = 'https://edge.bilivideo.com/live/fixture.flv?token=abc'
+  const result = await preference.getBilibiliLiveProxyUrl(streamUrl)
+  assert.equal(requested.pathname, '/session/authorize-live')
+  assert.equal(requested.searchParams.get('url'), streamUrl)
+  assert.equal(result, preference.buildBilibiliLiveProxyUrl(streamUrl, proxyUrl))
+})
+
+test('embedded live proxy falls back when authorization is denied or the account session changes', async () => {
+  const proxyUrl = 'http://127.0.0.1:49152/session'
+  let sessionVersion = 4
+  const loadPreference = fetcher => load('../src/platform/bilibiliResolvePreference.ts', {
+    useSyncExternalStore: (_subscribe, getSnapshot) => getSnapshot(),
+    useCliAgentStore: { getState: () => ({ agents: [] }) },
+    useSystemSettingsStore: { getState: () => ({ allowCliHostResolve: true }) },
+    getEmbeddedProxyStatus: () => ({ ready: true, proxyUrl, sessionVersion }),
+    isEmbeddedBilibiliHost: () => true,
+    __fetch: fetcher,
+  })
+  const streamUrl = 'https://edge.bilivideo.com/live/fixture.flv'
+  const denied = await loadPreference(async () => new Response('{}', { status: 403 }))
+  assert.equal(await denied.getBilibiliLiveProxyUrl(streamUrl), null)
+  const changed = await loadPreference(async () => {
+    sessionVersion++
+    return Response.json({ success: true })
+  })
+  assert.equal(await changed.getBilibiliLiveProxyUrl(streamUrl), null)
+})
+
+test('desktop CLI live proxy keeps its direct ref=live route without native authorization', async () => {
+  const proxyUrl = 'http://192.168.1.20:9333'
+  const preference = await load('../src/platform/bilibiliResolvePreference.ts', {
+    useSyncExternalStore: (_subscribe, getSnapshot) => getSnapshot(),
+    useCliAgentStore: { getState: () => ({ agents: [{ proxyUrl }] }) },
+    useSystemSettingsStore: { getState: () => ({ allowCliHostResolve: true }) },
+    getEmbeddedProxyStatus: () => ({ ready: false, proxyUrl: '', sessionVersion: 0 }),
+    isEmbeddedBilibiliHost: () => false,
+    __fetch: async () => assert.fail('desktop CLI does not expose the embedded authorize-live route'),
+  })
+  const streamUrl = 'https://edge.bilivideo.com/live/fixture.flv'
+  const result = await preference.getBilibiliLiveProxyUrl(streamUrl)
+  const parsed = new URL(result)
+  assert.equal(parsed.hostname, '127.0.0.1')
+  assert.equal(parsed.searchParams.get('url'), streamUrl)
+  assert.equal(parsed.searchParams.get('ref'), 'live')
 })

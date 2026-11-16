@@ -19,11 +19,13 @@ import type {
   FlvRuntimeEvents,
 } from '../types'
 import { resetVideoElement, waitForMetadata } from '../utils'
-import { buildProxyUrl, resolveProxyUrl } from '../services/url-proxy'
+import { buildProxyUrl, isCliProxyUrl, resolveProxyUrl } from '../services/url-proxy'
 
 /** 快速恢复之后保持低频重试，直到房间离线使播放器卸载。 */
 const LIVE_RETRY_DELAYS_MS = [1000, 2000, 4000, 8000, 16000]
 const LIVE_RETRY_INTERVAL_MS = 10000
+const LIVE_MAX_LATENCY_SECONDS = 1.5
+const LIVE_TARGET_LATENCY_SECONDS = 0.5
 
 /** 直播模式 flv.js 配置（原 screen-sharing FlvPlayer 的行为对等迁移）。 */
 function buildLiveConfig(): Record<string, unknown> {
@@ -35,10 +37,6 @@ function buildLiveConfig(): Record<string, unknown> {
     autoCleanupSourceBuffer: true,
     autoCleanupMaxBackwardDuration: 8,
     autoCleanupMinBackwardDuration: 4,
-    // 直播延迟追赶：缓冲超过阈值时自动追帧（flv.js 运行时支持，类型定义缺失）
-    liveBufferLatencyChasing: true,
-    liveBufferLatencyMaxLatency: 1.5,
-    liveBufferLatencyTargetLatency: 0.5,
   }
 }
 
@@ -67,7 +65,9 @@ export const flvEngine: PlayerEngine = {
     )
     const direct =
       isLive && source.liveDirect === true && targetUrl === source.url
-    const proxyFallbackUrl = direct ? buildProxyUrl(source.url) : null
+    const proxyFallbackUrl = direct && source.noProxyFallback !== true
+      ? source.liveProxyFallbackUrl ?? (isCliProxyUrl(source.url) ? null : buildProxyUrl(source.url))
+      : null
 
     let player: flvjs.Player | null = null
     let disposeLive: (() => void) | null = null
@@ -188,6 +188,24 @@ function attachLiveHandlers(
     }
   }
 
+  const chaseLiveEdge = () => {
+    if (disposed || video.paused || video.seeking || video.readyState < 2) return
+    try {
+      const ranges = video.buffered
+      if (ranges.length === 0) return
+      const last = ranges.length - 1
+      const start = ranges.start(last)
+      const edge = ranges.end(last)
+      const current = video.currentTime
+      if (!Number.isFinite(start) || !Number.isFinite(edge) || !Number.isFinite(current)) return
+      if (edge - current <= LIVE_MAX_LATENCY_SECONDS) return
+      const target = Math.max(start, edge - LIVE_TARGET_LATENCY_SECONDS)
+      if (target > current + 0.25) video.currentTime = target
+    } catch {
+      // Buffered ranges can change while MSE is appending or cleaning segments.
+    }
+  }
+
   const scheduleRetry = (errorType: string, errorDetail: string) => {
     if (disposed || retryTimer !== null) return
 
@@ -230,6 +248,7 @@ function attachLiveHandlers(
     if (disposed) return
     clearRetryTimer()
     retryCount = 0
+    chaseLiveEdge()
     events.onReady?.()
   }
   player.on(flvjs.Events.MEDIA_INFO, handleReady)
@@ -251,9 +270,12 @@ function attachLiveHandlers(
     scheduleRetry('stream', 'ended')
   })
 
+  video.addEventListener('timeupdate', chaseLiveEdge)
+
   return () => {
     disposed = true
     clearRetryTimer()
+    video.removeEventListener('timeupdate', chaseLiveEdge)
     video.removeEventListener('loadedmetadata', handleReady)
   }
 }

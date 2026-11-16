@@ -1,4 +1,4 @@
-import { abilityAccessCtrl, bundleManager, common } from '@kit.AbilityKit';
+import { abilityAccessCtrl, bundleManager, common, Permissions } from '@kit.AbilityKit';
 import { webview } from '@kit.ArkWeb';
 import { window } from '@kit.ArkUI';
 import { picker } from '@kit.CoreFileKit';
@@ -273,16 +273,18 @@ struct Index {
 
   private selectDanmakuFile(event: OnShowFileSelectorEvent): boolean {
     const accepted = event.fileSelector.getAcceptType();
+    const modelArchive = accepted.some((type: string) => type === '.zip' || type === 'application/zip' || type === 'application/x-zip-compressed');
+    const danmakuDocument = accepted.some((type: string) => type === '.xml' || type === '.json' ||
+      type === 'application/xml' || type === 'text/xml' || type === 'application/json');
     if (event.fileSelector.getMode() !== FileSelectorMode.FileOpenMode ||
-      !accepted.some((type: string) => type === '.xml' || type === '.json' ||
-        type === 'application/xml' || type === 'text/xml' || type === 'application/json')) return false;
-    // Only the document import gets a host callback; other file inputs retain ArkWeb defaults.
+      (!modelArchive && !danmakuDocument)) return false;
+    // Document imports share the system picker; keep unrelated ArkWeb file inputs unchanged.
     if (this.pendingFileSelection !== null) { event.result.handleFileList([]); return true; }
     const result = event.result;
     this.pendingFileSelection = result;
     const options = new picker.DocumentSelectOptions();
     options.maxSelectNumber = 1;
-    options.fileSuffixFilters = ['弹幕文件|.xml,.json'];
+    options.fileSuffixFilters = modelArchive ? ['角色模型包|.zip'] : ['弹幕文件|.xml,.json'];
     const documents = new picker.DocumentViewPicker(getContext(this) as common.UIAbilityContext);
     documents.select(options).then((uris: Array<string>) => {
       if (this.pendingFileSelection !== result) return;
@@ -323,13 +325,26 @@ struct Index {
           const origin = request.getOrigin();
           if (
             (origin !== LOCAL_ORIGIN && origin !== `${LOCAL_ORIGIN}/`) ||
-            resources.length !== 1 ||
-            resources[0] !== 'TYPE_AUDIO_CAPTURE'
+            resources.length === 0 ||
+            resources.some((resource: string) => resource !== 'TYPE_AUDIO_CAPTURE' && resource !== 'TYPE_VIDEO_CAPTURE')
           ) {
             request.deny();
             return;
           }
-          request.grant(resources);
+          if (resources.includes('TYPE_VIDEO_CAPTURE')) {
+            const permissions: Array<Permissions> = ['ohos.permission.CAMERA'];
+            if (resources.includes('TYPE_AUDIO_CAPTURE')) permissions.push('ohos.permission.MICROPHONE');
+            abilityAccessCtrl.createAtManager().requestPermissionsFromUser(getContext(this) as common.UIAbilityContext, permissions)
+              .then((result) => {
+                if (this.alive && result.authResults.length === permissions.length && result.authResults.every((status: number) => status === 0)) {
+                  request.grant(resources);
+                } else {
+                  request.deny();
+                }
+              }).catch(() => request.deny());
+          } else {
+            request.grant(resources);
+          }
         })
         .onPageBegin(() => { this.pageReady = false; })
         .onPageEnd(() => {

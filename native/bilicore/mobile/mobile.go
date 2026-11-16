@@ -27,9 +27,10 @@ type session struct {
 	epoch        int
 	user         *core.UserValidation
 	targets      map[string][]string
+	liveTargets  map[string]struct{}
 }
 
-var agent = &session{targets: map[string][]string{}}
+var agent = &session{targets: map[string][]string{}, liveTargets: map[string]struct{}{}}
 
 func asJSON(v any) string { b, _ := json.Marshal(v); return string(b) }
 
@@ -61,6 +62,7 @@ func Start(cookie string) (string, error) {
 			io.WriteString(w, `{"ok":true}`)
 		})
 		mux.HandleFunc(prefix+"/resolve", agent.resolve)
+		mux.HandleFunc(prefix+"/authorize-live", agent.authorizeLive)
 		mux.HandleFunc(prefix+"/proxy", agent.proxy)
 		agent.server = &http.Server{Handler: originGuard(mux), ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second}
 		server := agent.server
@@ -84,6 +86,7 @@ func Stop() {
 	agent.user = nil
 	agent.epoch++
 	agent.targets = map[string][]string{}
+	agent.liveTargets = map[string]struct{}{}
 	agent.mu.Unlock()
 	if server != nil {
 		server.Close()
@@ -103,6 +106,7 @@ func SetCookie(cookie string) (string, error) {
 	agent.user = user
 	agent.epoch++
 	agent.targets = map[string][]string{}
+	agent.liveTargets = map[string]struct{}{}
 	agent.mu.Unlock()
 	core.ResetSessionCaches()
 	return Status(), nil
@@ -115,6 +119,7 @@ func Logout() string {
 	agent.user = nil
 	agent.epoch++
 	agent.targets = map[string][]string{}
+	agent.liveTargets = map[string]struct{}{}
 	agent.mu.Unlock()
 	return Status()
 }
@@ -255,6 +260,17 @@ func allowedCDN(raw string) bool {
 	return trusted && portAllowed
 }
 
+func allowedLiveCDN(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.User != nil || u.Scheme != "https" || u.Fragment != "" || u.Opaque != "" {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	port := u.Port()
+	return (port == "" || port == "443") &&
+		(strings.HasSuffix(host, ".bilivideo.com") || strings.HasSuffix(host, ".bilivideo.cn") || strings.HasSuffix(host, ".bilivideo.net"))
+}
+
 func mediaCandidates(target string, backups []string) []string {
 	seen := make(map[string]bool)
 	result := make([]string, 0, len(backups)+1)
@@ -287,33 +303,110 @@ var streamClient = &http.Client{
 		if len(via) > 5 || !allowedCDN(req.URL.String()) {
 			return fmt.Errorf("CDN redirect denied")
 		}
+		setMediaRequestHeaders(req, "https://www.bilibili.com")
+		if len(via) > 0 {
+			if value := via[len(via)-1].Header.Get("Range"); value != "" {
+				req.Header.Set("Range", value)
+			}
+		}
 		return nil
 	},
 }
 
+var liveStreamClient = &http.Client{
+	Transport: &http.Transport{Proxy: nil, ResponseHeaderTimeout: 20 * time.Second, IdleConnTimeout: 90 * time.Second, MaxIdleConns: 16, MaxIdleConnsPerHost: 8},
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 || !allowedLiveCDN(req.URL.String()) {
+			return fmt.Errorf("live CDN redirect denied")
+		}
+		setMediaRequestHeaders(req, "https://live.bilibili.com")
+		if len(via) > 0 {
+			if value := via[len(via)-1].Header.Get("Range"); value != "" {
+				req.Header.Set("Range", value)
+			}
+		}
+		return nil
+	},
+}
+
+func setMediaRequestHeaders(req *http.Request, referer string) {
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Referer", referer)
+	req.Header.Set("Origin", referer)
+}
+
+func (a *session) authorizeLive(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	target := r.URL.Query().Get("url")
+	if !allowedLiveCDN(target) {
+		http.Error(w, "live media URL denied", http.StatusBadRequest)
+		return
+	}
+	a.mu.Lock()
+	if a.liveTargets == nil {
+		a.liveTargets = map[string]struct{}{}
+	}
+	a.liveTargets[target] = struct{}{}
+	base := a.base
+	a.mu.Unlock()
+	if base == "" {
+		http.Error(w, "proxy unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	query := url.Values{}
+	query.Set("url", target)
+	query.Set("ref", "live")
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success":  true,
+		"proxyUrl": base + "/proxy?" + query.Encode(),
+	})
+}
+
 func (a *session) proxy(w http.ResponseWriter, r *http.Request) {
 	target := r.URL.Query().Get("url")
+	ref := r.URL.Query().Get("ref")
+	if ref != "" && ref != "live" {
+		http.Error(w, "invalid media reference", http.StatusBadRequest)
+		return
+	}
+	live := ref == "live"
 	a.mu.RLock()
 	backups, issued := a.targets[target]
+	if live {
+		_, issued = a.liveTargets[target]
+		backups = nil
+	}
 	a.mu.RUnlock()
-	if !issued || !allowedCDN(target) {
+	if !issued || (live && !allowedLiveCDN(target)) || (!live && !allowedCDN(target)) {
 		http.Error(w, "unissued media URL", http.StatusForbidden)
 		return
 	}
 	candidates := mediaCandidates(target, backups)
+	client := streamClient
+	referer := "https://www.bilibili.com"
+	if live {
+		candidates = []string{target}
+		client = liveStreamClient
+		referer = "https://live.bilibili.com"
+	}
 	for i, u := range candidates {
-		if !allowedCDN(u) {
+		if (live && !allowedLiveCDN(u)) || (!live && !allowedCDN(u)) {
 			continue
 		}
 		req, err := http.NewRequestWithContext(r.Context(), r.Method, u, nil)
 		if err != nil {
 			continue
 		}
-		req.Header.Set("User-Agent", "Mozilla/5.0")
-		req.Header.Set("Referer", "https://www.bilibili.com/")
-		req.Header.Set("Origin", "https://www.bilibili.com")
-		req.Header.Set("Range", r.Header.Get("Range"))
-		res, err := streamClient.Do(req)
+		setMediaRequestHeaders(req, referer)
+		if value := r.Header.Get("Range"); value != "" {
+			req.Header.Set("Range", value)
+		}
+		res, err := client.Do(req)
 		if err != nil {
 			if r.Context().Err() != nil {
 				return
@@ -329,12 +422,39 @@ func (a *session) proxy(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set(h, v)
 			}
 		}
+		if live {
+			contentType := strings.ToLower(res.Header.Get("Content-Type"))
+			if contentType == "" || strings.Contains(contentType, "application/json") {
+				w.Header().Set("Content-Type", "video/x-flv")
+			}
+		}
 		w.WriteHeader(res.StatusCode)
-		io.Copy(w, res.Body)
+		if live {
+			copyStreaming(w, res.Body)
+		} else {
+			_, _ = io.Copy(w, res.Body)
+		}
 		res.Body.Close()
 		return
 	}
 	http.Error(w, "CDN unavailable", http.StatusBadGateway)
+}
+
+func copyStreaming(w http.ResponseWriter, body io.Reader) {
+	buffer := make([]byte, 64<<10)
+	controller := http.NewResponseController(w)
+	for {
+		n, readErr := body.Read(buffer)
+		if n > 0 {
+			if _, err := w.Write(buffer[:n]); err != nil {
+				return
+			}
+			_ = controller.Flush()
+		}
+		if readErr != nil {
+			return
+		}
+	}
 }
 
 func resolveInput(q url.Values) string {

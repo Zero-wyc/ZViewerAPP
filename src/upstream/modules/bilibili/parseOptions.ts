@@ -1,6 +1,8 @@
 import { useSyncExternalStore, useMemo } from 'react'
 import type { BilibiliParseOptions } from './types'
 import { getEmbeddedProxyStatus, subscribeEmbeddedProxy } from '../../../platform/bilibiliProxy'
+import { getBilibiliResolvePreference } from '../../../platform/bilibiliResolvePreference'
+import { useSystemSettingsStore } from '@/store/systemSettingsStore'
 
 /** localStorage 持久化 key */
 const STORAGE_KEY = 'zcontrol:bilibili-parse-options'
@@ -84,7 +86,10 @@ function normalizeOptions(
   opts: BilibiliParseOptions | undefined
 ): NormalizedParseOptions {
   const proxy = getEmbeddedProxyStatus()
-  const nativeDefault = proxy.supported && proxy.ready && proxy.loggedIn && opts?.preferMp4 !== true
+  const hostResolveAllowed = useSystemSettingsStore.getState().allowCliHostResolve !== false
+  const canUseNativeCli = proxy.loggedIn ||
+    (hostResolveAllowed && getBilibiliResolvePreference() === 'host')
+  const nativeDefault = proxy.supported && proxy.ready && canUseNativeCli && opts?.preferMp4 !== true
   // 未配置的字段使用 DEFAULT_PARSE_OPTIONS 的默认值，
   // 确保与 useBilibiliParsePreferences 的 fallback 行为一致。
   // 注意：必须用 ?? 而非 === true，否则 undefined 会被当作 false，

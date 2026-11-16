@@ -48,6 +48,24 @@ export async function searchAniSubs(
   return data.results
 }
 
+/** Search every source through the server-side aggregate endpoint. */
+export async function searchAllAniSubs(
+  keyword: string
+): Promise<AniSubsSearchResult[]> {
+  const res = await apiFetch(
+    `${getBaseUrl()}/search-all?keyword=${encodeURIComponent(keyword)}`
+  )
+  const data = (await res.json()) as {
+    success: boolean
+    message?: string
+    results?: AniSubsSearchResult[]
+  }
+  if (!res.ok || !data.success || !Array.isArray(data.results)) {
+    throw new Error(data.message || '聚合搜索失败')
+  }
+  return data.results
+}
+
 /** 获取集数列表 */
 export async function getAniSubsEpisodes(
   source: string,
