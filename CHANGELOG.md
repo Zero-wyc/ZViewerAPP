@@ -1,11 +1,17 @@
 # 更新记录
 
+## 未发布 — ARM64 打包与维护整理（2026-11-16）
+
+- Android 分发只保留 ARM64，Gradle ABI 过滤与 Go AAR target 同步；2.5.0 / 250 本地签名包从 79.89 MiB 降至 37.96 MiB（减少 52.49%），未替换现有 GitHub Release。
+- 整理三端维护指南，补充共享/原生边界、复用路线及包体积审计；阶段文档改由固定 Git 提交追溯。
+- iOS Go 来源检查与当前共享源码不一致，列为下次 Mac 构建前置问题；本轮未构建 IPA。
+
 ## 2.5.0 - 2026-11-16（Android/HarmonyOS 250，正式发行）
 
 - 本地服务端源码从 `ebddfb99` 快进到上游 main `ec0ac153`，共 57 个提交；双端同步新版 CLI 解析、房主身份点播、直播本机转发、FLV 追帧和番剧聚合搜索。
 - 新增 Live2D 房间角色、公共模型库、表情动作、戳一戳、语音口型和本地摄像头动捕；适配触摸入口、原生相机权限、全屏浮层和远端模型传输。
 - 保留本机 Cookie 与 `cliOnly` 权限隔离、原生连接通道、直播取消与资源释放；模型位置和大小采用本机偏好，麦克风口型复用已有语音采集。
-- 更新双端维护文档、CLI 来源与资源许可说明。具体自动验证、构建与验收边界见 [交付记录](docs/server-alignment-2026-11-16.md)。发布签名 APK / HAP / SHA256SUMS，源码同步 main。
+- 更新双端维护文档、CLI 来源与资源许可说明。具体自动验证、构建与验收边界见 [交付记录](https://github.com/Zero-wyc/ZViewerAPP/blob/83cf464b8a3badd1bfe3c5876714fa3f0c1478dc/docs/server-alignment-2026-11-16.md)。发布签名 APK / HAP / SHA256SUMS，源码同步 main。
 
 ## 2.4.0 - 2026-11-12（Android/HarmonyOS 240，正式发行）
 

@@ -29,5 +29,5 @@ npm run android:sync
 Gradle's `preBuild` rebuilds `app/libs/bilicore.aar` when native sources change.
 The AAR and its generated source JAR are ignored; fresh clones build them from
 the checked-in Go sources and pinned generator dependencies. The first build
-needs network access to fetch Go modules. Android ABIs: arm64-v8a and x86_64.
+needs network access to fetch Go modules. Android distribution ABI: arm64-v8a only. The Gradle ABI filter and gomobile target must remain aligned.
 32-bit-only Android devices are outside this initial adaptation.

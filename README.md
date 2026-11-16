@@ -10,13 +10,15 @@ ZViewer 是一款手机和平板客户端，用来和朋友一起看视频、一
 
 Android / HarmonyOS 当前已发布版本为 **2.5.0（250）**；iOS / iPadOS 当前版本为 **2.3.6（build 40）**，iOS 安装包保留在 2.3.6 Release。
 
-2.5.0 对齐服务端 main `ec0ac153` 和新版 CLI 解析源码，新增 Live2D 房间角色、B站房主身份解析与内置 CLI 直播线路、番剧全站聚合搜索。角色支持触摸设置、表情动作、语音口型和本机摄像头动捕。共享和语音沿用 Piik v24 要求；iOS 的共享/语音尚未迁移至 Piik。详见 [本次适配与验收记录](docs/server-alignment-2026-11-16.md)。
+2.5.0 对齐服务端 main `ec0ac153` 和新版 CLI 解析源码，新增 Live2D 房间角色、B站房主身份解析与内置 CLI 直播线路、番剧全站聚合搜索。角色支持触摸设置、表情动作、语音口型和本机摄像头动捕。共享和语音沿用 Piik v24 要求；iOS 的共享/语音尚未迁移至 Piik。详见 [本次适配与验收记录](https://github.com/Zero-wyc/ZViewerAPP/blob/83cf464b8a3badd1bfe3c5876714fa3f0c1478dc/docs/server-alignment-2026-11-16.md)。
+
+当前源码已将 Android 分发限制为 **ARM64（arm64-v8a）**。本地 2.5.0 ARM64 签名包为 37.96 MiB，原 GitHub 2.5.0 通用 APK 尚未替换；现有 Release 下载与当前源码构建范围需区分。详见 [Android 包体积与架构维护说明](docs/android-maintenance-architecture.md)。
 
 发行提供 Android APK、HarmonyOS HAP 及构建时记录的 SHA256SUMS。源码使用 GitHub 自动归档，详见 [更新记录](CHANGELOG.md)及双端维护文档。
 
 | 平台 | 版本与下载 | 安装方式与系统要求 |
 | --- | --- | --- |
-| Android | **2.5.0（250）** · [APK](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.5.0/ZViewer-Client-2.5.0-android.apk) | 允许安装该来源的应用后安装。要求 Android 7.0 / API 24 或更高版本、64 位设备；APK 包含 ARM64 / x86_64。 |
+| Android | **2.5.0（250）** · [APK](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.5.0/ZViewer-Client-2.5.0-android.apk) | 允许安装该来源的应用后安装。要求 Android 7.0 / API 24 或更高版本、64 位设备；此历史通用 APK 支持 ARM64 / x86_64，当前源码构建仅 ARM64。 |
 | HarmonyOS | **2.5.0（250）** · [HAP](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.5.0/ZViewer-Client-2.5.0-harmonyos.hap) | 要求 HarmonyOS 6.1 / API 23 或更高版本。通过 DevEco Studio、HDC 等设备支持的开发者安装方式安装，签名及设备授权需匹配；当前不是应用商店安装包。 |
 | iOS / iPadOS | **2.3.6（build 40）** · [未签名 IPA](https://github.com/Zero-wyc/ZViewerAPP/releases/download/client-v2.3.6/ZViewer-iOS-2.3.6-build40-unsigned.ipa) | 要求 iOS / iPadOS 16.4 或更高版本，支持 iPhone 和 iPad。需使用自己的有效证书及设备授权签名后侧载，不能直接点击 IPA 安装。 |
 
