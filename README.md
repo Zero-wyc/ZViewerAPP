@@ -134,4 +134,4 @@ npm start
 
 原项目由 **Zero-wyc** 开发，本项目保留原作者署名与 [MIT 许可证](UPSTREAM-LICENSE)，感谢原作者提供播放器、同步、音乐与语音等基础功能。
 
-第三方组件遵循各自许可证；`vendor/mediabunny` 保留 MPL-2.0 声明和 [本地修改记录](vendor/mediabunny/LOCAL-PATCHES.md)，详见 [第三方说明](THIRD-PARTY-NOTICES.md)。
+第三方组件遵循各自许可证。`vendor/mediabunny` 保留 MPL-2.0 声明，依赖版本及移植说明见 [第三方说明](THIRD-PARTY-NOTICES.md) 和 [维护记录](vendor/MEDIABUNNY-LOCAL-PATCHES.md)。

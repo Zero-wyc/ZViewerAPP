@@ -1,15 +1,22 @@
 # HarmonyOS 客户端维护文档
 
-维护入口：[当前基线](#当前维护基线2026-11-16) · [架构源码](#架构与源码入口) · [构建与清理](#构建发布与清理) · [历史记录](#历史版本记录)
+维护入口：[当前基线](#当前维护基线2026-11-21) · [架构源码](#架构与源码入口) · [构建与清理](#构建发布与清理) · [历史记录](#历史版本记录)
 
-## 当前维护基线（2026-11-16）
+## 当前维护基线（2026-11-21）
 
-- Android / HarmonyOS：2.5.1 / 251；服务端对齐快照 `ec0ac1530b6790e85b17936efc31d266bb6c2997`。这不代表 NAS 已部署。
+- Android / HarmonyOS 本地构建为 2.5.2 / 252，对齐服务端快照 `f7b2a589d0cb0257cc354368e7bf18b9bb895668`。NAS 部署独立于客户端构建。
 - **客户端目前不支持 Live2D**：不提供角色显示、模型导入、动作表情、语音口型或摄像头动捕。已移除入口、模块、Cubism/MediaPipe/Pixi 依赖、静态资源及专用摄像头权限。后续同步服务端更新时，不得自动恢复此功能。
 - 保留 B站点播/直播、房主身份解析、番剧聚合、音乐、弹幕字幕、Piik 语音与投屏，以及完整中文字体和 FFmpeg 等在用播放器资源。
 - Android 仅发行 ARM64，启用原生库 ZIP 压缩、R8 和资源压缩；HarmonyOS 解压随包网页资源，保留离线启动能力。
 - iOS 维持 2.3.6 / build40；本轮不修改或构建 iOS。
 - 旧记录描述当时状态；2.5.0 的 Live2D 支持已在 2.5.1 移除。
+
+## 2.5.2 播放器对齐
+
+- 共用播放器升级 vendored mediabunny 1.66.2 与 playsvideo 的探测、分段和封装逻辑。TrueHD 等音轨先回退到可用轨，只有视频可用时静音出画面并提示原因。
+- 纯音频重封装按时长切分。AVI / WMV 在初次加载和重载前拒绝，TS 保留重封装入口。MKV 内嵌字幕仍由独立解析器提取。ArkWeb 使用现有随包资源清单加载播放器 Worker 和 WASM。
+- 446 项自动测试及 TypeScript/Vite 构建通过。HarmonyOS 2.5.2 本地签名包为 9,703,012 字节，verify-app 通过，签名证书与 2.5.1 一致，31 项网页资源核对及压缩内容还原通过。构建记录和 SHA-256 位于 `release/client-v2.5.2/`。
+- 桌面 Chromium 实播验证了纯音频 MKV 起播和拖动、TrueHD 兼容轨回退和静音提示、DTS 与 24-bit FLAC 解码。独立 MKV 解析器通过内嵌 SRT 探测与提取检查。ArkWeb 实机播放和房间同步待验收。
 
 ## 2.5.1 资源精简与压缩
 
@@ -100,7 +107,7 @@ HarmonyOS `BilibiliResolver.ets` 的实际 UGC/PGC 请求使用修正后的 `bui
 
 `src/upstream/store/roomStore.ts` 持有房间影片、片单、角色及模式；`src/upstream/modules/room/watch-together/` 与 `sync-playback/` 处理房主/观众控制。影片 ID、CID/ep 与服务器逻辑 URL 可跨设备传播，本机代理地址只供当前 HAP 播放，不能写入片单或广播。若播放状态先于 current-movie/片单到达，先等待权威影片资料再解析；切 P/集、离房和切服后废弃旧请求。排序必须完整且限有权限的角色；清空片单等待服务器结果与广播，失败不提前清屏；自动连播从最新片单选下一条。
 
-共享媒体引擎在 `src/upstream/modules/player/engines/`，媒体库 HLS 鉴权与相对清单在 `player/services/library-hls-proxy.ts`，PGS/MKV 在 `subtitles/` 和 `patches/playsvideo+0.4.7.patch`。实际可播性取决于 ArkWeb 与设备编解码器。已有 Pura 90 Pro 模拟器上 H.264 MP4/MKV 可播放，而特定 HEVC Main 10 MKV 解封装后仍零帧并报 `PIPELINE_ERROR_DECODE`；这类问题先核对视频 codec 与系统能力，不能把解封装/字幕提取成功当成解码通过。
+共享媒体引擎在 `src/upstream/modules/player/engines/`，媒体库 HLS 鉴权与相对清单在 `player/services/library-hls-proxy.ts`，PGS/MKV 解析在 `subtitles/`，playsvideo 媒体修复维护在 `vendor/playsvideo/`。已有 Pura 90 Pro 模拟器上 H.264 MP4/MKV 可播放，而特定 HEVC Main 10 MKV 解封装后仍零帧并报 `PIPELINE_ERROR_DECODE`。这类问题需实播确认 ArkWeb 与设备的解码能力。
 
 房间模式固定为一起看、投屏、一起听。当前移动 UI 的房间设置集中在右上角，音乐账号菜单只处理账号与音乐设置，评论侧栏按移动规则展示。`MobileAppearance.tsx`、`appearance.css` 的根变量覆盖 body Portal；切主题要保持原视频/音频 DOM 不变，播放器画布保持黑色。全屏默认横屏，手动解锁后尊重系统旋转开关；退出全屏/离房恢复系统栏和安全区。`Index.ets` 将 WindowAvoidArea 转成 `--native-safe-*`，与网页 safe-area 合并，横屏短高度仍需保证确认按钮可达。
 

@@ -1,15 +1,22 @@
 # Android 客户端维护文档
 
-维护入口：[当前基线](#当前维护基线2026-11-16) · [架构源码](#架构与源码入口) · [构建与清理](#构建发布与清理) · [历史记录](#历史版本记录)
+维护入口：[当前基线](#当前维护基线2026-11-21) · [架构源码](#架构与源码入口) · [构建与清理](#构建发布与清理) · [历史记录](#历史版本记录)
 
-## 当前维护基线（2026-11-16）
+## 当前维护基线（2026-11-21）
 
-- Android / HarmonyOS：2.5.1 / 251；服务端对齐快照 `ec0ac1530b6790e85b17936efc31d266bb6c2997`。这不代表 NAS 已部署。
+- Android / HarmonyOS 本地构建为 2.5.2 / 252，对齐服务端快照 `f7b2a589d0cb0257cc354368e7bf18b9bb895668`。NAS 部署独立于客户端构建。
 - **客户端目前不支持 Live2D**：不提供角色显示、模型导入、动作表情、语音口型或摄像头动捕。已移除入口、模块、Cubism/MediaPipe/Pixi 依赖、静态资源及专用摄像头权限。后续同步服务端更新时，不得自动恢复此功能。
 - 保留 B站点播/直播、房主身份解析、番剧聚合、音乐、弹幕字幕、Piik 语音与投屏，以及完整中文字体和 FFmpeg 等在用播放器资源。
 - Android 仅发行 ARM64，启用原生库 ZIP 压缩、R8 和资源压缩；HarmonyOS 解压随包网页资源，保留离线启动能力。
 - iOS 维持 2.3.6 / build40；本轮不修改或构建 iOS。
 - 旧记录描述当时状态；2.5.0 的 Live2D 支持已在 2.5.1 移除。
+
+## 2.5.2 播放器对齐
+
+- 共用播放器升级 vendored mediabunny 1.66.2 与 playsvideo 的探测、分段和封装逻辑。TrueHD 等音轨先回退到可用轨，只有视频可用时静音出画面并提示原因。
+- 纯音频重封装按时长切分，定位进度仍走现有播放器控制器。AVI / WMV 在初次加载和重载前拒绝，TS 保留重封装入口。MKV 内嵌字幕由独立解析器提取。
+- 446 项自动测试及 TypeScript/Vite 构建通过。Android 2.5.2 本地签名包为 19,322,487 字节，ARM64，APK v2 签名与 2.5.1 一致，32 项网页资源核对通过。构建记录和 SHA-256 位于 `release/client-v2.5.2/`。
+- 桌面 Chromium 实播验证了纯音频 MKV 起播和拖动、TrueHD 兼容轨回退和静音提示、DTS 与 24-bit FLAC 解码。独立 MKV 解析器通过内嵌 SRT 探测与提取检查。Android WebView 实机播放和房间同步待验收。
 
 ## 2.5.1 资源精简与压缩
 
@@ -108,7 +115,7 @@ iOS 是当前明显的协议差异点：共享/语音仍走 LiveKit；`stage-nat
 | 音乐与语音 | `src/upstream/modules/music/`、`voice-chat/`、`src/mobile/useMusicAudioRouting.ts`、`AudioRoutingPlugin.java`；私人漫游仅房主在片单写入成功确认后推进，双端语音使用 Piik v24 信令及返回的票据/ICE 配置；iOS LiveKit 不属于此链路。 |
 | 更新入口 | `src/mobile/AboutApp.tsx`、`appUpdates.ts`、`src/platform/appUpdates.ts`、`ExternalLinksPlugin.java`；只识别正式客户端 Release 和 APK，下载链接由系统浏览器打开。 |
 
-`src/upstream` 是按服务端协议移植的共享业务，`src/mobile` 是双端移动 UI，`src/platform` 是可替换平台契约。`public/` 与 `vendor/mediabunny/` 是运行时资源；更新上游时应做定向移植，保留本地桥、补丁和生成物边界。`patches/playsvideo+0.4.7.patch` 是媒体修复的安装时依赖，不能作为旧过程文件删除。
+`src/upstream` 是按服务端协议移植的共享业务，`src/mobile` 是双端移动 UI，`src/platform` 是可替换平台契约。`public/`、`vendor/mediabunny/` 和 `vendor/playsvideo/` 是运行时资源。playsvideo 本地媒体修复直接维护在 vendored 副本中，依赖升级见 [维护记录](../vendor/MEDIABUNNY-LOCAL-PATCHES.md)。
 
 ### 共享层与宿主的调用链
 
@@ -164,7 +171,7 @@ Android `native/bilicore/core/resolver.go/quality.go/pgc.go` 的实际 UGC/PGC �
 
 `MovieListPanel.tsx`、`MoviePushPanel.tsx` 和 `playlistOrder.ts` 管理片单展示、添加、排序。完整排列与 root/房主权限由共享层先校验，服务端仍作最终鉴权。清空片单使用单次服务端删除请求并等待权威广播；响应失败不能先清 UI。自动续播位于 `room/watch-together/autoContinue.ts`，只从最新片单选下一部；房间/角色/模式变更需取消等待中的推进。`src/upstream/modules/sync-playback/` 负责房主/观众心跳、seek 抑制和状态合并，播放控制改动必须联测媒体换源与自然结束。
 
-`src/upstream/modules/player/engines/` 根据媒体格式选择 MP4、HLS、DASH、FLV 或浏览器转码路径。`library-hls-proxy.ts` 处理媒体库主/子清单、相对分片与鉴权；`patches/playsvideo+0.4.7.patch` 修复 MKV cue 与 AAC 时间轴，`modules/subtitles/pgs-decoder.ts` 负责 PGS 位图。只有解析返回、Range=206 或容器识别成功，不代表设备解码成功；HEVC/Opus、ASS/PGS 与多音轨需按具体设备实播、拖动和字幕切换记录。
+`src/upstream/modules/player/engines/` 根据媒体格式选择 MP4、HLS、DASH、FLV 或浏览器转码路径。`library-hls-proxy.ts` 处理媒体库主/子清单、相对分片与鉴权，`vendor/playsvideo/` 保留 MKV cue 与 AAC 时间轴修复，`modules/subtitles/pgs-decoder.ts` 负责 PGS 位图。HEVC/Opus、ASS/PGS 与多音轨的设备兼容性以实播、拖动和字幕切换结果为准。
 
 2026-10-14 HLS 连接核查：HTTPS 登录与游客登录都将服务端返回的 token 保存到本机，主清单、分片与密钥的服务端代理请求使用 URL token 鉴权，不能因 hls.js 未启用 Cookie 凭证就推断请求必然 401。修复共享 `getApiUrl()` 在证书例外回环通道下的尾斜杠，避免无路径前缀的服务器被拼成 `//api/...`；HLS loader 的 API 判定统一使用逻辑服务器地址，避免把本机通道对应的 API 再重建为代理请求。历史HLS鉴权回归使用实际 token 存储和 URL 构造函数覆盖双端来源、HTTP/HTTPS、路径前缀、证书例外通道、相对密钥与分片；这是自动化验证，不等于真机或线上故障复现。截图错误 URL 只展示前 80 字符，不能用它判断末尾是否带 token。
 

@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "com.zviewer.mobile",
     "vendor": "ZViewer",
-    "versionCode": 251,
-    "versionName": "2.5.1",
+    "versionCode": 252,
+    "versionName": "2.5.2",
     "icon": "$media:app_icon",
     "label": "$string:app_name"
   }

@@ -58,12 +58,9 @@ function selectDirectEngine(): PlayerEngine {
 }
 
 /**
- * 浏览器完全不支持的容器，必须经 playsvideo 重封装为 fMP4 才能播放。
- *
- * 这些格式在旧版中会被 usePlayerSource 的格式预检直接拒绝（黑屏 + 提示
- * 「不被浏览器原生支持」），playsvideo 让它们变为可播。
+ * TS 可由 playsvideo 重封装为 fMP4，仍需设备支持轨道的编码。
  */
-const REMUX_ONLY_FORMATS = ['avi', 'ts', 'wmv']
+const REMUX_ONLY_FORMATS = ['ts']
 
 /**
  * 判断该源是否应交给 playsvideo 引擎。
@@ -73,7 +70,7 @@ const REMUX_ONLY_FORMATS = ['avi', 'ts', 'wmv']
  * 也不启动未启用的引擎）。之后只要浏览器具备运行条件（MSE + Worker）
  * 即生效：
  *
- * 1. **avi / ts / wmv** —— 浏览器无法原生打开，只能重封装。
+ * 1. **ts** —— 浏览器无法原生打开，需要重封装。
  * 2. **mkv** —— 一律交给 playsvideo，无原生快速路径。理由有二：浏览器
  *    对 MKV 的原生支持仅限 H.264/AAC 组合，容错面窄；且 DTS/AC3 等音轨
  *    需要浏览器端转码。playsvideo 在直通模式下仍是 `video.src` 原生
@@ -92,6 +89,8 @@ export function shouldUsePlaysVideo(source: PlayerSource): boolean {
   // 后端 movie.service 的 `!== false` 宽松语义，视为允许。
   if (source.playsvideoEnabled === false) return false
   const format = source.format
+  // mediabunny 无 AVI/ASF 解封装器，音频元数据也不能让这些容器通过预检。
+  if (format === 'avi' || format === 'wmv') return false
   if (format && (REMUX_ONLY_FORMATS as string[]).includes(format)) return true
   if (format === 'mkv') return true
 

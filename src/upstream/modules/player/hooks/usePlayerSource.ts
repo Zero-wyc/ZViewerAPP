@@ -426,6 +426,9 @@ export function usePlayerSource(
     ): Promise<void> => {
       source.signal?.throwIfAborted()
       if (!mountedRef.current || !video.isConnected) return
+      if (!isBrowserPlayableFormat(source.format) && !shouldUsePlaysVideo(source)) {
+        throw new Error(getUnsupportedFormatMessage(source.format))
+      }
       // Reject known decoder failures before cleanup can stop the playing source.
       if (source.format === 'dash' || shouldUsePlaysVideo(source)) assertVideoCodecSupported(source, true)
       const stages: Record<string, string> = {probe:'正在读取媒体轨道',index:'正在建立关键帧索引',ffmpeg:'正在加载音频组件',seg0:'正在生成首个分段',decision:'正在选择播放路径',workers:'正在启动音频处理',segments:'正在处理媒体分段'}
@@ -451,7 +454,7 @@ export function usePlayerSource(
         resetVideoElement(video)
         appliedSourceUrlRef.current = source.url
         // playsvideo 的启用由 shouldUsePlaysVideo 依据影片级开关、容器/
-        // 音轨与浏览器能力决定；开启后 MKV/avi/ts/wmv 等一律走管线，
+        // 音轨与浏览器能力决定；开启后 MKV/TS 等走管线，
         // 无原生快速路径，失败也不回退原生。
         const engine = selectEngine(source)
         try {
@@ -571,20 +574,6 @@ export function usePlayerSource(
         return
       }
 
-      // 格式预检：浏览器 <video> 仅原生支持 mp4/webm/mov/mkv，DASH 通过 MSE 支持。
-      // mkv 需 Chrome 91+ 且编码为 H.264/AAC。avi/wmv/ts 等容器直接赋值会抛 NotSupportedError。
-      //
-      // 但 avi/ts/wmv 可由 playsvideo 重封装为 fMP4 播放，因此不能一律拒绝——
-      // 仅当「playsvideo 不会接管本源」时才判定为不可播。
-      // 预检放在更新 appliedSourceUrlRef 之前，失败时不污染"已应用"标记。
-      if (
-        source.format &&
-        !isBrowserPlayableFormat(source.format) &&
-        !shouldUsePlaysVideo(source)
-      ) {
-        throw new Error(getUnsupportedFormatMessage(source.format))
-      }
-
       await enqueue(async () => {
         // 入队期间可能已被其他操作应用了同一源（如 forceReload），再次去重
         if (engineCleanupRef.current?.video === video && isSamePlayerSource(appliedSourceRef.current, source)) {
@@ -647,9 +636,6 @@ export function usePlayerSource(
         await enqueue(async () => {
           const latest = pendingReloadRef.current ?? source
           pendingReloadRef.current = null
-          if (latest.format === 'dash' || shouldUsePlaysVideo(latest)) assertVideoCodecSupported(latest, true)
-          cleanup()
-          resetVideoElement(video)
           await attachInner(video, latest)
         })
       } finally {
@@ -662,7 +648,7 @@ export function usePlayerSource(
         }
       }
     },
-    [enqueue, cleanup, attachInner]
+    [enqueue, attachInner]
   )
 
   return {

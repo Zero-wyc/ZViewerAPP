@@ -16,11 +16,10 @@ vendored mediabunny. Development-only tools are omitted from its package metadat
 
 ## Mediabunny
 
-The local fork in `vendor/mediabunny` identifies itself as version 1.38.1, based
-on the kzahel/mediabunny integration branch. Its modules retain their original
-copyright and Mozilla Public License 2.0 headers. See
+`vendor/mediabunny` contains the modules shipped in `mediabunny@1.66.2`. The
+modules retain their copyright and Mozilla Public License 2.0 headers. See
 [LICENSE](vendor/mediabunny/LICENSE) and
-[LOCAL-PATCHES.md](vendor/mediabunny/LOCAL-PATCHES.md) for modifications.
+[the vendor maintenance notes](vendor/MEDIABUNNY-LOCAL-PATCHES.md).
 
 The editable JavaScript modules, including local modifications, are distributed
 in this repository at `vendor/mediabunny/dist/modules/src`. They must be included

@@ -110,5 +110,8 @@ export function getUnsupportedFormatMessage(
   if (!format || format === 'unknown') {
     return '该文件格式未知，浏览器无法播放'
   }
+  if (format === 'avi' || format === 'wmv') {
+    return `暂不支持 ${format.toUpperCase()} 容器，请先将文件转换为 MP4 或 MKV`
+  }
   return `该文件格式（${format.toUpperCase()}）不被浏览器原生支持，请选择 MP4/WebM/MOV/MKV 文件`
 }

@@ -41,7 +41,8 @@
  */
 import { PlaysVideoEngine } from 'playsvideo'
 import { assertVideoCodecSupported } from '../codec-capability'
-import type { KeyframeIndex } from 'playsvideo'
+import type { KeyframeIndex, ReadyDetail } from 'playsvideo'
+import { message } from '@/components/ui/message'
 import {
   fetchPlaysVideoTrackCues,
   publishPlaysVideoSubtitle,
@@ -76,6 +77,13 @@ import {
  */
 const ACTIVITY_TIMEOUT_MS = 45_000
 const ABSOLUTE_TIMEOUT_MS = 300_000
+
+const AUDIO_CODEC_LABELS = new Map([
+  ['A_TRUEHD', 'Dolby TrueHD / Atmos'],
+  ['mlpa', 'Dolby TrueHD'],
+  ['A_MLP', 'MLP'],
+  ['A_ALAC', 'ALAC'],
+])
 
 /**
  * 诊断 hook：定位 endOfStream 调用来源。
@@ -288,6 +296,7 @@ class PlaysVideoController implements PlayerController {
     this.subtitleGen = resetPlaysVideoSubtitles()
     this.bindSubtitleBridge()
 
+    let audioDropped: ReadyDetail['audioDropped']
     try {
       // 关键帧索引复用：同 URL 的重载/切回直接传入缓存索引，worker 跳过
       // Range 探测（大文件 + 慢源可省数秒起播时间）。缓存 key 用 source.url
@@ -298,7 +307,7 @@ class PlaysVideoController implements PlayerController {
         url,
         cachedIndex ? { keyframeIndex: cachedIndex } : undefined
       )
-      await this.waitReady(engine, this.source.onAttachProgress)
+      audioDropped = await this.waitReady(engine, this.source.onAttachProgress)
     } catch (err) {
       // 起播失败（容器不支持 / 探测超时 / 取流不可达）：
       // 必须终结本世代并释放 worker，否则旧管线残留会与回退引擎竞争 video。
@@ -349,6 +358,12 @@ class PlaysVideoController implements PlayerController {
     // pipeline 模式下 ready 先于 startHls 触发，此时 readyState 可能仍为 0，
     // 直接赋值 currentTime 会被浏览器丢弃（与 waitForMetadata 的注释同理）。
     await waitForMetadata(this.video)
+    if (gen !== this.generation) return ''
+    if (audioDropped) {
+      const codecId = audioDropped.codecIds.find(Boolean) ?? '未知编码'
+      const codec = AUDIO_CODEC_LABELS.get(codecId) ?? codecId
+      message.warning(`当前设备的浏览器转码引擎无法处理该片音轨（${codec}），已静音播放。可换用含兼容音轨的片源。`, { duration: 9000 })
+    }
 
     const start = startTime ?? this.source.startTime ?? 0
     if (start > 0) {
@@ -379,7 +394,7 @@ class PlaysVideoController implements PlayerController {
   private waitReady(
     engine: PlaysVideoEngine,
     onProgress?: (stage: string, detail?: string) => void
-  ): Promise<void> {
+  ): Promise<ReadyDetail['audioDropped']> {
     return new Promise((resolve, reject) => {
       let activityTimer: ReturnType<typeof setTimeout> | null = null
       let lastSegmentsDetail: string | null = null
@@ -412,9 +427,9 @@ class PlaysVideoController implements PlayerController {
           )
         }, ACTIVITY_TIMEOUT_MS)
       }
-      const onReady = () => {
+      const onReady = (e: CustomEvent<ReadyDetail>) => {
         cleanup()
-        resolve()
+        resolve(e.detail?.audioDropped ?? null)
       }
       const onError = (e: CustomEvent<{ message?: string }>) => {
         cleanup()
