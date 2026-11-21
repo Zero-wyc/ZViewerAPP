@@ -10,9 +10,7 @@ import { SongActions } from '../components/SongActions'
  * 滚动，左栏完全静态。
  *
  * 左侧栏（Hydrogen LibraryType/LibraryList 复刻）：
- * - 双层 Tab（高 50px）：一级 2 项「歌单 / 收藏」，
- *   16px 加粗字，激活变黑 + 文字下方 3px 黑色条（width 展开动画），
- *   底部 0.5px 细分隔线；二级子 Tab 12px 随一级切换
+ * - 导航行左侧切换「歌单 / 收藏」，右侧分段控件切换当前分类。
  * - 列表条目：50px 方图（0.5px 边框）+ 15px 名称 + 11px 副信息，
  *   padding 8px；hover/选中为「背景层从左滑入」动画
  *   （translateX(-100%)→0，1s cubic-bezier(0.22,0.61,0.36,1)，hover 延迟
@@ -1135,24 +1133,23 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
           isMobile && detail && 'hidden'
         )}
       >
-        {/* 双层 Tab（Hydrogen LibraryType：一级 16px 加粗 + 3px 黑色激活条 +
-            0.5px 细分隔线；二级 12px 随一级切换） */}
-        <div className="music-library-tabs shrink-0 pt-2.5">
-          <div className="music-library-type1 flex items-end gap-5 px-1 pb-1 text-base font-bold leading-none">
+        <div className="music-library-tabs flex shrink-0 items-center justify-between gap-2">
+          <div className="music-library-type1 flex shrink-0 items-center gap-3 px-1 text-base font-bold leading-none">
             {TYPE_ONE.map((label, i) => (
               <button
                 key={label}
                 type="button"
                 onClick={() => handleType1(i)}
+                aria-pressed={listType1 === i}
                 className={cn(
-                  'relative whitespace-nowrap pb-1.5 transition-colors duration-200',
+                  'relative whitespace-nowrap py-2 transition-colors duration-200',
                   listType1 === i
                     ? 'text-[var(--md-sys-color-on-surface)]'
                     : 'text-[var(--md-sys-color-on-surface-variant)]'
                 )}
               >
                 {label}
-                {/* 激活黑色条（3px，width 展开动画，贴分隔线上方） */}
+                {/* 当前标签指示条 */}
                 <span
                   aria-hidden="true"
                   className={cn(
@@ -1164,16 +1161,7 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
               </button>
             ))}
           </div>
-          {/* 0.5px 细分隔线（Hydrogen tracker-line） */}
-          <div
-            className="music-library-divider h-px w-full"
-            style={{
-              backgroundColor:
-                'color-mix(in srgb, var(--md-sys-color-on-surface) 35%, transparent)',
-            }}
-          />
-          {/* 二级子 Tab */}
-          <div className="music-library-type2 mt-1 flex items-center gap-2.5 px-1 text-xs font-bold">
+          <div className="music-library-type2 flex min-w-0 items-center overflow-x-auto text-xs font-bold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {(TYPE_TWO[listType1] ?? []).map((label, i) => (
               <button
                 key={label}

@@ -288,23 +288,25 @@ html[data-mobile-appearance-theme] .mobile-music-content .music-page-content { b
 html[data-mobile-appearance-theme] .music-app-shell .music-page-content > * { animation: zv-fade var(--zv-t-s) var(--zv-ease-std) backwards; }
 
 /* 我的音乐：一级标签（短指示条）+ 二级分段 */
-html[data-mobile-appearance-theme] .music-library-type1 { gap: 20px; padding-bottom: 8px; }
-html[data-mobile-appearance-theme] .music-library-type1 > button { color: var(--appearance-muted); font-weight: 600; padding-bottom: 8px; }
-html[data-mobile-appearance-theme] .music-library-type1 > button:has(.music-library-bar.opacity-100) { color: var(--appearance-text); }
+.music-library-tabs { container-type: inline-size; }
+html[data-mobile-appearance-theme] .music-library-type1 > button { color: var(--appearance-muted); font-weight: 600; }
+html[data-mobile-appearance-theme] .music-library-type1 > button[aria-pressed="true"] { color: var(--appearance-text); }
 html[data-mobile-appearance-theme] .music-library-bar {
   left: 50% !important; right: auto !important; width: 20px !important; margin-left: -10px; height: 3px !important;
   border-radius: 3px; background-color: var(--appearance-accent) !important;
   transform: scaleX(0); opacity: 1 !important; transition: transform 300ms var(--zv-ease-pop) !important;
 }
 html[data-mobile-appearance-theme] .music-library-bar.opacity-100 { transform: scaleX(1); }
-html[data-mobile-appearance-theme] .music-library-divider { display: none; }
 html[data-mobile-appearance-theme] .music-library-type2 {
-  display: inline-flex; gap: 0; margin: 4px 0 6px; padding: 3px;
+  gap: 0; padding: 3px;
   border: 1px solid var(--appearance-line); border-radius: var(--zv-r-ctl); background: var(--appearance-field);
 }
 html[data-mobile-appearance-theme] .music-library-type2 > button {
   min-height: 30px; padding: 0 14px; border-radius: calc(var(--zv-r-ctl) - 3px);
   color: var(--appearance-muted) !important; font-size: 13px; font-weight: 600;
+}
+@container (max-width: 320px) {
+  html[data-mobile-appearance-theme] .music-library-type2 > button { padding-inline: 6px; }
 }
 html[data-mobile-appearance-theme] .music-library-type2 > button[aria-pressed='true'] { background: var(--appearance-accent); color: var(--appearance-accent-text) !important; }
 
