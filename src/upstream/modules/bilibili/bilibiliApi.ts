@@ -1,4 +1,4 @@
-import { getEmbeddedProxyStatus, isEmbeddedBilibiliHost, registerHostMedia } from '../../../platform/bilibiliProxy'
+import { getEmbeddedProxyStatus, isEmbeddedBilibiliHost, registerHostMedia, hostMediaReachable } from '../../../platform/bilibiliProxy'
 import { apiFetch } from '@/lib/api'
 import { assertVideoCodecSupported } from '../player/codec-capability'
 import type {
@@ -637,22 +637,25 @@ export async function resolveBilibiliWithOptions(
 ): Promise<ResolvedSource> {
   const hostSession = extraOptions?.cliHost && isEmbeddedBilibiliHost()
     ? getEmbeddedProxyStatus().sessionVersion : undefined
-  const resolved = await resolveBilibili(url, qn, onProgress, {
-    preferMp4: extraOptions?.preferMp4,
-    forceDash: extraOptions?.forceDash,
-    audioOnly: extraOptions?.audioOnly,
-    page: extraOptions?.page,
-    cid: extraOptions?.cid,
-    movieId: extraOptions?.movieId,
-    cliHost: extraOptions?.cliHost,
-    skipCdnCheck: extraOptions?.skipCdnCheck,
-    signal: extraOptions?.signal,
-  })
-  if (hostSession !== undefined) {
-    extraOptions?.signal?.throwIfAborted()
-    await registerHostMedia({ videoUrl: resolved.videoUrl, audioUrl: resolved.audioUrl ?? '', sessionVersion: hostSession })
+  const resolve = async (skipCdnCheck?: boolean) => {
+    const source = await resolveBilibili(url, qn, onProgress, { ...extraOptions, skipCdnCheck })
+    if (hostSession !== undefined) {
+      extraOptions?.signal?.throwIfAborted()
+      await registerHostMedia({ videoUrl: source.videoUrl, audioUrl: source.audioUrl ?? '', sessionVersion: hostSession })
+    }
+    return source
   }
-  return resolved
+  const source = await resolve(extraOptions?.skipCdnCheck)
+  if (hostSession !== undefined && extraOptions?.skipCdnCheck) {
+    const tracks = source.audioUrl ? [source.videoUrl, source.audioUrl] : [source.videoUrl]
+    if (!await hostMediaReachable(tracks, extraOptions.signal)) {
+      extraOptions.signal?.throwIfAborted()
+      if (getEmbeddedProxyStatus().sessionVersion !== hostSession) throw new Error('账号已切换，请重新解析')
+      onProgress?.('cdn', '正在选择备用媒体线路…')
+      return resolve(false)
+    }
+  }
+  return source
 }
 
 /** 自定义栏目数据源类型：合集（season）/ 系列（series）/ 收藏夹（favlist） */

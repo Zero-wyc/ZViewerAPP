@@ -44,7 +44,7 @@ import {
   resolveMovieSource,
   resolveBilibiliOnline,
   getEffectivePreferMp4,
-  getActiveCliProxyUrl,
+  getPlaybackCliProxyUrl,
   type ResolvedMovieSource,
 } from './movie-source-resolver'
 import type { ResolvedSource } from '@/modules/bilibili/types'
@@ -1334,7 +1334,7 @@ export function useWatchTogether({
             key: `${store.roomSessionRevision}|${movieId}|${current.cid}|${current.sourceUrl}`,
             eligible: isHostRef.current && store.roomId === roomId && store.mode === 'watch-together' &&
               current.sourceType === 'bilibili' && !current.isPreview && movieId != null &&
-              getBilibiliParseOptions(movieId).cliEnabled && !!getActiveCliProxyUrl() &&
+              getBilibiliParseOptions(movieId).cliEnabled && !!getPlaybackCliProxyUrl() &&
               current.isPlaying && video.isConnected && !video.paused && !video.ended &&
               !video.seeking && !wasUserPaused(video) && !suppressEventsRef.current,
           }

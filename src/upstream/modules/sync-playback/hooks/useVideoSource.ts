@@ -33,7 +33,7 @@ import { wasUserPaused } from '@/modules/player/services/pause-intent'
 import { getBilibiliParseOptions } from '@/modules/bilibili/parseOptions'
 import { buildCliProxyUrl } from '@/modules/bilibili/cliApi'
 import {
-  getActiveCliProxyUrl,
+  getPlaybackCliProxyUrl,
   resolveBilibiliOnline,
   getEffectivePreferMp4,
 } from '@/modules/room/watch-together/movie-source-resolver'
@@ -44,7 +44,7 @@ import { safePlay } from '../safePlay'
 import { executeSeek } from '../services'
 import type { SeekToResult } from '../services'
 import { getEmbeddedProxyStatus, isEmbeddedBilibiliHost, startEmbeddedProxy, subscribeEmbeddedProxy } from '../../../../platform/bilibiliProxy'
-import { getBilibiliLiveProxyUrl, getBilibiliResolveSource } from '../../../../platform/bilibiliResolvePreference'
+import { getBilibiliLiveProxyUrl } from '../../../../platform/bilibiliResolvePreference'
 import { fallbackNativeQuality, getNativeQualityPolicy, getQualitySelectionRevision, recordNativeQuality, restoreNativeQuality, type NativeQualityPolicy } from '@/modules/bilibili/nativeQualityPolicy'
 import { hasFreshBilibiliSource } from '@/modules/bilibili/sourceValidity'
 import { awaitAbortable } from '@/modules/player/utils/abortable'
@@ -98,7 +98,7 @@ async function ensureViewerLocalOverride(
     return null
   }
 
-  if (movie.cliOnly === true && !getActiveCliProxyUrl({ allowLoggedOut: getBilibiliResolveSource() === 'host' })) {
+  if (movie.cliOnly === true && !getPlaybackCliProxyUrl()) {
     storeState.setViewerCliRequiredMovieId(movieId)
     storeState.setViewerCliResolvedSource(null)
     return null
@@ -322,9 +322,8 @@ async function toPlayerSource(
     const movie = useRoomStore.getState().movies.find((m) => m.id === movieId)
     const { cliEnabled } = getBilibiliParseOptions(movieId)
     const cliOnly = movie?.cliOnly === true
-    const resolveSource = getBilibiliResolveSource()
     const proxyUrl = cliEnabled || cliOnly
-      ? getActiveCliProxyUrl({ allowLoggedOut: resolveSource === 'host' })
+      ? getPlaybackCliProxyUrl()
       : null
     if (cliOnly && !proxyUrl) throw new Error('本机代理不可用，请登录 B 站后重试')
     if (cliOnly) source.noProxyFallback = true
@@ -488,7 +487,7 @@ export function useVideoSource({
   const recoverNative = useCallback(async (error: Error, original?: NativeRecoverySnapshot) => {
     const store = useRoomStore.getState()
     const movie = store.movies.find(item => item.id === store.currentMovieId)
-    if (store.watchTogether.isLive || !movie || store.watchTogether.sourceType !== 'bilibili' || store.watchTogether.isPreview || !getBilibiliParseOptions(movie.id).cliEnabled || !getActiveCliProxyUrl()) throw error
+    if (store.watchTogether.isLive || !movie || store.watchTogether.sourceType !== 'bilibili' || store.watchTogether.isPreview || !getBilibiliParseOptions(movie.id).cliEnabled || !getPlaybackCliProxyUrl()) throw error
     const video = videoRef.current
     if (!video) throw error
     const server = getApiUrl()
@@ -831,7 +830,7 @@ export function useVideoSource({
       const state = useRoomStore.getState().watchTogether
       if (!state.sourceUrl) return
       const movieId = useRoomStore.getState().currentMovieId
-      if (!state.isLive && isEmbeddedBilibiliHost() && state.sourceType === 'bilibili' && !state.isPreview && movieId != null && getBilibiliParseOptions(movieId).cliEnabled && getActiveCliProxyUrl()) {
+      if (!state.isLive && isEmbeddedBilibiliHost() && state.sourceType === 'bilibili' && !state.isPreview && movieId != null && getBilibiliParseOptions(movieId).cliEnabled && getPlaybackCliProxyUrl()) {
         nativeRecoveryController.current?.abort(new DOMException('Manual reload', 'AbortError'))
         nativeRecoveryAttempts.current.clear()
         await recoverNative(new Error('正在刷新 B站播放地址'), { time: snapshot.currentTime, playing: !snapshot.paused && !wasUserPaused(video), rate: snapshot.playbackRate })

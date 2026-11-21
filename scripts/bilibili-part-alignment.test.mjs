@@ -1,3 +1,4 @@
+import { buildCliProxyUrl } from '../src/platform/bilibiliMediaUrl.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
@@ -84,6 +85,7 @@ async function cli({ embedded = true, requestView = async () => view } = {}) {
   const requests = []
   const proxyUrl = 'http://127.0.0.1:9333'
   const api = await load(cliPath, {
+    '../../../platform/bilibiliMediaUrl': { buildCliProxyUrl },
     '../../../platform/connectionTransport': { logicalConnectionUrl: value => value },
     '../../../platform/bilibiliProxy': {
       embeddedBilibiliProxy: { logout: async () => assert.fail('unexpected logout') },

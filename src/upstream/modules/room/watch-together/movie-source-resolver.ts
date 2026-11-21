@@ -151,6 +151,11 @@ export function getActiveCliProxyUrl(options?: { allowLoggedOut?: boolean }): st
   return normalizeLocalCliProxyUrl(agents[0].proxyUrl)
 }
 
+/** Playback and recovery must agree on who supplies the Bilibili identity. */
+export function getPlaybackCliProxyUrl() {
+  return getActiveCliProxyUrl({ allowLoggedOut: getBilibiliResolveSource() === 'host' })
+}
+
 /** Adding/previewing content follows the same account boundary as playback. */
 export function getBilibiliInputResolvePolicy(input: string): { proxyUrl: string | null; cliOnly: boolean } {
   const cliOnly = !!extractBangumiId(input) && useSystemSettingsStore.getState().bilibiliPgcDefaultMode === 'cliOnly'
@@ -194,7 +199,7 @@ export function getEffectivePreferMp4(movieId: number): boolean {
   if (moviePolicy?.cliOnly === true) return false
   if (cliEnabled) {
     // CLI 已启用：已连接走 CLI DASH，未连接回退服务器 MP4
-    return getActiveCliProxyUrl({ allowLoggedOut: getBilibiliResolveSource() === 'host' })
+    return getPlaybackCliProxyUrl()
       ? false
       : true
   }
@@ -378,7 +383,7 @@ export async function resolveBilibiliOnline(
   const nativeSession = getEmbeddedProxyStatus().sessionVersion
   const capabilityKey = isEmbeddedBilibiliHost() && proxyUrl ? JSON.stringify(await getWebViewCapabilities()) : ''
   options?.signal?.throwIfAborted()
-  const requestedQn = options?.qn ?? (isEmbeddedBilibiliHost() && policy.mode === 'manual' ? policy.qn : undefined)
+  const requestedQn = options?.qn ?? (isEmbeddedBilibiliHost() ? policy.qn ?? policy.fallbackQn : undefined)
   const cacheKey = buildBilibiliResolveCacheKey(
     movie.id,
     requestedQn,
@@ -409,7 +414,7 @@ export async function resolveBilibiliOnline(
         movieId: movie.id,
         page: options?.page ?? movie.currentPage,
         cliHost: true,
-        skipCdnCheck: true,
+        skipCdnCheck: !forceRefresh,
         signal: options?.signal,
       }
     )

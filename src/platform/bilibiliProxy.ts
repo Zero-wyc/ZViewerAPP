@@ -2,6 +2,7 @@ import { registerPlugin } from '@capacitor/core'
 import { useSyncExternalStore } from 'react'
 import type { BilibiliHostMedia, BilibiliProxyStatus, BilibiliQrSession } from './contracts'
 import { getHarmonyBridge, getRuntimePlatform } from './runtime'
+import { buildCliProxyUrl } from './bilibiliMediaUrl'
 import QRCode from 'qrcode'
 
 interface NativeProxy {
@@ -56,6 +57,31 @@ export async function registerHostMedia(media: BilibiliHostMedia) {
     await register(media)
   } else {
     await native.registerHostMedia(media)
+  }
+}
+
+/** Test the exact loopback route the player will read, including the signed query. */
+export async function hostMediaReachable(urls: string[], signal?: AbortSignal) {
+  const { proxyUrl } = getEmbeddedProxyStatus()
+  const probe = new AbortController()
+  const timeout = setTimeout(() => probe.abort(), 5000)
+  const requestSignal = signal ? AbortSignal.any([signal, probe.signal]) : probe.signal
+  try {
+    await Promise.all(urls.map(async url => {
+      const res = await fetch(buildCliProxyUrl(proxyUrl, url), {
+        headers: { Range: 'bytes=0-63' }, signal: requestSignal, cache: 'no-store',
+      })
+      if (res.status !== 206 || (await res.arrayBuffer()).byteLength !== 64) {
+        throw new Error('媒体线路未返回请求的数据')
+      }
+    }))
+    return true
+  } catch {
+    signal?.throwIfAborted()
+    return false
+  } finally {
+    clearTimeout(timeout)
+    probe.abort()
   }
 }
 

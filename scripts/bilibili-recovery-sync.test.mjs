@@ -1,3 +1,4 @@
+import { buildCliProxyUrl } from '../src/platform/bilibiliMediaUrl.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
@@ -150,6 +151,7 @@ test('full sync and state requests sanitize local proxy capabilities and retain 
   }
   const cli = await load('../src/upstream/modules/bilibili/cliApi.ts', {
     './bilibiliApi': { getBilibiliVideoView: async () => assert.fail('unexpected detail request') },
+    '../../../platform/bilibiliMediaUrl': { buildCliProxyUrl },
     '../../../platform/connectionTransport': { logicalConnectionUrl },
     '../../../platform/bilibiliProxy': { embeddedBilibiliProxy: {}, getEmbeddedProxyStatus: () => ({}), isEmbeddedBilibiliHost: () => true },
     './nativeQualityPolicy': { getWebViewCapabilities: () => ({}) },

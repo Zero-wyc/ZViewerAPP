@@ -169,7 +169,7 @@ async function harness(t, options = {}) {
     useRoomStore: store,
     getApiUrl: () => server,
     getBilibiliParseOptions: () => ({ cliEnabled: true }),
-    getActiveCliProxyUrl: () => 'http://127.0.0.1:9000',
+    getPlaybackCliProxyUrl: () => 'http://127.0.0.1:9000',
     isEmbeddedBilibiliHost: () => true,
     startEmbeddedProxy: async () => proxy,
     getEffectivePreferMp4: () => false,

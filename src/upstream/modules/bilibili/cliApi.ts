@@ -5,6 +5,9 @@ import { getWebViewCapabilities } from './nativeQualityPolicy'
 import { assertVideoCodecSupported } from '../player/codec-capability'
 import { getBilibiliVideoView } from './bilibiliApi'
 
+import { buildCliProxyUrl } from '../../../platform/bilibiliMediaUrl'
+export { buildCliProxyUrl }
+
 const BV_REGEX = /BV[0-9A-Za-z]{10}/
 
 /**
@@ -47,21 +50,6 @@ export function extractBangumiId(
   const ssMatch = input.match(/(?:^|[^a-z0-9])ss(\d+)/i)
   if (ssMatch && valid(Number(ssMatch[1]))) return { seasonId: Number(ssMatch[1]) }
   return null
-}
-
-/**
- * 将任意 URL 包装为 CLI 本地代理 URL。
- * CLI 代理会注入正确的 Referer/Origin/User-Agent 头，绕过 B站 CDN 防盗链。
- *
- * 若 targetUrl 本身已是该 CLI 代理地址，则直接返回避免双重包装。
- */
-export function buildCliProxyUrl(proxyUrl: string, targetUrl: string): string {
-  const base = proxyUrl.replace(/\/$/, '')
-  const proxyPrefix = `${base}/proxy?url=`
-  if (targetUrl.startsWith(proxyPrefix)) {
-    return targetUrl
-  }
-  return `${proxyPrefix}${encodeURIComponent(targetUrl)}`
 }
 
 /** Remove device-local credentials before storing or broadcasting media URLs. */
