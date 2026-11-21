@@ -207,3 +207,31 @@ func TestAuthorizeLiveRejectsNonBilibiliURL(t *testing.T) {
 		t.Fatalf("invalid target response = %d %s", response.Code, response.Body.String())
 	}
 }
+
+func TestHostMediaRegistration(t *testing.T) {
+	if _, err := Start(""); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(Stop)
+	version := agent.epoch
+	video := "https://cdn.bilivideo.com/video.m4s?sign=a%2Bb"
+	audio := "https://cdn.bilivideo.com/audio.m4s?sign=c%2Fd"
+	if err := RegisterHostMedia(video, "https://invalid.example/audio", version); err == nil {
+		t.Fatal("accepted invalid audio")
+	}
+	if _, ok := agent.targets[video]; ok {
+		t.Fatal("registered only half of the pair")
+	}
+	if err := RegisterHostMedia(video, audio, version); err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range []string{video, audio} {
+		if _, ok := agent.targets[target]; !ok {
+			t.Fatal("missing signed stream")
+		}
+	}
+	Logout()
+	if err := RegisterHostMedia(video, audio, version); err == nil || len(agent.targets) != 0 {
+		t.Fatal("restored streams from a previous session")
+	}
+}

@@ -27,6 +27,12 @@ interface NavPayload {
   data?: NavData;
 }
 
+export interface BilibiliHostMedia {
+  videoUrl: string;
+  audioUrl: string;
+  sessionVersion: number;
+}
+
 export interface NativeProxyStatus {
   supported: boolean;
   ready: boolean;
@@ -106,17 +112,19 @@ function queryValue(raw: string, key: string): string {
 }
 
 function allowedCdn(raw: string): boolean {
-  const match = raw.match(/^https?:\/\/([^/?#]+)/i);
-  if (!match) return false;
-  const authority = match[1].toLowerCase();
-  if (authority.includes('@')) return false;
-  const host = authority.split(':')[0];
-  const port = authority.split(':')[1] || '';
-  const edge = host.endsWith('.mountaintoys.cn');
-  if (port !== '' && port !== '80' && port !== '443' &&
-    !(edge && raw.toLowerCase().startsWith('https://') && port === '4483')) return false;
-  return host.endsWith('.bilivideo.com') || host.endsWith('.bilivideo.cn') || host.endsWith('.bilivideo.net') ||
-    edge || host === 'upos-hz-mirrorakam.akamaized.net';
+  try {
+    const target = new url.URL(raw);
+    if ((target.protocol !== 'https:' && target.protocol !== 'http:') ||
+      target.username || target.password || target.hash) return false;
+    const host = target.hostname.toLowerCase();
+    const edge = host.endsWith('.mountaintoys.cn');
+    if (target.port !== '' && target.port !== '80' && target.port !== '443' &&
+      !(edge && target.protocol === 'https:' && target.port === '4483')) return false;
+    return host.endsWith('.bilivideo.com') || host.endsWith('.bilivideo.cn') || host.endsWith('.bilivideo.net') ||
+      edge || host === 'upos-hz-mirrorakam.akamaized.net';
+  } catch (_error) {
+    return false;
+  }
 }
 
 function safeCdnRedirect(location: string, current: string, live: boolean): string {
@@ -234,6 +242,16 @@ export class BilibiliLocalProxy {
     this.liveTargets.clear();
     this.qrKey = '';
     return { status: 2, message: '登录成功', loggedIn: true, proxyStatus: this.status() };
+  }
+
+  registerHostMedia(media: BilibiliHostMedia): void {
+    if (!this.server || media.sessionVersion !== this.sessionVersion) throw new Error('代理会话已变化，请重新解析');
+    if (!allowedCdn(media.videoUrl) || (media.audioUrl !== '' && !allowedCdn(media.audioUrl))) {
+      throw new Error('房主解析返回的媒体地址不受支持');
+    }
+    for (const target of [media.videoUrl, media.audioUrl]) {
+      if (target !== '' && !this.targets.has(target)) this.targets.set(target, []);
+    }
   }
 
   async logout(): Promise<NativeProxyStatus> {

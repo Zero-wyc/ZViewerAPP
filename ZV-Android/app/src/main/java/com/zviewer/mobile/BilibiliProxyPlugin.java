@@ -96,6 +96,13 @@ public class BilibiliProxyPlugin extends Plugin {
         });
     }
     @PluginMethod public void status(PluginCall call) { run(call, Mobile::status); }
+    @PluginMethod public void registerHostMedia(PluginCall call) {
+        run(call, () -> {
+            Mobile.registerHostMedia(call.getString("videoUrl", ""), call.getString("audioUrl", ""),
+                call.getInt("sessionVersion", -1));
+            return "{}";
+        });
+    }
     @PluginMethod public void createQr(PluginCall call) {
         run(call, () -> {
             String data = Mobile.qr(); JSONObject qr = new JSONObject(data);

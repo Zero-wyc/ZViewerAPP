@@ -2,7 +2,7 @@ import { abilityAccessCtrl, bundleManager, common } from '@kit.AbilityKit';
 import { webview } from '@kit.ArkWeb';
 import { window } from '@kit.ArkUI';
 import { picker } from '@kit.CoreFileKit';
-import { BilibiliLocalProxy } from '../services/BilibiliLocalProxy';
+import { BilibiliHostMedia, BilibiliLocalProxy } from '../services/BilibiliLocalProxy';
 import { DEBUG } from 'BuildProfile';
 import { NativeMediaSession, MediaSessionState } from '../services/NativeMediaSession';
 import { ServerConnection, ConnectionPolicy } from '../services/ServerConnection';
@@ -114,6 +114,10 @@ class HarmonyHost {
       return JSON.stringify(bilibiliProxy.status());
     }
     if (action === 'bilibiliStatus') return JSON.stringify(bilibiliProxy.status());
+    if (action === 'bilibiliRegisterHostMedia') {
+      bilibiliProxy.registerHostMedia(JSON.parse(argument) as BilibiliHostMedia);
+      return null;
+    }
     if (action === 'bilibiliCreateQr') return JSON.stringify(await bilibiliProxy.createQr());
     if (action === 'bilibiliPollQr') {
       const options = JSON.parse(argument) as PollQrArgument;

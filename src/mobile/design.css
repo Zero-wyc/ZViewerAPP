@@ -178,10 +178,9 @@ html[data-mobile-appearance-theme] .mobile-room-footer .mobile-text-button { col
 .app-shell-room .mobile-voice-trigger.is-connected { color: var(--appearance-accent); background: color-mix(in srgb, var(--appearance-accent) 16%, transparent); }
 .app-shell-room .mobile-approval { background: color-mix(in srgb, var(--appearance-accent) 14%, var(--appearance-glass)); }
 html[data-mobile-appearance-theme] :is(button, input):focus-visible { outline-color: var(--appearance-accent); }
-/* 搜索行紧邻弹窗的滚动边界，焦点描边画在输入框内部。 */
-html[data-mobile-appearance-theme] .bili-video-search input:focus {
-  outline: 2px solid var(--appearance-accent);
-  outline-offset: -2px;
+/* 共享输入框通过已有边框的颜色提示焦点。 */
+html[data-mobile-appearance-theme] input.zen-input-glow:focus {
+  outline: none;
   box-shadow: none;
 }
 
@@ -428,8 +427,11 @@ html[data-mobile-appearance-theme] .bili-video-card:nth-child(n + 7) { animation
 
 /* 侧边评论坞把手：贴边的细玻璃条 */
 html[data-mobile-appearance-theme] .music-app-shell .music-dock-handle {
+  transform: none;
+  border: 0;
+}
+html[data-mobile-appearance-theme] .music-app-shell .music-dock-handle > span {
   border-radius: var(--zv-r-ctl) 0 0 var(--zv-r-ctl);
-  background: var(--appearance-glass); border: 1px solid var(--appearance-line); border-right: 0;
 }
 
 /* 竖屏全屏播放器：封面区吃掉剩余高度（按宽高取小保持正方形），不留大片空白 */

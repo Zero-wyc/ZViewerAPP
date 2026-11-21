@@ -1,10 +1,11 @@
 import { registerPlugin } from '@capacitor/core'
 import { useSyncExternalStore } from 'react'
-import type { BilibiliProxyStatus, BilibiliQrSession } from './contracts'
+import type { BilibiliHostMedia, BilibiliProxyStatus, BilibiliQrSession } from './contracts'
 import { getHarmonyBridge, getRuntimePlatform } from './runtime'
 import QRCode from 'qrcode'
 
 interface NativeProxy {
+  registerHostMedia(media: BilibiliHostMedia): Promise<void>
   start(): Promise<BilibiliProxyStatus>
   status(): Promise<BilibiliProxyStatus>
   createQr(): Promise<BilibiliQrSession>
@@ -47,6 +48,17 @@ export async function startEmbeddedProxy() {
   })
   await starting
 }
+/** Only the authenticated resolver can issue host media to the local player. */
+export async function registerHostMedia(media: BilibiliHostMedia) {
+  if (getRuntimePlatform() === 'harmony') {
+    const register = getHarmonyBridge()?.bilibiliRegisterHostMedia
+    if (!register) throw new Error('本机代理不支持房主媒体登记')
+    await register(media)
+  } else {
+    await native.registerHostMedia(media)
+  }
+}
+
 export const embeddedBilibiliProxy = {
   async createQr(): Promise<BilibiliQrSession> {
     if (getRuntimePlatform() !== 'harmony') return native.createQr()

@@ -1,3 +1,4 @@
+import { getEmbeddedProxyStatus, isEmbeddedBilibiliHost, registerHostMedia } from '../../../platform/bilibiliProxy'
 import { apiFetch } from '@/lib/api'
 import { assertVideoCodecSupported } from '../player/codec-capability'
 import type {
@@ -634,7 +635,9 @@ export async function resolveBilibiliWithOptions(
     signal?: AbortSignal
   }
 ): Promise<ResolvedSource> {
-  return resolveBilibili(url, qn, onProgress, {
+  const hostSession = extraOptions?.cliHost && isEmbeddedBilibiliHost()
+    ? getEmbeddedProxyStatus().sessionVersion : undefined
+  const resolved = await resolveBilibili(url, qn, onProgress, {
     preferMp4: extraOptions?.preferMp4,
     forceDash: extraOptions?.forceDash,
     audioOnly: extraOptions?.audioOnly,
@@ -645,6 +648,11 @@ export async function resolveBilibiliWithOptions(
     skipCdnCheck: extraOptions?.skipCdnCheck,
     signal: extraOptions?.signal,
   })
+  if (hostSession !== undefined) {
+    extraOptions?.signal?.throwIfAborted()
+    await registerHostMedia({ videoUrl: resolved.videoUrl, audioUrl: resolved.audioUrl ?? '', sessionVersion: hostSession })
+  }
+  return resolved
 }
 
 /** 自定义栏目数据源类型：合集（season）/ 系列（series）/ 收藏夹（favlist） */

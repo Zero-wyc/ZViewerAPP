@@ -53,6 +53,7 @@
     setSystemBarStyle: (dark) => request('setSystemBarStyle', dark),
     requestMicrophonePermission: () => request('requestMicrophonePermission', null).then(() => true, () => false),
     bilibiliStart: () => request('bilibiliStart', null),
+    bilibiliRegisterHostMedia: (media) => request('bilibiliRegisterHostMedia', media),
     bilibiliStatus: () => request('bilibiliStatus', null),
     bilibiliCreateQr: () => request('bilibiliCreateQr', null),
     bilibiliPollQr: (key) => request('bilibiliPollQr', { key }),

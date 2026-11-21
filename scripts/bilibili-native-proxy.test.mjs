@@ -291,3 +291,19 @@ test('live streaming has no total read timeout and downstream closure cancels th
   assert.equal(state.connection.sent.length, 1)
   assertReleased(state)
 })
+
+test('host VOD registers both signed tracks atomically for the current session', async () => {
+  const state = fixture([success])
+  const { proxy } = state
+  proxy.server = {}
+  proxy.targets.clear()
+  const media = { videoUrl: target, audioUrl: backup, sessionVersion: proxy.sessionVersion }
+  assert.throws(() => proxy.registerHostMedia({ ...media, audioUrl: 'https://invalid.example/track' }))
+  assert.throws(() => proxy.registerHostMedia({ ...media, sessionVersion: -1 }))
+  assert.equal(proxy.targets.size, 0)
+  proxy.registerHostMedia(media)
+  assert.equal(proxy.targets.has(backup), true)
+  await state.start()
+  assert.match(state.connection.sent[0], /^HTTP\/1\.1 206 /)
+  assert.equal(state.requests[0].url, target)
+})

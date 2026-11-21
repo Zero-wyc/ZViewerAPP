@@ -76,45 +76,35 @@ export function MusicSideDock({
   return (
     <>
       {/* 右缘竖线把手：默认态的唯一可见元素；hover 滑出侧边栏，点击切换（触屏兜底） */}
-      <div
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
         aria-expanded={open}
-        aria-label={open ? '收起侧边工具栏' : '展开侧边工具栏'}
-        title={open ? '收起侧边工具栏' : '展开侧边工具栏'}
-        onPointerEnter={(event) => { if (event.pointerType === 'mouse') handleEnter() }}
-        onPointerLeave={(event) => { if (event.pointerType === 'mouse') handleLeave() }}
+        aria-label={commentsOnly ? (open ? '收起侧边评论' : '展开侧边评论') : (open ? '收起侧边工具栏' : '展开侧边工具栏')}
+        onPointerEnter={(event) => { if (!commentsOnly && event.pointerType === 'mouse') handleEnter() }}
+        onPointerLeave={(event) => { if (!commentsOnly && event.pointerType === 'mouse') handleLeave() }}
         onClick={() => {
           clearCloseTimer()
-          setOpen((v) => !v)
+          setOpen((value) => !value)
         }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            clearCloseTimer()
-            setOpen((v) => !v)
-          }
-        }}
-        className="music-dock-handle fixed right-0 top-1/2 z-[46] h-28 w-[5px] -translate-y-1/2 cursor-pointer rounded-l-md transition-colors duration-200 max-md:h-44 max-md:w-[14px]"
-        style={{
-          backgroundColor: open
-            ? 'var(--md-sys-color-primary)'
-            : 'color-mix(in srgb, var(--md-sys-color-on-surface) 30%, transparent)',
-        }}
-      />
+        className="music-dock-handle fixed inset-y-0 right-0 z-[46] my-auto flex h-28 w-5 touch-manipulation items-stretch justify-end bg-transparent p-0 max-md:h-44 max-md:w-8"
+      >
+        <span aria-hidden="true" className="pointer-events-none w-[5px] rounded-l-md max-md:w-2"
+          style={{ backgroundColor: open ? 'var(--md-sys-color-primary)' : 'color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent)' }}
+        />
+      </button>
 
       {/* 悬浮侧边栏：三面板纵向堆叠同时可见（各自高度上限 + 容器滚动兜底）。
           毛玻璃：半透明底 + backdrop 高斯模糊（移动端经 lt-blur-surface 降档 8px） */}
       <aside
         aria-hidden={!open}
-        onPointerEnter={(event) => { if (event.pointerType === 'mouse') handleEnter() }}
-        onPointerLeave={(event) => { if (event.pointerType === 'mouse') handleLeave() }}
+        onPointerEnter={(event) => { if (!commentsOnly && event.pointerType === 'mouse') handleEnter() }}
+        onPointerLeave={(event) => { if (!commentsOnly && event.pointerType === 'mouse') handleLeave() }}
         className={cn(
           'music-side-dock lt-blur-surface fixed right-1.5 top-1/2 z-[45] flex w-[344px] max-w-[calc(100vw-1.5rem)] -translate-y-1/2 flex-col overflow-hidden',
           'rounded-[var(--md-sys-shape-corner)] transition-all duration-300',
           open
             ? 'pointer-events-auto translate-x-0 opacity-100'
-            : 'pointer-events-none translate-x-6 opacity-0'
+            : 'invisible pointer-events-none translate-x-6 opacity-0'
         )}
         style={{
           maxHeight: 'min(760px, calc(100vh - 100px))',

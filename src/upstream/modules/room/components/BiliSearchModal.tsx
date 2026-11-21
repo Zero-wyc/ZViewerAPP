@@ -194,7 +194,7 @@ export function BiliSearchModal({
     >
       <div className="flex h-full min-h-0 min-w-0 flex-col">
         {/* 搜索区：回车触发 */}
-        <div className="bili-video-search mb-4 flex shrink-0 items-center gap-3">
+        <div className="mb-4 flex shrink-0 items-center gap-3">
           <Input
             size="md"
             value={keyword}

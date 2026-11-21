@@ -143,11 +143,18 @@ export interface HarmonyNativeBridge {
   minimizeApp?(): void | Promise<void>
   requestMicrophonePermission?(): boolean | Promise<boolean>
   bilibiliStart?(): Promise<BilibiliProxyStatus>
+  bilibiliRegisterHostMedia?(media: BilibiliHostMedia): Promise<void>
   bilibiliStatus?(): Promise<BilibiliProxyStatus>
   bilibiliCreateQr?(): Promise<HarmonyBilibiliQrSession>
   bilibiliPollQr?(key: string): Promise<{ status: number; message?: string; loggedIn?: boolean; proxyStatus?: BilibiliProxyStatus }>
   bilibiliCancelQr?(): Promise<void>
   bilibiliLogout?(): Promise<BilibiliProxyStatus>
+}
+
+export interface BilibiliHostMedia {
+  videoUrl: string
+  audioUrl: string
+  sessionVersion: number
 }
 
 export type SystemMediaAction = 'play' | 'pause' | 'stop' | 'previoustrack' | 'nexttrack' | 'seekto'

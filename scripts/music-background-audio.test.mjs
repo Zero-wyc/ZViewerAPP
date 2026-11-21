@@ -30,7 +30,9 @@ async function loadSource(relativePath, imports, globals = {}) {
   const source = await readFile(new URL(relativePath, import.meta.url), 'utf8')
   const module = new SourceTextModule(stripTypeScriptTypes(source), { context })
   await module.link(name => {
-    const exports = imports[name]
+    const exports = imports[name] ?? (name === '../../../platform/bilibiliProxy'
+      ? { isEmbeddedBilibiliHost: () => false, getEmbeddedProxyStatus: () => ({}), registerHostMedia: () => assert.fail('unexpected registration') }
+      : undefined)
     assert.ok(exports, `Unexpected dependency: ${name}`)
     return new SyntheticModule(Object.keys(exports), function () {
       for (const [key, value] of Object.entries(exports)) this.setExport(key, value)
@@ -207,3 +209,19 @@ for (const [visible, playing, expectedPause] of [[false, true, 1], [true, false,
     assert.equal(ready, expectedPause ? null : 'https://media.invalid/mv.mp4')
   })
 }
+
+test('mobile host resolution registers signed tracks before exposing the source to playback', async () => {
+  const registered = []
+  const api = await loadSource('../src/upstream/modules/bilibili/bilibiliApi.ts', {
+    '@/lib/api': { apiFetch: async () => Response.json(sourcePayload) },
+    '../player/codec-capability': { assertVideoCodecSupported: () => {} },
+    '../../../platform/bilibiliProxy': {
+      isEmbeddedBilibiliHost: () => true,
+      getEmbeddedProxyStatus: () => ({ sessionVersion: 17 }),
+      registerHostMedia: async media => { registered.push({ ...media }) },
+    },
+  })
+  const result = await api.resolveBilibiliWithOptions('BV1234567890', 64, undefined, { movieId: 3, cliHost: true })
+  assert.deepEqual(registered, [{ videoUrl: sourcePayload.videoUrl, audioUrl: sourcePayload.audioUrl, sessionVersion: 17 }])
+  assert.equal(result.videoUrl, sourcePayload.videoUrl)
+})

@@ -15,6 +15,7 @@ import { useRoomStore } from '@/store/roomStore'
 import { isEmbeddedBilibiliHost, getEmbeddedProxyStatus } from '../../../../platform/bilibiliProxy'
 import { getActiveCliProxyUrl, resolveBilibiliOnline } from '@/modules/room/watch-together/movie-source-resolver'
 import { getBilibiliParseOptions } from '@/modules/bilibili/parseOptions'
+import { getBilibiliResolveSource } from '../../../../platform/bilibiliResolvePreference'
 import { buildCliProxyUrl } from '@/modules/bilibili/cliApi'
 import {
   buildCacheKey,
@@ -106,7 +107,7 @@ export async function fetchBlobsForBufferMode(
     const resolved = await resolveBilibiliOnline(movie)
     signal?.throwIfAborted()
     if (session !== getEmbeddedProxyStatus().sessionVersion || useRoomStore.getState().roomId !== room || useRoomStore.getState().currentMovieId !== id || useRoomStore.getState().movies.find(m => m.id === id)?.cid !== movie.cid) throw new Error('缓冲取消：账号或影片已变化')
-    const proxy = movie.cliOnly || getBilibiliParseOptions(movie.id).cliEnabled ? getActiveCliProxyUrl() : null
+    const proxy = movie.cliOnly || getBilibiliParseOptions(movie.id).cliEnabled ? getActiveCliProxyUrl({ allowLoggedOut: getBilibiliResolveSource() === 'host' }) : null
     if (movie.cliOnly && !proxy) throw new Error('缓冲模式要求本机代理，请登录 B 站后重试')
     state = { ...state, ...resolved, sourceUrl: proxy ? buildCliProxyUrl(proxy, resolved.sourceUrl) : resolved.sourceUrl,
       audioUrl: resolved.audioUrl && proxy ? buildCliProxyUrl(proxy, resolved.audioUrl) : resolved.audioUrl }

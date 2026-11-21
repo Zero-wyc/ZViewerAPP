@@ -247,9 +247,28 @@ func (a *session) resolve(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(data)
 }
 
+// RegisterHostMedia accepts a pair returned by the authenticated room resolver.
+// Keep both signed strings intact so the player can request their exact URLs.
+func RegisterHostMedia(videoURL, audioURL string, version int) error {
+	agent.mu.Lock()
+	defer agent.mu.Unlock()
+	if agent.server == nil || version != agent.epoch {
+		return fmt.Errorf("代理会话已变化，请重新解析")
+	}
+	if !allowedCDN(videoURL) || (audioURL != "" && !allowedCDN(audioURL)) {
+		return fmt.Errorf("房主解析返回的媒体地址不受支持")
+	}
+	for _, target := range []string{videoURL, audioURL} {
+		if _, issued := agent.targets[target]; target != "" && !issued {
+			agent.targets[target] = nil
+		}
+	}
+	return nil
+}
+
 func allowedCDN(raw string) bool {
 	u, err := url.Parse(raw)
-	if err != nil || u.User != nil || (u.Scheme != "https" && u.Scheme != "http") {
+	if err != nil || u.User != nil || u.Fragment != "" || (u.Scheme != "https" && u.Scheme != "http") {
 		return false
 	}
 	h := strings.ToLower(u.Hostname())
