@@ -31,7 +31,6 @@ import {
   useSystemSettingsStore,
   canRoomViewerPerform,
 } from '@/store/systemSettingsStore'
-import { cn } from '@/lib/utils'
 import { getApiUrl } from '@/lib/api'
 import { getAddressScope } from '@/lib/netAddress'
 import { buildRoomShareUrl } from '../roomShareLink'
@@ -85,7 +84,6 @@ export function RoomInfoPanel({
   const { connected, socket } = useSocket()
   const viewers = useRoomStore((state) => state.viewers)
   const roomName = useRoomStore((state) => state.roomName)
-  const roomMode = useRoomStore((state) => state.mode)
   const roomSettings = useRoomStore((state) => state.roomSettings)
   const setRoomSettings = useRoomStore((state) => state.setRoomSettings)
   const moderators = useRoomStore((state) => state.moderators)
@@ -626,21 +624,8 @@ export function RoomInfoPanel({
         </div>
 
         {/* 卡片内容 */}
-        <div
-          className={cn(
-            'zen-scroll flex min-h-0 flex-1 gap-3 overflow-y-auto px-4 py-3',
-            roomMode === 'screen-share' && isHost ? 'flex-row' : 'flex-col'
-          )}
-        >
-          {/* 房间状态信息（左列 / 单列） */}
-          <div
-            className={cn(
-              'flex flex-col gap-3',
-              roomMode === 'screen-share' && isHost
-                ? 'min-w-[220px] flex-1'
-                : 'w-full'
-            )}
-          >
+        <div className="zen-scroll flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-3">
+          <div className="flex w-full flex-col gap-3">
             {/* 房间名称 */}
             <div className="flex flex-col gap-1">
               <Text
@@ -788,16 +773,9 @@ export function RoomInfoPanel({
             )}
           </div>
 
-          {/* 房主端在线观众列表（投屏模式为右列，其他模式为下方） */}
+          {/* 房主端在线观众列表 */}
           {isHost && (
-            <div
-              className={cn(
-                'flex min-h-0 flex-col gap-1.5',
-                roomMode === 'screen-share'
-                  ? 'min-w-[180px] flex-1 border-l border-[var(--glass-border)] pl-3'
-                  : 'flex-1'
-              )}
-            >
+            <div className="flex min-w-0 flex-col gap-1.5">
               <div className="flex items-center gap-1.5">
                 <Users
                   className="h-3.5 w-3.5"

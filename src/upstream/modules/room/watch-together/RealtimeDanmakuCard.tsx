@@ -407,73 +407,50 @@ export function RealtimeDanmakuCard() {
     [restoreTrackItem, removeDeletedLog]
   )
 
-  const renderEmpty = (minHeight?: string) => (
-    <div
-      className={cn(
-        'flex items-center justify-center',
-        minHeight ? '' : 'min-h-full'
-      )}
-      style={minHeight ? { minHeight } : undefined}
-    >
-      <Text type="secondary" className="text-xs">
-        暂无弹幕
-      </Text>
-    </div>
-  )
-
   return (
-    <div className="glass flex h-full min-h-0 min-w-0 flex-col gap-2 rounded-[var(--md-sys-shape-corner)] p-2">
-      <div className="flex shrink-0 items-center justify-between gap-2">
-        <Text className="text-xs font-medium">实时弹幕</Text>
-        <div className="flex items-center gap-2">
+    <section aria-label="实时弹幕" className="flex h-full min-h-0 min-w-0 flex-col gap-3">
+      {allDanmaku.length > 0 && (
+        <div className="flex shrink-0 items-center gap-2">
           <Text
             type="secondary"
-            className="shrink-0 truncate text-[10px]"
+            className="mr-auto shrink-0 truncate text-xs"
             title={`全部弹幕（高亮当前 ±${WINDOW_SIZE}s）`}
           >
-            {allDanmaku.length > 0
-              ? `${allDanmaku.length} 条`
-              : `高亮 ±${WINDOW_SIZE}s`}
+            {allDanmaku.length} 条弹幕
           </Text>
-          {allDanmaku.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-1.5 text-[10px]"
-              icon={<ListX className="h-3 w-3" />}
-              onClick={() => {
-                setManageTab(blockKeywords.length > 0 ? 'blocked' : 'deleted')
-                setManageModalOpen(true)
-              }}
-            >
-              管理
-            </Button>
-          )}
-          {allDanmaku.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-1.5 text-[10px]"
-              icon={<Maximize2 className="h-3 w-3" />}
-              onClick={() => setModalOpen(true)}
-            >
-              查看全部
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-1.5 text-[10px]"
+            icon={<ListX className="h-3 w-3" />}
+            onClick={() => {
+              setManageTab(blockKeywords.length > 0 ? 'blocked' : 'deleted')
+              setManageModalOpen(true)
+            }}
+          >
+            管理
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-1.5 text-[10px]"
+            icon={<Maximize2 className="h-3 w-3" />}
+            onClick={() => setModalOpen(true)}
+          >
+            查看全部
+          </Button>
         </div>
-      </div>
+      )}
 
       <div
         ref={listRef}
         onScroll={handleScroll}
-        className="h-full min-h-0 overflow-y-auto overflow-x-hidden rounded-[var(--md-sys-shape-corner)] border p-1.5"
-        style={{
-          backgroundColor: 'var(--glass-bg)',
-          borderColor: 'var(--md-sys-color-outline-variant)',
-        }}
+        className="zen-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
       >
         {allDanmaku.length === 0 ? (
-          renderEmpty()
+          <div className="flex min-h-full items-center justify-center">
+            <Text type="secondary" className="text-xs">暂无弹幕</Text>
+          </div>
         ) : (
           <div
             className="flex flex-col gap-0.5"
@@ -741,6 +718,6 @@ export function RealtimeDanmakuCard() {
           )}
         </div>
       </Modal>
-    </div>
+    </section>
   )
 }

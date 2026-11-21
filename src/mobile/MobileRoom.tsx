@@ -175,7 +175,7 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
     ? ['watch-together', 'screen-share', 'listen-together']
     : ['watch-together', 'listen-together']
   return (
-    <main ref={roomElement} className={`mobile-room ${music && ready ? 'mobile-room-music' : ''}`}>
+    <main ref={roomElement} data-room-mode={ready ? mode : undefined} className={`mobile-room ${music && ready ? 'mobile-room-music' : ''}`}>
       <header className="mobile-room-header">
         <button className="icon-button" aria-label="离开房间" title="离开房间" onClick={() => setLeaveOpen(true)}><ArrowLeft size={22} /></button>
         <div className="mobile-room-title"><strong>{name || roomId}</strong><span>{room.isHost ? '房主' : '观众'} · {music ? '一起听' : mode === 'screen-share' ? '屏幕共享' : '同步观影'}</span></div>

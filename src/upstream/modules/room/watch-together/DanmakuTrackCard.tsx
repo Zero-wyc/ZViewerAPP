@@ -175,13 +175,10 @@ export function DanmakuTrackCard() {
   }
 
   return (
-    <div className="glass flex h-full min-h-0 flex-col gap-3 rounded-[var(--md-sys-shape-corner)] p-3">
-      <div className="flex items-center justify-between">
-        <Text className="text-sm font-medium">弹幕轨道</Text>
-        <Text type="secondary" className="text-[10px]">
-          {tracks.length} 条轨道
-        </Text>
-      </div>
+    <section aria-label="弹幕轨道" className="flex h-full min-h-0 min-w-0 flex-col gap-3">
+      {tracks.length > 0 && (
+        <Text type="secondary" className="text-xs">{tracks.length} 条轨道</Text>
+      )}
 
       <div className="flex items-center gap-1.5">
         <Button
@@ -258,16 +255,7 @@ export function DanmakuTrackCard() {
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
         <div className="zen-scroll min-h-0 flex-1 overflow-y-auto pr-1">
           {tracks.length === 0 && (
-            <div
-              className="flex h-full min-h-[120px] flex-col items-center justify-center gap-2 rounded-[var(--md-sys-shape-corner)] border py-8"
-              style={{
-                backgroundColor: 'var(--glass-bg)',
-                borderColor: 'var(--md-sys-color-outline-variant)',
-              }}
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--glass-bg)]">
-                <Plus className="h-5 w-5 opacity-40" />
-              </div>
+            <div className="flex min-h-full items-center justify-center">
               <Text type="secondary" className="text-xs">
                 暂无弹幕轨道
               </Text>
@@ -451,6 +439,6 @@ export function DanmakuTrackCard() {
         onSourceChange={setDanmakuSource}
         initialKeyword={modalInitialKeyword}
       />
-    </div>
+    </section>
   )
 }

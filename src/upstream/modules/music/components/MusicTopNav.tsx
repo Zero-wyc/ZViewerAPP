@@ -418,7 +418,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
   const assistPanel = (
     <div
       className={cn(
-        'music-glass-text zen-dropdown-enter absolute z-[2001] px-3 pb-2 pt-[10px]',
+        'music-nav-popup music-glass-text zen-dropdown-enter absolute z-[2001] px-3 pb-2 pt-[10px]',
         isMobile
           ? 'left-3 right-3 top-[54px] w-auto'
           : 'left-0 top-[34px] w-[260px]'
@@ -438,7 +438,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
         <span
           key={`panel-corner-${pos}`}
           aria-hidden="true"
-          className={cn('pointer-events-none absolute h-[7px] w-[7px]', pos)}
+          className={cn('music-nav-corner pointer-events-none absolute h-[7px] w-[7px]', pos)}
           style={{ borderColor: 'var(--md-sys-color-on-surface)' }}
         />
       ))}
@@ -708,7 +708,10 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
               <button
                 ref={ncmButtonRef}
                 type="button"
-                onClick={() => setNcmMenuOpen((v) => !v)}
+                onClick={() => {
+                  setMenuOpen(false)
+                  setNcmMenuOpen((v) => !v)
+                }}
                 // 阻断外点关闭捕获层：保证按钮本身可正常开/关面板
                 onPointerDown={(e) => e.stopPropagation()}
                 className={cn(
@@ -739,7 +742,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
                   zen-dropdown-item 交错入场） */}
               {ncmMenuOpen && (
                 <div
-                  className="music-glass-text zen-dropdown-enter glass-strong absolute left-1/2 top-[calc(100%+10px)] z-[2001] ml-[-5.5rem] w-44 rounded-[var(--md-sys-shape-corner)] p-1.5 [transform-origin:top_center]"
+                  className="music-nav-popup music-glass-text zen-dropdown-enter glass-strong absolute left-1/2 top-[calc(100%+10px)] z-[2001] ml-[-5.5rem] w-44 rounded-[var(--md-sys-shape-corner)] p-1.5 [transform-origin:top_center]"
                   style={{
                     boxShadow:
                       '0 8px 24px -8px color-mix(in srgb, var(--md-sys-color-primary) 25%, transparent)',
@@ -752,7 +755,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
                       key={`ncm-corner-${pos}`}
                       aria-hidden="true"
                       className={cn(
-                        'pointer-events-none absolute h-[7px] w-[7px]',
+                        'music-nav-corner pointer-events-none absolute h-[7px] w-[7px]',
                         pos
                       )}
                       style={{
@@ -908,7 +911,13 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
             border:
               '1px solid color-mix(in srgb, var(--md-sys-color-on-surface) 40%, transparent)',
           }}
-          onClick={() => setMenuOpen((prev) => !prev)}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => {
+            setNcmMenuOpen(false)
+            setMenuOpen((prev) => !prev)
+          }}
           aria-label={loginStatus.loggedIn ? '账号菜单' : '账号登录'}
           title={loginStatus.loggedIn ? '账号菜单' : '账号登录'}
         >
@@ -930,7 +939,7 @@ export function MusicTopNav({ isHost, roomModeMenu }: MusicTopNavProps) {
             房间模式分组 → 设置 → 退出登录/账号登录 */}
         {menuOpen && (
           <div
-            className="music-glass-text zen-dropdown-enter glass-strong absolute right-0 top-11 z-[2001] w-52 rounded-[var(--md-sys-shape-corner)] p-1.5"
+            className="music-nav-popup music-glass-text zen-dropdown-enter glass-strong absolute right-0 top-11 z-[2001] w-52 rounded-[var(--md-sys-shape-corner)] p-1.5"
             style={{
               boxShadow:
                 '0 8px 24px -8px color-mix(in srgb, var(--md-sys-color-primary) 25%, transparent)',

@@ -96,6 +96,18 @@ html[data-mobile-appearance-theme] .mobile-room-settings-shortcuts > .bilibili-a
   .mobile-room:not(.mobile-room-music) .mobile-tab-panel { flex: 1; height: auto; min-height: 0; }
 }
 .app-shell-room .mobile-room-details { border: 0; border-radius: 0; }
+/* 玻璃面板延伸到手势区；将避让放在面板内侧，让输入框与片单都可完整操作。 */
+.app-shell-room .mobile-room[data-room-mode="watch-together"] { padding-bottom: 0; }
+.mobile-room[data-room-mode="watch-together"] .mobile-room-details {
+  padding-bottom: var(--app-safe-bottom);
+  border-radius: 0 0 var(--zv-r-card) var(--zv-r-card);
+  overflow: hidden;
+}
+@media (min-width: 900px), (orientation: landscape) and (max-height: 540px) {
+  .mobile-room[data-room-mode="watch-together"] .mobile-room-details {
+    height: calc(100dvh - var(--mobile-room-header-bottom, 64px));
+  }
+}
 .app-shell-room .mobile-room-header { border-bottom-color: var(--appearance-line); }
 
 /* 一级标签：滑动短指示条（MobileRoom 写入 --zv-tab-count / --zv-tab-index） */
@@ -251,6 +263,20 @@ html[data-mobile-appearance-theme] .music-app-shell .music-nav-icon {
   border-radius: 50%; background: var(--appearance-field); border: 1px solid var(--appearance-line);
 }
 
+/* 顶栏本身是模糊叠层。菜单打开时把整层抬到页面卡片、播放条和侧栏上方。 */
+html[data-mobile-appearance-theme] .music-top-nav:has(.music-nav-popup) { z-index: 50; }
+html[data-mobile-appearance-theme] .music-top-nav .music-nav-popup {
+  max-height: calc(100dvh - var(--mobile-room-header-bottom, 64px) - 80px - var(--app-safe-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--appearance-line);
+  border-radius: var(--zv-r-card);
+  background-color: var(--appearance-surface) !important;
+}
+html[data-mobile-appearance-theme] .music-nav-popup :is(button, .zen-dropdown-item) { border-radius: var(--zv-r-ctl); }
+html[data-mobile-appearance-theme] .music-nav-popup [aria-checked="true"] { background-color: var(--appearance-field); }
+html[data-mobile-appearance-theme] .music-nav-corner { display: none; }
+
 /* 内容区：整块 L1 玻璃（和一起看下方面板一致） */
 /* 只加底色不加 backdrop-filter：滤镜会让滚动容器变成 fixed 子元素的定位参照，
    B 站右下按钮组会跟着内容滚走 */
@@ -323,6 +349,40 @@ html[data-mobile-appearance-theme] .music-app-shell .music-widget-bar {
   box-shadow: 0 10px 30px rgba(0, 0, 0, .22);
 }
 html[data-mobile-appearance-theme] .music-app-shell .music-widget-cover { border-radius: var(--zv-r-chip); }
+
+/* 侧栏房间评论与播放器内的网易云 / B站曲目评论。 */
+html[data-mobile-appearance-theme] .music-side-dock .glass-card {
+  border: 0;
+  background: transparent;
+  padding: 6px;
+}
+html[data-mobile-appearance-theme] .music-side-dock :is(.glass-bg, .zen-comment-enter) { border-radius: var(--zv-r-ctl); }
+html[data-mobile-appearance-theme] .music-app-shell .arknights-comments {
+  --ac-ink: var(--appearance-text);
+  --ac-muted: var(--appearance-muted);
+  --ac-border: var(--appearance-text);
+  --ac-soft-bg: var(--appearance-field);
+  --ac-card-bg: var(--appearance-container);
+  --ac-ink-contrast: var(--appearance-surface);
+  background: var(--appearance-surface);
+  border-radius: var(--zv-r-card);
+  font-family: inherit;
+  padding: 14px;
+}
+.music-app-shell .arknights-comments :is(.ac-frame-corner, .ac-input-border, .ac-avatar-frame, .ac-reply-input-border) { display: none; }
+.music-app-shell .arknights-comments :is(.ac-header-frame, .ac-input-frame, .ac-prompt-frame, .ac-status-frame, .ac-comment-card, .ac-inline-reply-box) {
+  border: 1px solid var(--appearance-line);
+  border-radius: var(--zv-r-card);
+  background-color: var(--ac-card-bg);
+}
+.music-app-shell .arknights-comments :is(textarea, button, .ac-control-item, .ac-floor-panel) { border-radius: var(--zv-r-ctl); }
+.music-app-shell .arknights-comments textarea:focus-visible { outline: 2px solid var(--appearance-accent); }
+.music-app-shell .arknights-comments :is(.ac-user-avatar img, .ac-floor-avatar) { border-radius: 50%; }
+.music-app-shell .arknights-comments :is(.ac-submit-button, .ac-send-reply-btn, .ac-title-underline) {
+  background: var(--appearance-accent);
+  color: var(--appearance-accent-text);
+  border-radius: var(--zv-r-ctl);
+}
 
 /* B 站分区：标题区精简、标签换短指示条、视频卡整张做成 L2 卡片 */
 html[data-mobile-appearance-theme] .bili-page-eyebrow { display: none; }
