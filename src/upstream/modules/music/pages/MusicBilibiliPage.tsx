@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  Ellipsis,
   Shuffle,
   GripVertical,
   ListMusic,
@@ -893,6 +894,7 @@ export function MusicBilibiliPage({
    *  虚拟页打散随机取一批），且当页内容打乱顺序；翻页按钮 = 再随机一批。
    *  关闭后回到第 1 页顺序排列。切分类/搜索词变化时保持开关状态 */
   const [randomMode, setRandomMode] = useState(false)
+  const [toolsOpen, setToolsOpen] = useState(false)
   /** 搜索/分类路径（页码池 = SEARCH_MAX_PAGES 的 200 页虚拟页） */
   const searchLikeMode =
     biliSearchKeyword != null || (tab === 'region' && regionTag != null)
@@ -1768,7 +1770,7 @@ export function MusicBilibiliPage({
   return (
     <div className="flex min-h-full flex-col px-6 pb-32 pt-6 md:px-8 max-md:px-4 max-md:pb-[calc(112px+env(safe-area-inset-bottom))] max-md:pt-4">
       {/* 页头（PageBlockHeader 同范式）+ 子页切换 */}
-      <div className="flex items-center">
+      <div className="bili-page-eyebrow flex items-center">
         <span
           className="music-section-eyebrow mr-1.5 w-[20vw] min-w-[140px] shrink-0 py-px pl-1 text-[12px] font-bold uppercase tracking-widest max-md:w-auto max-md:min-w-0 max-md:pr-2"
           style={{
@@ -1789,7 +1791,7 @@ export function MusicBilibiliPage({
       </div>
       {/* Tab 行：标题 + 屏蔽词入口固定，栏目区单行横滑（移动端可滑动查看
           超出部分，隐藏滚动条；桌面同排自适应） */}
-      <div className="mt-2 flex items-center gap-5 max-md:mt-1.5 max-md:gap-x-3">
+      <div className="bili-page-tabs mt-2 flex items-center gap-5 max-md:mt-1.5 max-md:gap-x-3">
         <h3 className="shrink-0 text-2xl font-bold leading-relaxed text-[var(--md-sys-color-on-surface)] max-md:text-xl">
           哔哩哔哩
         </h3>
@@ -1822,7 +1824,7 @@ export function MusicBilibiliPage({
               {/* 激活下划线（与我的音乐页 Tab 同语言） */}
               <span
                 className={cn(
-                  'absolute inset-x-0 bottom-0 h-[2px] transition-opacity',
+                  'bili-tab-bar absolute inset-x-0 bottom-0 h-[2px] transition-opacity',
                   tab === key ? 'opacity-100' : 'opacity-0'
                 )}
                 style={{ backgroundColor: 'var(--md-sys-color-primary)' }}
@@ -2533,7 +2535,7 @@ export function MusicBilibiliPage({
                         void handlePlay(item)
                       }
                     }}
-                    className="group cursor-pointer text-left"
+                    className="bili-video-card group cursor-pointer text-left"
                     title="以视频音频作为歌曲播放"
                   >
                     {/* 封面（16:9，左上播放量 / 左下弹幕 / 右下时长，B站 客户端同款） */}
@@ -2730,9 +2732,11 @@ export function MusicBilibiliPage({
           跳转）/ 下一页 / 随机排序开关 / 刷新；统一 44px 圆形（bottom 避开
           底部悬浮播放条；分页控件与底部分页条同条件显示） */}
       <div
-        className="fixed right-5 z-20 flex flex-col items-center gap-2 max-md:right-4"
+        className="bili-fab-group fixed right-5 z-20 flex flex-col items-center gap-2 max-md:right-4"
+        data-open={toolsOpen}
         style={{ bottom: 'calc(104px + env(safe-area-inset-bottom))' }}
       >
+        <div className="bili-fab-items flex flex-col items-center gap-2" {...(toolsOpen ? {} : { inert: '' })}>
         {items.length > 0 && (pageNo > 1 || hasNextPage) && (
           <>
             <LiquidGlassButton
@@ -2828,6 +2832,16 @@ export function MusicBilibiliPage({
           <RefreshCw
             className={cn('h-[18px] w-[18px]', loading && 'animate-spin')}
           />
+        </LiquidGlassButton>
+        </div>
+        {/* 收起时只露一个按钮，平时不挡视频卡片 */}
+        <LiquidGlassButton
+          title={toolsOpen ? '收起工具' : '翻页、随机与刷新'}
+          ariaLabel={toolsOpen ? '收起工具' : '展开翻页、随机与刷新'}
+          active={toolsOpen}
+          onClick={() => setToolsOpen((v) => !v)}
+        >
+          {toolsOpen ? <X className="h-[18px] w-[18px]" /> : <Ellipsis className="h-[18px] w-[18px]" />}
         </LiquidGlassButton>
       </div>
 

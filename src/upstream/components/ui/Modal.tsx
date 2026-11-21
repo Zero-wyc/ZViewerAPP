@@ -1,10 +1,12 @@
 import { lockBodyScroll } from './bodyScrollLock'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Maximize, Minimize } from 'lucide-react'
 import { consumeOverlayBack, registerOverlayBack } from './overlayBack'
 import { cn } from '@/lib/utils'
 import { Button } from './Button'
+import { useIsMobile } from '@/hooks/useMediaQuery'
+import { useSheetDrag } from './useSheetDrag'
 
 const MODAL_ANIMATION_DURATION = 220
 
@@ -18,6 +20,7 @@ export interface ModalProps {
   className?: string
   container?: HTMLElement | null
   expandable?: boolean
+  variant?: 'dialog' | 'sheet'
   /** 保留关闭时的内容挂载，供需要持续监听房间事件的面板使用。 */
   keepMounted?: boolean
 }
@@ -32,12 +35,15 @@ export function Modal({
   className,
   container,
   expandable = false,
+  variant = 'dialog',
   keepMounted = false,
 }: ModalProps) {
+  const isMobile = useIsMobile()
+  const isSheet = variant === 'sheet' && isMobile
   const [expanded, setExpanded] = useState(false)
   const [viewport, setViewport] = useState(() => ({ height: window.visualViewport?.height ?? window.innerHeight, top: window.visualViewport?.offsetTop ?? 0 }))
   const backRef = useRef(() => {})
-  backRef.current = () => { if (expanded) setExpanded(false); else onClose() }
+  backRef.current = () => { if (expanded && !isSheet) setExpanded(false); else onClose() }
   useEffect(() => {
     if (!open) { setExpanded(false); return }
     return registerOverlayBack(() => backRef.current())
@@ -91,19 +97,56 @@ export function Modal({
     return () => document.removeEventListener('keydown', onKeyDown, true)
   }, [visible, onClose])
 
+  const panelRef = useRef<HTMLDivElement>(null)
+  const scrimRef = useRef<HTMLDivElement>(null)
+  const sheetDrag = useSheetDrag(panelRef, scrimRef, onClose, isSheet, open)
+  const titleId = useId()
+  // 抽屉打开时把焦点移进面板，关闭后还给打开它的按钮。
+  useEffect(() => {
+    if (!isSheet || !open || !visible) return
+    const opener = document.activeElement as HTMLElement | null
+    panelRef.current?.focus({ preventScroll: true })
+    return () => { if (opener?.isConnected) opener.focus({ preventScroll: true }) }
+  }, [isSheet, open, visible])
+
   if (!visible && !keepMounted) return null
+
+  const header = (
+    <div className={cn('flex shrink-0 flex-wrap items-start justify-between gap-2', isSheet && 'zv-sheet-header')}>
+      {title ? (
+        <h3 id={isSheet ? titleId : undefined} className="min-w-0 max-w-full flex-[0_1_auto] break-words text-lg font-semibold text-[var(--md-sys-color-on-surface)]">
+          {title}
+        </h3>
+      ) : (
+        <span />
+      )}
+      <div className="ml-auto flex max-w-full shrink-0 flex-wrap items-center gap-2">
+        {headerActions}
+        {!isSheet && expandable && <button type="button" aria-label={expanded ? '退出面板全屏' : '面板全屏'} onClick={() => setExpanded(value => !value)} className="rounded p-2 text-[var(--md-sys-color-on-surface-variant)]">{expanded ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}</button>}
+        <button
+          aria-label="关闭面板"
+          onClick={onClose}
+          className="rounded-[var(--md-sys-shape-corner)] p-1 text-[var(--md-sys-color-on-surface-variant)] transition-all hover:bg-[var(--md-sys-color-surface-container)] hover:text-[var(--md-sys-color-on-surface)] hover:scale-110 active:scale-95"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  )
 
   return createPortal(
     <div
-      className="secondary-panel fixed inset-x-0 flex items-center justify-center"
-      style={{ display: visible ? undefined : 'none', zIndex: 999, top: viewport.top, height: viewport.height, padding: 'max(8px, var(--app-safe-top, 0px)) max(8px, var(--app-safe-right, 0px)) max(8px, var(--app-safe-bottom, 0px)) max(8px, var(--app-safe-left, 0px))', transform: 'translateZ(0)' }}
+      className={isSheet ? 'secondary-panel fixed inset-x-0 flex items-end justify-center zv-sheet-layer' : 'secondary-panel fixed inset-x-0 flex items-center justify-center'}
+      style={{ display: visible ? undefined : 'none', zIndex: 999, top: viewport.top, height: viewport.height, padding: isSheet ? 'max(8px, var(--app-safe-top, 0px)) 0 0' : 'max(8px, var(--app-safe-top, 0px)) max(8px, var(--app-safe-right, 0px)) max(8px, var(--app-safe-bottom, 0px)) max(8px, var(--app-safe-left, 0px))', transform: 'translateZ(0)' }}
       // 阻止滚轮事件冒泡到 document，防止触发底层页面滚动
       onWheel={(e) => e.stopPropagation()}
     >
       <div
+        ref={scrimRef}
         className={cn(
           'absolute inset-0 bg-black/40',
-          exiting ? 'zen-modal-backdrop-exit' : 'zen-modal-backdrop-enter'
+          exiting ? 'zen-modal-backdrop-exit' : 'zen-modal-backdrop-enter',
+          isSheet && 'zv-sheet-scrim'
         )}
         style={{
           // 蒙层模糊度跟随主题设置（取 glass-blur 的 40%，避免大模糊度时背景过度模糊）
@@ -114,40 +157,32 @@ export function Modal({
         aria-hidden="true"
       />
       <div
-        className={cn(
+        ref={panelRef}
+        role={isSheet ? 'dialog' : undefined}
+        aria-modal={isSheet ? true : undefined}
+        aria-labelledby={isSheet && title ? titleId : undefined}
+        tabIndex={isSheet ? -1 : undefined}
+        data-state={isSheet ? (open ? 'open' : 'closing') : undefined}
+        className={isSheet ? cn('zv-sheet', className) : cn(
           'glass-strong relative z-10 flex w-full max-w-md flex-col overflow-hidden rounded-[var(--md-sys-shape-corner)] p-6 shadow-lg',
           exiting ? 'zen-modal-content-exit' : 'zen-modal-content-enter',
           className,
           expanded && '!h-full !max-w-none'
         )}
-        style={{
+        style={isSheet ? undefined : {
           maxHeight: '100%',
           boxShadow:
             '0 8px 24px -8px color-mix(in srgb, var(--md-sys-color-primary) 25%, transparent)',
         }}
       >
-        <div className="flex shrink-0 flex-wrap items-start justify-between gap-2">
-          {title ? (
-            <h3 className="min-w-0 max-w-full flex-[0_1_auto] break-words text-lg font-semibold text-[var(--md-sys-color-on-surface)]">
-              {title}
-            </h3>
-          ) : (
-            <span />
-          )}
-          <div className="ml-auto flex max-w-full shrink-0 flex-wrap items-center gap-2">
-          {headerActions}
-          {expandable && <button type="button" aria-label={expanded ? '退出面板全屏' : '面板全屏'} onClick={() => setExpanded(value => !value)} className="rounded p-2 text-[var(--md-sys-color-on-surface-variant)]">{expanded ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}</button>}
-          <button
-            aria-label="关闭面板"
-            onClick={onClose}
-            className="rounded-[var(--md-sys-shape-corner)] p-1 text-[var(--md-sys-color-on-surface-variant)] transition-all hover:bg-[var(--md-sys-color-surface-container)] hover:text-[var(--md-sys-color-on-surface)] hover:scale-110 active:scale-95"
-          >
-            <X className="h-4 w-4" />
-          </button>
+        {isSheet ? (
+          <div className="zv-sheet-drag" {...sheetDrag}>
+            <div className="zv-sheet-grab" aria-hidden="true" />
+            {header}
           </div>
-        </div>
+        ) : header}
         {/* 内容超出可用高度（小屏）时出滚动条，而不是被裁掉 */}
-        <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-y-auto text-sm text-[var(--md-sys-color-on-surface-variant)]">
+        <div className={cn(isSheet ? 'zv-sheet-body' : 'mt-4', 'flex min-h-0 flex-1 flex-col overflow-y-auto text-sm text-[var(--md-sys-color-on-surface-variant)]')}>
           {children}
         </div>
         {footer && (

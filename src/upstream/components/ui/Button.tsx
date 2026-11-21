@@ -75,7 +75,7 @@ export function Button({
   }
 
   const baseStyles =
-    'inline-flex items-center justify-center gap-2 rounded-[var(--md-sys-shape-corner)] font-medium focus:outline-none focus:ring-2 focus:ring-[var(--md-sys-color-primary)] focus:ring-offset-1 focus:ring-offset-[var(--md-sys-color-surface)] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none'
+    'inline-flex items-center justify-center gap-2 rounded-[var(--md-sys-radius-medium)] font-medium focus:outline-none focus:ring-2 focus:ring-[var(--md-sys-color-primary)] focus:ring-offset-1 focus:ring-offset-[var(--md-sys-color-surface)] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none'
 
   const variants = {
     primary: {

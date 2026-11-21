@@ -50,7 +50,7 @@ export function SegmentedToggle({
     <div
       ref={containerRef}
       className={cn(
-        'glass-strong relative flex items-center gap-1 rounded-full p-1 shadow-lg',
+        'zv-seg glass-strong relative flex items-center gap-1 rounded-full p-1 shadow-lg',
         'border border-[var(--md-sys-color-outline)] ring-1 ring-[var(--md-sys-color-outline-variant)]/40',
         disabled && 'pointer-events-none opacity-50',
         className
@@ -60,7 +60,7 @@ export function SegmentedToggle({
     >
       {/* 滑动指示器（带光晕） */}
       <div
-        className="absolute top-1 bottom-1 rounded-full transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] shadow-md ring-1 ring-[var(--md-sys-color-outline-variant)]"
+        className="zv-seg-ind absolute top-1 bottom-1 rounded-full transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] shadow-md ring-1 ring-[var(--md-sys-color-outline-variant)]"
         style={{
           left: indicatorStyle.left,
           width: indicatorStyle.width,
@@ -81,7 +81,7 @@ export function SegmentedToggle({
             disabled={disabled || isActive}
             aria-pressed={isActive}
             className={cn(
-              'relative z-10 rounded-full px-4 py-1.5 text-xs font-medium transition-all duration-300',
+              'zv-seg-btn relative z-10 rounded-full px-4 py-1.5 text-xs font-medium transition-all duration-300',
               isActive
                 ? 'text-[var(--md-sys-color-on-primary)]'
                 : 'text-[var(--md-sys-color-on-surface-variant)] hover:text-[var(--md-sys-color-on-surface)] hover:bg-[var(--md-sys-color-surface-container-high)]/50 hover:scale-105'

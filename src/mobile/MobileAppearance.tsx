@@ -1,8 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { Check, ImagePlus, Palette, RotateCcw, X } from 'lucide-react'
-import { radiusPresetToPx, RADIUS_PRESETS, useThemeStore } from '@/store/themeStore'
+import { RADIUS_PRESETS, useThemeStore, type RadiusPreset } from '@/store/themeStore'
 import { setSystemBarStyle } from '../platform/playerDisplay'
+
+/** 圆角阶梯：标签 / 控件 / 卡片 / 抽屉，跟随外观设置里的圆角档位。 */
+const RADIUS_LADDER: Record<RadiusPreset, [number, number, number, number]> = {
+  none: [0, 0, 0, 0],
+  small: [6, 8, 10, 16],
+  medium: [8, 12, 16, 24],
+  large: [12, 16, 22, 30],
+}
 
 const DEFAULT_WALLPAPER = `${import.meta.env.BASE_URL}Nacho3.jpg`
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024
@@ -52,7 +60,11 @@ export function MobileAppearance({ children, global = false, room = false }: {
   const isDark = theme.mode === 'auto' ? systemDark : theme.isDark
   useEffect(() => { if (global) void setSystemBarStyle(isDark).catch(() => {}) }, [global, isDark])
   const appearance = {
-    '--appearance-radius': `${radiusPresetToPx(theme.radius)}px`,
+    '--appearance-radius': `${(RADIUS_LADDER[theme.radius] ?? RADIUS_LADDER.medium)[2]}px`,
+    '--zv-r-chip': `${(RADIUS_LADDER[theme.radius] ?? RADIUS_LADDER.medium)[0]}px`,
+    '--zv-r-ctl': `${(RADIUS_LADDER[theme.radius] ?? RADIUS_LADDER.medium)[1]}px`,
+    '--zv-r-card': `${(RADIUS_LADDER[theme.radius] ?? RADIUS_LADDER.medium)[2]}px`,
+    '--zv-r-sheet': `${(RADIUS_LADDER[theme.radius] ?? RADIUS_LADDER.medium)[3]}px`,
     '--appearance-glass': isDark
       ? `rgba(19, 27, 37, ${Math.max(.2, theme.glassStrength)})`
       : `rgba(247, 249, 255, ${Math.max(.2, theme.glassStrength)})`,

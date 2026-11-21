@@ -7,6 +7,7 @@ import './upstream/index.css'
 import './styles.css'
 import './mobile/mobile.css'
 import './mobile/appearance.css'
+import './mobile/design.css'
 
 useAuthStore.setState({ autoLoginStatus: 'idle', authResolved: false })
 

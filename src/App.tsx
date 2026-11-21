@@ -587,6 +587,13 @@ export default function App() {
             </button>
           </div>
 
+          {session?.user.role !== 'guest' && !canCreateRoom && (
+            <div className="permission-note">服务器当前仅允许管理员创建房间，请在后台开启“所有用户”权限。</div>
+          )}
+
+          {error && <div className="error-banner room-error">{error}</div>}
+
+          <div className="rooms-group">
           <div className="rooms-heading">
             <div>
               <span className="eyebrow">在线放映室</span>
@@ -608,12 +615,6 @@ export default function App() {
               <span className="room-count">{rooms.length}</span>
             </div>
           </div>
-
-          {session?.user.role !== 'guest' && !canCreateRoom && (
-            <div className="permission-note">服务器当前仅允许管理员创建房间，请在后台开启“所有用户”权限。</div>
-          )}
-
-          {error && <div className="error-banner room-error">{error}</div>}
 
           <div className="room-list">
             {roomsLoading && rooms.length === 0 ? (
@@ -647,6 +648,7 @@ export default function App() {
                 </button>
               ))
             )}
+          </div>
           </div>
 
         </section>

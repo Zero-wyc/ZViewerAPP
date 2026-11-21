@@ -17,6 +17,7 @@ import { Modal } from '@/components/ui/Modal'
 import { message } from '@/components/ui/message'
 import { useSocket } from '@/hooks/useSocket'
 import { useFullMediaNames } from '@/hooks/useFullMediaNames'
+import { usePresenceList } from '@/hooks/usePresenceList'
 import { useRoomStore, type Movie } from '@/store/roomStore'
 import {
   resolveBilibiliWithOptions,
@@ -186,6 +187,9 @@ export function MovieListPanel({
     const keyword = search.trim().toLowerCase()
     return movies.filter((m) => m.title.toLowerCase().includes(keyword))
   }, [movies, search])
+
+  const moviePresence = usePresenceList(movies, (movie) => movie.id)
+  const filteredMoviePresence = usePresenceList(filteredMovies, (movie) => movie.id)
 
   const handlePlay = (movieId: number) => {
     if (!isHost && !canManage) {
@@ -774,30 +778,15 @@ export function MovieListPanel({
           scrollbar-gutter:stable 占右侧 10px，pl-2.5 补左侧 10px，
           使视频卡片左右距面板边缘宽度一致 */}
       <div className="movie-list-scroll min-h-[120px] min-w-0 flex-1 overflow-y-auto rounded-[var(--md-sys-shape-corner)] pl-2.5">
-        {(expanded ? filteredMovies : movies).length === 0 && (
-          <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-            <div
-              className="flex h-10 w-10 items-center justify-center rounded-full"
-              style={{
-                backgroundColor: 'var(--glass-bg)',
-              }}
-            >
-              <Film
-                className="h-5 w-5 opacity-40"
-                style={{ color: 'var(--md-sys-color-on-surface-variant)' }}
-              />
-            </div>
-            <Paragraph type="secondary" className="m-0 text-xs">
-              {search ? '未找到匹配的影片' : '暂无影片，请在右侧添加'}
-            </Paragraph>
-          </div>
-        )}
-        <div className="flex flex-col gap-1.5">
-          {(expanded ? filteredMovies : movies).map((movie, idx) => {
-            const isActive = movie.id === currentMovieId
-            return (
+        <div className="flex flex-col">
+          {(expanded ? filteredMoviePresence : moviePresence).map(({ item: movie, key, state }, idx) => {
+            const isExiting = state === 'exiting'
+            const isActive = !isExiting && movie.id === currentMovieId
+            const row = (
               <div
-                key={movie.id}
+                {...(state === 'exiting' ? { inert: '' } : {})}
+                // Select 的 portal 不在 inert 的 DOM 子树内。
+                onClickCapture={isExiting ? (event) => event.stopPropagation() : undefined}
                 className={cn(
                   'zen-item-enter rounded-[var(--md-sys-shape-corner)] border p-2.5 transition-all',
                   isActive
@@ -973,8 +962,8 @@ export function MovieListPanel({
                   )}
                 </div>
                 {expanded && orderOpen && canSort && !isScreenShare && !search.trim() && <div className="flex items-center justify-end gap-2">
-                  <Button size="sm" variant="secondary" icon={<ArrowUp className="h-4 w-4" />} disabled={sorting || movies[0]?.id === movie.id} onClick={() => void moveMovie(movie.id, -1)}>上移</Button>
-                  <Button size="sm" variant="secondary" icon={<ArrowDown className="h-4 w-4" />} disabled={sorting || movies[movies.length - 1]?.id === movie.id} onClick={() => void moveMovie(movie.id, 1)}>下移</Button>
+                  <Button size="sm" variant="secondary" icon={<ArrowUp className="h-4 w-4" />} disabled={isExiting || sorting || movies[0]?.id === movie.id} onClick={() => void moveMovie(movie.id, -1)}>上移</Button>
+                  <Button size="sm" variant="secondary" icon={<ArrowDown className="h-4 w-4" />} disabled={isExiting || sorting || movies[movies.length - 1]?.id === movie.id} onClick={() => void moveMovie(movie.id, 1)}>下移</Button>
                 </div>}
                 {movie.sourceType !== 'bilibili' && !isScreenShare && <MovieRuntimeSettings movie={movie} isHost={isHost} />}
                 {/* B站解析设置：每个 B站 影片独享一份配置；房主可操作，观众可查看并独立开启 CLI 代理 */}
@@ -983,8 +972,31 @@ export function MovieListPanel({
                 )}
               </div>
             )
+            return (
+              <div key={key} className="zv-presence" data-state={state}>
+                <div className="zv-presence-inner pb-1.5">{row}</div>
+              </div>
+            )
           })}
         </div>
+        {(expanded ? filteredMovies : movies).length === 0 && (
+          <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+            <div
+              className="flex h-10 w-10 items-center justify-center rounded-full"
+              style={{
+                backgroundColor: 'var(--glass-bg)',
+              }}
+            >
+              <Film
+                className="h-5 w-5 opacity-40"
+                style={{ color: 'var(--md-sys-color-on-surface-variant)' }}
+              />
+            </div>
+            <Paragraph type="secondary" className="m-0 text-xs">
+              {search ? '未找到匹配的影片' : '暂无影片，请在右侧添加'}
+            </Paragraph>
+          </div>
+        )}
       </div>
     </>
   )

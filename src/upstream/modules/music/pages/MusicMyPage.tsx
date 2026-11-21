@@ -842,7 +842,7 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
         {isMobile && (
           <div className="flex h-11 shrink-0 items-center">
             <button type="button" onClick={() => setDetail(null)}
-              className="flex min-h-11 items-center gap-1 text-xs font-bold text-[var(--md-sys-color-on-surface)] transition-opacity active:opacity-60"
+              className="music-back-button flex min-h-11 items-center gap-1 text-xs font-bold text-[var(--md-sys-color-on-surface)] transition-opacity active:opacity-60"
               title="返回歌单列表">
               <svg viewBox="0 0 1024 1024" className="h-3 w-3" aria-hidden="true">
                 <path d="M716.608 1010.112L218.88 512.384 717.376 13.888l45.248 45.248-453.248 453.248 452.48 452.48z" fill="currentColor" />
@@ -976,22 +976,19 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
               </span>
             </button>
             <div
-              className="h-px min-w-4 flex-1"
+              className="music-library-play-line h-px min-w-4 flex-1"
               style={{
                 backgroundColor:
                   'color-mix(in srgb, var(--md-sys-color-on-surface) 35%, transparent)',
               }}
             />
-            <span className="ml-1 text-[8px] font-bold tracking-widest text-[var(--md-sys-color-on-surface-variant)]">
-              全部歌曲
-            </span>
           </div>
         </div>
 
         {/* ===== 歌曲列表（内滚，scrollbar-gutter stable 防宽度抖动） ===== */}
         <div
           ref={listScrollRef}
-          className="zen-scroll min-h-0 flex-1 overflow-y-auto pt-3 max-md:pt-1"
+          className="music-library-songs zen-scroll min-h-0 flex-1 overflow-y-auto pt-3 max-md:pt-1"
           style={{ scrollbarGutter: 'stable' }}
         >
           {detailLoading && (
@@ -1140,8 +1137,8 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
       >
         {/* 双层 Tab（Hydrogen LibraryType：一级 16px 加粗 + 3px 黑色激活条 +
             0.5px 细分隔线；二级 12px 随一级切换） */}
-        <div className="shrink-0 pt-2.5">
-          <div className="flex items-end gap-5 px-1 pb-1 text-base font-bold leading-none">
+        <div className="music-library-tabs shrink-0 pt-2.5">
+          <div className="music-library-type1 flex items-end gap-5 px-1 pb-1 text-base font-bold leading-none">
             {TYPE_ONE.map((label, i) => (
               <button
                 key={label}
@@ -1159,7 +1156,7 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
                 <span
                   aria-hidden="true"
                   className={cn(
-                    'absolute inset-x-0 bottom-0 h-[3px] transition-all duration-300',
+                    'music-library-bar absolute inset-x-0 bottom-0 h-[3px] transition-all duration-300',
                     listType1 === i ? 'w-full opacity-100' : 'w-0 opacity-0'
                   )}
                   style={{ backgroundColor: 'var(--md-sys-color-on-surface)' }}
@@ -1169,19 +1166,20 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
           </div>
           {/* 0.5px 细分隔线（Hydrogen tracker-line） */}
           <div
-            className="h-px w-full"
+            className="music-library-divider h-px w-full"
             style={{
               backgroundColor:
                 'color-mix(in srgb, var(--md-sys-color-on-surface) 35%, transparent)',
             }}
           />
           {/* 二级子 Tab */}
-          <div className="mt-1 flex items-center gap-2.5 px-1 text-xs font-bold">
+          <div className="music-library-type2 mt-1 flex items-center gap-2.5 px-1 text-xs font-bold">
             {(TYPE_TWO[listType1] ?? []).map((label, i) => (
               <button
                 key={label}
                 type="button"
                 onClick={() => setListType2(i)}
+                aria-pressed={listType2 === i}
                 className={cn(
                   'whitespace-nowrap transition-colors duration-200',
                   listType2 === i
@@ -1198,7 +1196,7 @@ export function MusicMyPage({ socket, roomId, canManage }: MusicMyPageProps) {
         {/* 列表区（Hydrogen .library-list：flex-1 内滚；scrollbar-gutter
             stable 固定滚动条占位，杜绝数据加载后滚动条出现引起的宽度抖动） */}
         <div
-          className="zen-scroll mt-1 min-h-0 flex-1 overflow-y-auto pb-[15px] pt-1"
+          className="music-library-list zen-scroll mt-1 min-h-0 flex-1 overflow-y-auto pb-[15px] pt-1"
           style={{ scrollbarGutter: 'stable' }}
         >
           {/* ===== 歌单（我创建的 / 我收藏的） ===== */}
@@ -1402,7 +1400,7 @@ function LibraryItem({
           onClick()
         }
       }}
-      className="group relative flex cursor-pointer items-center overflow-hidden p-2"
+      className="music-library-item group relative flex cursor-pointer items-center overflow-hidden p-2"
       aria-selected={selected}
     >
       {/* 滑入背景层（hover 延迟 0.2s，1s cubic-bezier(0.22,0.61,0.36,1)；选中常驻） */}

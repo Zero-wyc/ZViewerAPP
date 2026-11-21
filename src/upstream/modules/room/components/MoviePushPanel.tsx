@@ -2043,7 +2043,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
 
   return (
     <>
-      <div className="glass-card zen-card flex h-full min-w-0 flex-col overflow-hidden rounded-[var(--md-sys-shape-corner)]">
+      <div className="movie-push-card glass-card zen-card flex h-full min-w-0 flex-col overflow-hidden rounded-[var(--md-sys-shape-corner)]">
         {/* 卡片头部：图标 + 标题 */}
         <div className="flex items-center gap-2.5 border-b border-[var(--glass-border)] px-4 py-3">
           <div

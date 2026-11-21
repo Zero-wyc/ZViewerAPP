@@ -1,5 +1,5 @@
 import { usePosterRefresh } from '@/hooks/usePosterRefresh'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ArrowLeft, Cast, Check, Film, Headphones, MessageCircle, MonitorPlay, Music2, Palette, Plus, RefreshCw, UsersRound, WifiOff, X } from 'lucide-react'
 import { useSocket, reconnectSocket } from '@/hooks/useSocket'
@@ -171,6 +171,9 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
   }
   const music = mode === 'listen-together'
   const ready = room.phase === 'ready'
+  const modeOptions = screenShareCapability?.video
+    ? ['watch-together', 'screen-share', 'listen-together']
+    : ['watch-together', 'listen-together']
   return (
     <main ref={roomElement} className={`mobile-room ${music && ready ? 'mobile-room-music' : ''}`}>
       <header className="mobile-room-header">
@@ -223,12 +226,12 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
                   isWebFullscreen={fullscreen} onToggleWebFullscreen={() => setFullscreen(value => !value)} initialPlayback={playerKey === 'init' ? room.playback : null} />}
           </div></div>
           <section className="mobile-room-details">
-            <nav className="mobile-room-tabs" aria-label="房间面板">
+            <nav className="mobile-room-tabs" aria-label="房间面板" style={{ '--zv-tab-count': mode === 'watch-together' ? 2 : 1, '--zv-tab-index': tab === 'movies' && mode === 'watch-together' ? 1 : 0 } as CSSProperties}>
               <button aria-selected={tab === 'chat'} onClick={() => setTab('chat')}><MessageCircle size={18} />聊天</button>
               {mode === 'watch-together' && <button aria-selected={tab === 'movies'} onClick={() => setTab('movies')}><Film size={18} />片单</button>}
             </nav>
-            <div className="mobile-tab-panel" hidden={tab !== 'chat'}><CommentPanel socket={socket} roomId={roomId} commentsOnly={mode === 'screen-share'} /></div>
-            {mode === 'watch-together' && <div className="mobile-tab-panel" hidden={tab !== 'movies'}>
+            <div className="mobile-tab-panel" data-tab="chat" hidden={tab !== 'chat'}><CommentPanel socket={socket} roomId={roomId} commentsOnly={mode === 'screen-share'} /></div>
+            {mode === 'watch-together' && <div className="mobile-tab-panel" data-tab="movies" hidden={tab !== 'movies'}>
               {(canAdd || room.isHost) && <div className="mobile-panel-actions"><AutoContinueToggle isHost={room.isHost} />{canAdd && <button className="mobile-text-button ml-auto" onClick={() => setAddOpen(true)}><Plus size={18} />添加影片</button>}</div>}
               <MovieListPanel isHost={room.isHost} canManage={canManage} />
             </div>}
@@ -241,9 +244,9 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
           canManageVoice={room.isHost || permissions.isModerator} onConnectionChange={setVoiceJoined}
           onAudioSessionChange={setVoiceAudioActive} />
       </section>}
-      <Modal open={addOpen} title="添加影片" onClose={() => setAddOpen(false)} footer={null}><MoviePushPanel isHost={canAdd} /></Modal>
-      <Modal keepMounted open={settingsOpen} title="房间" onClose={() => setSettingsOpen(false)} footer={null}>
-        {ready && room.isHost && <div className="mobile-mode-switch" role="group" aria-label="房间模式">
+      <Modal variant="sheet" open={addOpen} title="添加影片" onClose={() => setAddOpen(false)} footer={null}><MoviePushPanel isHost={canAdd} /></Modal>
+      <Modal variant="sheet" keepMounted open={settingsOpen} title="房间" onClose={() => setSettingsOpen(false)} footer={null}>
+        {ready && room.isHost && <div className="mobile-mode-switch" role="group" aria-label="房间模式" data-unlisted={!modeOptions.includes(mode) || undefined} style={{ '--zv-tab-count': modeOptions.length, '--zv-tab-index': Math.max(0, modeOptions.indexOf(mode)) } as CSSProperties}>
           <button aria-pressed={mode === 'watch-together'} disabled={isModeSwitching || !connected} onClick={() => handleSwitchMode('watch-together')}><MonitorPlay size={18} />一起看</button>
           {screenShareCapability?.video && <button aria-pressed={mode === 'screen-share'} disabled={isModeSwitching || !connected} onClick={() => handleSwitchMode('screen-share')}><Cast size={18} />投屏</button>}
           <button aria-pressed={mode === 'listen-together'} disabled={isModeSwitching || !connected} onClick={() => handleSwitchMode('listen-together')}><Music2 size={18} />一起听</button>

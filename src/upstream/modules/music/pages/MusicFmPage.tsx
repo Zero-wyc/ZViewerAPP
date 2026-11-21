@@ -670,7 +670,7 @@ export function MusicFmPage({ roomId, isHost }: MusicFmPageProps) {
           手机端内边距 34px 收窄为 16px） ===== */}
       <div
         className={cn(
-          'relative w-full max-w-[900px] overflow-hidden px-[34px] pb-6 pt-6 max-md:px-4',
+          'music-fm-card relative w-full max-w-[900px] overflow-hidden px-[34px] pb-6 pt-6 max-md:px-4',
           'min-h-[max(650px,calc(100vh-64px-140px))]'
         )}
         style={{

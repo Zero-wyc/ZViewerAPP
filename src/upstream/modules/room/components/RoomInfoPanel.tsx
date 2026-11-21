@@ -15,7 +15,6 @@ import {
   Shield,
   Lock,
   UserCheck,
-  Zap,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Space } from '@/components/ui/Space'
@@ -23,6 +22,7 @@ import { Text, Paragraph } from '@/components/ui/Typography'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { SegmentedToggle } from '@/components/ui/SegmentedToggle'
+import { Switch } from '@/components/ui/Switch'
 import { message } from '@/components/ui/message'
 import { useSocket } from '@/hooks/useSocket'
 import { useRoomStore } from '@/store/roomStore'
@@ -758,12 +758,16 @@ export function RoomInfoPanel({
                   设置
                 </Button>
               )}
-              {isHost && (
-                <Button
-                  variant={autoApproveRequests ? 'primary' : 'secondary'}
-                  size="sm"
-                  icon={<Zap className="h-3.5 w-3.5" />}
-                  onClick={() => {
+            </div>
+            {isHost && (
+              <div className="zv-toggle-rows">
+                <Switch
+                  role="switch"
+                  className="zv-toggle-row"
+                  label="自动通过申请"
+                  title="开启后，seek / 暂停 / 继续播放 申请将自动通过"
+                  checked={autoApproveRequests}
+                  onChange={() => {
                     toggleAutoApproveRequests()
                     message.info(
                       autoApproveRequests
@@ -771,27 +775,17 @@ export function RoomInfoPanel({
                         : '已开启自动通过申请'
                     )
                   }}
-                  title="开启后，seek / 暂停 / 继续播放 申请将自动通过"
-                >
-                  {autoApproveRequests ? '自动通过：开' : '自动通过：关'}
-                </Button>
-              )}
-              {isHost && (
-                <Button
-                  variant={
-                    roomSettings.requireApproval ? 'primary' : 'secondary'
-                  }
-                  size="sm"
-                  icon={<Shield className="h-3.5 w-3.5" />}
-                  onClick={handleToggleRequireApproval}
+                />
+                <Switch
+                  role="switch"
+                  className="zv-toggle-row"
+                  label="入房需要审批"
                   title="开启后，观众加入需房主审批"
-                >
-                  {roomSettings.requireApproval
-                    ? '需要审批：开'
-                    : '需要审批：关'}
-                </Button>
-              )}
-            </div>
+                  checked={roomSettings.requireApproval}
+                  onChange={handleToggleRequireApproval}
+                />
+              </div>
+            )}
           </div>
 
           {/* 房主端在线观众列表（投屏模式为右列，其他模式为下方） */}

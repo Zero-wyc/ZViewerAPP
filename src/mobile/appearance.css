@@ -76,7 +76,7 @@ html[data-mobile-appearance-theme="light"] {
 .app-shell .brand-mark {
   background: var(--appearance-accent);
   color: var(--appearance-accent-text);
-  border-radius: var(--appearance-radius);
+  border-radius: var(--zv-r-ctl, 12px);
 }
 .app-shell .brand-subtitle,
 .app-shell .server-summary small,
@@ -115,7 +115,7 @@ html[data-mobile-appearance-theme="light"] {
 .app-shell .room-mode-grid button,
 .app-shell .approval-row {
   border-color: var(--appearance-line);
-  border-radius: var(--appearance-radius);
+  border-radius: var(--zv-r-ctl, 12px);
   background: var(--appearance-field);
   color: var(--appearance-muted);
 }
@@ -124,7 +124,7 @@ html[data-mobile-appearance-theme="light"] {
 .app-shell .mode-switch button.active,
 .app-shell .room-mode-grid button.active { background: var(--appearance-accent); color: var(--appearance-accent-text); }
 .app-shell .primary-button,
-.app-shell .create-room-button { border-radius: var(--appearance-radius); background: var(--appearance-accent); color: var(--appearance-accent-text); }
+.app-shell .create-room-button { border-radius: var(--zv-r-ctl, 12px); background: var(--appearance-accent); color: var(--appearance-accent-text); }
 .app-shell .guest-note,
 .app-shell .permission-note { border-radius: var(--appearance-radius); background: var(--appearance-glass); color: var(--appearance-text); }
 .app-shell .guest-note { border-color: var(--appearance-accent); }
@@ -133,11 +133,11 @@ html[data-mobile-appearance-theme="light"] {
 .app-shell .mode-switch button { color: var(--appearance-muted); }
 .app-shell .error-banner { color: var(--appearance-error); background: var(--appearance-field); border-color: var(--appearance-error); }
 .app-shell .create-room-button:disabled { color: var(--appearance-muted); background: var(--appearance-container); border-color: var(--appearance-line); }
-.app-shell .room-status { border-radius: var(--appearance-radius); }
+.app-shell .room-status { border-radius: var(--zv-r-ctl, 12px); }
 .app-shell .room-status.online { color: var(--appearance-accent); background: var(--appearance-container); }
 .app-shell .rooms-toolbar { border-color: var(--appearance-line); }
 .app-shell .sheet-backdrop { background: rgba(8, 15, 25, .58); }
-.app-shell .create-sheet { border-radius: var(--appearance-radius) var(--appearance-radius) 0 0; }
+.app-shell .create-sheet { border-radius: var(--zv-r-sheet, 24px) var(--zv-r-sheet, 24px) 0 0; }
 .app-shell .create-sheet .icon-button { color: var(--appearance-text); }
 .app-shell .approval-row strong { color: var(--appearance-text); }
 .app-shell .approval-row small { color: var(--appearance-muted); }
@@ -152,7 +152,7 @@ html[data-mobile-appearance-theme="light"] {
   height: 52px;
   place-items: center;
   border: 1px solid var(--appearance-line);
-  border-radius: 18px;
+  border-radius: 50%;
   background: var(--appearance-glass);
   color: var(--appearance-text);
   -webkit-backdrop-filter: blur(var(--appearance-blur));
@@ -175,7 +175,7 @@ html[data-mobile-appearance-theme="light"] {
   width: min(100%, 640px);
   max-height: min(88dvh, 900px);
   border: 1px solid var(--appearance-line);
-  border-radius: 28px 28px 0 0;
+  border-radius: var(--zv-r-sheet, 24px) var(--zv-r-sheet, 24px) 0 0;
   background: var(--appearance-glass);
   color: var(--appearance-text);
   -webkit-backdrop-filter: blur(var(--appearance-blur));
@@ -191,7 +191,7 @@ html[data-mobile-appearance-theme="light"] {
 .appearance-group + .appearance-group { margin-top: 18px; border-top: 1px solid var(--appearance-line); }
 .appearance-group h3 { margin: 0 0 14px; font-size: 13px; color: var(--appearance-muted); }
 .appearance-segments { display: flex; gap: 7px; margin-bottom: 13px; }
-.appearance-segments button { flex: 1; min-height: 40px; border: 1px solid var(--appearance-line); border-radius: var(--appearance-radius); background: var(--appearance-field); color: var(--appearance-text); }
+.appearance-segments button { flex: 1; min-height: 40px; border: 1px solid var(--appearance-line); border-radius: var(--zv-r-ctl, 12px); background: var(--appearance-field); color: var(--appearance-text); }
 .appearance-segments button.active { border-color: var(--appearance-accent); background: var(--appearance-accent); color: var(--appearance-accent-text); font-weight: 700; }
 .appearance-range { display: block; margin: 14px 0; }
 .appearance-range > span { display: flex; justify-content: space-between; margin-bottom: 7px; font-size: 13px; }
@@ -204,8 +204,8 @@ html[data-mobile-appearance-theme="light"] {
 .appearance-toggle input { width: 21px; height: 21px; accent-color: var(--appearance-accent); }
 .appearance-preview { height: 112px; border: 1px solid var(--appearance-line); border-radius: var(--appearance-radius); background-position: center; background-size: cover; }
 .appearance-url { display: flex; gap: 8px; margin: 12px 0; }
-.appearance-url input { min-width: 0; flex: 1; padding: 10px 12px; border: 1px solid var(--appearance-line); border-radius: var(--appearance-radius); background: var(--appearance-field); color: var(--appearance-text); }
-.appearance-url button, .appearance-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 0 13px; border: 1px solid var(--appearance-line); border-radius: var(--appearance-radius); background: var(--appearance-field); color: var(--appearance-text); }
+.appearance-url input { min-width: 0; flex: 1; padding: 10px 12px; border: 1px solid var(--appearance-line); border-radius: var(--zv-r-ctl, 12px); background: var(--appearance-field); color: var(--appearance-text); }
+.appearance-url button, .appearance-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 0 13px; border: 1px solid var(--appearance-line); border-radius: var(--zv-r-ctl, 12px); background: var(--appearance-field); color: var(--appearance-text); }
 .appearance-file { display: none; }
 .appearance-actions { display: flex; gap: 8px; }
 .appearance-error { margin: 8px 0; color: var(--appearance-error); font-size: 12px; }
@@ -244,9 +244,9 @@ html[data-mobile-appearance-theme] {
   --md-sys-color-outline: var(--appearance-muted);
   --md-sys-color-outline-variant: var(--appearance-line);
   --md-sys-shape-corner: var(--appearance-radius);
-  --md-sys-radius-small: calc(var(--appearance-radius) / 4);
-  --md-sys-radius-medium: calc(var(--appearance-radius) / 2);
-  --md-sys-radius-large: var(--appearance-radius);
+  --md-sys-radius-small: var(--zv-r-chip, 8px);
+  --md-sys-radius-medium: var(--zv-r-ctl, 12px);
+  --md-sys-radius-large: var(--zv-r-card, 16px);
   --glass-bg: var(--appearance-glass);
   --glass-border: var(--appearance-line);
   --glass-strength: var(--appearance-strength);
@@ -316,7 +316,7 @@ html[data-mobile-appearance-theme] .mobile-text-button,
 html[data-mobile-appearance-theme] .mobile-appearance-entry { color: var(--appearance-accent); }
 .app-shell-room .mobile-room-tabs button[aria-selected="true"],
 .app-shell-room .mobile-mode-switch button[aria-pressed="true"] { border-color: var(--appearance-accent); }
-.app-shell-room .mobile-text-input { background: var(--appearance-field); border-color: var(--appearance-line); color: var(--appearance-text); border-radius: var(--appearance-radius); }
+.app-shell-room .mobile-text-input { background: var(--appearance-field); border-color: var(--appearance-line); color: var(--appearance-text); border-radius: var(--zv-r-ctl, 12px); }
 /* Settings live inside the dark player, but follow the app's selected theme. */
 html[data-mobile-appearance-theme] .player-settings-dialog {
   --md-sys-color-on-surface: var(--appearance-text);

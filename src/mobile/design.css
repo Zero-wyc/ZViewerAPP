@@ -1,0 +1,394 @@
+/* ZViewer 安卓 / 鸿蒙统一设计层。
+   在 mobile.css、appearance.css 之后加载，只覆盖视觉：圆角阶梯、层级、动效与各页面的统一外观。
+   圆角阶梯由 MobileAppearance 按外观设置写入 --zv-r-*；这里的回退值对应"中"档。 */
+
+:root {
+  --zv-r-chip: 8px;
+  --zv-r-ctl: 12px;
+  --zv-r-card: 16px;
+  --zv-r-sheet: 24px;
+  --zv-ease-std: cubic-bezier(.2, 0, 0, 1);
+  --zv-ease-sheet: cubic-bezier(.32, .72, 0, 1);
+  --zv-ease-exit: cubic-bezier(.3, 0, 1, 1);
+  --zv-ease-pop: cubic-bezier(.34, 1.56, .64, 1);
+  --zv-t-press: 100ms;
+  --zv-t-s: 200ms;
+  --zv-t-m: 300ms;
+}
+
+/* ---------- 圆角：把上游 Tailwind 的零散圆角收进阶梯 ---------- */
+html[data-mobile-appearance-theme] :is(.rounded-sm, .rounded, .rounded-md) { border-radius: var(--zv-r-chip); }
+html[data-mobile-appearance-theme] :is(.rounded-lg, .rounded-xl) { border-radius: var(--zv-r-ctl); }
+html[data-mobile-appearance-theme] .rounded-2xl { border-radius: var(--zv-r-card); }
+html[data-mobile-appearance-theme] .rounded-3xl { border-radius: var(--zv-r-sheet); }
+
+/* ---------- 按压反馈：零特异性，组件自带 transform 时让位 ---------- */
+:where(html[data-mobile-appearance-theme]) :where(button, [role="button"], summary) {
+  transition: transform var(--zv-t-press) ease-out, background-color var(--zv-t-s), color var(--zv-t-s), border-color var(--zv-t-s), opacity var(--zv-t-s), filter var(--zv-t-s);
+}
+:where(html[data-mobile-appearance-theme]) :where(button, [role="button"], summary):where(:not(:disabled)):active { transform: scale(.96); }
+:where(html[data-mobile-appearance-theme]) :where(.room-row, .music-song-row, .zv-row, .music-library-item):where(:not(:disabled)):active { transform: scale(.985); }
+
+@keyframes zv-screen-forward { from { opacity: 0; transform: translateX(32px); } }
+@keyframes zv-screen-back { from { opacity: 0; transform: translateX(-24px); } }
+@keyframes zv-fade-up { from { opacity: 0; transform: translateY(10px); } }
+@keyframes zv-from-left { from { opacity: 0; transform: translateX(-14px); } }
+@keyframes zv-from-right { from { opacity: 0; transform: translateX(14px); } }
+@keyframes zv-fade { from { opacity: 0; } }
+@keyframes zv-sheet-rise { from { transform: translateY(100%); } }
+@keyframes zv-sheet-drop { to { transform: translateY(100%); } }
+@keyframes zv-pop { 0% { transform: scale(1); } 40% { transform: scale(1.3); } 100% { transform: scale(1); } }
+
+/* ---------- 大厅 ---------- */
+.app-shell .connect-view,
+.app-shell .rooms-view { animation: zv-fade-up var(--zv-t-m) var(--zv-ease-std) backwards; }
+.app-shell .rooms-heading { margin-top: 12px; }
+.app-shell .rooms-group {
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid var(--appearance-line);
+  border-radius: var(--zv-r-card);
+  background: var(--appearance-glass);
+  -webkit-backdrop-filter: blur(var(--appearance-blur));
+  backdrop-filter: blur(var(--appearance-blur));
+  box-shadow: 0 10px 36px rgba(15, 29, 49, .12);
+}
+.app-shell .rooms-group .rooms-heading {
+  margin: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+.app-shell .rooms-group .room-list { display: flex; flex-direction: column; gap: 0; margin: 0; }
+.app-shell .rooms-group .room-row,
+.app-shell .rooms-group .empty-state {
+  margin: 0; border: 0; border-top: 1px solid var(--appearance-line); border-radius: 0;
+  background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+.app-shell .rooms-group .room-row { animation: zv-fade-up var(--zv-t-m) var(--zv-ease-std) backwards; }
+.app-shell .rooms-group .room-row:nth-child(2) { animation-delay: 30ms; }
+.app-shell .rooms-group .room-row:nth-child(3) { animation-delay: 60ms; }
+.app-shell .rooms-group .room-row:nth-child(4) { animation-delay: 90ms; }
+.app-shell .rooms-group .room-row:nth-child(5) { animation-delay: 120ms; }
+.app-shell .rooms-group .room-row:nth-child(n + 6) { animation-delay: 150ms; }
+.app-shell .rooms-group .room-row:active:not(:disabled) { background: var(--appearance-field); }
+.app-shell .room-count { border-radius: var(--zv-r-ctl); }
+.app-shell .back-button,
+.app-shell .refresh-button,
+.app-shell .brand-bar .connection-pill { border-radius: 50%; }
+
+/* B 站入口：玻璃底 + 品牌色只留在图标上 */
+.bilibili-account-trigger,
+html[data-mobile-appearance-theme] .mobile-room-settings-shortcuts > .bilibili-account-trigger {
+  border: 1px solid var(--appearance-line, rgba(235, 245, 255, .14));
+  border-radius: var(--zv-r-ctl);
+  background: var(--appearance-field, rgba(13, 20, 29, .5));
+}
+.bilibili-status-icon { background: var(--appearance-text, #f3f7fa); }
+.bilibili-account-trigger[data-logged-in="true"] .bilibili-status-icon { background: #fb7299; }
+
+/* ---------- 房间：竖屏下视频和面板直接相接，面板铺到底 ---------- */
+.mobile-room { animation: zv-screen-forward var(--zv-t-m) var(--zv-ease-sheet) backwards; }
+@media (max-width: 899.98px) and (orientation: portrait) {
+  /* 投屏房主是自然高度的表单，保持整页滚动，不锁定高度 */
+  .mobile-room:not(.mobile-room-music):not(:has(.mobile-screen-share-host)) { height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .mobile-room:not(.mobile-room-music):not(:has(.mobile-screen-share-host)) > .mobile-watch-layout { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .mobile-room:not(.mobile-room-music) .mobile-player-stage { flex: 0 0 auto; }
+  .mobile-room:not(.mobile-room-music) .mobile-room-details { flex: 1; min-height: 0; }
+  .mobile-room:not(.mobile-room-music) .mobile-tab-panel { flex: 1; height: auto; min-height: 0; }
+}
+.app-shell-room .mobile-room-details { border: 0; border-radius: 0; }
+.app-shell-room .mobile-room-header { border-bottom-color: var(--appearance-line); }
+
+/* 一级标签：滑动短指示条（MobileRoom 写入 --zv-tab-count / --zv-tab-index） */
+.mobile-room-tabs { position: relative; border-bottom: 0; height: 50px; flex-basis: 50px; padding-inline: 12px; }
+.mobile-room-tabs button,
+.app-shell-room .mobile-room-tabs button,
+.app-shell-room .mobile-room-tabs button[aria-selected="true"] { border-bottom: 0; font-weight: 600; font-size: 15px; }
+.app-shell-room .mobile-room-tabs button[aria-selected="true"] { color: var(--appearance-text); }
+.app-shell-room .mobile-room-tabs button[aria-selected="true"] svg { color: var(--appearance-accent); }
+.mobile-room-tabs::after {
+  content: ''; position: absolute; bottom: 5px; width: 20px; height: 3px; border-radius: 3px;
+  background: var(--appearance-accent, #9cdbff);
+  left: calc(12px + (100% - 24px) / var(--zv-tab-count, 2) * (var(--zv-tab-index, 0) + .5) - 10px);
+  transition: left 340ms var(--zv-ease-sheet);
+}
+.mobile-tab-panel { padding: 6px 16px 16px; }
+.mobile-tab-panel[data-tab="chat"]:not([hidden]) { animation: zv-from-left var(--zv-t-s) var(--zv-ease-std) backwards; }
+.mobile-tab-panel[data-tab="movies"]:not([hidden]) { animation: zv-from-right var(--zv-t-s) var(--zv-ease-std) backwards; }
+
+/* 面板内容占满剩余高度：评论输入框固定在底部 */
+.mobile-tab-panel:not([hidden]) { display: flex; flex-direction: column; }
+.mobile-tab-panel > * { flex: 1; min-height: 0; }
+.mobile-tab-panel > .mobile-panel-actions { flex: 0 0 auto; margin-bottom: 10px; }
+/* 评论面板：去掉面板里套的第二层卡片 */
+.app-shell-room .mobile-tab-panel[data-tab="chat"] > .glass-card { border: 0; background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; padding: 0; }
+.app-shell-room .mobile-tab-panel[data-tab="chat"] > .glass-card .glass-bg { background: transparent; padding-inline: 0; }
+/* 片单：内嵌一层 L2 卡片 */
+.app-shell-room .mobile-tab-panel[data-tab="movies"] > .glass-card {
+  border: 1px solid var(--appearance-line); border-radius: var(--zv-r-card); background: var(--appearance-field);
+  box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+.app-shell-room .mobile-tab-panel[data-tab="movies"] > .glass-card > :first-child { border-bottom-color: var(--appearance-line); padding: 10px 8px 10px 12px; }
+
+/* 二级分段：底槽 + 滑动高亮块（SegmentedToggle） */
+html[data-mobile-appearance-theme] .zv-seg {
+  gap: 0; padding: 3px; border: 1px solid var(--appearance-line); border-radius: var(--zv-r-ctl);
+  background: var(--appearance-field); box-shadow: none; --tw-ring-shadow: 0 0 #0000;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+html[data-mobile-appearance-theme] .zv-seg .zv-seg-ind {
+  top: 3px; bottom: 3px; border-radius: calc(var(--zv-r-ctl) - 3px); box-shadow: none !important; --tw-ring-shadow: 0 0 #0000;
+  background-color: var(--appearance-accent) !important; transition: left 340ms var(--zv-ease-sheet), width 340ms var(--zv-ease-sheet);
+}
+html[data-mobile-appearance-theme] .zv-seg .zv-seg-btn { flex: 1; min-height: 34px; padding: 0 10px; border-radius: calc(var(--zv-r-ctl) - 3px); font-size: 13px; font-weight: 600; }
+html[data-mobile-appearance-theme] .zv-seg .zv-seg-btn:hover { transform: none; background: transparent; }
+html[data-mobile-appearance-theme] .zv-seg .zv-seg-btn[aria-pressed="true"] { color: var(--appearance-accent-text); }
+
+/* 房间模式切换：同款分段控件，去掉遗留绿色 */
+html[data-mobile-appearance-theme] .mobile-mode-switch {
+  position: relative; gap: 0; padding: 3px; margin-bottom: 14px;
+  border: 1px solid var(--appearance-line); border-radius: var(--zv-r-ctl); background: var(--appearance-field);
+}
+html[data-mobile-appearance-theme] .mobile-mode-switch::before {
+  content: ''; position: absolute; top: 3px; bottom: 3px; border-radius: calc(var(--zv-r-ctl) - 3px); background: var(--appearance-accent);
+  width: calc((100% - 6px) / var(--zv-tab-count, 2));
+  left: calc(3px + (100% - 6px) / var(--zv-tab-count, 2) * var(--zv-tab-index, 0));
+  transition: left 340ms var(--zv-ease-sheet);
+}
+html[data-mobile-appearance-theme] .mobile-mode-switch[data-unlisted]::before { display: none; }
+html[data-mobile-appearance-theme] .mobile-mode-switch button { position: relative; z-index: 1; min-height: 38px; border: 0; border-radius: calc(var(--zv-r-ctl) - 3px); color: var(--appearance-muted); font-weight: 600; }
+html[data-mobile-appearance-theme] .mobile-mode-switch button[aria-pressed="true"] { color: var(--appearance-accent-text); border: 0; }
+
+/* 文字按钮 / 次按钮 / 输入框 */
+html[data-mobile-appearance-theme] .mobile-text-button { border-radius: var(--zv-r-ctl); font-weight: 600; }
+html[data-mobile-appearance-theme] .mobile-room-settings-shortcuts > button { border-color: var(--appearance-line); border-radius: var(--zv-r-ctl); background: var(--appearance-field); color: var(--appearance-text); font-weight: 600; }
+html[data-mobile-appearance-theme] .mobile-room-settings-shortcuts > button svg { color: var(--appearance-accent); }
+html[data-mobile-appearance-theme] .mobile-room-footer .mobile-text-button { color: var(--appearance-error); }
+.mobile-voice-trigger.is-connected,
+.app-shell-room .mobile-voice-trigger.is-connected { color: var(--appearance-accent); background: color-mix(in srgb, var(--appearance-accent) 16%, transparent); }
+.app-shell-room .mobile-approval { background: color-mix(in srgb, var(--appearance-accent) 14%, var(--appearance-glass)); }
+html[data-mobile-appearance-theme] :is(button, input):focus-visible { outline-color: var(--appearance-accent); }
+
+/* ---------- 底部抽屉（Modal variant="sheet"） ---------- */
+.zv-sheet-layer .zv-sheet-scrim { background: rgba(5, 10, 18, .5); }
+.zv-sheet {
+  position: relative; z-index: 10; display: flex; flex-direction: column; width: 100%; max-height: 88%; overflow: hidden;
+  border: 0; border-top: 1px solid var(--appearance-line, rgba(235, 245, 255, .14));
+  border-radius: var(--zv-r-sheet) var(--zv-r-sheet) 0 0;
+  background: color-mix(in srgb, var(--appearance-surface, #131b25) 88%, transparent);
+  -webkit-backdrop-filter: blur(var(--appearance-blur, 0px)); backdrop-filter: blur(var(--appearance-blur, 0px));
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, .25);
+  color: var(--appearance-text, #f3f7fa);
+}
+.zv-sheet[data-state="open"] { animation: zv-sheet-rise 320ms var(--zv-ease-sheet) backwards; }
+.zv-sheet[data-state="closing"] { animation: zv-sheet-drop 220ms var(--zv-ease-exit) forwards; }
+.zv-sheet-drag { flex-shrink: 0; touch-action: none; cursor: grab; padding: 8px 10px 8px 20px; }
+.zv-sheet-grab { width: 36px; height: 4px; margin: 0 auto 10px; border-radius: 2px; background: currentColor; opacity: .3; }
+.zv-sheet-header h3 { font-size: 20px; font-weight: 700; color: var(--appearance-text, #f3f7fa); }
+.zv-sheet-header button[aria-label="关闭面板"] { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border-radius: 50%; }
+.zv-sheet-header button[aria-label="关闭面板"] svg { width: 20px; height: 20px; }
+.zv-sheet-body { padding: 4px 20px calc(24px + var(--app-safe-bottom, env(safe-area-inset-bottom, 0px))); }
+.zv-sheet > :last-child:not(.zv-sheet-body) { padding: 0 20px calc(20px + var(--app-safe-bottom, 0px)); }
+
+/* 对话框统一大圆角 */
+html[data-mobile-appearance-theme] .secondary-panel > .glass-strong:not(.zv-sheet) { border-radius: var(--zv-r-sheet); }
+
+/* ---------- 列表项进出（usePresenceList） ---------- */
+.zv-presence { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--zv-t-m) var(--zv-ease-sheet), opacity var(--zv-t-s); }
+.zv-presence > .zv-presence-inner { min-height: 0; overflow: hidden; transition: padding-bottom var(--zv-t-m) var(--zv-ease-sheet); }
+.zv-presence[data-state="exiting"] > .zv-presence-inner { padding-bottom: 0; }
+.zv-presence[data-state="exiting"] { grid-template-rows: 0fr; opacity: 0; pointer-events: none; }
+
+/* 精简动画：保留状态，去掉位移 */
+html[data-mobile-reduced-motion="true"] :where(button, [role="button"]):active { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-mobile-appearance-theme] *, html[data-mobile-appearance-theme] *::before, html[data-mobile-appearance-theme] *::after {
+    animation-duration: .01ms !important; transition-duration: .01ms !important;
+  }
+}
+
+/* ---------- 抽屉里的内容卡：抽屉本身已是一层，去掉重复的卡片头 ---------- */
+.zv-sheet-body > .movie-push-card { border: 0; border-radius: 0; background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; overflow: visible; }
+.zv-sheet-body > .movie-push-card > .border-b:first-child { display: none; }
+.zv-sheet-body > .movie-push-card > .zen-scroll { padding: 0; overflow: visible; }
+/* 房间设置里的状态卡：L2 内嵌卡片 */
+.zv-sheet-body > .glass-card.zen-card:not(.movie-push-card) {
+  border: 1px solid var(--appearance-line); border-radius: var(--zv-r-card); background: var(--appearance-field);
+  box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+
+/* 房间设置：开关行 */
+.zv-toggle-rows { display: flex; flex-direction: column; margin-top: 6px; }
+.zv-toggle-row { display: flex; flex-direction: row-reverse; justify-content: space-between; min-height: 48px; border-top: 1px solid var(--appearance-line, rgba(235, 245, 255, .14)); }
+.zv-toggle-row > span { font-size: 14px; color: var(--appearance-text, #f3f7fa); }
+
+/* =====================================================================
+   一起听：和一起看同一套层级
+   L1 = 顶栏 / 内容区整块玻璃；L2 = 内嵌卡片、按下态；文字全部落在玻璃上。
+   ===================================================================== */
+html[data-mobile-appearance-theme] .music-app-shell { --music-radius: var(--zv-r-card); }
+
+/* 音乐导航：与房间顶栏同一种玻璃，标签居中靠拢 + 滑动短指示条 */
+html[data-mobile-appearance-theme] .music-app-shell .music-top-nav {
+  background: var(--appearance-glass);
+  -webkit-backdrop-filter: blur(var(--appearance-blur)); backdrop-filter: blur(var(--appearance-blur));
+  border-bottom: 1px solid var(--appearance-line);
+}
+html[data-mobile-appearance-theme] .music-app-shell .music-nav-tabs { gap: 4px; }
+html[data-mobile-appearance-theme] .music-app-shell .music-nav-tab,
+html[data-mobile-appearance-theme] .music-app-shell .music-nav-tab:hover,
+html[data-mobile-appearance-theme] .music-app-shell .music-nav-tab[data-active='true'],
+html[data-mobile-appearance-theme] .music-app-shell .music-nav-tab[data-active='true']:hover {
+  border-color: transparent; background: transparent; opacity: 1;
+  color: var(--appearance-muted) !important; font-weight: 600; padding: 8px 12px;
+}
+html[data-mobile-appearance-theme] .music-app-shell .music-nav-tab[data-active='true'] { color: var(--appearance-text) !important; }
+html[data-mobile-appearance-theme] .music-app-shell .music-nav-tracker {
+  display: block; bottom: 4px !important; width: 20px !important; height: 3px !important; margin-left: -3px;
+  border-radius: 3px; background-color: var(--appearance-accent) !important;
+  transition: left 340ms var(--zv-ease-sheet), opacity 200ms !important;
+}
+html[data-mobile-appearance-theme] .music-app-shell .music-nav-icon {
+  border-radius: 50%; background: var(--appearance-field); border: 1px solid var(--appearance-line);
+}
+
+/* 内容区：整块 L1 玻璃（和一起看下方面板一致） */
+/* 只加底色不加 backdrop-filter：滤镜会让滚动容器变成 fixed 子元素的定位参照，
+   B 站右下按钮组会跟着内容滚走 */
+html[data-mobile-appearance-theme] .mobile-music-content .music-page-content { background: var(--appearance-glass); }
+html[data-mobile-appearance-theme] .music-app-shell .music-page-content > * { animation: zv-fade var(--zv-t-s) var(--zv-ease-std) backwards; }
+
+/* 我的音乐：一级标签（短指示条）+ 二级分段 */
+html[data-mobile-appearance-theme] .music-library-type1 { gap: 20px; padding-bottom: 8px; }
+html[data-mobile-appearance-theme] .music-library-type1 > button { color: var(--appearance-muted); font-weight: 600; padding-bottom: 8px; }
+html[data-mobile-appearance-theme] .music-library-type1 > button:has(.music-library-bar.opacity-100) { color: var(--appearance-text); }
+html[data-mobile-appearance-theme] .music-library-bar {
+  left: 50% !important; right: auto !important; width: 20px !important; margin-left: -10px; height: 3px !important;
+  border-radius: 3px; background-color: var(--appearance-accent) !important;
+  transform: scaleX(0); opacity: 1 !important; transition: transform 300ms var(--zv-ease-pop) !important;
+}
+html[data-mobile-appearance-theme] .music-library-bar.opacity-100 { transform: scaleX(1); }
+html[data-mobile-appearance-theme] .music-library-divider { display: none; }
+html[data-mobile-appearance-theme] .music-library-type2 {
+  display: inline-flex; gap: 0; margin: 4px 0 6px; padding: 3px;
+  border: 1px solid var(--appearance-line); border-radius: var(--zv-r-ctl); background: var(--appearance-field);
+}
+html[data-mobile-appearance-theme] .music-library-type2 > button {
+  min-height: 30px; padding: 0 14px; border-radius: calc(var(--zv-r-ctl) - 3px);
+  color: var(--appearance-muted) !important; font-size: 13px; font-weight: 600;
+}
+html[data-mobile-appearance-theme] .music-library-type2 > button[aria-pressed='true'] { background: var(--appearance-accent); color: var(--appearance-accent-text) !important; }
+
+/* 歌单列表行：L2 按下态 + 统一封面圆角 + 首屏依次浮现 */
+html[data-mobile-appearance-theme] .music-library-item { border-radius: var(--zv-r-ctl); padding: 8px; }
+html[data-mobile-appearance-theme] .music-library-item > span[aria-hidden='true']:first-child { display: none; }
+html[data-mobile-appearance-theme] .music-library-item[aria-selected='true'],
+html[data-mobile-appearance-theme] .music-library-item:active { background: var(--appearance-field); }
+html[data-mobile-appearance-theme] .music-library-item > img,
+html[data-mobile-appearance-theme] .music-library-item > div:first-of-type { border-radius: var(--zv-r-chip); }
+html[data-mobile-appearance-theme] .music-library-list > .music-library-item,
+html[data-mobile-appearance-theme] .music-library-songs > .music-song-row { animation: zv-fade-up var(--zv-t-m) var(--zv-ease-std) backwards; }
+html[data-mobile-appearance-theme] .music-library-list > :nth-child(2), html[data-mobile-appearance-theme] .music-library-songs > :nth-child(2) { animation-delay: 30ms; }
+html[data-mobile-appearance-theme] .music-library-list > :nth-child(3), html[data-mobile-appearance-theme] .music-library-songs > :nth-child(3) { animation-delay: 60ms; }
+html[data-mobile-appearance-theme] .music-library-list > :nth-child(4), html[data-mobile-appearance-theme] .music-library-songs > :nth-child(4) { animation-delay: 90ms; }
+html[data-mobile-appearance-theme] .music-library-list > :nth-child(5), html[data-mobile-appearance-theme] .music-library-songs > :nth-child(5) { animation-delay: 120ms; }
+html[data-mobile-appearance-theme] .music-library-list > :nth-child(6), html[data-mobile-appearance-theme] .music-library-songs > :nth-child(6) { animation-delay: 150ms; }
+html[data-mobile-appearance-theme] .music-library-list > :nth-child(7), html[data-mobile-appearance-theme] .music-library-songs > :nth-child(7) { animation-delay: 180ms; }
+html[data-mobile-appearance-theme] .music-library-list > :nth-child(n + 8), html[data-mobile-appearance-theme] .music-library-songs > :nth-child(n + 8) { animation-delay: 210ms; }
+
+/* 歌单详情：返回按钮、头部卡片、播放全部 */
+html[data-mobile-appearance-theme] .music-back-button {
+  min-height: 34px; margin: 4px 0; padding: 0 12px 0 8px; gap: 4px;
+  border: 1px solid var(--appearance-line); border-radius: var(--zv-r-ctl); background: var(--appearance-field);
+  font-size: 13px; font-weight: 600;
+}
+html[data-mobile-appearance-theme] .music-library-header {
+  padding: 14px; border: 1px solid var(--appearance-line); border-radius: var(--zv-r-card); background: var(--appearance-field);
+}
+html[data-mobile-appearance-theme] .music-library-header img { border-radius: var(--zv-r-ctl); }
+html[data-mobile-appearance-theme] .music-library-play-line { display: none; }
+html[data-mobile-appearance-theme] .music-library-play-all button {
+  min-height: 36px; padding: 0 14px 0 10px; border-radius: var(--zv-r-ctl);
+  background: var(--appearance-accent); color: var(--appearance-accent-text);
+}
+html[data-mobile-appearance-theme] .music-library-play-all button svg path { stroke: currentColor; color: inherit !important; fill: currentColor; }
+html[data-mobile-appearance-theme] .music-library-play-all button span { color: inherit !important; font-size: 13px; }
+html[data-mobile-appearance-theme] .music-app-shell .music-song-row { border-radius: var(--zv-r-ctl); }
+html[data-mobile-appearance-theme] .music-app-shell .music-song-row:active { background: var(--appearance-field); }
+html[data-mobile-appearance-theme] .music-app-shell .music-song-row img { border-radius: var(--zv-r-chip); }
+
+/* 迷你播放器：卡片圆角 + 实色玻璃 */
+html[data-mobile-appearance-theme] .music-app-shell .music-widget-bar {
+  border: 1px solid var(--appearance-line);
+  background-color: color-mix(in srgb, var(--appearance-surface) 90%, transparent);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .22);
+}
+html[data-mobile-appearance-theme] .music-app-shell .music-widget-cover { border-radius: var(--zv-r-chip); }
+
+/* B 站分区：标题区精简、标签换短指示条、视频卡整张做成 L2 卡片 */
+html[data-mobile-appearance-theme] .bili-page-eyebrow { display: none; }
+html[data-mobile-appearance-theme] .bili-page-tabs { margin-top: 0; }
+html[data-mobile-appearance-theme] .bili-page-tabs h3 { font-size: 18px; font-weight: 700; }
+html[data-mobile-appearance-theme] .bili-page-tabs button { font-size: 15px; font-weight: 600; padding-bottom: 8px; }
+html[data-mobile-appearance-theme] .bili-tab-bar {
+  left: 50% !important; right: auto !important; width: 20px; margin-left: -10px; height: 3px !important; border-radius: 3px;
+  background-color: var(--appearance-accent) !important;
+  transform: scaleX(0); opacity: 1 !important; transition: transform 300ms var(--zv-ease-pop) !important;
+}
+html[data-mobile-appearance-theme] .bili-tab-bar.opacity-100 { transform: scaleX(1); }
+html[data-mobile-appearance-theme] .bili-video-card {
+  overflow: hidden; border: 1px solid var(--appearance-line); border-radius: var(--zv-r-card); background: var(--appearance-field);
+  padding-bottom: 10px; animation: zv-fade-up var(--zv-t-m) var(--zv-ease-std) backwards;
+  transition: transform var(--zv-t-press) ease-out;
+}
+html[data-mobile-appearance-theme] .bili-video-card:active { transform: scale(.97); }
+html[data-mobile-appearance-theme] .bili-video-card > :first-child { border-radius: 0; }
+html[data-mobile-appearance-theme] .bili-video-card > :not(:first-child) { padding-inline: 10px; }
+html[data-mobile-appearance-theme] .bili-video-card:nth-child(2) { animation-delay: 30ms; }
+html[data-mobile-appearance-theme] .bili-video-card:nth-child(3) { animation-delay: 60ms; }
+html[data-mobile-appearance-theme] .bili-video-card:nth-child(4) { animation-delay: 90ms; }
+html[data-mobile-appearance-theme] .bili-video-card:nth-child(5) { animation-delay: 120ms; }
+html[data-mobile-appearance-theme] .bili-video-card:nth-child(6) { animation-delay: 150ms; }
+html[data-mobile-appearance-theme] .bili-video-card:nth-child(n + 7) { animation-delay: 180ms; }
+
+/* 右下按钮组：默认只露一个，点开依次弹出 */
+.bili-fab-group { pointer-events: none; }
+.bili-fab-group > :last-child, .bili-fab-group[data-open='true'] .bili-fab-items > * { pointer-events: auto; }
+.bili-fab-group .bili-fab-items > * { transition: opacity var(--zv-t-s), transform 260ms var(--zv-ease-pop); }
+.bili-fab-group[data-open='false'] .bili-fab-items > * { opacity: 0; transform: translateY(14px) scale(.6); pointer-events: none; }
+.bili-fab-group[data-open='true'] .bili-fab-items > :nth-last-child(1) { transition-delay: 0ms; }
+.bili-fab-group[data-open='true'] .bili-fab-items > :nth-last-child(2) { transition-delay: 40ms; }
+.bili-fab-group[data-open='true'] .bili-fab-items > :nth-last-child(3) { transition-delay: 80ms; }
+.bili-fab-group[data-open='true'] .bili-fab-items > :nth-last-child(4) { transition-delay: 120ms; }
+.bili-fab-group[data-open='true'] .bili-fab-items > :nth-last-child(5) { transition-delay: 160ms; }
+
+/* 侧边评论坞把手：贴边的细玻璃条 */
+html[data-mobile-appearance-theme] .music-app-shell .music-dock-handle {
+  border-radius: var(--zv-r-ctl) 0 0 var(--zv-r-ctl);
+  background: var(--appearance-glass); border: 1px solid var(--appearance-line); border-right: 0;
+}
+
+/* 竖屏全屏播放器：封面区吃掉剩余高度（按宽高取小保持正方形），不留大片空白 */
+html[data-mobile-appearance-theme] .music-app-shell .music-player-content[data-player-layout='portrait'] > .music-player-card-container {
+  flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
+}
+html[data-mobile-appearance-theme] .music-app-shell .music-player-content[data-player-layout='portrait'] .music-player-card-body {
+  flex: 1 1 auto; min-height: 0; justify-content: flex-end;
+}
+html[data-mobile-appearance-theme] .music-app-shell [data-player-layout='portrait'] .music-player-artwork-region {
+  flex: 1 1 0; height: auto; max-height: none; min-height: 160px; container-type: size; padding: 8px 0 24px;
+}
+html[data-mobile-appearance-theme] .music-app-shell [data-player-layout='portrait'] .music-player-artwork {
+  width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); max-width: 100%;
+}
+html[data-mobile-appearance-theme] .music-app-shell [data-player-layout='portrait'] .music-player-controls { padding-bottom: 8px; }
+
+/* 私人漫游：保留布局，换成统一的卡片圆角与按钮形状 */
+html[data-mobile-appearance-theme] .music-fm-card {
+  border-color: var(--appearance-line) !important; border-radius: var(--zv-r-card);
+  background-color: var(--appearance-field) !important;
+}
+html[data-mobile-appearance-theme] .music-fm-card > span[aria-hidden='true'],
+html[data-mobile-appearance-theme] .music-fm-card > div[aria-hidden='true'].pointer-events-none { display: none; }
+html[data-mobile-appearance-theme] .music-fm-card button.h-9 { border-radius: var(--zv-r-ctl); }
+html[data-mobile-appearance-theme] .music-fm-card img { border-radius: var(--zv-r-ctl); }
+.zv-sheet:focus { outline: none; }
