@@ -23,6 +23,6 @@ test('listening settings include every row from the pinned server page, includin
   }
   visit(ast)
   assert.equal(bindings.length, 1)
-  assert.match(bindings[0], /on=\{settings\.volumeNormalize\}/)
+  assert.match(bindings[0], /checked=\{settings\.volumeNormalize\}/)
   assert.match(bindings[0], /setSettings\(\{ volumeNormalize: !settings\.volumeNormalize \}\)/)
 })

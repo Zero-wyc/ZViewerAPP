@@ -389,16 +389,23 @@ html[data-mobile-appearance-theme] .music-app-shell .arknights-comments {
 }
 
 /* B 站分区：标题区精简、标签换短指示条、视频卡整张做成 L2 卡片 */
-html[data-mobile-appearance-theme] .bili-page-eyebrow { display: none; }
-html[data-mobile-appearance-theme] .bili-page-tabs { margin-top: 0; }
-html[data-mobile-appearance-theme] .bili-page-tabs h3 { font-size: 18px; font-weight: 700; }
-html[data-mobile-appearance-theme] .bili-page-tabs button { font-size: 15px; font-weight: 600; padding-bottom: 8px; }
-html[data-mobile-appearance-theme] .bili-tab-bar {
-  left: 50% !important; right: auto !important; width: 20px; margin-left: -10px; height: 3px !important; border-radius: 3px;
-  background-color: var(--appearance-accent) !important;
-  transform: scaleX(0); opacity: 1 !important; transition: transform 300ms var(--zv-ease-pop) !important;
+.bili-page-tabs {
+  display: grid;
+  grid-template-columns: minmax(72px, 1fr) minmax(0, max-content) minmax(72px, 1fr);
+  align-items: center;
 }
-html[data-mobile-appearance-theme] .bili-tab-bar.opacity-100 { transform: scaleX(1); }
+.bili-page-tab-list { grid-column: 2; }
+.bili-page-tab {
+  position: relative; display: grid; place-items: center; height: 44px;
+  font-size: 15px; font-weight: 600; line-height: 1.25;
+}
+.bili-tab-label { display: block; max-width: 100%; }
+.bili-page-tab::after {
+  content: ''; position: absolute; top: calc(50% + .625em + 1px); left: 50%;
+  width: 20px; height: 3px; border-radius: 3px; background: var(--appearance-accent);
+  transform: translateX(-50%) scaleX(0); transition: transform var(--zv-t-s);
+}
+.bili-page-tab[aria-pressed="true"]::after { transform: translateX(-50%) scaleX(1); }
 html[data-mobile-appearance-theme] .bili-video-card {
   overflow: hidden; border: 1px solid var(--appearance-line); border-radius: var(--zv-r-card); background: var(--appearance-field);
   padding-bottom: 10px; animation: zv-fade-up var(--zv-t-m) var(--zv-ease-std) backwards;

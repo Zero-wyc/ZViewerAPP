@@ -1769,33 +1769,8 @@ export function MusicBilibiliPage({
 
   return (
     <div className="flex min-h-full flex-col px-6 pb-32 pt-6 md:px-8 max-md:px-4 max-md:pb-[calc(112px+env(safe-area-inset-bottom))] max-md:pt-4">
-      {/* 页头（PageBlockHeader 同范式）+ 子页切换 */}
-      <div className="bili-page-eyebrow flex items-center">
-        <span
-          className="music-section-eyebrow mr-1.5 w-[20vw] min-w-[140px] shrink-0 py-px pl-1 text-[12px] font-bold uppercase tracking-widest max-md:w-auto max-md:min-w-0 max-md:pr-2"
-          style={{
-            backgroundColor: 'var(--md-sys-color-secondary-container)',
-            color: 'var(--md-sys-color-on-secondary-container)',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          BILIBILI
-        </span>
-        <span
-          className="h-px flex-1"
-          style={{
-            backgroundColor:
-              'color-mix(in srgb, var(--md-sys-color-on-surface) 30%, transparent)',
-          }}
-        />
-      </div>
-      {/* Tab 行：标题 + 屏蔽词入口固定，栏目区单行横滑（移动端可滑动查看
-          超出部分，隐藏滚动条；桌面同排自适应） */}
-      <div className="bili-page-tabs mt-2 flex items-center gap-5 max-md:mt-1.5 max-md:gap-x-3">
-        <h3 className="shrink-0 text-2xl font-bold leading-relaxed text-[var(--md-sys-color-on-surface)] max-md:text-xl">
-          哔哩哔哩
-        </h3>
-        <div className="flex min-w-0 flex-1 items-center gap-5 overflow-x-auto max-md:gap-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="bili-page-tabs">
+        <div className="bili-page-tab-list flex min-w-0 items-center gap-3 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {(
             [
               ['region', '音乐分区'],
@@ -1805,6 +1780,7 @@ export function MusicBilibiliPage({
             <button
               key={key}
               type="button"
+              aria-pressed={tab === key}
               onClick={() => {
                 setTab(key)
                 // 切子页即退出搜索态并回到第一页
@@ -1812,7 +1788,7 @@ export function MusicBilibiliPage({
                 setPageNo(1)
               }}
               className={cn(
-                'relative shrink-0 pb-0.5 text-lg font-bold transition-colors md:text-xl',
+                'bili-page-tab shrink-0',
                 tab === key
                   ? 'text-[var(--md-sys-color-on-surface)]'
                   : // 非选中 Tab 用 on-surface 72%：variant 灰在花壁纸背景上
@@ -1820,15 +1796,7 @@ export function MusicBilibiliPage({
                     'text-[color-mix(in_srgb,var(--md-sys-color-on-surface)_72%,transparent)] hover:text-[var(--md-sys-color-on-surface)]'
               )}
             >
-              {label}
-              {/* 激活下划线（与我的音乐页 Tab 同语言） */}
-              <span
-                className={cn(
-                  'bili-tab-bar absolute inset-x-0 bottom-0 h-[2px] transition-opacity',
-                  tab === key ? 'opacity-100' : 'opacity-0'
-                )}
-                style={{ backgroundColor: 'var(--md-sys-color-primary)' }}
-              />
+              <span className="bili-tab-label">{label}</span>
             </button>
           ))}
           {/* 自定义栏目 tab（链接添加的合集/系列/收藏夹；名称右侧 × 删除，
@@ -1872,6 +1840,7 @@ export function MusicBilibiliPage({
                 )}
                 <button
                   type="button"
+                  aria-pressed={active}
                   onClick={() => {
                     setTab('custom')
                     setActiveCustomTabId(ct.id)
@@ -1880,22 +1849,14 @@ export function MusicBilibiliPage({
                     setPageNo(1)
                   }}
                   className={cn(
-                    'relative pb-0.5 text-lg font-bold transition-colors md:text-xl max-md:max-w-[110px] max-md:truncate',
+                    'bili-page-tab min-w-0 max-md:max-w-[110px]',
                     active
                       ? 'text-[var(--md-sys-color-on-surface)]'
                       : 'text-[color-mix(in_srgb,var(--md-sys-color-on-surface)_72%,transparent)] hover:text-[var(--md-sys-color-on-surface)]'
                   )}
                   title={`${kindLabel}：${ct.name}（点击右侧 × 删除）`}
                 >
-                  {ct.name}
-                  {/* 激活下划线（与内置 tab 同语言） */}
-                  <span
-                    className={cn(
-                      'absolute inset-x-0 bottom-0 h-[2px] transition-opacity',
-                      active ? 'opacity-100' : 'opacity-0'
-                    )}
-                    style={{ backgroundColor: 'var(--md-sys-color-primary)' }}
-                  />
+                  <span className="bili-tab-label truncate">{ct.name}</span>
                 </button>
                 <button
                   type="button"
@@ -1954,24 +1915,24 @@ export function MusicBilibiliPage({
               <SlidersHorizontal className="h-3.5 w-3.5" />
             </button>
           )}
+        </div>
+        {/* 全局屏蔽词入口（tab 行右侧）：左侧预览 = 全局屏蔽词 + 当前选中分区
+            的独立屏蔽词（切分区随之变化，分区词带「·分区」标记）；
+            按钮弹出全局屏蔽词设置弹窗（配置的词全局生效） */}
+        <div className="bili-tab-actions flex min-w-0 items-center">
           {/* 添加栏目：粘贴 B站 链接（视频合集 / 系列 / 收藏夹；b23.tv 短链自动展开） */}
           <button
             type="button"
             onClick={() => setShowAddCustomTab(true)}
-            className="flex h-5 w-5 items-center justify-center rounded-full text-[var(--md-sys-color-on-surface-variant)] transition-colors hover:text-[var(--md-sys-color-on-surface)]"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--md-sys-color-on-surface-variant)] transition-colors hover:text-[var(--md-sys-color-on-surface)]"
             title="通过链接添加栏目（视频合集 / 系列 / 收藏夹）"
             aria-label="添加栏目"
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
-        </div>
-        {/* 全局屏蔽词入口（tab 行右侧）：左侧预览 = 全局屏蔽词 + 当前选中分区
-            的独立屏蔽词（切分区随之变化，分区词带「·分区」标记）；
-            按钮弹出全局屏蔽词设置弹窗（配置的词全局生效） */}
-        <div className="ml-auto flex items-center gap-2">
           {/* 屏蔽词预览（移动端隐藏：太多字挤爆 Tab 行，悬停标题保留在按钮上） */}
           <span
-            className="max-w-[260px] truncate text-[13px] font-bold text-[var(--md-sys-color-on-surface-variant)] max-md:max-w-[140px] max-md:hidden"
+            className="ml-auto min-w-0 max-w-[260px] truncate text-[13px] font-bold text-[var(--md-sys-color-on-surface-variant)] max-md:max-w-[140px] max-md:hidden"
             title={
               blockPreviewEntries.length > 0
                 ? `屏蔽词：${blockPreviewEntries
@@ -1993,7 +1954,7 @@ export function MusicBilibiliPage({
           <button
             type="button"
             onClick={() => setShowBlockWords(true)}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-70 active:scale-90"
+            className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-70 active:scale-90"
             style={{
               backgroundColor:
                 'color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent)',
