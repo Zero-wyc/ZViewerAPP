@@ -100,7 +100,6 @@ html[data-mobile-appearance-theme] .mobile-room-settings-shortcuts > .bilibili-a
 .app-shell-room .mobile-room[data-room-mode="watch-together"] { padding-bottom: 0; }
 .mobile-room[data-room-mode="watch-together"] .mobile-room-details {
   padding-bottom: var(--app-safe-bottom);
-  border-radius: 0 0 var(--zv-r-card) var(--zv-r-card);
   overflow: hidden;
 }
 @media (min-width: 900px), (orientation: landscape) and (max-height: 540px) {
@@ -132,7 +131,7 @@ html[data-mobile-appearance-theme] .mobile-room-settings-shortcuts > .bilibili-a
 .mobile-tab-panel > * { flex: 1; min-height: 0; }
 .mobile-tab-panel > .mobile-panel-actions { flex: 0 0 auto; margin-bottom: 10px; }
 /* 评论面板：去掉面板里套的第二层卡片 */
-.app-shell-room .mobile-tab-panel[data-tab="chat"] > .glass-card { border: 0; background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; padding: 0; }
+.app-shell-room .mobile-tab-panel[data-tab="chat"] > .glass-card { border: 0; border-radius: 0; background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; padding: 0; }
 .app-shell-room .mobile-tab-panel[data-tab="chat"] > .glass-card .glass-bg { background: transparent; padding-inline: 0; }
 /* 片单：内嵌一层 L2 卡片 */
 .app-shell-room .mobile-tab-panel[data-tab="movies"] > .glass-card {
@@ -179,6 +178,12 @@ html[data-mobile-appearance-theme] .mobile-room-footer .mobile-text-button { col
 .app-shell-room .mobile-voice-trigger.is-connected { color: var(--appearance-accent); background: color-mix(in srgb, var(--appearance-accent) 16%, transparent); }
 .app-shell-room .mobile-approval { background: color-mix(in srgb, var(--appearance-accent) 14%, var(--appearance-glass)); }
 html[data-mobile-appearance-theme] :is(button, input):focus-visible { outline-color: var(--appearance-accent); }
+/* 搜索行紧邻弹窗的滚动边界，焦点描边画在输入框内部。 */
+html[data-mobile-appearance-theme] .bili-video-search input:focus {
+  outline: 2px solid var(--appearance-accent);
+  outline-offset: -2px;
+  box-shadow: none;
+}
 
 /* ---------- 底部抽屉（Modal variant="sheet"） ---------- */
 .zv-sheet-layer .zv-sheet-scrim { background: rgba(5, 10, 18, .5); }
