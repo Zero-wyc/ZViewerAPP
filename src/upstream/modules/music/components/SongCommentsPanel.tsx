@@ -6,8 +6,8 @@
  * 暗色 html.dark 覆盖变量。
  *
  * 结构：
- * - COMMENTS 标题框（角标 + 下划线）
- * - 输入区（登录后且非回复中）：CTRL+ENTER 发送 + SEND 按钮（focus 外框联动）
+ * - 中文评论标题
+ * - 输入区（登录后且非回复中）：支持键盘快捷发送与发送按钮（focus 外框联动）
  * - 未登录：LOGIN REQUIRED TO COMMENT
  * - HOT COMMENTS（/comment/new sortType:2 首页并拉）
  * - LATEST COMMENTS [total]（sortType:3，cursor 分页，距底 200px 自动追加）
@@ -239,12 +239,7 @@ html.dark .arknights-comments::-webkit-scrollbar-thumb {
 .ac-frame-bl { bottom: 0; left: 0; border-bottom: 2px solid var(--ac-border); border-left: 2px solid var(--ac-border); }
 .ac-frame-br { bottom: 0; right: 0; border-bottom: 2px solid var(--ac-border); border-right: 2px solid var(--ac-border); }
 .ac-comments-header { margin-bottom: 14px; }
-.ac-header-frame {
-  position: relative; height: 56px; display: flex; align-items: center; justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--ac-border) 40%, transparent);
-}
-.ac-header-title { font-size: 17px; font-weight: 800; letter-spacing: 0.3em; color: var(--ac-ink); }
-.ac-title-underline { width: 64px; height: 2px; margin-top: 6px; margin-left: auto; margin-right: auto; background: var(--ac-ink); }
+.ac-header-title { font-size: 17px; font-weight: 700; color: var(--ac-ink); }
 .ac-comment-input-section { margin-bottom: 16px; }
 .ac-input-frame {
   position: relative; padding: 12px;
@@ -263,8 +258,7 @@ html.dark .arknights-comments::-webkit-scrollbar-thumb {
   pointer-events: none; transition: border-color 0.2s;
 }
 .ac-comment-textarea:focus ~ .ac-input-border { border-color: var(--ac-border); }
-.ac-input-actions { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; }
-.ac-shortcut-hint { font-size: 10px; letter-spacing: 0.2em; color: var(--ac-muted); }
+.ac-input-actions { margin-top: 10px; display: flex; align-items: center; justify-content: flex-end; }
 .ac-submit-button {
   padding: 10px 20px; border: none; cursor: pointer;
   background-color: var(--ac-border); color: var(--ac-ink-contrast);
@@ -393,7 +387,7 @@ html.dark .arknights-comments::-webkit-scrollbar-thumb {
   height: 2px; margin-top: 2px;
   background-color: color-mix(in srgb, var(--ac-border) 25%, transparent);
 }
-.ac-reply-actions { margin-top: 8px; display: flex; align-items: center; justify-content: space-between; }
+.ac-reply-actions { margin-top: 8px; display: flex; align-items: center; justify-content: flex-end; }
 .ac-reply-buttons { display: flex; gap: 8px; }
 .ac-cancel-reply-btn {
   padding: 8px 14px; border: none; cursor: pointer;
@@ -918,16 +912,7 @@ export function SongCommentsPanel() {
     >
       <style>{COMMENTS_STYLE}</style>
 
-      {/* COMMENTS 标题（角标框架） */}
-      <div className="ac-comments-header">
-        <div className="ac-header-frame">
-          <FrameCorners />
-          <div className="flex flex-col items-center">
-            <span className="ac-header-title">COMMENTS</span>
-            <div className="ac-title-underline" />
-          </div>
-        </div>
-      </div>
+      <h2 className="ac-comments-header ac-header-title">评论</h2>
 
       {/* 输入区（登录后且非回复中） */}
       {loginStatus.loggedIn && !replyingTo && (
@@ -940,7 +925,7 @@ export function SongCommentsPanel() {
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   disabled={submitting}
-                  placeholder="INPUT YOUR COMMENT..."
+                  placeholder="写下你的评论…"
                   className="ac-comment-textarea"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && e.ctrlKey) void submitComment()
@@ -949,14 +934,13 @@ export function SongCommentsPanel() {
                 <div className="ac-input-border" />
               </div>
               <div className="ac-input-actions">
-                <span className="ac-shortcut-hint">CTRL+ENTER</span>
                 <button
                   type="button"
                   className="ac-submit-button"
                   onClick={() => void submitComment()}
                   disabled={!newComment.trim() || submitting}
                 >
-                  {submitting ? 'SENDING...' : 'SEND'}
+                  {submitting ? '发送中…' : '发送'}
                 </button>
               </div>
             </div>
@@ -969,7 +953,7 @@ export function SongCommentsPanel() {
         <div className="ac-login-prompt">
           <div className="ac-prompt-frame">
             <FrameCorners />
-            <span className="ac-prompt-text">LOGIN REQUIRED TO COMMENT</span>
+            <span className="ac-prompt-text">登录网易云音乐后即可评论</span>
           </div>
         </div>
       )}
@@ -979,7 +963,7 @@ export function SongCommentsPanel() {
         <div>
           <div className="ac-section-header">
             <div>
-              <span className="ac-section-title">HOT COMMENTS</span>
+              <span className="ac-section-title">热门评论</span>
               <span className="ac-section-count">[{hotComments.length}]</span>
             </div>
             <div className="ac-section-line" />
@@ -1012,7 +996,7 @@ export function SongCommentsPanel() {
       <div>
         <div className="ac-section-header">
           <div>
-            <span className="ac-section-title">LATEST COMMENTS</span>
+            <span className="ac-section-title">最新评论</span>
             <span className="ac-section-count">[{total}]</span>
           </div>
           <div className="ac-section-line" />
@@ -1046,7 +1030,7 @@ export function SongCommentsPanel() {
             <FrameCorners />
             <div className="ac-loading-content">
               <div className="ac-loading-indicator" />
-              <span className="ac-status-text">LOADING...</span>
+              <span className="ac-status-text">正在加载…</span>
             </div>
           </div>
         </div>
@@ -1055,7 +1039,7 @@ export function SongCommentsPanel() {
         <div className="ac-status-section">
           <div className="ac-status-frame relative">
             <FrameCorners />
-            <span className="ac-status-text">NO MORE COMMENTS</span>
+            <span className="ac-status-text">已显示全部评论</span>
           </div>
         </div>
       )}
@@ -1063,7 +1047,7 @@ export function SongCommentsPanel() {
         <div className="ac-status-section">
           <div className="ac-status-frame relative">
             <FrameCorners />
-            <span className="ac-status-text">NO COMMENTS YET</span>
+            <span className="ac-status-text">暂无评论</span>
           </div>
         </div>
       )}
@@ -1158,14 +1142,14 @@ function CommentCard({
           <span className="ac-control-text">
             {(Number(comment.likedCount) || 0) > 0
               ? comment.likedCount
-              : 'LIKE'}
+              : '点赞'}
           </span>
         </div>
         <div className="ac-control-item" onClick={() => onReply(comment)}>
           <svg viewBox="0 0 1024 1024" width={14} height={14}>
             <path d={REPLY_PATH} />
           </svg>
-          <span className="ac-control-text">REPLY</span>
+          <span className="ac-control-text">回复</span>
         </div>
       </div>
       {/* 楼层回复 */}
@@ -1231,7 +1215,7 @@ function CommentCard({
                           <span className="ac-control-text">
                             {(Number(reply.likedCount) || 0) > 0
                               ? reply.likedCount
-                              : 'LIKE'}
+                              : '点赞'}
                           </span>
                         </div>
                         <div
@@ -1241,7 +1225,7 @@ function CommentCard({
                           <svg viewBox="0 0 1024 1024" width={10} height={10}>
                             <path d={REPLY_PATH} />
                           </svg>
-                          <span className="ac-control-text">REPLY</span>
+                          <span className="ac-control-text">回复</span>
                         </div>
                       </div>
                     </div>
@@ -1282,7 +1266,7 @@ function CommentCard({
         <div className="ac-inline-reply-box relative">
           <FrameCorners />
           <div className="ac-reply-header">
-            <span className="ac-reply-prefix">REPLY TO</span>
+            <span className="ac-reply-prefix">回复</span>
             <span className="ac-reply-target">
               {getUserName(inlineTarget.comment.user || comment.user)}
             </span>
@@ -1296,7 +1280,7 @@ function CommentCard({
               value={newComment}
               onChange={(e) => onNewCommentChange(e.target.value)}
               disabled={submitting}
-              placeholder="INPUT YOUR REPLY..."
+              placeholder="写下你的回复…"
               className="ac-reply-textarea"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && e.ctrlKey) onSubmitComment()
@@ -1305,14 +1289,13 @@ function CommentCard({
             <div className="ac-reply-input-border" />
           </div>
           <div className="ac-reply-actions">
-            <span className="ac-shortcut-hint">CTRL+ENTER</span>
             <div className="ac-reply-buttons">
               <button
                 type="button"
                 className="ac-cancel-reply-btn"
                 onClick={() => onCancelReply()}
               >
-                CANCEL
+                取消
               </button>
               <button
                 type="button"
@@ -1320,7 +1303,7 @@ function CommentCard({
                 onClick={() => onSubmitComment()}
                 disabled={!newComment.trim() || submitting}
               >
-                {submitting ? 'SENDING...' : 'SEND'}
+                {submitting ? '发送中…' : '发送'}
               </button>
             </div>
           </div>

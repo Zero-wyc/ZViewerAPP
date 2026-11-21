@@ -489,7 +489,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
     setSelectedMountId(value)
     const id = Number(value)
     if (!id) return
-    const mount = mounts.find((m) => m.id === id)
+    const mount = mounts.find((m) => m.type === sourceType && m.id === id)
     if (!mount) return
     if (sourceType === 'webdav') {
       setWebdav({
@@ -593,7 +593,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
       if (!firstPath) throw new Error('分集缺少条目 ID')
       const first = await resolveFn(seriesMountId, firstPath)
       if (!current()) return
-      const mount = mounts.find((m) => m.id === seriesMountId)
+      const mount = mounts.find((m) => m.type === api && m.id === seriesMountId)
       await addMovie(roomId!, {
         url: directLink && first.directUrl ? first.directUrl : first.videoUrl,
         title: series.name,
@@ -760,7 +760,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
             // Emby：解析播放信息，支持服务器转发（默认）或直链直连
             const resolved = await resolveEmby(mountId, normalizedPath)
             const title = resolved.title || extractTitleFromUrl(normalizedPath)
-            const mount = mounts.find((m) => m.id === mountId)
+            const mount = mounts.find((m) => m.type === 'emby' && m.id === mountId)
             if (!current()) break
             await addMovie(roomId, {
               url:
@@ -782,7 +782,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
           } else if (sourceType === 'jellyfin') {
             const resolved = await resolveJellyfin(mountId, normalizedPath)
             const title = resolved.title || extractTitleFromUrl(normalizedPath)
-            const mount = mounts.find((m) => m.id === mountId)
+            const mount = mounts.find((m) => m.type === 'jellyfin' && m.id === mountId)
             if (!current()) break
             await addMovie(roomId, {
               url:
@@ -1428,68 +1428,6 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
         })
         resetForm()
         message.success('影片已添加')
-      } else if (sourceType === 'emby') {
-        const mountId = Number(selectedMountId)
-        if (!mountId) {
-          message.warning('请选择已保存的 Emby 挂载')
-          return
-        }
-        // Emby 是媒体库型，需通过浏览选择条目（itemId）
-        // 手动输入场景仅支持已复制的 itemId 直加
-        const itemId = url.trim()
-        if (!itemId) {
-          message.warning('请通过「浏览 Emby 媒体库」选择条目，或粘贴 itemId')
-          return
-        }
-        setResolveProgress('正在解析 Emby 条目...')
-        const resolved = await resolveEmby(mountId, itemId)
-        const mount = mounts.find((m) => m.id === mountId)
-        await addMovie(roomId, {
-          url:
-            embyDirectLink && resolved.directUrl
-              ? resolved.directUrl
-              : resolved.videoUrl,
-          title: resolved.title || extractTitleFromUrl(itemId),
-          source: 'emby',
-          format: resolved.format,
-          duration: resolved.duration,
-          serverUrl: mount?.serverUrl ?? undefined,
-          path: itemId,
-          directLink: embyDirectLink,
-        })
-        resetForm()
-        message.success('影片已添加')
-      } else if (sourceType === 'jellyfin') {
-        const mountId = Number(selectedMountId)
-        if (!mountId) {
-          message.warning('请选择已保存的 Jellyfin 挂载')
-          return
-        }
-        const itemId = url.trim()
-        if (!itemId) {
-          message.warning(
-            '请通过「浏览 Jellyfin 媒体库」选择条目，或粘贴 itemId'
-          )
-          return
-        }
-        setResolveProgress('正在解析 Jellyfin 条目...')
-        const resolved = await resolveJellyfin(mountId, itemId)
-        const mount = mounts.find((m) => m.id === mountId)
-        await addMovie(roomId, {
-          url:
-            jellyfinDirectLink && resolved.directUrl
-              ? resolved.directUrl
-              : resolved.videoUrl,
-          title: resolved.title || extractTitleFromUrl(itemId),
-          source: 'jellyfin',
-          format: resolved.format,
-          duration: resolved.duration,
-          serverUrl: mount?.serverUrl ?? undefined,
-          path: itemId,
-          directLink: jellyfinDirectLink,
-        })
-        resetForm()
-        message.success('影片已添加')
       } else if (sourceType === 'server-files') {
         if (!serverFilePath.trim()) {
           message.warning('请选择服务器文件')
@@ -1524,6 +1462,8 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
 
   // bilibili 需要先解析再选清晰度；anime 有独立搜索弹窗；其他源点击"添加"直接 resolve+add
   const renderActionButton = () => {
+    if (sourceType === 'emby' || sourceType === 'jellyfin') return null
+
     if (sourceType === 'anime') {
       return (
         <Button
@@ -1899,113 +1839,41 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
       )
     }
 
-    if (sourceType === 'emby') {
+    if (sourceType === 'emby' || sourceType === 'jellyfin') {
+      const isEmby = sourceType === 'emby'
+      const name = isEmby ? 'Emby' : 'Jellyfin'
+      const directLink = isEmby ? embyDirectLink : jellyfinDirectLink
+      const setDirectLink = isEmby ? setEmbyDirectLink : setJellyfinDirectLink
+      const libraries = mounts.filter(mount => mount.type === sourceType)
+      const library = libraries.find(mount => String(mount.id) === selectedMountId)
       return (
         <Space direction="vertical" className="w-full" size="sm">
           <Dropdown
-            label="使用已保存的 Emby 挂载"
+            label={`使用已保存的 ${name} 挂载`}
             value={selectedMountId}
-            options={getMountOptions('emby')}
+            options={libraries.map(mount => ({ value: String(mount.id), label: mount.name }))}
             onChange={handleMountSelect}
           />
-          {selectedMountId && (
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<Clapperboard className="h-4 w-4" />}
-              onClick={() => {
-                const mount = mounts.find(
-                  (m) => m.id === Number(selectedMountId)
-                )
-                if (mount) setBrowsingMount(mount)
-              }}
-            >
-              浏览 Emby 媒体库
-            </Button>
-          )}
-          {!selectedMountId && (
-            <Input
-              size="sm"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="粘贴 Emby itemId（可选，一般通过浏览选择）"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  void handleAddMovie()
-                }
-              }}
-            />
-          )}
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<Clapperboard className="h-4 w-4" />}
+            disabled={!library || loading}
+            onClick={() => { if (library) setBrowsingMount(library) }}
+          >
+            浏览 {name} 媒体库
+          </Button>
           <Dropdown
             label="播放方式"
-            value={embyDirectLink ? 'direct' : 'proxy'}
+            value={directLink ? 'direct' : 'proxy'}
             options={[
               { value: 'proxy', label: '服务器转发' },
               { value: 'direct', label: '直链直连' },
             ]}
-            onChange={(value) => setEmbyDirectLink(value === 'direct')}
+            onChange={(value) => setDirectLink(value === 'direct')}
           />
           <Text className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-            {selectedMountId
-              ? '已选择挂载，点击「浏览 Emby 媒体库」逐级选择电影 / 剧集，多选模式可批量添加。'
-              : '选择挂载后点击「浏览 Emby 媒体库」逐级选择电影 / 剧集，多选模式可批量添加。服务器转发由本服务中转（跨域/防盗链友好）；直链直连由浏览器直接访问 Emby 服务器。'}
-          </Text>
-        </Space>
-      )
-    }
-
-    if (sourceType === 'jellyfin') {
-      return (
-        <Space direction="vertical" className="w-full" size="sm">
-          <Dropdown
-            label="使用已保存的 Jellyfin 挂载"
-            value={selectedMountId}
-            options={getMountOptions('jellyfin')}
-            onChange={handleMountSelect}
-          />
-          {selectedMountId && (
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<Clapperboard className="h-4 w-4" />}
-              onClick={() => {
-                const mount = mounts.find(
-                  (m) => m.id === Number(selectedMountId)
-                )
-                if (mount) setBrowsingMount(mount)
-              }}
-            >
-              浏览 Jellyfin 媒体库
-            </Button>
-          )}
-          {!selectedMountId && (
-            <Input
-              size="sm"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="粘贴 Jellyfin itemId（可选，一般通过浏览选择）"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  void handleAddMovie()
-                }
-              }}
-            />
-          )}
-          <Dropdown
-            label="播放方式"
-            value={jellyfinDirectLink ? 'direct' : 'proxy'}
-            options={[
-              { value: 'proxy', label: '服务器转发' },
-              { value: 'direct', label: '直链直连' },
-            ]}
-            onChange={(value) => setJellyfinDirectLink(value === 'direct')}
-          />
-          <Text className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-            {selectedMountId
-              ? '已选择挂载，点击「浏览 Jellyfin 媒体库」逐级选择电影 / 剧集，多选模式可批量添加。'
-              : '选择挂载后点击「浏览 Jellyfin 媒体库」逐级选择电影 / 剧集，多选模式可批量添加。服务器转发由本服务中转（跨域/防盗链友好）；直链直连由浏览器直接访问 Jellyfin 服务器。'}
+            在媒体库中选择电影或剧集即可添加，支持多选。
           </Text>
         </Space>
       )

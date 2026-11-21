@@ -643,7 +643,6 @@ export function PlayerControlBar({
         {/* 控制按钮行 */}
         <div
           className="player-controls-row flex items-center gap-1 md:gap-1.5"
-          data-next-movie={!!onNextMovie}
         >
           {/* 播放 / 暂停 */}
           <ControlButton
@@ -679,13 +678,13 @@ export function PlayerControlBar({
                 {'直播'}
               </span>
               {watchTogether.duration > 0 && (
-                <span className="text-[10px] opacity-70 md:text-xs">
+                <span className="player-clock text-[10px] opacity-70 md:text-xs">
                   {formatDuration(currentTime)}
                 </span>
               )}
             </div>
           ) : (
-            <div className="select-none px-0.5 md:px-1 text-[10px] md:text-xs font-medium tabular-nums text-[var(--md-sys-color-on-surface)]">
+            <div className="player-clock select-none px-0.5 md:px-1 text-[10px] md:text-xs font-medium tabular-nums text-[var(--md-sys-color-on-surface)]">
               <span>{formatDuration(currentTime)}</span>
               <span className="mx-0.5 opacity-60">/</span>
               <span className="opacity-80">{formatDuration(duration)}</span>

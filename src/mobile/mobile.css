@@ -263,7 +263,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid #65d59b; outline-
 .player-tool svg { flex-shrink: 0; width: 20px; height: 20px; }
 .player-display-controls { display: flex; flex-shrink: 0; gap: 2px; margin-left: auto; }
 .player-controls-row { min-width: 0; }
-.player-time { font-size: 12px; white-space: nowrap; }
 .player-more-menu { max-height: min(300px, calc(100dvh - 130px)); }
 .player-more-menu button { min-height: 44px; }
 @media (max-height: 540px) {
@@ -281,18 +280,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid #65d59b; outline-
 .player-settings-main { max-height: min(420px, calc(100dvh - 140px)) !important; }
 
 @container player-controls (max-width: 820px) {
-  .player-controls-row { display: grid; grid-template-columns: repeat(6, minmax(40px, 1fr)); gap: 2px; }
-  .player-controls-row:has(.player-display-controls[data-fullscreen="true"]) { grid-template-columns: repeat(7, minmax(40px, 1fr)); }
-  .player-controls-row .player-tool { width: 100%; min-width: 40px; height: 44px; }
-  .player-time { order: -1; grid-column: 1 / -1; line-height: 16px; }
+  .player-controls-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; }
+  .player-controls-row .player-tool { width: 100%; min-width: 0; height: 44px; }
+  .player-controlbar[data-landscape="false"] .player-clock { display: none; }
   .player-secondary, .player-desktop-composer { display: none !important; }
   .player-more { display: block; }
   .player-display-controls { grid-column: span 1; width: 100%; margin: 0; }
   .player-display-controls[data-fullscreen="true"] { grid-column: span 2; }
   .player-display-controls .player-tool { flex: 1; }
-  .player-controls-row[data-next-movie="true"] { grid-template-columns: repeat(7, minmax(0, 1fr)); }
-  .player-controls-row[data-next-movie="true"]:has(.player-display-controls[data-fullscreen="true"]) { grid-template-columns: repeat(8, minmax(0, 1fr)); }
-  .player-controls-row[data-next-movie="true"] .player-tool { min-width: 0; }
 }
 
 /* 移动壳统一使用 top-layer 弹层，手机、平板和全屏不再切换定位参照物。 */

@@ -61,10 +61,10 @@ interface FloorState {
 const FLOOR_REPLY_LIMIT = 10
 const COMMENTS_PREFETCH_PX = 200
 
-/** 数量缩写（>=1w 显示 x.xw） */
+/** 超过四位的数量以万为单位显示。 */
 function formatBiliCount(n: number): string {
   if (n >= 10_000) {
-    return `${(n / 10_000).toFixed(1).replace(/\.0$/, '')}w`
+    return `${(n / 10_000).toFixed(1).replace(/\.0$/, '')}万`
   }
   return String(n)
 }
@@ -417,16 +417,7 @@ export function BiliCommentsPanel({ bvid }: { bvid: string }) {
     >
       <style>{COMMENTS_STYLE}</style>
 
-      {/* COMMENTS 标题（角标框架） */}
-      <div className="ac-comments-header">
-        <div className="ac-header-frame">
-          <FrameCorners />
-          <div className="flex flex-col items-center">
-            <span className="ac-header-title">COMMENTS</span>
-            <div className="ac-title-underline" />
-          </div>
-        </div>
-      </div>
+      <h2 className="ac-comments-header ac-header-title">评论</h2>
 
       {/* 游客提示：未登录 B站 仅开放前 3 条主楼 */}
       {loginLimited && (
@@ -434,7 +425,7 @@ export function BiliCommentsPanel({ bvid }: { bvid: string }) {
           <div className="ac-prompt-frame">
             <FrameCorners />
             <span className="ac-prompt-text">
-              LOGIN FOR FULL COMMENTS（游客仅前 3 条）
+              登录哔哩哔哩可查看全部评论，游客仅可查看前 3 条。
             </span>
           </div>
         </div>
@@ -445,7 +436,7 @@ export function BiliCommentsPanel({ bvid }: { bvid: string }) {
         <div>
           <div className="ac-section-header">
             <div>
-              <span className="ac-section-title">HOT COMMENTS</span>
+              <span className="ac-section-title">热门评论</span>
               <span className="ac-section-count">[{hotComments.length}]</span>
             </div>
             <div className="ac-section-line" />
@@ -468,7 +459,7 @@ export function BiliCommentsPanel({ bvid }: { bvid: string }) {
       <div>
         <div className="ac-section-header">
           <div>
-            <span className="ac-section-title">LATEST COMMENTS</span>
+            <span className="ac-section-title">最新评论</span>
             <span className="ac-section-count">[{total}]</span>
           </div>
           <div className="ac-section-line" />
@@ -492,7 +483,7 @@ export function BiliCommentsPanel({ bvid }: { bvid: string }) {
             <FrameCorners />
             <div className="ac-loading-content">
               <div className="ac-loading-indicator" />
-              <span className="ac-status-text">LOADING...</span>
+              <span className="ac-status-text">正在加载…</span>
             </div>
           </div>
         </div>
@@ -501,7 +492,7 @@ export function BiliCommentsPanel({ bvid }: { bvid: string }) {
         <div className="ac-status-section">
           <div className="ac-status-frame relative">
             <FrameCorners />
-            <span className="ac-status-text">NO MORE COMMENTS</span>
+            <span className="ac-status-text">已显示全部评论</span>
           </div>
         </div>
       )}
@@ -509,7 +500,7 @@ export function BiliCommentsPanel({ bvid }: { bvid: string }) {
         <div className="ac-status-section">
           <div className="ac-status-frame relative">
             <FrameCorners />
-            <span className="ac-status-text">NO COMMENTS YET</span>
+            <span className="ac-status-text">暂无评论</span>
           </div>
         </div>
       )}
@@ -575,7 +566,7 @@ function BiliCard({
             <path d={LIKE_PATH} />
           </svg>
           <span className="ac-control-text">
-            {comment.like > 0 ? formatBiliCount(comment.like) : 'LIKE'}
+            {comment.like > 0 ? formatBiliCount(comment.like) : '点赞'}
           </span>
         </div>
       </div>
@@ -629,7 +620,7 @@ function BiliCard({
                           <span className="ac-control-text">
                             {reply.like > 0
                               ? formatBiliCount(reply.like)
-                              : 'LIKE'}
+                              : '点赞'}
                           </span>
                         </div>
                       </div>
