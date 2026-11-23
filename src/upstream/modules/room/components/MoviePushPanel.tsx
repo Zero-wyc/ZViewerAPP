@@ -18,11 +18,11 @@ import {
   FileVideo,
   User,
   Plus,
-  Search,
   Crown,
   FolderOpen,
   Clapperboard,
   ListVideo,
+  Search,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -70,6 +70,7 @@ import {
   getBilibiliInputResolvePolicy,
   isBilibiliPgcMovie,
 } from '@/modules/room/watch-together/movie-source-resolver'
+import { CrawlerSearchModal } from './CrawlerSearchModal'
 import {
   resolveOpenList,
   fetchOpenListDirectUrl,
@@ -106,6 +107,7 @@ import { useSystemSettingsStore } from '@/store/systemSettingsStore'
 import { cn } from '@/lib/utils'
 
 type SourceType =
+  | 'crawler'
   | 'bilibili'
   | 'mp4'
   | 'webdav'
@@ -117,6 +119,40 @@ type SourceType =
   | 'kazumi'
   | 'cms'
   | 'server-files'
+
+const CRAWLER_SEARCH_VALUE = '__crawler-search__'
+const BETA_ONLY_OPTIONS = new Set(['anime', 'kazumi', 'cms', CRAWLER_SEARCH_VALUE])
+
+type CrawlLibrary = 'local' | 'anisubs' | 'kazumi' | 'cms'
+
+const CRAWL_GROUP_SOURCES = new Set<string>([
+  'crawler',
+  'anime',
+  'kazumi',
+  'cms',
+])
+
+const CRAWL_LIBRARY_SOURCES: Record<CrawlLibrary, SourceType> = {
+  local: 'crawler',
+  anisubs: 'anime',
+  kazumi: 'kazumi',
+  cms: 'cms',
+}
+
+const CRAWL_LIBRARY_OPTIONS: { value: CrawlLibrary; label: string }[] = [
+  { value: 'local', label: '本地规则' },
+  { value: 'anisubs', label: 'AniSubs 番剧源' },
+  { value: 'kazumi', label: 'Kazumi 番剧源' },
+  { value: 'cms', label: 'TVBox 采集源' },
+]
+
+/** 由当前 sourceType 反推子源（不在分组内时返回 local）。 */
+function crawlLibraryOf(sourceType: SourceType): CrawlLibrary {
+  if (sourceType === 'anime') return 'anisubs'
+  if (sourceType === 'kazumi') return 'kazumi'
+  if (sourceType === 'cms') return 'cms'
+  return 'local'
+}
 
 const ALL_SOURCE_OPTIONS: {
   value: string
@@ -134,6 +170,7 @@ const ALL_SOURCE_OPTIONS: {
   { value: 'kazumi', label: 'Kazumi 番剧源' },
   { value: 'cms', label: 'TVBox 采集源' },
   { value: 'server-files', label: '服务器文件', rootOnly: true },
+  { value: CRAWLER_SEARCH_VALUE, label: '全网搜片' },
 ]
 
 function extractTitleFromUrl(url: string) {
@@ -273,6 +310,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
   // 多 P 视频分集选择弹窗
   const [showPageSelector, setShowPageSelector] = useState(false)
   const [pageSelectLoading, setPageSelectLoading] = useState(false)
+  const [crawlerSearchOpen, setCrawlerSearchOpen] = useState(false)
 
   useEffect(() => {
     void fetchSettings()
@@ -281,9 +319,10 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
   useEffect(() => {
     if (
       !betaFeaturesEnabled &&
-      (sourceType === 'anime' || sourceType === 'kazumi')
+      CRAWL_GROUP_SOURCES.has(sourceType)
     ) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- 仅在 betaFeaturesEnabled 切换时回退一次，非每次渲染触发
+      setCrawlerSearchOpen(false)
       setSourceType('bilibili')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -406,7 +445,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
       items: { sourceId: string; episode: AniSubsEpisode; title: string }[]
     ): Promise<string[]> => {
       if (!isHost || !roomId) {
-        message.error(!isHost ? '只有房主可以添加影片' : '未连接房间')
+        message.error(!isHost ? '没有添加影片权限' : '未连接房间')
         return []
       }
       const revision = useRoomStore.getState().roomSessionRevision
@@ -623,7 +662,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
   const handleQuickAddSeries = useCallback(
     async (entry: EmbyDirectoryEntry) => {
       if (!isHost) {
-        message.info('只有房主可以添加影片')
+        message.info('没有添加影片权限')
         return
       }
       if (!roomId) {
@@ -658,7 +697,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
   const handleSelectFilesFromMount = useCallback(
     async (paths: string[], entries?: EmbyDirectoryEntry[]) => {
       if (!isHost) {
-        message.info('只有房主可以添加影片')
+        message.info('没有添加影片权限')
         return
       }
       if (!roomId) {
@@ -844,7 +883,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
   const handleSelectFilesFromServer = useCallback(
     async (paths: string[]) => {
       if (!isHost) {
-        message.info('只有房主可以添加影片')
+        message.info('没有添加影片权限')
         return
       }
       if (!roomId) {
@@ -1236,7 +1275,7 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
   // bilibili 仍走两步：先 handleResolve 解析 → 选清晰度 → handleAddMovie 添加
   const handleAddMovie = async () => {
     if (!isHost) {
-      message.info('只有房主可以添加影片')
+      message.info('没有添加影片权限')
       return
     }
     if (!roomId) {
@@ -1546,6 +1585,14 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
   }
 
   const renderSourceForm = () => {
+    if (sourceType === 'crawler') return (
+      <div className="flex flex-col gap-2 rounded-[var(--md-sys-shape-corner)] border border-[var(--md-sys-color-outline-variant)] bg-[var(--glass-bg)] p-3">
+        <Text type="secondary" className="text-xs">搜索房间可用的站点规则，选中结果后加入影片列表。</Text>
+        <Button variant="primary" block icon={<Search className="h-4 w-4" />} disabled={!isHost} onClick={() => setCrawlerSearchOpen(true)}>
+          打开搜索
+        </Button>
+      </div>
+    )
     const getMountOptions = (type: MountType) => [
       { value: '', label: '手动填写' },
       ...mounts
@@ -1941,12 +1988,18 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
         {/* 卡片内容 */}
         <div className="zen-scroll flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-3">
           <Dropdown
-            value={sourceType}
+            value={
+              CRAWL_GROUP_SOURCES.has(sourceType)
+                ? CRAWLER_SEARCH_VALUE
+                : sourceType
+            }
             options={ALL_SOURCE_OPTIONS.filter(
               (opt) =>
                 (!opt.rootOnly || userRole === 'root') &&
-                (betaFeaturesEnabled ||
-                  (opt.value !== 'anime' && opt.value !== 'kazumi')) &&
+                // 三个内置库改由「全网搜片」的子源选择，顶层不再单列
+                !CRAWL_GROUP_SOURCES.has(opt.value) &&
+                // Beta 关闭时番剧源与全网搜片一律不出现
+                (betaFeaturesEnabled || !BETA_ONLY_OPTIONS.has(opt.value)) &&
                 // 挂载类型需有对应挂载才显示
                 !(
                   ['webdav', 'ftp', 'openlist', 'emby', 'jellyfin'].includes(
@@ -1954,17 +2007,35 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
                   ) && mounts.filter((m) => m.type === opt.value).length === 0
                 )
             )}
-            onChange={(value) => setSourceType(value as SourceType)}
+            onChange={(value) => {
+              // 「全网搜片」先进分组（本地规则），再在下面选具体库
+              if (value === CRAWLER_SEARCH_VALUE) {
+                setSourceType('crawler')
+                return
+              }
+              setSourceType(value as SourceType)
+            }}
           />
+
+          {CRAWL_GROUP_SOURCES.has(sourceType) && (
+            <Dropdown
+              value={crawlLibraryOf(sourceType)}
+              options={CRAWL_LIBRARY_OPTIONS}
+              onChange={(value) =>
+                setSourceType(CRAWL_LIBRARY_SOURCES[value as CrawlLibrary])
+              }
+            />
+          )}
 
           {renderSourceForm()}
 
-          {renderActionButton()}
+          {/* 本地规则库的搜索在主按钮里完成，不再显示通用「添加」按钮 */}
+          {sourceType !== 'crawler' && renderActionButton()}
 
           {['anime', 'kazumi', 'cms'].includes(sourceType) && <PlaybackOptionToggle label="服务器中转"
             description="关闭（默认）：一律直连源站，服务器零媒体流量，带防盗链的源需开启才能播放。开启：媒体流一律经服务器中转，兼容性最好但占用服务器流量。"
             checked={serverProxy} disabled={!isHost} onChange={setServerProxy} />}
-          {sourceType !== 'bilibili' && <PlaybackOptionToggle label="浏览器转码引擎"
+          {sourceType !== 'bilibili' && sourceType !== 'crawler' && <PlaybackOptionToggle label="浏览器转码引擎"
             description="开启：MKV/DTS 等非常规格式由浏览器端重封装/转码播放。关闭：强制原生直连，不兼容编码将无声。"
             checked={playsvideoEnabled} disabled={!isHost} onChange={setPlaysvideoEnabled} />}
           {resolveProgress && (
@@ -2235,6 +2306,11 @@ export function MoviePushPanel({ isHost }: MoviePushPanelProps) {
         open={serverFilesBrowserOpen}
         onClose={() => setServerFilesBrowserOpen(false)}
         onConfirm={handleSelectFilesFromServer}
+      />
+
+      <CrawlerSearchModal
+        open={crawlerSearchOpen}
+        onClose={() => setCrawlerSearchOpen(false)}
       />
 
       {sourceType === 'bilibili' && resolvedMovie?.pages && (

@@ -1,3 +1,6 @@
+import { useRoomDisplayName } from '@/modules/room/hooks/useRoomDisplayName'
+import { useRoomMoviePermission } from '@/modules/room/hooks/useRoomMoviePermission'
+import { canRequestMovie } from '@/store/moviePermission'
 import { usePosterRefresh } from '@/hooks/usePosterRefresh'
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { useLocation } from 'react-router-dom'
@@ -44,11 +47,16 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
   const location = useLocation()
   useViewerList(roomId)
   const room = useMobileRoom(socket, roomId, location.state || {})
+  useRoomMoviePermission(socket, room.phase === 'ready' ? roomId : undefined)
+  const { name: roomDisplayName } = useRoomDisplayName(roomId)
   const mode = useRoomStore(s => s.mode)
   const name = useRoomStore(s => s.roomName)
   const viewers = useRoomStore(s => s.viewers)
   const moderators = useRoomStore(s => s.moderators)
+  const guestModerators = useRoomStore(s => s.guestModerators)
+  const moviePermission = useRoomStore(s => s.moviePermission)
   const user = useAuthStore(s => s.user)
+  const displayName = roomDisplayName || user?.username
   const matrix = useSystemSettingsStore(s => s.roomPermissionMatrix)
   const showVoiceChatButton = useSystemSettingsStore(s => s.showVoiceChatButton)
   const { isModeSwitching, handleSwitchMode } = useRoomModeSwitch(socket, roomId, room.isHost)
@@ -88,9 +96,35 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
     }
   }, [])
   const [approvalBusy, setApprovalBusy] = useState<string | null>(null)
-  const permissions = { isHost: room.isHost, isModerator: !!user && moderators.includes(Number(user.id)), role: user?.role }
-  const canAdd = canRoomViewerPerform(matrix, 'addMovie', permissions)
+  const userId = user?.id != null ? Number(user.id) : 0
+  const loggedInModerator = userId > 0 && moderators.includes(userId)
+  const isModerator = loggedInModerator || (!!socket?.id && guestModerators.includes(socket.id))
+  const myGuestId = viewers.find(viewer => viewer.socketId === socket?.id)?.guestId
+  const permissions = { isHost: room.isHost, isModerator, role: user?.role }
   const canManage = canRoomViewerPerform(matrix, 'manageMovie', permissions)
+  const canAddByMatrix = userId > 0 && canRoomViewerPerform(matrix, 'addMovie', {
+    isHost: room.isHost, isModerator: loggedInModerator, role: user?.role,
+  })
+  const canAdd = canAddByMatrix || canRequestMovie(moviePermission, {
+    isHost: room.isHost, role: user?.role, userId, guestId: myGuestId,
+  })
+  const reportedName = useRef<{ socketId: string; roomId: string; name: string } | null>(null)
+  useEffect(() => {
+    if (!socket) return
+    const onDisconnect = () => { reportedName.current = null }
+    socket.on('disconnect', onDisconnect)
+    return () => {
+      socket.off('disconnect', onDisconnect)
+      reportedName.current = null
+    }
+  }, [socket])
+  useEffect(() => {
+    if (room.phase !== 'ready' || !connected || !socket?.connected || !socket.id || !roomDisplayName) return
+    const previous = reportedName.current
+    if (previous?.socketId === socket.id && previous.roomId === roomId && previous.name === roomDisplayName) return
+    socket.emit('set-display-name', { roomId, name: roomDisplayName })
+    reportedName.current = { socketId: socket.id, roomId, name: roomDisplayName }
+  }, [socket, connected, room.phase, roomId, roomDisplayName])
   const canQueue = canRoomViewerPerform(matrix, 'musicQueue', permissions)
   useMusicAudioRouting(mode === 'listen-together' && room.phase === 'ready', voiceAudioActive)
   useEffect(() => () => { void restoreDisplay().catch(() => {}) }, [])
@@ -203,8 +237,8 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
             <button className="icon-button" aria-label={`批准 ${request.username}`} disabled={approvalBusy !== null} onClick={() => approve(request.viewerSocketId, true)}><Check size={20} /></button>
             <button className="icon-button" aria-label={`拒绝 ${request.username}`} disabled={approvalBusy !== null} onClick={() => approve(request.viewerSocketId, false)}><X size={20} /></button>
           </div>)}
-          <MusicPlayerProvider socket={socket} roomId={roomId} isHost={room.isHost} username={user?.username}>
-            <MusicAppShell voiceManagedExternally socket={socket} roomId={roomId} isHost={room.isHost} username={user?.username}
+          <MusicPlayerProvider socket={socket} roomId={roomId} isHost={room.isHost} username={displayName}>
+            <MusicAppShell voiceManagedExternally socket={socket} roomId={roomId} isHost={room.isHost} username={displayName}
               canManage={canQueue} isModeSwitching={isModeSwitching} commentsOnlyDock />
           </MusicPlayerProvider>
         </div>
@@ -240,11 +274,11 @@ export default function MobileRoom({ roomId, onLeave }: { roomId: string; onLeav
       )}
       {voiceAvailable && <section className="mobile-voice-panel" hidden={!showVoiceChatButton || !voiceOpen || !ready} aria-label="语音面板">
         <div className="mobile-voice-heading"><strong>房间语音</strong><button className="icon-button" aria-label="收起语音面板" title="收起语音面板" onClick={() => setVoiceOpen(false)}><X size={20} /></button></div>
-        <VoiceChatPanel embedded socket={socket} roomId={roomId} username={user?.username}
+        <VoiceChatPanel embedded socket={socket} roomId={roomId} username={displayName}
           canManageVoice={room.isHost || permissions.isModerator} onConnectionChange={setVoiceJoined}
           onAudioSessionChange={setVoiceAudioActive} />
       </section>}
-      <Modal variant="sheet" open={addOpen} title="添加影片" onClose={() => setAddOpen(false)} footer={null}><MoviePushPanel isHost={canAdd} /></Modal>
+      <Modal variant="sheet" open={addOpen && canAdd && room.phase === 'ready'} title="添加影片" onClose={() => setAddOpen(false)} footer={null}><MoviePushPanel isHost={canAdd} /></Modal>
       <Modal variant="sheet" keepMounted open={settingsOpen} title="房间" onClose={() => setSettingsOpen(false)} footer={null}>
         {ready && room.isHost && <div className="mobile-mode-switch" role="group" aria-label="房间模式" data-unlisted={!modeOptions.includes(mode) || undefined} style={{ '--zv-tab-count': modeOptions.length, '--zv-tab-index': Math.max(0, modeOptions.indexOf(mode)) } as CSSProperties}>
           <button aria-pressed={mode === 'watch-together'} disabled={isModeSwitching || !connected} onClick={() => handleSwitchMode('watch-together')}><MonitorPlay size={18} />一起看</button>

@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils'
 import { useState, useEffect } from 'react'
 import {
   Users,
@@ -15,6 +16,7 @@ import {
   Shield,
   Lock,
   UserCheck,
+  Clapperboard,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Space } from '@/components/ui/Space'
@@ -24,14 +26,20 @@ import { Input } from '@/components/ui/Input'
 import { SegmentedToggle } from '@/components/ui/SegmentedToggle'
 import { Switch } from '@/components/ui/Switch'
 import { message } from '@/components/ui/message'
+import { useRoomDisplayName } from '@/modules/room/hooks/useRoomDisplayName'
+import { isValidDisplayName } from '@/modules/room/lib/displayName'
 import { useSocket } from '@/hooks/useSocket'
 import { useRoomStore } from '@/store/roomStore'
+import {
+  memberCanRequestMovie,
+  updateMoviePermission,
+} from '@/store/moviePermission'
 import { useAuthStore } from '@/store/authStore'
 import {
   useSystemSettingsStore,
   canRoomViewerPerform,
 } from '@/store/systemSettingsStore'
-import { getApiUrl } from '@/lib/api'
+import { getApiUrl, getLogicalApiUrl } from '@/lib/api'
 import { getAddressScope } from '@/lib/netAddress'
 import { buildRoomShareUrl } from '../roomShareLink'
 import { canReorderPlaylist } from './playlistOrder'
@@ -87,6 +95,7 @@ export function RoomInfoPanel({
   const roomSettings = useRoomStore((state) => state.roomSettings)
   const setRoomSettings = useRoomStore((state) => state.setRoomSettings)
   const moderators = useRoomStore((state) => state.moderators)
+  const guestModerators = useRoomStore((state) => state.guestModerators)
   const autoApproveRequests = useRoomStore((state) => state.autoApproveRequests)
   const toggleAutoApproveRequests = useRoomStore(
     (state) => state.toggleAutoApproveRequests
@@ -96,6 +105,13 @@ export function RoomInfoPanel({
   const ownerUserId = useRoomStore(state => state.roomOwnerUserId)
   const canRename = canReorderPlaylist(role, currentUserId, ownerUserId)
   const matrix = useSystemSettingsStore((state) => state.roomPermissionMatrix)
+  const moviePermission = useRoomStore((state) => state.moviePermission)
+  const setMoviePermission = useRoomStore((state) => state.setMoviePermission)
+  const [moviePermissionBusy, setMoviePermissionBusy] = useState(false)
+  // 逐人开关按目标记忙碌态（u:<id> / g:<guestId>），避免连点同一行
+  const [moviePermissionBusyKey, setMoviePermissionBusyKey] = useState<
+    string | null
+  >(null)
 
   const [showUsers, setShowUsers] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -104,6 +120,13 @@ export function RoomInfoPanel({
   const [editingNameValue, setEditingNameValue] = useState(roomName)
   const [savingName, setSavingName] = useState(false)
   const [pendingShareLink, setPendingShareLink] = useState<string | null>(null)
+
+  // 我的房间昵称（房间内显示名，随时可改）
+  const { name: roomDisplayName, rename: renameDisplayName } =
+    useRoomDisplayName(roomId)
+  const [nicknameOpen, setNicknameOpen] = useState(false)
+  const [nicknameDraft, setNicknameDraft] = useState('')
+  const [nicknameError, setNicknameError] = useState('')
 
   // 房间设置表单
   const [passwordValue, setPasswordValue] = useState('')
@@ -126,9 +149,10 @@ export function RoomInfoPanel({
   }, [isHostProp])
 
   // 当前用户是否为房管（房主身份由 sessionStorage 标记判定，
-  // 房管身份由服务器同步的 moderators 列表判定）
+  // 房管身份由服务器同步的 moderators / guestModerators 列表判定）
   const isModerator =
-    currentUserId != null && moderators.includes(Number(currentUserId))
+    (currentUserId != null && moderators.includes(Number(currentUserId))) ||
+    (!!socket?.id && guestModerators.includes(socket.id))
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 同步 roomName 到编辑框
@@ -315,18 +339,23 @@ export function RoomInfoPanel({
     )
   }
 
-  // 房主任命/撤销房管（仅房主可操作）
-  const handleToggleModerator = (userId: number, username?: string) => {
+  // 房主任命/撤销房管（仅房主可操作）。游客 userId 恒为 0，改按 socketId 任命。
+  const handleToggleModerator = (
+    userId: number,
+    username?: string,
+    targetSocketId?: string
+  ) => {
     if (!socket?.connected) {
       message.error('未连接到房间')
       return
     }
     const socketId = socket.id
-    const isModerator = moderators.includes(userId)
+    const isModerator = (userId > 0 && moderators.includes(userId)) ||
+      (!!targetSocketId && guestModerators.includes(targetSocketId))
     const event = isModerator ? 'dismiss-moderator' : 'appoint-moderator'
     socket.timeout(5000).emit(
       event,
-      { roomId, userId },
+      { roomId, userId, socketId: targetSocketId ?? '' },
       (error: Error | null, response?: { success: boolean; message?: string }) => {
         if (socket.id !== socketId || useRoomStore.getState().roomId !== roomId) return
         if (error || !response) {
@@ -344,6 +373,16 @@ export function RoomInfoPanel({
         }
       }
     )
+  }
+
+  const handleSaveNickname = () => {
+    const name = nicknameDraft.trim()
+    if (!isValidDisplayName(name) || !renameDisplayName(name)) {
+      setNicknameError('昵称需为 1~20 个字符')
+      return
+    }
+    setNicknameOpen(false)
+    message.success('昵称已更新')
   }
 
   const handleSaveSettings = () => {
@@ -372,6 +411,78 @@ export function RoomInfoPanel({
     )
   }
 
+  const captureMoviePermissionSession = (reqRoomId: string) => {
+    const reqRevision = useRoomStore.getState().roomSessionRevision
+    const reqServer = getLogicalApiUrl()
+    return () => {
+      const state = useRoomStore.getState()
+      return state.roomId === reqRoomId && state.roomSessionRevision === reqRevision && getLogicalApiUrl() === reqServer
+    }
+  }
+
+  /**
+   * 添加影片权限（房间级点片开关）总开关。
+   *
+   * 只影响「成员能不能往影片列表里加片」，不影响已加入影片的切换播放；
+   * 房主/root 与权限矩阵放行的人不受它约束。写库走 PUT movie-permission，
+   * 成功后后端广播 movie:permission-changed，观众端据此显示/隐藏「添加影片」。
+   */
+  const handleToggleMoviePermission = async () => {
+    if (!roomId || moviePermissionBusy || moviePermissionBusyKey !== null) return
+    const next = !moviePermission.allowMembers
+    setMoviePermissionBusy(true)
+    const isCurrent = captureMoviePermissionSession(roomId)
+    try {
+      const updated = await updateMoviePermission(roomId, {
+        allowMembers: next,
+      })
+      if (!isCurrent()) return
+      setMoviePermission(updated)
+      message.info(next ? '已允许成员添加影片' : '已关闭成员添加影片')
+    } catch (err) {
+      if (!isCurrent()) return
+      console.error('[RoomInfoPanel] 更新添加影片权限失败:', err)
+      message.error(err instanceof Error ? err.message : '更新点片权限失败')
+    } finally {
+      setMoviePermissionBusy(false)
+    }
+  }
+
+  /**
+   * 逐人点片权限：白名单（总开关关闭时单独放开）/ 黑名单（总开关开启时单独禁止）。
+   *
+   * 登录用户按 userId 记账；游客没有 userId，改按 guestId（浏览器侧稳定标识）
+   * 记账，两种身份各有独立的名单，互不影响。
+   */
+  const handleToggleMemberMoviePermission = async (
+    target: { userId?: number; guestId?: string },
+    allowed: boolean
+  ) => {
+    const key =
+      target.userId && target.userId > 0
+        ? `u:${target.userId}`
+        : `g:${target.guestId ?? ''}`
+    if (!roomId || moviePermissionBusy || moviePermissionBusyKey !== null) return
+    setMoviePermissionBusyKey(key)
+    const isCurrent = captureMoviePermissionSession(roomId)
+    try {
+      const updated = await updateMoviePermission(roomId, {
+        ...(target.userId && target.userId > 0
+          ? { userId: target.userId }
+          : { guestId: target.guestId }),
+        allowed,
+      })
+      if (!isCurrent()) return
+      setMoviePermission(updated)
+    } catch (err) {
+      if (!isCurrent()) return
+      console.error('[RoomInfoPanel] 更新成员点片权限失败:', err)
+      message.error(err instanceof Error ? err.message : '更新点片权限失败')
+    } finally {
+      setMoviePermissionBusyKey(null)
+    }
+  }
+
   const handleToggleRequireApproval = () => {
     if (!socket || !isHost) return
     const next = !roomSettings.requireApproval
@@ -388,19 +499,62 @@ export function RoomInfoPanel({
     )
   }
 
-  // 在线观众列表（带管理按钮）渲染
+  const renderHostViewerActions = (viewer: (typeof viewers)[number], compact = false) => {
+    const userId = Number(viewer.userId) || 0
+    if (!isHost || viewer.socketId === socket?.id || (userId > 0 && userId === Number(currentUserId))) return null
+    const movieTarget = userId > 0 ? { userId } : viewer.guestId ? { guestId: viewer.guestId } : null
+    const movieAllowed = memberCanRequestMovie(moviePermission, userId, viewer.guestId)
+    const viewerIsModerator = (userId > 0 && moderators.includes(userId)) || guestModerators.includes(viewer.socketId)
+    const movieLabel = movieAllowed ? '禁止该成员添加影片' : '允许该成员添加影片'
+    const moderatorLabel = viewerIsModerator ? '撤销房管' : '任命房管'
+    const buttonClass = cn(
+      'flex shrink-0 items-center justify-center rounded-[var(--zv-r-chip,8px)] transition-colors hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-40',
+      compact ? 'h-6 w-6' : 'h-8 w-8'
+    )
+    const iconClass = compact ? 'h-3.5 w-3.5' : 'h-4 w-4'
+    return (
+      <>
+        {movieTarget && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              void handleToggleMemberMoviePermission(movieTarget, !movieAllowed)
+            }}
+            disabled={moviePermissionBusyKey !== null || moviePermissionBusy}
+            className={buttonClass}
+            title={movieLabel}
+            aria-label={movieLabel}
+          >
+            <Clapperboard className={cn(iconClass, 'text-[var(--md-sys-color-primary)]', movieAllowed ? 'opacity-100' : 'opacity-35')} />
+          </button>
+        )}
+        {viewer.role !== 'root' && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              handleToggleModerator(userId, viewer.username, viewer.socketId)
+            }}
+            className={buttonClass}
+            title={moderatorLabel}
+            aria-label={moderatorLabel}
+          >
+            <Shield className={cn(iconClass, 'text-[var(--md-sys-color-tertiary)]', viewerIsModerator ? 'opacity-100' : 'opacity-40')} />
+          </button>
+        )}
+      </>
+    )
+  }
+
   const renderViewerItem = (
     viewer: (typeof viewers)[number],
     withActions: boolean
   ) => {
     const isMuted = !!viewer.muted
-    // 后端 userId 为 number，前端 User.id 为 string，统一转 string 比较
-    const isSelf =
-      viewer.userId != null &&
-      currentUserId != null &&
-      String(viewer.userId) === String(currentUserId)
-    const viewerIsModerator =
-      viewer.userId != null && moderators.includes(Number(viewer.userId))
+    const viewerUserId = Number(viewer.userId) || 0
+    const isSelf = viewer.socketId === socket?.id || (viewerUserId > 0 && viewerUserId === Number(currentUserId))
+    const viewerIsModerator = (viewerUserId > 0 && moderators.includes(viewerUserId)) || guestModerators.includes(viewer.socketId)
     // 管理权限（禁言/踢出/房管任命）：房主，或权限矩阵允许的观众
     const canManage =
       withActions &&
@@ -439,7 +593,7 @@ export function RoomInfoPanel({
     return (
       <div
         key={viewer.socketId}
-        className="glass flex max-w-full items-center gap-2 rounded-lg px-3 py-2"
+        className="glass flex w-full max-w-full items-center gap-2 rounded-lg px-3 py-2"
       >
         <MessageSquare
           className="h-4 w-4 shrink-0"
@@ -483,70 +637,57 @@ export function RoomInfoPanel({
             </Text>
           )}
         </div>
-        {canManage && (
+        {withActions && (isHost || canManage) && (
           <div className="flex shrink-0 items-center gap-1">
+            {renderHostViewerActions(viewer)}
             {/* 禁言按 userId 存储，游客共享 userId=0 会误伤全体游客，
                 游客行不显示禁言按钮（引导使用踢出） */}
-            {canMuteTarget && (
+            {canManage && canMuteTarget && (
               <button
+                type="button"
                 onClick={() => handleToggleMute(viewer.userId, isMuted)}
                 disabled={!canActOnTarget}
-                className="flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-40 disabled:hover:bg-transparent"
+                className="flex h-8 w-8 items-center justify-center rounded-[var(--zv-r-chip,8px)] transition-colors hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-40 disabled:hover:bg-transparent"
                 style={{ color: 'var(--md-sys-color-on-surface-variant)' }}
                 title={isMuted ? '解除禁言' : '禁言'}
+                aria-label={isMuted ? '解除禁言' : '禁言'}
               >
                 {isMuted ? (
-                  <Volume2 className="h-3.5 w-3.5" />
+                  <Volume2 className="h-4 w-4" />
                 ) : (
-                  <VolumeX className="h-3.5 w-3.5" />
+                  <VolumeX className="h-4 w-4" />
                 )}
               </button>
             )}
-            {/* 房管任命/撤销：仅房主可见（仅登录用户可被任命） */}
-            {isHost && viewer.userId != null && viewer.userId > 0 && (
-              <button
-                onClick={() =>
-                  handleToggleModerator(Number(viewer.userId), viewer.username)
-                }
-                className="flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-[var(--md-sys-color-surface-container)]"
-                style={{ color: 'var(--md-sys-color-tertiary)' }}
-                title={viewerIsModerator ? '撤销房管' : '任命房管'}
-              >
-                <Shield
-                  className="h-3.5 w-3.5"
-                  style={
-                    viewerIsModerator
-                      ? { color: 'var(--md-sys-color-tertiary)' }
-                      : undefined
-                  }
-                />
-              </button>
-            )}
             {/* 转交房主：仅房主可见 */}
-            {isHost && (
+            {canManage && isHost && (
               <button
+                type="button"
                 onClick={() =>
                   setTransferTarget({
                     socketId: viewer.socketId,
                     username: viewer.username,
                   })
                 }
-                className="flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-[var(--md-sys-color-surface-container)]"
+                className="flex h-8 w-8 items-center justify-center rounded-[var(--zv-r-chip,8px)] transition-colors hover:bg-[var(--md-sys-color-surface-container)]"
                 style={{ color: 'var(--md-sys-color-tertiary)' }}
                 title="转交房主"
+                aria-label="转交房主"
               >
-                <Crown className="h-3.5 w-3.5" />
+                <Crown className="h-4 w-4" />
               </button>
             )}
             {canKickTarget && canManage && (
               <button
+                type="button"
                 onClick={() => handleKick(viewer.socketId)}
                 disabled={!canActOnTarget}
-                className="flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-40 disabled:hover:bg-transparent"
+                className="flex h-8 w-8 items-center justify-center rounded-[var(--zv-r-chip,8px)] transition-colors hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-40 disabled:hover:bg-transparent"
                 style={{ color: 'var(--md-sys-color-error)' }}
                 title="移出房间"
+                aria-label="移出房间"
               >
-                <UserX className="h-3.5 w-3.5" />
+                <UserX className="h-4 w-4" />
               </button>
             )}
           </div>
@@ -715,6 +856,34 @@ export function RoomInfoPanel({
               </button>
             </div>
 
+            {/* 我的昵称（房间内显示名，随时可改） */}
+            <div className="flex flex-col gap-1">
+              <Text
+                type="secondary"
+                className="text-[10px] uppercase tracking-wide"
+              >
+                我的昵称
+              </Text>
+              <div className="room-nickname-row flex items-center gap-1.5">
+                <Text className="truncate text-xs font-medium">
+                  {roomDisplayName || '未设置'}
+                </Text>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNicknameDraft(roomDisplayName)
+                    setNicknameError('')
+                    setNicknameOpen(true)
+                  }}
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--zv-r-chip,8px)] text-[var(--md-sys-color-on-surface-variant)] transition-colors hover:bg-[var(--md-sys-color-surface-container)] hover:text-[var(--md-sys-color-on-surface)]"
+                  title="修改昵称"
+                  aria-label="修改昵称"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+
             {/* 操作按钮组 */}
             <div className="flex flex-wrap items-center gap-1.5">
               <Button
@@ -769,6 +938,15 @@ export function RoomInfoPanel({
                   checked={roomSettings.requireApproval}
                   onChange={handleToggleRequireApproval}
                 />
+                <Switch
+                  role="switch"
+                  className="zv-toggle-row"
+                  label="允许成员添加影片"
+                  title="开启后，房间成员可以把影片添加到影片列表；房主与权限矩阵放行的人始终可以添加"
+                  checked={moviePermission.allowMembers}
+                  disabled={moviePermissionBusy || moviePermissionBusyKey !== null}
+                  onChange={() => void handleToggleMoviePermission()}
+                />
               </div>
             )}
           </div>
@@ -818,6 +996,7 @@ export function RoomInfoPanel({
                         {viewer.username || viewer.socketId.slice(0, 8)}
                       </Text>
                       <RoleBadge role={viewer.role} />
+                      {renderHostViewerActions(viewer, true)}
                       {viewer.muted && (
                         <VolumeX
                           className="h-3 w-3 shrink-0"
@@ -838,7 +1017,14 @@ export function RoomInfoPanel({
         onClose={() => setShowUsers(false)}
         title="在线用户"
       >
-        <Space direction="vertical" className="w-full" size="sm">
+        <Space direction="vertical" align="start" className="w-full" size="sm">
+          {isHost && (
+            <Text type="secondary" className="text-[11px]">
+              {moviePermission.allowMembers
+                ? '当前已允许成员添加影片，点灭图标可单独禁止某人'
+                : '当前未允许成员添加影片，点亮图标可单独允许某人'}
+            </Text>
+          )}
           {viewers.length === 0 ? (
             <Paragraph type="secondary" className="text-sm">
               暂无其他在线用户
@@ -1154,6 +1340,52 @@ export function RoomInfoPanel({
             : '该链接使用内网地址，通常只有同一网络中的设备能打开。'}
           跨网络分享时，请改用可访问的公网地址或已配置的内网穿透入口。
         </Paragraph>
+      </Modal>
+
+      {/* 修改房间昵称 Modal */}
+      <Modal
+        open={nicknameOpen}
+        onClose={() => setNicknameOpen(false)}
+        title="修改昵称"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setNicknameOpen(false)}
+            >
+              取消
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSaveNickname}
+            >
+              保存
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <Paragraph className="text-sm">
+            昵称会显示在成员列表、评论区与语音中，仅对当前房间生效。
+          </Paragraph>
+          <Input
+            value={nicknameDraft}
+            autoFocus
+            placeholder="请输入昵称"
+            error={nicknameError}
+            onChange={(event) => {
+              setNicknameDraft(event.target.value)
+              if (nicknameError) setNicknameError('')
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+              event.preventDefault()
+              handleSaveNickname()
+            }}
+          />
+        </div>
       </Modal>
 
       {/* 房主转交确认 Modal */}

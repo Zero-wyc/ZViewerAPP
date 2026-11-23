@@ -1,3 +1,4 @@
+import { resolvePortalHost } from '@/lib/portal-host'
 type MessageType = 'success' | 'info' | 'warning' | 'error'
 
 /** 确认类提示的操作按钮（点击后提示窗关闭并执行回调） */
@@ -74,12 +75,22 @@ function createContainer(): HTMLDivElement {
     container.id = 'message-container'
     container.className =
       'zen-toast-container fixed z-[9999] flex flex-col items-center gap-2 pointer-events-none'
-    document.body.appendChild(container)
   }
+  const host = resolvePortalHost() ?? document.body
+  if (container.parentNode !== host) host.appendChild(container)
   return container
 }
 
 const EXIT_TRANSITION_MS = 320 // 略大于 0.28s transition，确保过渡完成后再移除节点
+
+function moveToastContainer() {
+  if (document.getElementById('message-container')) createContainer()
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('fullscreenchange', moveToastContainer)
+  document.addEventListener('webkitfullscreenchange', moveToastContainer)
+}
 
 function show(
   content: string,

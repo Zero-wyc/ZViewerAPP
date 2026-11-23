@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Send, MessageSquareQuote, MessagesSquare } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -8,6 +8,7 @@ import { Text } from '@/components/ui/Typography'
 import { Avatar } from '@/components/ui/Avatar'
 import { message } from '@/components/ui/message'
 import { SegmentedToggle } from '@/components/ui/SegmentedToggle'
+import { useRoomDisplayName } from '@/modules/room/hooks/useRoomDisplayName'
 import { useAuthStore } from '@/store/authStore'
 import { useRoomStore } from '@/store/roomStore'
 import { cn, formatIsoTime } from '@/lib/utils'
@@ -60,6 +61,7 @@ export function CommentPanel({
   commentsOnly = false,
   allowDanmaku = true,
 }: CommentPanelProps) {
+  const { name: roomDisplayName } = useRoomDisplayName(roomId)
   const currentUser = useAuthStore((state) => state.user)
   // 读取 watch-together 模式下的当前播放进度，用于 send-danmaku 持久化实时弹幕记录
   // screen-share 模式下 currentTime 始终为 0，无影响
@@ -74,6 +76,48 @@ export function CommentPanel({
     'comments' | 'tracks' | 'realtime'
   >('comments')
   const listRef = useRef<HTMLDivElement>(null)
+  const [autoScroll, setAutoScroll] = useState(true)
+  const autoPausedRef = useRef(false)
+  const scrollResumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearResumeTimer = () => {
+    if (scrollResumeTimer.current !== null) {
+      clearTimeout(scrollResumeTimer.current)
+      scrollResumeTimer.current = null
+    }
+  }
+
+  useEffect(() => clearResumeTimer, [])
+
+  const handleCommentScroll = () => {
+    const list = listRef.current
+    if (!list) return
+    const awayFromBottom = list.scrollHeight - list.clientHeight - list.scrollTop > 8
+    if (!awayFromBottom) {
+      clearResumeTimer()
+      if (autoPausedRef.current) {
+        autoPausedRef.current = false
+        setAutoScroll(true)
+      }
+      return
+    }
+    if (!autoScroll && !autoPausedRef.current) return
+    autoPausedRef.current = true
+    if (autoScroll) setAutoScroll(false)
+    clearResumeTimer()
+    scrollResumeTimer.current = setTimeout(() => {
+      scrollResumeTimer.current = null
+      if (!autoPausedRef.current) return
+      autoPausedRef.current = false
+      setAutoScroll(true)
+    }, 5000)
+  }
+
+  const toggleAutoScroll = () => {
+    clearResumeTimer()
+    autoPausedRef.current = false
+    setAutoScroll((prev) => !prev)
+  }
 
   useEffect(() => {
     if (!socket || !roomId) return
@@ -126,12 +170,10 @@ export function CommentPanel({
     }
   }, [socket, roomId])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const list = listRef.current
-    if (list) {
-      list.scrollTop = list.scrollHeight
-    }
-  }, [comments])
+    if (autoScroll && list) list.scrollTop = list.scrollHeight
+  }, [autoScroll, comments, rightPanelTab])
 
   const handleSend = (asDanmaku = false) => {
     if (!socket || !roomId) return
@@ -193,6 +235,7 @@ export function CommentPanel({
           <div className="flex h-full min-h-0 flex-col gap-3">
             <div
               ref={listRef}
+              onScroll={handleCommentScroll}
               className="glass-bg flex-1 min-h-0 overflow-y-auto rounded-[var(--md-sys-shape-corner)] p-3"
             >
               {comments.length === 0 ? (
@@ -289,7 +332,7 @@ export function CommentPanel({
                     handleSendComment()
                   }
                 }}
-                placeholder={`${currentUser?.username ?? ''} 说点什么…`}
+                placeholder={`${(roomDisplayName || currentUser?.username) ?? ''} 说点什么…`}
                 className="flex-1"
               />
               <Button
@@ -302,15 +345,22 @@ export function CommentPanel({
                 发送
               </Button>
             </Space>
-            {allowDanmaku && (
-              <div className="flex items-center">
+            <div className="comment-footer-toggles flex flex-wrap items-center justify-between gap-2">
+              {allowDanmaku && (
                 <Switch
                   label="以弹幕形式发送"
                   checked={sendAsDanmaku}
                   onChange={(e) => setSendAsDanmaku(e.target.checked)}
                 />
+              )}
+              <div className="ml-auto">
+                <Switch
+                  label="自动滚动"
+                  checked={autoScroll}
+                  onChange={toggleAutoScroll}
+                />
               </div>
-            )}
+            </div>
           </div>
         ) : rightPanelTab === 'tracks' ? (
           <DanmakuTrackCard />

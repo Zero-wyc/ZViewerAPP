@@ -29,7 +29,11 @@ import { connectionUrl, logicalConnectionUrl } from '../../../../platform/connec
 import { getApiUrl } from '@/lib/api'
 import { authenticatedMediaUrl } from '../../../../mobile/serverUrl'
 
+const BILIBILI_REFERER = 'https://www.bilibili.com'
 const BILIBILI_MEDIA_HOST_SUFFIXES = [
+  'solseed.cn',
+  'szbdyd.com',
+  'bilivideo.cn',
   'bilibili.com',
   'bilivideo.com',
   'hdslb.com',
@@ -206,10 +210,11 @@ export function appendAuthToken(url: string): string {
  * 认证：hls.js 等场景无法设置 Authorization header，因此将 access token
  * 附加到查询参数中，后端 extractAccessToken 会优先从查询参数读取。
  */
-export function buildProxyUrl(url: string): string {
+export function buildProxyUrl(url: string, referer?: string): string {
   const token = getStoredToken()
   const tokenParam = token ? `&token=${encodeURIComponent(token)}` : ''
-  return `${getApiUrl()}/api/stream/proxy?url=${encodeURIComponent(url)}${tokenParam}`
+  const refererParam = referer ? `&referer=${encodeURIComponent(referer)}` : ''
+  return `${getApiUrl()}/api/stream/proxy?url=${encodeURIComponent(url)}${tokenParam}${refererParam}`
 }
 
 /**
@@ -309,7 +314,7 @@ export function resolveMediaRoute(
       format,
       hasHeaders,
     })
-    return { url: buildProxyUrl(url), allowFallback: false }
+    return { url: buildProxyUrl(url, isBili ? BILIBILI_REFERER : undefined), allowFallback: false }
   }
 
   if (isBili) {
@@ -325,7 +330,7 @@ export function resolveMediaRoute(
 
     if (isDashStream) {
       // B站 DASH m4s 流：有防盗链 + 无 CORS，必须走服务器代理
-      return { url: buildProxyUrl(url), allowFallback: false }
+      return { url: buildProxyUrl(url, BILIBILI_REFERER), allowFallback: false }
     }
     // B站 MP4 直链：仅 platform=html5 形态（UGC html5 接口产物）免防盗链，
     // 可直连服务器零流量，直连失败（签名过期等）允许一次代理重试；
@@ -334,7 +339,7 @@ export function resolveMediaRoute(
     // platform=html5 请求参数无效果，绕不过）——直接走服务器代理（后端
     // 注入 B站 Referer），省去注定失败的直连往返与回退
     if (!isAntileechFreeBilibiliMp4Url(url)) {
-      return { url: buildProxyUrl(url), allowFallback: false }
+      return { url: buildProxyUrl(url, BILIBILI_REFERER), allowFallback: false }
     }
     return { url, allowFallback: true }
   }

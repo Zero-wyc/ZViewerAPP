@@ -3,7 +3,7 @@ import { useSocket } from '@/hooks/useSocket'
 import { useRoomStore, type Viewer } from '@/store/roomStore'
 import { useAuthStore } from '@/store/authStore'
 import { message } from '@/components/ui/message'
-import type { ViewerJoinedPayload, ViewerLeftPayload } from '../types'
+import type { ViewerJoinedPayload, ViewerLeftPayload, ViewerRenamedPayload } from '../types'
 import { SOCKET_EVENT } from '../constants'
 
 export type UseViewerListOptions = Record<string, never>
@@ -59,6 +59,7 @@ export function useViewerList(roomId?: string): UseViewerListReturn {
       useRoomStore.getState().addViewer({
         socketId: payload.viewerSocketId,
         userId: payload.userId,
+        guestId: payload.guestId,
         username: payload.username,
         role: payload.role,
       })
@@ -68,20 +69,30 @@ export function useViewerList(roomId?: string): UseViewerListReturn {
       revision++
       useRoomStore.getState().removeViewer(payload.viewerSocketId)
     }
+    const handleViewerRenamed = (payload: ViewerRenamedPayload) => {
+      if (!payload?.viewerSocketId || !payload.username) return
+      revision++
+      useRoomStore.getState().renameViewer(payload.viewerSocketId, payload.username)
+    }
     const handleMembers = (payload: MembersSnapshot) => {
       if (payload?.roomId !== roomId) return
       revision++
       applySnapshot(payload)
     }
-    const handleModerators = (payload: { roomId: string; moderators: number[] }) => {
+    const handleModerators = (payload: { roomId: string; moderators: number[]; guestModerators?: string[] }) => {
       if (payload?.roomId !== roomId || !Array.isArray(payload.moderators)) return
       revision++
       const store = useRoomStore.getState()
       const userId = Number(useAuthStore.getState().user?.id)
-      const previous = store.moderators.includes(userId)
-      store.setModerators(payload.moderators)
-      if (previous !== payload.moderators.includes(userId)) {
-        if (previous) message.info('您的房管权限已被撤销')
+      const guestModerators = Array.isArray(payload.guestModerators) ? payload.guestModerators : []
+      const prevGuestModerators = Array.isArray(store.guestModerators) ? store.guestModerators : []
+      const wasModerator = (userId > 0 && store.moderators.includes(userId)) ||
+        (!!socket.id && prevGuestModerators.includes(socket.id))
+      const isNowModerator = (userId > 0 && payload.moderators.includes(userId)) ||
+        (!!socket.id && guestModerators.includes(socket.id))
+      useRoomStore.setState({ moderators: payload.moderators, guestModerators })
+      if (wasModerator !== isNowModerator) {
+        if (wasModerator) message.info('您的房管权限已被撤销')
         else message.success('您已被任命为房管')
       }
     }
@@ -106,6 +117,7 @@ export function useViewerList(roomId?: string): UseViewerListReturn {
     }
 
     socket.on(SOCKET_EVENT.VIEWER_JOINED, handleViewerJoined)
+    socket.on(SOCKET_EVENT.VIEWER_RENAMED, handleViewerRenamed)
     socket.on(SOCKET_EVENT.VIEWER_LEFT, handleViewerLeft)
     socket.on('room-members', handleMembers)
     socket.on('moderators-changed', handleModerators)
@@ -121,6 +133,7 @@ export function useViewerList(roomId?: string): UseViewerListReturn {
       clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisibility)
       socket.off(SOCKET_EVENT.VIEWER_JOINED, handleViewerJoined)
+      socket.off(SOCKET_EVENT.VIEWER_RENAMED, handleViewerRenamed)
       socket.off(SOCKET_EVENT.VIEWER_LEFT, handleViewerLeft)
       socket.off('room-members', handleMembers)
       socket.off('moderators-changed', handleModerators)

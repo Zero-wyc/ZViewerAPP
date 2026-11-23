@@ -1,3 +1,4 @@
+import { usePortalHost } from '@/lib/portal-host'
 import { lockBodyScroll } from './bodyScrollLock'
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -38,6 +39,7 @@ export function Modal({
   variant = 'dialog',
   keepMounted = false,
 }: ModalProps) {
+  const autoHost = usePortalHost()
   const isMobile = useIsMobile()
   const isSheet = variant === 'sheet' && isMobile
   const [expanded, setExpanded] = useState(false)
@@ -192,7 +194,7 @@ export function Modal({
         )}
       </div>
     </div>,
-    container ?? document.body
+    container ?? autoHost ?? document.body
   )
 }
 

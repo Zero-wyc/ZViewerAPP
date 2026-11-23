@@ -17,6 +17,10 @@ import type { MediaFormat } from '@/lib/mediaFormat'
 import type { WatchTogetherState } from '@/modules/sync-playback/types'
 import type { AniSubsEpisode } from '@/modules/anisubs/types'
 import { useMusicStore } from '@/modules/music/store'
+import {
+  DEFAULT_MOVIE_PERMISSION,
+  type MoviePermission,
+} from './moviePermission'
 
 /**
  * ani-subs 番剧源元数据。
@@ -32,6 +36,33 @@ export interface AniSubsSourceMeta {
   originalTitle: string
 }
 
+/**
+ * 爬虫引擎搜索到的影片元数据。
+ *
+ * 播放地址由站点规则实时解析，通常带时效签名；播放时必须用 pageUrl
+ * 重新解析，不能依赖落库的直链（几分钟后就可能 402/失效）。
+ */
+export interface CrawlerSourceMeta {
+  kind: 'crawler'
+  /** 后端 sourceMeta 校验要求该字段存在，这里复用详情页地址 */
+  sourceId: string
+  /** 搜索结果里的详情页/播放页地址，用于重新解析 */
+  pageUrl: string
+  site?: string
+  ruleId?: string
+  title?: string
+  /** 解析时引擎返回的请求头（Referer/UA 等），重解析失败时兜底 */
+  headers?: Record<string, string>
+  /** 站点支持的清晰度档位名（规则返回 qualities 时才有；供播放器下拉选择） */
+  qualities?: string[]
+  /** 当前选中的清晰度档位名；缺省表示站点只有一档或未选择 */
+  quality?: string
+}
+
+/** 影片元数据联合类型（ani-subs（含 Kazumi）/ CMS / 爬虫引擎） */
+export type MovieSourceMeta =
+  AniSubsSourceMeta | CmsSourceMeta | CrawlerSourceMeta
+
 function jsonHeaders(): Record<string, string> {
   return { 'Content-Type': 'application/json' }
 }
@@ -39,6 +70,8 @@ function jsonHeaders(): Record<string, string> {
 export interface Viewer {
   socketId: string
   userId?: number
+  /** 游客身份：逐人点片权限对游客按它记账（登录用户为空） */
+  guestId?: string
   username?: string
   // socket.data.role: 'root' | 'admin' | 'user' | 'guest'
   role?: string
@@ -104,7 +137,7 @@ export interface Movie {
    * ani-subs 番剧源元数据。
    * 仅 sourceType='anime' 时有值，用于播放时重新解析播放地址。
    */
-  sourceMeta?: AniSubsSourceMeta | CmsSourceMeta | null
+  sourceMeta?: MovieSourceMeta | null
 }
 
 export interface MovieDto {
@@ -150,7 +183,7 @@ export interface MovieDto {
   /** Emby/Jellyfin 专属：是否存在多版本；false 时不渲染清晰度选择框 */
   multiVersion?: boolean
   /** ani-subs 番剧源元数据（仅 source='anime' 时有值） */
-  sourceMeta: AniSubsSourceMeta | CmsSourceMeta | null
+  sourceMeta: MovieSourceMeta | null
   order: number
   createdAt: string
   updatedAt: string
@@ -255,8 +288,19 @@ interface RoomState {
    */
   moderators: number[]
   setModerators: (moderators: number[]) => void
+  /**
+   * 游客房管的 socketId 列表（全员同步）。
+   *
+   * 游客没有 userId（恒为 0），后端把游客房管按连接身份记在内存里，
+   * 随 moderators-changed 事件用 guestModerators 字段一起下发；
+   * 游客离开房间 / 断线即失效。前端判定房管要同时看两份名单。
+   */
+  guestModerators: string[]
+  setGuestModerators: (socketIds: string[]) => void
   // 房间运行时设置（密码/上限/审批开关）
   roomSettings: RoomSettings
+  /** 一起看「允许成员点片」房间级权限（房主设置，全员同步） */
+  moviePermission: MoviePermission
   isSharing: boolean
   isPaused: boolean
   watchTogether: WatchTogetherState
@@ -348,11 +392,14 @@ interface RoomState {
   setShareMethod: (method: ShareMethod) => void
   addViewer: (viewer: Viewer) => void
   removeViewer: (viewerSocketId: string) => void
+  /** 观众在房间内改了昵称：就地更新显示名（不新增/不重排） */
+  renameViewer: (viewerSocketId: string, username: string) => void
   setViewers: (viewers: Viewer[]) => void
   setMutedViewerIds: (ids: number[]) => void
   addMutedViewer: (userId: number) => void
   removeMutedViewer: (userId: number) => void
   setRoomSettings: (settings: Partial<RoomSettings>) => void
+  setMoviePermission: (permission: MoviePermission) => void
   setIsSharing: (value: boolean) => void
   setIsPaused: (value: boolean) => void
   setWatchTogether: (state: Partial<WatchTogetherState>) => void
@@ -410,7 +457,7 @@ interface RoomState {
       multiVersion?: boolean
       /** 影片级浏览器播放引擎（playsvideo）开关：false 时强制原生直连播放 */
       playsvideoEnabled?: boolean
-      sourceMeta?: AniSubsSourceMeta | CmsSourceMeta | null
+      sourceMeta?: MovieSourceMeta | null
       cliOnly?: boolean
     }
   ) => Promise<ReturnType<typeof mapDtoToMovie> | undefined>
@@ -453,7 +500,7 @@ interface RoomState {
   serverProxy?: boolean
   sourceMountId?: number | null
   directLink?: boolean
-      sourceMeta?: AniSubsSourceMeta | CmsSourceMeta | null
+      sourceMeta?: MovieSourceMeta | null
       /** 仅允许 CLI 模式（B站 番剧/影视） */
       cliOnly?: boolean
       multiVersion?: boolean
@@ -493,11 +540,13 @@ const defaultState = {
   viewers: [],
   mutedViewerIds: [] as number[],
   moderators: [] as number[],
+  guestModerators: [] as string[],
   roomSettings: {
     password: null as string | null,
     maxViewers: 10,
     requireApproval: true,
   } as RoomSettings,
+  moviePermission: { ...DEFAULT_MOVIE_PERMISSION },
   isSharing: false,
   isPaused: false,
   watchTogether: {
@@ -537,6 +586,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   setRoomId: (id) => set({ roomId: id, movieSettingsOperations: {}, roomSessionRevision: get().roomSessionRevision + 1, ...(id !== get().roomId ? { autoContinueEnabled: false } : {}) }),
   setRoomName: (name) => set({ roomName: name }),
   setModerators: (moderators) => set({ moderators }),
+  setGuestModerators: (guestModerators) => set({ guestModerators }),
   setPassword: (password) => set({ password }),
   setMaxViewers: (max) => set({ maxViewers: max }),
   setMode: (mode) => set({ mode, ...(mode !== get().mode ? { autoContinueEnabled: false } : {}) }),
@@ -557,6 +607,12 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   removeViewer: (socketId) =>
     set((state) => ({
       viewers: state.viewers.filter((v) => v.socketId !== socketId),
+    })),
+  renameViewer: (socketId, username) =>
+    set((state) => ({
+      viewers: state.viewers.map((v) =>
+        v.socketId === socketId ? { ...v, username } : v
+      ),
     })),
   setViewers: (viewers) =>
     set((state) => ({
@@ -609,6 +665,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         ? { password: settings.password ?? '' }
         : {}),
     })),
+  setMoviePermission: (permission) => set({ moviePermission: permission }),
   setIsSharing: (value) => set({ isSharing: value }),
   setIsPaused: (value) => set({ isPaused: value }),
   setWatchTogether: (updates) =>

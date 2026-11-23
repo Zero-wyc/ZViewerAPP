@@ -1,15 +1,23 @@
 # Android 客户端维护文档
 
-维护入口：[当前基线](#当前维护基线2026-11-21) · [架构源码](#架构与源码入口) · [构建与清理](#构建发布与清理) · [历史记录](#历史版本记录)
+维护入口：[当前基线](#当前维护基线2026-11-23) · [架构源码](#架构与源码入口) · [构建与清理](#构建发布与清理) · [历史记录](#历史版本记录)
 
-## 当前维护基线（2026-11-21）
+## 当前维护基线（2026-11-23）
 
-- Android / HarmonyOS 正式发行版本为 2.5.5 / 255，对齐服务端快照 `f7b2a589d0cb0257cc354368e7bf18b9bb895668`。NAS 部署独立于客户端构建。
+- Android / HarmonyOS 当前本地构建版本为 2.6.0 / 260，对齐服务端上游 `v5.3.0`（`3cf39d4e`）；上一正式发行版为 2.5.5 / 255。NAS 部署独立于客户端构建。
 - **客户端目前不支持 Live2D**：不提供角色显示、模型导入、动作表情、语音口型或摄像头动捕。已移除入口、模块、Cubism/MediaPipe/Pixi 依赖、静态资源及专用摄像头权限。后续同步服务端更新时，不得自动恢复此功能。
 - 保留 B站点播/直播、房主身份解析、番剧聚合、音乐、弹幕字幕、Piik 语音与投屏，以及完整中文字体和 FFmpeg 等在用播放器资源。
 - Android 仅发行 ARM64，启用原生库 ZIP 压缩、R8 和资源压缩；HarmonyOS 解压随包网页资源，保留离线启动能力。
 - iOS 维持 2.3.6 / build40；本轮不修改或构建 iOS。
 - 旧记录描述当时状态；2.5.0 的 Live2D 支持已在 2.5.1 移除。
+
+## 2.6.0 对齐服务端 v5.3.0（2026-11-23，本地构建）
+
+- 本轮将本地服务端源码更新至上游 `v5.3.0`（`3cf39d4e`），双端版本升至 `2.6.0` / `versionCode 260`，继续**不包含 Live2D** 及桌面端/管理台专属能力。
+- **房间昵称与权限**：新增 `displayName.ts` / `roomDisplayNameStore.ts` / `useRoomDisplayName.ts`（按逻辑服务端、身份与房间隔离键），入房 `request-join` 与 `set-display-name` 同步 `viewer-renamed`；新增 `moviePermission.ts` / `useRoomMoviePermission.ts`（先订阅广播再拉取快照，防旧 GET/PUT 覆盖），房主面板在 `.zv-toggle-rows` 中统一以 Switch 提供「允许成员添加影片」，在线观众列表及弹窗支持登录用户与游客逐人点片授权与房管管理。
+- **全网搜片与爬虫刷新**：新增 `crawler/api.ts`（90s/120s 超时、挑战反代地址经 `connectionUrl` 拼接服务端地址、兼容内置 Go 引擎 `completed: true` 验证响应）、`crawler/playback.ts`（写回前校验房间/会话版本/逻辑服务端，并提供忽略签名直链的 `crawlerAwarePlaybackKey` 防重挂载循环）及 `CrawlerSearchModal.tsx`（柔和圆角 8px 芯片、多站验证队列、安全桥接模式外部打开兜底）。`MoviePushPanel` 在 `betaFeaturesEnabled` 下合并顶层「全网搜片」与二级四库单选；房主在 `useWatchTogether` 公共加载路径统一刷新爬虫直链，覆盖手动点片、房管切片、下一部与自动续播。
+- **媒体、全屏与评论打磨**：`apiFetch` 默认 `cache: 'no-store'`；`url-proxy.ts` 识别 `solseed.cn` / `szbdyd.com` / `bilivideo.cn` 并仅对 B 站代理附带 `Referer`；网易云排行榜改为 `playlist`；新增 `portal-host.ts` 与 `isElementFullscreen`，原生全屏下 `Modal` / `RequestNotification` / `message` 自动挂载到全屏宿主；`Slider` 移除宽度/位移过渡消除拖动滞后；`AnnotationToolbar` 新增主题化 `compact` 横排模式；`CommentPanel` 接入房间昵称占位与智能自动滚动（手滚暂停 5 秒恢复 + 统一 Switch）。
+- **验证与构建**：`npm run typecheck` 零错误；全量 455 项客户端测试（含 `v530-alignment.test.mjs` 13 项）与 6 项打包测试全部通过；在 393×852 Chromium（ego-browser）完成房间面板、昵称弹窗、在线用户弹窗、全网搜片四库下拉、搜片选集、人机验证浮层及评论区截图核验；已完成独立代码审查并修复全部核实问题。双端本地签名包位于 `release/client-v2.6.0/`（APK 19,337,767 字节，HAP 9,726,916 字节，摘要记录于同目录 `SHA256SUMS.txt`）；本轮仅本地构建与提交，未推送 GitHub 或真机联机复测。
 
 ## 2.5.5 一起听音乐库导航（2026-11-21）
 

@@ -1,10 +1,11 @@
+import { ensureRoomDisplayName, roomDisplayNameScope } from '@/modules/room/lib/displayName'
 import { useCallback, useEffect, useRef, useState, type ComponentProps } from 'react'
 import type { Socket } from 'socket.io-client'
 import { useRoomStore, type RoomMode } from '@/store/roomStore'
 import { useDanmakuStore } from '@/store/danmakuStore'
 import { dispatchRoomMediaTeardown } from '@/lib/mediaTeardown'
 import { useAuthStore } from '@/store/authStore'
-import { getApiUrl } from '@/lib/api'
+import { getApiUrl, getLogicalApiUrl } from '@/lib/api'
 import type { WatchTogetherPanel } from '@/modules/room/watch-together/WatchTogetherPanel'
 
 type Playback = ComponentProps<typeof WatchTogetherPanel>['initialPlayback']
@@ -84,8 +85,18 @@ export function useMobileRoom(socket: Socket | null, roomId: string, options: { 
       const version = ++generation.current
       setError('')
       setPhase('joining')
+      const currentUser = useAuthStore.getState().user
+      const payload = asHost ? { roomId } : {
+        roomId,
+        password: password.current,
+        name: ensureRoomDisplayName(
+          roomId,
+          currentUser && currentUser.role !== 'guest' ? currentUser.username : null,
+          roomDisplayNameScope(getLogicalApiUrl(), currentUser)
+        ),
+      }
       socket.timeout(12000).emit(asHost ? 'register-host' : 'request-join',
-        { roomId, ...(!asHost ? { password: password.current } : {}) },
+        payload,
         (timeout: Error | null, ack?: Ack) => {
           if (disposed || version !== generation.current) return
           if (timeout || !ack) { setError('加入房间超时，请重试'); setPhase('error'); return }

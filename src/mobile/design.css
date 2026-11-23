@@ -468,3 +468,17 @@ html[data-mobile-appearance-theme] .music-fm-card > div[aria-hidden='true'].poin
 html[data-mobile-appearance-theme] .music-fm-card button.h-9 { border-radius: var(--zv-r-ctl); }
 html[data-mobile-appearance-theme] .music-fm-card img { border-radius: var(--zv-r-ctl); }
 .zv-sheet:focus { outline: none; }
+
+/* ---------- v5.3.0 新增：全网搜片、评论自动滚动与房间昵称 ---------- */
+.crawler-site-chips { scrollbar-width: none; -ms-overflow-style: none; }
+.crawler-site-chips::-webkit-scrollbar { display: none; }
+html[data-mobile-appearance-theme] .crawler-search-modal .crawler-chip {
+  min-height: 32px;
+  border-radius: var(--zv-r-chip);
+}
+html[data-mobile-appearance-theme] .comment-footer-toggles {
+  min-height: 28px;
+}
+html[data-mobile-appearance-theme] .room-nickname-row {
+  min-height: 28px;
+}

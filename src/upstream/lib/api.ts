@@ -354,6 +354,7 @@ export async function apiFetch(
       : connectionUrl(String(input))
 
   const res = await fetch(url, {
+    cache: 'no-store',
     ...rest,
     signal: rest.signal ?? AbortSignal.timeout(30000),
     credentials: 'include',

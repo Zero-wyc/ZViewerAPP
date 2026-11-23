@@ -1,5 +1,5 @@
-import { moviePlaybackKey } from './runtime-settings'
-import { getApiUrl } from '@/lib/api'
+import { getApiUrl, getLogicalApiUrl } from '@/lib/api'
+import { crawlerAwarePlaybackKey, createCrawlerMovieWriter, needsCrawlerRefresh, resolveCrawlerSelection } from '@/modules/crawler/playback'
 import { useAuthStore } from '@/store/authStore'
 import type { PreviewPlayRequest } from '@/store/roomStore'
 import { createAutoContinueHandler } from './autoContinue'
@@ -16,6 +16,7 @@ import {
   useRoomStore,
   type WatchTogetherState,
   type MovieDto,
+  type CrawlerSourceMeta,
   type Movie,
   mapDtoToMovie,
 } from '@/store/roomStore'
@@ -923,7 +924,7 @@ export function useWatchTogether({
 
     const operation = movieSettingsOperations[movie.id]
     if (operation?.status === 'saving') return
-    const key = `${moviePlaybackKey(movie)}:${retryToken}`
+    const key = `${crawlerAwarePlaybackKey(movie)}:${retryToken}`
     const runtimeToken = operation?.status === 'applying' ? operation.token : undefined
     if (runtimeToken !== undefined && !canEditRuntime) return
     if (lastLoadedMovieRef.current?.id === movie.id && lastLoadedMovieRef.current.key === key &&
@@ -946,6 +947,7 @@ export function useWatchTogether({
     const seq = ++loadSeqRef.current
     const sessionRevision = useRoomStore.getState().roomSessionRevision
     const server = getApiUrl()
+    const logicalServer = getLogicalApiUrl()
     const previous = lastSuccessfulMovieRef.current
     const runtimeReload = sourceType !== 'bilibili' && previous?.id === movie.id
     const resumeTime = runtimeReload ? video.currentTime : 0
@@ -955,7 +957,8 @@ export function useWatchTogether({
       const state = useRoomStore.getState()
       const user = useAuthStore.getState().user
       return loadSeqRef.current === seq && isHostRef.current && state.roomId === roomId &&
-        state.roomSessionRevision === sessionRevision && getApiUrl() === server && state.currentMovieId === movie.id &&
+        state.roomSessionRevision === sessionRevision && getApiUrl() === server && getLogicalApiUrl() === logicalServer &&
+        state.currentMovieId === movie.id &&
         state.movies.some(item => item.id === movie.id) && (runtimeToken === undefined ||
           (!!user && (user.role === 'root' || String(user.id) === String(state.roomOwnerUserId))))
     }
@@ -963,6 +966,7 @@ export function useWatchTogether({
     autoReloadCountRef.current = 0
     autoReloadNotifiedRef.current = false
     setLoadMovieError(null)
+    setIsResolving(false)
     // 新代际全局重置：旧流程的抑制语义作废（计数清零防止悬挂），
     // 随后由本次 loadMovie 重新获取抑制
     resetSuppression(suppressEventsRef)
@@ -1040,6 +1044,26 @@ export function useWatchTogether({
           (liveMovie || !(isRecovery && recovery?.sourceUrl))
         ) {
           resolved = await resolveOnline()
+        } else if (needsCrawlerRefresh(movie)) {
+          const write = createCrawlerMovieWriter(roomId)
+          setIsResolving(true)
+          try {
+            const selection = await resolveCrawlerSelection(roomId, movie, (movie.sourceMeta as CrawlerSourceMeta).quality)
+            if (!isCurrent()) return
+            if (!selection) throw new Error('没有解析到可播放地址')
+            resolved = {
+              sourceUrl: selection.url,
+              format: selection.format as MediaFormat | undefined,
+              duration: movie.duration ?? 0,
+              reusedRecoveryUrl: false,
+              playsvideoEnabled: movie.playsvideoEnabled !== false,
+            }
+            void write(movie, selection).catch((err) => {
+              if (isCurrent()) console.warn('[useWatchTogether] 更新爬虫影片地址失败:', err)
+            })
+          } finally {
+            if (isCurrent()) setIsResolving(false)
+          }
         } else if (sourceType === 'anime') {
           // ani-subs 番剧源：每次播放都通过 sourceMeta 重新解析
           setIsResolving(true)

@@ -168,6 +168,8 @@ export interface SyncHeartbeatPayload {
 export interface ViewerJoinedPayload {
   viewerSocketId: string
   userId?: number
+  /** 游客身份：逐人点片权限对游客按它记账 */
+  guestId?: string
   username?: string
   role?: string
 }
@@ -175,6 +177,12 @@ export interface ViewerJoinedPayload {
 /** `viewer-left` 事件 payload：观众离开房间通知 */
 export interface ViewerLeftPayload {
   viewerSocketId: string
+}
+
+/** `viewer-renamed` 事件 payload：观众在房间内修改了昵称 */
+export interface ViewerRenamedPayload {
+  viewerSocketId: string
+  username: string
 }
 
 /**

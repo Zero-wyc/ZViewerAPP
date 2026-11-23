@@ -31,7 +31,7 @@ import { PlayerDisplayControls } from '../../../../mobile/PlayerDisplayControls'
 import {
   isIOSDevice,
   supportsContainerFullscreen,
-  getFullscreenElement,
+  isElementFullscreen,
   exitFullscreen,
   requestFullscreen,
   onFullscreenChange,
@@ -385,7 +385,7 @@ export function FlvPlayer({
   // ── 全屏状态跟踪 ──────────────────────────────────────
   useEffect(() => {
     const dispose = onFullscreenChange(() => {
-      setIsFullscreen(Boolean(getFullscreenElement()))
+      setIsFullscreen(isElementFullscreen(stageRef.current))
     })
     return dispose
   }, [])
@@ -415,7 +415,7 @@ export function FlvPlayer({
     }
     const stage = stageRef.current
     if (!stage) return
-    if (getFullscreenElement()) {
+    if (isElementFullscreen(stage)) {
       void exitFullscreen()
     } else {
       void requestFullscreen(stage).catch(() => {

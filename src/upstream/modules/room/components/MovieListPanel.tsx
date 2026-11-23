@@ -201,15 +201,26 @@ export function MovieListPanel({
       return
     }
     if (switchingId !== null) return
-    const previousSourceUrl = useRoomStore.getState().watchTogether.sourceUrl
+    const snapshot = useRoomStore.getState()
+    const socketId = socket.id
+    const isCurrent = () => {
+      const state = useRoomStore.getState()
+      return socket.connected && socket.id === socketId && state.roomId === roomId &&
+        state.roomSessionRevision === snapshot.roomSessionRevision
+    }
+    if (!isCurrent()) return
+    const previousSourceUrl = snapshot.watchTogether.sourceUrl
     const isNewMovie = currentMovieId !== movieId
     setSwitchingId(movieId)
+    // The host resolves temporary crawler URLs when it receives current-movie.
     const complete = (error: Error | null, ack?: { success?: boolean; message?: string }, retried = false) => {
+        if (!isCurrent()) { setSwitchingId(null); return }
         if (!retried && isHost && !error && ack?.message === '影片不存在') {
           // The server can retain the DB playlist while losing its in-memory room
           // movie list. Registering the host refreshes that list before retrying.
           socket.timeout(8000).emit('register-host', { roomId },
             (registerError: Error | null, registerAck?: { success?: boolean }) => {
+              if (!isCurrent()) { setSwitchingId(null); return }
               if (registerError || !registerAck?.success) {
                 setSwitchingId(null)
                 message.error('片单同步失败，请重新进入房间')
@@ -930,7 +941,7 @@ export function MovieListPanel({
                       size="sm"
                       className="h-7 flex-shrink-0 px-2"
                       icon={<Play className="h-3.5 w-3.5" />}
-                      onClick={() => handlePlay(movie.id)}
+                      onClick={() => void handlePlay(movie.id)}
                       loading={switchingId === movie.id}
                       disabled={(!isHost && !canManage) || isScreenShare || switchingId !== null}
                       title={

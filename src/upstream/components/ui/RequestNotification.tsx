@@ -1,3 +1,4 @@
+import { usePortalHost } from '@/lib/portal-host'
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Check, ChevronRight } from 'lucide-react'
@@ -48,6 +49,7 @@ export function RequestNotification({
   items,
   onClose,
 }: RequestNotificationProps) {
+  const portalHost = usePortalHost()
   // ESC 关闭最新一条（仅当有通知时）
   useEffect(() => {
     if (items.length === 0) return
@@ -76,7 +78,7 @@ export function RequestNotification({
         <NotificationCard key={item.id} item={item} onClose={onClose} />
       ))}
     </div>,
-    document.body
+    portalHost ?? document.body
   )
 }
 

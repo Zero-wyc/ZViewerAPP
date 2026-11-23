@@ -55,7 +55,7 @@ import type { ArtSlots } from './WatchTogetherPanel'
 import {
   isIOSDevice,
   supportsContainerFullscreen,
-  getFullscreenElement,
+  isElementFullscreen,
   exitFullscreen,
   requestFullscreen,
   onFullscreenChange,
@@ -531,7 +531,7 @@ export function WatchTogetherCore({
   useEffect(() => {
     if (iosDevice) return
     const onFsChange = () => {
-      const active = Boolean(getFullscreenElement())
+      const active = isElementFullscreen(stageRef.current)
       setIsNativeFs(active)
       // 容器全屏切换后触发全局 resize，帮助 ArtPlayer / 浏览器
       // 重新计算 video 容器尺寸，避免某些浏览器下 MSE video 黑屏。
@@ -539,7 +539,7 @@ export function WatchTogetherCore({
     }
     const dispose = onFullscreenChange(onFsChange)
     return dispose
-  }, [iosDevice])
+  }, [iosDevice, stageRef])
 
   // iOS 降级：原生全屏状态等同于网页全屏状态
   const isFullscreen = iosDevice ? Boolean(isWebFullscreen) : isNativeFs
@@ -559,7 +559,10 @@ export function WatchTogetherCore({
     // backdrop-filter / will-change: transform 影响。
     const stage = stageRef.current
     if (!stage) return
-    if (getFullscreenElement()) {
+    // 只在自己（舞台）全屏时退出：若当前是整页全屏（音乐页那种
+    // documentElement 全屏）或别处全屏，按播放器全屏按钮应把播放器切进全屏，
+    // 而不是把别人退掉。
+    if (isElementFullscreen(stage)) {
       void exitFullscreen()
     } else {
       void requestFullscreen(stage).catch(() => {

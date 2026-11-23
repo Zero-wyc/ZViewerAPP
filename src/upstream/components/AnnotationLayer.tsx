@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils'
 import {
   useEffect,
   useRef,
@@ -424,6 +425,7 @@ export const AnnotationLayer = forwardRef<
       style={{ pointerEvents: readOnly || !active ? 'none' : 'auto' }}
     >
       <canvas
+        data-annotation-canvas=""
         ref={canvasRef}
         className="absolute inset-0 touch-none"
         style={{ cursor, opacity: 0.95 }}
@@ -471,6 +473,7 @@ interface AnnotationToolbarProps {
   onWidthChange: (width: number) => void
   onClear?: () => void
   canClear?: boolean
+  compact?: boolean
 }
 
 export function AnnotationToolbar({
@@ -482,11 +485,15 @@ export function AnnotationToolbar({
   onWidthChange,
   onClear,
   canClear,
+  compact = false,
 }: AnnotationToolbarProps) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white/80 p-3 dark:border-slate-700 dark:bg-slate-800/80">
-      <Text className="mb-2 font-medium">批注工具</Text>
-      <Space wrap className="justify-start" size="sm">
+    <div className={cn(
+      'rounded-[var(--md-sys-shape-corner)] border border-[var(--md-sys-color-outline-variant)] bg-[var(--glass-bg)]',
+      compact ? 'flex min-w-0 items-center gap-2 overflow-x-auto p-1.5' : 'p-3'
+    )}>
+      {!compact && <Text className="mb-2 font-medium">批注工具</Text>}
+      <Space wrap={!compact} className="shrink-0 justify-start" size="sm">
         <Button
           variant={tool === 'pen' ? 'primary' : 'secondary'}
           size="sm"
@@ -512,17 +519,15 @@ export function AnnotationToolbar({
           橡皮擦
         </Button>
       </Space>
-      <div className="mt-3">
-        <Text type="secondary" className="mb-1 text-xs">
-          颜色
-        </Text>
-        <Space wrap size="sm">
+      <div className={compact ? 'shrink-0' : 'mt-3'}>
+        {!compact && <Text type="secondary" className="mb-1 text-xs">颜色</Text>}
+        <Space wrap={!compact} size="sm">
           {COLORS.map((c) => (
             <button
               key={c}
               type="button"
               onClick={() => onColorChange(c)}
-              className="h-6 w-6 rounded-full border border-slate-300 focus:outline-none focus:ring-2 focus:ring-offset-1"
+              className={cn('rounded-full border border-[var(--md-sys-color-outline)] focus:ring-2', compact ? 'h-5 w-5' : 'h-6 w-6')}
               style={{
                 backgroundColor: c,
                 boxShadow:
@@ -535,10 +540,8 @@ export function AnnotationToolbar({
           ))}
         </Space>
       </div>
-      <div className="mt-3">
-        <Text type="secondary" className="mb-1 text-xs">
-          粗细
-        </Text>
+      <div className={compact ? 'w-28 shrink-0' : 'mt-3'}>
+        {!compact && <Text type="secondary" className="mb-1 text-xs">粗细</Text>}
         <Space align="center" size="sm" className="w-full">
           <Minus className="h-3 w-3 text-slate-400" />
           <input
@@ -548,7 +551,8 @@ export function AnnotationToolbar({
             step={1}
             value={width}
             onChange={(e) => onWidthChange(Number(e.target.value))}
-            className="flex-1"
+            aria-label="批注粗细"
+            className="min-w-0 flex-1"
           />
           <Palette className="h-3 w-3 text-slate-400" />
           <Text className="w-6 text-xs">{width}</Text>
@@ -558,12 +562,12 @@ export function AnnotationToolbar({
         <Button
           variant="danger"
           size="sm"
-          block
-          className="mt-3"
+          block={!compact}
+          className={compact ? 'shrink-0' : 'mt-3'}
           icon={<Trash2 className="h-4 w-4" />}
           onClick={onClear}
         >
-          清空所有批注
+          {compact ? '清空' : '清空所有批注'}
         </Button>
       )}
     </div>
