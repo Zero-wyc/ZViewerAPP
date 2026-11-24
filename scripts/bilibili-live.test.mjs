@@ -72,6 +72,9 @@ test('live resolution ignores VOD CLI/recovery caches and refreshes signed addre
 })
 test('room-owner CLI resolution uses the room movie identity and skips CDN reachability checks', async () => {
   let call
+  let registration
+  const proxyUrl = 'http://127.0.0.1:8848'
+  const resolved = { videoUrl: 'https://cdn.example/video.m4s', videoBackupUrls: ['https://backup.example/video.m4s'], format: 'dash', cid: 901, currentQn: 80 }
   const resolver = await load('modules/room/watch-together/movie-source-resolver.ts', {
     extractLiveRoomId,
     getBilibiliParseOptions: () => ({ cliEnabled: true, preferMp4: false, configured: true }),
@@ -79,15 +82,16 @@ test('room-owner CLI resolution uses the room movie identity and skips CDN reach
     getNativeQualityPolicy: () => ({ qn: 80, mode: 'autoMax', fallbackQn: 64 }),
     getEmbeddedProxyStatus: () => ({ sessionVersion: 7 }),
     isEmbeddedBilibiliHost: () => false,
-    useCliAgentStore: { getState: () => ({ agents: [{ proxyUrl: 'http://127.0.0.1:8848' }] }) },
+    useCliAgentStore: { getState: () => ({ agents: [{ proxyUrl }] }) },
+    registerCliCandidates: (base, source) => { registration = { base, source } },
     resolveBilibiliWithOptions: async (url, qn, progress, options) => {
       call = { url, qn, progress, options }
-      return { videoUrl: 'https://cdn.example/video.m4s', format: 'dash', cid: 901, currentQn: qn }
+      return resolved
     },
   })
   const controller = new AbortController()
   const movie = { id: 42, url: 'https://www.bilibili.com/video/BV1fixture', cid: 901, currentPage: 2 }
-  await resolver.resolveBilibiliOnline(movie, undefined, {
+  const source = await resolver.resolveBilibiliOnline(movie, undefined, {
     qn: 80,
     preferMp4: false,
     page: 2,
@@ -100,6 +104,8 @@ test('room-owner CLI resolution uses the room movie identity and skips CDN reach
   assert.equal(call.options.cliHost, true)
   assert.equal(call.options.skipCdnCheck, true)
   assert.equal(call.options.signal, controller.signal)
+  assert.deepEqual(registration, { base: new URL(proxyUrl).href, source: resolved })
+  assert.equal(source.sourceUrl, resolved.videoUrl)
 })
 test('offline playback fails without falling through to a VOD proxy', async () => {
   const resolver = await load('modules/room/watch-together/movie-source-resolver.ts', {

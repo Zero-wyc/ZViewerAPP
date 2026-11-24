@@ -307,3 +307,33 @@ test('host VOD registers both signed tracks atomically for the current session',
   assert.match(state.connection.sent[0], /^HTTP\/1\.1 206 /)
   assert.equal(state.requests[0].url, target)
 })
+
+test('host VOD filters and merges backups without issuing them as standalone targets', async () => {
+  const network = 'https://network.bilivideo.com/video'
+  const mcdn = 'https://mcdn.bilivideo.cn/video'
+  const edge = 'https://node.mountaintoys.cn/video'
+  const extra = Array.from({ length: 17 }, (_, i) => `https://extra.bilivideo.com/audio?i=${i}`)
+  const reject = status => request => {
+    request.listeners.headersReceive({ 'status-line': `HTTP/1.1 ${status} Rejected` })
+    return status
+  }
+  const state = fixture([reject(403), reject(502), () => { throw new Error('offline') }, success])
+  const { proxy } = state
+  proxy.server = {}
+  proxy.targets.clear()
+  const media = { videoUrl: mcdn, audioUrl: backup, sessionVersion: proxy.sessionVersion }
+  const videoBackupUrls = [mcdn, edge, target, '', 'https://invalid.example/video', target]
+
+  assert.throws(() => proxy.registerHostMedia({ ...media, videoBackupUrls, audioBackupUrls: [42] }), /候选媒体地址格式无效/)
+  assert.equal(proxy.targets.size, 0)
+  proxy.registerHostMedia({ ...media, videoBackupUrls, audioBackupUrls: extra })
+  proxy.registerHostMedia({ ...media, videoBackupUrls: [target, network], audioBackupUrls: [] })
+  assert.deepEqual([...proxy.targets.keys()], [mcdn, backup])
+  assert.deepEqual([...proxy.targets.get(mcdn)], [edge, target, network])
+  assert.deepEqual([...proxy.targets.get(backup)], extra.slice(0, 16))
+
+  await proxy.proxyEndpoint(state.connection, mcdn, 'bytes=0-3', 'GET', origin, false)
+  assert.deepEqual(state.requests.map(request => request.url), [target, network, edge, mcdn])
+  assert.match(state.connection.sent[0], /^HTTP\/1\.1 206 /)
+  assertReleased(state)
+})

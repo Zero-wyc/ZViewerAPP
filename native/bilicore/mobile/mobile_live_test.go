@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -233,5 +235,59 @@ func TestHostMediaRegistration(t *testing.T) {
 	Logout()
 	if err := RegisterHostMedia(video, audio, version); err == nil || len(agent.targets) != 0 {
 		t.Fatal("restored streams from a previous session")
+	}
+}
+
+func TestHostMediaBackupsAndFailover(t *testing.T) {
+	if _, err := Start(""); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(Stop)
+	version := agent.epoch
+	video := "https://mcdn.bilivideo.cn/video.m4s"
+	audio := "https://primary.bilivideo.com/audio.m4s"
+	standard := "https://primary.bilivideo.com/video.m4s"
+	network := "https://second.bilivideo.com/video.m4s"
+	edge := "https://node.mountaintoys.cn/video.m4s"
+	audioBackups := make([]string, 17)
+	for i := range audioBackups {
+		audioBackups[i] = fmt.Sprintf("https://backup.bilivideo.com/audio.m4s?i=%d", i)
+	}
+	videoJSON := asJSON([]string{video, edge, standard, "", "https://invalid.example/video", standard})
+	if err := RegisterHostMediaWithBackups(video, audio, videoJSON, `[42]`, version); err == nil || err.Error() != "候选媒体地址格式无效" || len(agent.targets) != 0 {
+		t.Fatalf("invalid audio backup changed the registration: %v, %v", err, agent.targets)
+	}
+	if err := RegisterHostMediaWithBackups(video, audio, videoJSON, asJSON(audioBackups), version); err != nil {
+		t.Fatal(err)
+	}
+	if err := RegisterHostMediaWithBackups(video, audio, asJSON([]string{standard, network}), "[]", version); err != nil {
+		t.Fatal(err)
+	}
+	if len(agent.targets) != 2 || !slices.Equal(agent.targets[video], []string{edge, standard, network}) || !slices.Equal(agent.targets[audio], audioBackups[:16]) {
+		t.Fatalf("unexpected registered targets: %v", agent.targets)
+	}
+
+	previous := streamClient
+	t.Cleanup(func() { streamClient = previous })
+	var attempted []string
+	streamClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		candidate := request.URL.String()
+		attempted = append(attempted, candidate)
+		status := map[string]int{standard: 403, network: 502, video: 206}[candidate]
+		if candidate == edge {
+			return nil, fmt.Errorf("fixture connection failed")
+		}
+		return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader("media"))}, nil
+	})}
+	request := func(target string) *httptest.ResponseRecorder {
+		response := httptest.NewRecorder()
+		agent.proxy(response, httptest.NewRequest(http.MethodGet, "/proxy?url="+url.QueryEscape(target), nil))
+		return response
+	}
+	if response := request(standard); response.Code != 403 || len(attempted) != 0 {
+		t.Fatalf("unissued backup was not rejected: %d, attempted %v", response.Code, attempted)
+	}
+	if response := request(video); response.Code != 206 || response.Body.String() != "media" || !slices.Equal(attempted, []string{standard, network, edge, video}) {
+		t.Fatalf("response = %d %q, attempted %v", response.Code, response.Body.String(), attempted)
 	}
 }

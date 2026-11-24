@@ -4,9 +4,10 @@ import { embeddedBilibiliProxy, getEmbeddedProxyStatus, isEmbeddedBilibiliHost }
 import { getWebViewCapabilities } from './nativeQualityPolicy'
 import { assertVideoCodecSupported } from '../player/codec-capability'
 import { getBilibiliVideoView } from './bilibiliApi'
+import { registerCliCandidates } from './cliCandidates'
 
 import { buildCliProxyUrl } from '../../../platform/bilibiliMediaUrl'
-export { buildCliProxyUrl }
+export { buildCliProxyUrl, registerCliCandidates }
 
 const BV_REGEX = /BV[0-9A-Za-z]{10}/
 
@@ -74,6 +75,7 @@ export function wrapResolvedSourceWithCliProxy(
   proxyUrl: string,
   resolved: ResolvedSource
 ): ResolvedSource {
+  registerCliCandidates(proxyUrl, resolved)
   return {
     ...resolved,
     videoUrl: buildCliProxyUrl(proxyUrl, resolved.videoUrl),
@@ -93,6 +95,8 @@ interface CliResolveResponse {
   cid?: number
   videoUrl?: string
   audioUrl?: string
+  videoBackupUrls?: string[]
+  audioBackupUrls?: string[]
   videoCodec?: string
   isHdr?: boolean
   hdrType?: 'hlg' | 'dolby-vision'
@@ -266,6 +270,8 @@ export async function resolveBilibiliViaCli(
     title: data.title,
     videoUrl: data.videoUrl,
     audioUrl: data.audioUrl,
+    videoBackupUrls: data.videoBackupUrls,
+    audioBackupUrls: data.audioBackupUrls,
     videoCodec: data.videoCodec,
     isHdr: data.isHdr,
     hdrType: data.hdrType,

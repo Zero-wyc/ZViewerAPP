@@ -1,5 +1,11 @@
 # 更新记录
 
+## 2.6.1（2026-11-24，本地构建）
+
+- 对齐上游服务端 v5.3.2（`140a8137`），继续维持移动端不含 Live2D 及桌面端/管理台专属能力的边界。
+- 共享 B 站解析层（`types.ts`、`bilibiliApi.ts`、`cliApi.ts`）接收并透传服务端下发的 `videoBackupUrls` / `audioBackupUrls` 候选 CDN 列表；新增 `cliCandidates.ts` 支持外部 CLI 代理 `POST /candidates` 候选登记（含代理 URL 还原、尾斜杠规范化去重、异常输入防护与失败自动回滚重试）。
+- Android 原生核心（`native/bilicore/mobile/mobile.go` + `BilibiliProxyPlugin.java`）与 HarmonyOS 原生代理（`BilibiliLocalProxy.ets`）扩展房主身份媒体登记接口，接收并白名单过滤双轨候选 CDN（原子校验、去重合并、每轨上限 16 条、禁止将备用地址登记为顶级可请求目标），在主节点 403/5xx 或网络失败时自动切换备用 CDN，并将 `mcdn.bilivideo.cn` / `mountaintoys.cn` 精确域名与子域统一降级在常规 CDN 之后。
+
 ## 2.6.0（2026-11-23，本地构建）
 
 - 对齐上游服务端 v5.3.0（`3cf39d4e`），继续维持移动端不支持 Live2D 的策略。

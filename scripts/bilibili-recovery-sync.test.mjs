@@ -150,6 +150,7 @@ test('full sync and state requests sanitize local proxy capabilities and retain 
     off: event => listeners.delete(event),
   }
   const cli = await load('../src/upstream/modules/bilibili/cliApi.ts', {
+    './cliCandidates': { registerCliCandidates: () => assert.fail('unexpected CDN registration') },
     './bilibiliApi': { getBilibiliVideoView: async () => assert.fail('unexpected detail request') },
     '../../../platform/bilibiliMediaUrl': { buildCliProxyUrl },
     '../../../platform/connectionTransport': { logicalConnectionUrl },

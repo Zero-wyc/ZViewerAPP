@@ -9,6 +9,7 @@ import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.Base64;
 import androidx.core.content.FileProvider;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -98,7 +99,10 @@ public class BilibiliProxyPlugin extends Plugin {
     @PluginMethod public void status(PluginCall call) { run(call, Mobile::status); }
     @PluginMethod public void registerHostMedia(PluginCall call) {
         run(call, () -> {
-            Mobile.registerHostMedia(call.getString("videoUrl", ""), call.getString("audioUrl", ""),
+            JSArray videoBackups = call.getArray("videoBackupUrls");
+            JSArray audioBackups = call.getArray("audioBackupUrls");
+            Mobile.registerHostMediaWithBackups(call.getString("videoUrl", ""), call.getString("audioUrl", ""),
+                videoBackups == null ? "" : videoBackups.toString(), audioBackups == null ? "" : audioBackups.toString(),
                 call.getInt("sessionVersion", -1));
             return "{}";
         });

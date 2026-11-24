@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -250,6 +251,11 @@ func (a *session) resolve(w http.ResponseWriter, r *http.Request) {
 // RegisterHostMedia accepts a pair returned by the authenticated room resolver.
 // Keep both signed strings intact so the player can request their exact URLs.
 func RegisterHostMedia(videoURL, audioURL string, version int) error {
+	return RegisterHostMediaWithBackups(videoURL, audioURL, "", "", version)
+}
+
+// RegisterHostMediaWithBackups accepts JSON arrays for gomobile compatibility.
+func RegisterHostMediaWithBackups(videoURL, audioURL, videoBackupsJSON, audioBackupsJSON string, version int) error {
 	agent.mu.Lock()
 	defer agent.mu.Unlock()
 	if agent.server == nil || version != agent.epoch {
@@ -258,12 +264,41 @@ func RegisterHostMedia(videoURL, audioURL string, version int) error {
 	if !allowedCDN(videoURL) || (audioURL != "" && !allowedCDN(audioURL)) {
 		return fmt.Errorf("房主解析返回的媒体地址不受支持")
 	}
-	for _, target := range []string{videoURL, audioURL} {
-		if _, issued := agent.targets[target]; target != "" && !issued {
-			agent.targets[target] = nil
+	targets := []string{videoURL, audioURL}
+	var tracks [2][]string
+	for i, raw := range []string{videoBackupsJSON, audioBackupsJSON} {
+		if raw != "" && (json.Unmarshal([]byte(raw), &tracks[i]) != nil || tracks[i] == nil) {
+			return fmt.Errorf("候选媒体地址格式无效")
+		}
+	}
+	for i, target := range targets {
+		if target == "" {
+			continue
+		}
+		previous, issued := agent.targets[target]
+		filtered := mergeHostBackups(target, nil, tracks[i])
+		if !issued {
+			agent.targets[target] = filtered
+		} else if len(filtered) > 0 {
+			agent.targets[target] = mergeHostBackups(target, previous, filtered)
 		}
 	}
 	return nil
+}
+
+func mergeHostBackups(primary string, previous, incoming []string) []string {
+	var result []string
+	for _, candidates := range [][]string{previous, incoming} {
+		for _, candidate := range candidates {
+			if candidate != primary && allowedCDN(candidate) && !slices.Contains(result, candidate) {
+				result = append(result, candidate)
+				if len(result) == 16 {
+					return result
+				}
+			}
+		}
+	}
+	return result
 }
 
 func allowedCDN(raw string) bool {
@@ -304,10 +339,10 @@ func mediaCandidates(target string, backups []string) []string {
 	priority := func(raw string) int {
 		u, _ := url.Parse(raw)
 		host := strings.ToLower(u.Hostname())
-		if strings.HasSuffix(host, ".mcdn.bilivideo.cn") {
+		if host == "mcdn.bilivideo.cn" || strings.HasSuffix(host, ".mcdn.bilivideo.cn") {
 			return 2
 		}
-		if strings.HasSuffix(host, ".mountaintoys.cn") {
+		if host == "mountaintoys.cn" || strings.HasSuffix(host, ".mountaintoys.cn") {
 			return 1
 		}
 		return 0

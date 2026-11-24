@@ -15,7 +15,7 @@ import type { Movie } from '@/store/roomStore'
 import { useRoomStore } from '@/store/roomStore'
 import { detectMediaFormat, type MediaFormat } from '@/lib/mediaFormat'
 import { resolveBilibiliWithOptions, resolveBilibiliLive } from '@/modules/bilibili/bilibiliApi'
-import { extractBvid, extractBangumiId, resolveBangumiViaCli, resolveBilibiliViaCli } from '@/modules/bilibili/cliApi'
+import { extractBvid, extractBangumiId, registerCliCandidates, resolveBangumiViaCli, resolveBilibiliViaCli } from '@/modules/bilibili/cliApi'
 import { normalizeBilibiliInput, isBilibiliShortLink } from '@/modules/bilibili/input'
 import { extractLiveRoomId } from '@/modules/bilibili/live'
 import { useCliAgentStore } from '@/store/cliAgentStore'
@@ -418,6 +418,7 @@ export async function resolveBilibiliOnline(
         signal: options?.signal,
       }
     )
+    if (!isEmbeddedBilibiliHost()) registerCliCandidates(proxyUrl, resolved)
     resolvedSource = mapResolvedSourceToMovieSource(resolved, movie)
   } else if (proxyUrl) {
     const pgc = extractBangumiId(movie.url)

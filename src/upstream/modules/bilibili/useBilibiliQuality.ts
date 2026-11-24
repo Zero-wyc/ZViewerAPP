@@ -16,6 +16,7 @@ import {
   extractBangumiId,
   resolveBilibiliViaCli,
   resolveBangumiViaCli,
+  registerCliCandidates,
 } from './cliApi'
 import {
   getActiveCliProxyUrl,
@@ -170,6 +171,7 @@ export function useBilibiliQuality(ctx: BilibiliQualityContext) {
                 skipCdnCheck: true,
               }
             )
+            if (!isEmbeddedBilibiliHost()) registerCliCandidates(proxyUrl, resolved)
           } else if (proxyUrl) {
             // PGC（番剧 ep/ss 链接）：按 epId 走 CLI 番剧解析分支
             const bangumiId = extractBangumiId(movie.url)

@@ -430,6 +430,8 @@ function mapResolvedBilibili(data: ResolveProgressLine): ResolvedSource {
     title: data.title,
     videoUrl: data.videoUrl ?? '',
     audioUrl: data.audioUrl,
+    videoBackupUrls: data.videoBackupUrls,
+    audioBackupUrls: data.audioBackupUrls,
     videoCodec: data.videoCodec,
     isHdr: data.isHdr,
     hdrType: data.hdrType,
@@ -641,7 +643,13 @@ export async function resolveBilibiliWithOptions(
     const source = await resolveBilibili(url, qn, onProgress, { ...extraOptions, skipCdnCheck })
     if (hostSession !== undefined) {
       extraOptions?.signal?.throwIfAborted()
-      await registerHostMedia({ videoUrl: source.videoUrl, audioUrl: source.audioUrl ?? '', sessionVersion: hostSession })
+      await registerHostMedia({
+        videoUrl: source.videoUrl,
+        audioUrl: source.audioUrl ?? '',
+        videoBackupUrls: source.videoBackupUrls,
+        audioBackupUrls: source.audioBackupUrls,
+        sessionVersion: hostSession,
+      })
     }
     return source
   }

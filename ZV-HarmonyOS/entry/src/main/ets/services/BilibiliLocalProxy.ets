@@ -30,6 +30,8 @@ interface NavPayload {
 export interface BilibiliHostMedia {
   videoUrl: string;
   audioUrl: string;
+  videoBackupUrls?: string[];
+  audioBackupUrls?: string[];
   sessionVersion: number;
 }
 
@@ -144,7 +146,9 @@ function trustedMediaCandidates(primary: string, backups: string[]): string[] {
   }
   const priority = (url: string): number => {
     const host = url.match(/^https?:\/\/([^/:?#]+)/i)?.[1].toLowerCase() || '';
-    return host.endsWith('.mcdn.bilivideo.cn') ? 2 : host.endsWith('.mountaintoys.cn') ? 1 : 0;
+    if (host === 'mcdn.bilivideo.cn' || host.endsWith('.mcdn.bilivideo.cn')) return 2;
+    if (host === 'mountaintoys.cn' || host.endsWith('.mountaintoys.cn')) return 1;
+    return 0;
   };
   return result.sort((a: string, b: string) => priority(a) - priority(b));
 }
@@ -249,9 +253,36 @@ export class BilibiliLocalProxy {
     if (!allowedCdn(media.videoUrl) || (media.audioUrl !== '' && !allowedCdn(media.audioUrl))) {
       throw new Error('房主解析返回的媒体地址不受支持');
     }
-    for (const target of [media.videoUrl, media.audioUrl]) {
-      if (target !== '' && !this.targets.has(target)) this.targets.set(target, []);
+    const videoBackups = this.validateHostBackups(media.videoBackupUrls);
+    const audioBackups = this.validateHostBackups(media.audioBackupUrls);
+    this.mergeHostBackups(media.videoUrl, videoBackups);
+    if (media.audioUrl !== '') this.mergeHostBackups(media.audioUrl, audioBackups);
+  }
+
+  private validateHostBackups(backups?: string[]): string[] {
+    if (backups === undefined) return [];
+    if (!Array.isArray(backups) || backups.some((candidate: string) => candidate !== null && typeof candidate !== 'string')) {
+      throw new Error('候选媒体地址格式无效');
     }
+    return backups;
+  }
+
+  private mergeHostBackups(primary: string, incoming: string[]): void {
+    const previous = this.targets.get(primary);
+    const filtered = this.filterHostBackups(primary, incoming);
+    if (previous === undefined) this.targets.set(primary, filtered);
+    else if (filtered.length > 0) this.targets.set(primary, this.filterHostBackups(primary, previous.concat(filtered)));
+  }
+
+  private filterHostBackups(primary: string, candidates: string[]): string[] {
+    const result: string[] = [];
+    for (const candidate of candidates) {
+      if (candidate && candidate !== primary && allowedCdn(candidate) && !result.includes(candidate)) {
+        result.push(candidate);
+        if (result.length === 16) break;
+      }
+    }
+    return result;
   }
 
   async logout(): Promise<NativeProxyStatus> {

@@ -1,15 +1,22 @@
 # Android 客户端维护文档
 
-维护入口：[当前基线](#当前维护基线2026-11-23) · [架构源码](#架构与源码入口) · [构建与清理](#构建发布与清理) · [历史记录](#历史版本记录)
+维护入口：[当前基线](#当前维护基线2026-11-24) · [架构源码](#架构与源码入口) · [构建与清理](#构建发布与清理) · [历史记录](#历史版本记录)
 
-## 当前维护基线（2026-11-23）
+## 当前维护基线（2026-11-24）
 
-- Android / HarmonyOS 当前本地构建版本为 2.6.0 / 260，对齐服务端上游 `v5.3.0`（`3cf39d4e`）；上一正式发行版为 2.5.5 / 255。NAS 部署独立于客户端构建。
+- Android / HarmonyOS 当前本地构建版本为 2.6.1 / 261，对齐服务端上游 `v5.3.2`（`140a8137`）；上一正式发行版为 2.5.5 / 255。NAS 部署独立于客户端构建。
 - **客户端目前不支持 Live2D**：不提供角色显示、模型导入、动作表情、语音口型或摄像头动捕。已移除入口、模块、Cubism/MediaPipe/Pixi 依赖、静态资源及专用摄像头权限。后续同步服务端更新时，不得自动恢复此功能。
-- 保留 B站点播/直播、房主身份解析、番剧聚合、音乐、弹幕字幕、Piik 语音与投屏，以及完整中文字体和 FFmpeg 等在用播放器资源。
+- 保留 B站点播/直播、房主身份解析与候选 CDN 自动换节点、番剧聚合、音乐、弹幕字幕、Piik 语音与投屏，以及完整中文字体和 FFmpeg 等在用播放器资源。
 - Android 仅发行 ARM64，启用原生库 ZIP 压缩、R8 和资源压缩；HarmonyOS 解压随包网页资源，保留离线启动能力。
 - iOS 维持 2.3.6 / build40；本轮不修改或构建 iOS。
 - 旧记录描述当时状态；2.5.0 的 Live2D 支持已在 2.5.1 移除。
+
+## 2.6.1 对齐服务端 v5.3.2（2026-11-24，本地构建）
+
+- 本轮将本地服务端源码由 `v5.3.0`（`3cf39d4e`）更新至上游 `v5.3.2`（`140a8137`），双端版本升至 `2.6.1` / `versionCode 261`；桌面/Linux WebGUI 控制台、爬虫管理端内嵌登录及 Windows CLI 二进制替换均不涉及移动端客户端。
+- **B 站候选 CDN 透传与外部 CLI 登记**：`types.ts`、`bilibiliApi.ts`、`cliApi.ts` 新增并透传 `videoBackupUrls` / `audioBackupUrls`；新增 `cliCandidates.ts` 负责向外部 CLI 异步 `POST /candidates`（支持代理 URL 还原、尾斜杠规范化去重、非字符串/空主地址容错与失败回滚重试），覆盖 `wrapResolvedSourceWithCliProxy` 及非内置宿主下的 `movie-source-resolver.ts`、`useBilibiliQuality.ts`、`MovieListPanel.tsx` 房主直链路径，房间状态与广播仍仅保留原始上游 URL。
+- **Android 原生代理候选回退**：`src/platform/contracts.ts` 的 `BilibiliHostMedia` 扩展双轨可选候选字段；`BilibiliProxyPlugin.java` 将可选 `JSArray` 序列化传给 `native/bilicore/mobile/mobile.go` 新增的 `RegisterHostMediaWithBackups`（保留原 `RegisterHostMedia` 签名兼容）。Go 侧保持原子校验、会话版本检查、`allowedCDN` 白名单过滤、每轨上限 16 条且去重合并、备用地址不作为顶级键签发，以及 `mcdn.bilivideo.cn` / `mountaintoys.cn` 精确与子域降级，`/proxy` 遇 403/5xx 或网络失败自动切换备用节点。
+- **验证与构建**：`npm run typecheck` 零错误；全量 466 项客户端测试（含新增 `v532-alignment.test.mjs` 与鸿蒙代理候选回退用例）及 `native/bilicore` 的 `go test -count=1 ./...` 全部通过；独立代码审查发现并修复 `cliCandidates.ts` 非字符串元素同步抛错、空主地址与尾斜杠去重键 3 处边界问题。Gradle 实际执行 `:app:buildBilibiliCore` 重建 ARM64 `bilicore.aar` 并编译 `BilibiliProxyPlugin.java`，双端本地签名包位于 `release/client-v2.6.1/`（APK 19,339,887 字节，HAP 9,725,874 字节，摘要记录于同目录 `SHA256SUMS.txt`）；本轮仅本地构建与提交，未推送 GitHub 或真机联机复测。
 
 ## 2.6.0 对齐服务端 v5.3.0（2026-11-23，本地构建）
 

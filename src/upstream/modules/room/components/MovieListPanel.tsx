@@ -31,6 +31,7 @@ import {
   extractBangumiId,
   resolveBilibiliViaCli,
   resolveBangumiViaCli,
+  registerCliCandidates,
 } from '@/modules/bilibili/cliApi'
 import type { ResolvedSource } from '@/modules/bilibili/types'
 import { BilibiliParseSettings } from './BilibiliParseSettings'
@@ -429,6 +430,7 @@ export function MovieListPanel({
           skipCdnCheck: true,
           signal: controller.signal,
         })
+        if (!isEmbeddedBilibiliHost()) registerCliCandidates(proxyUrl, resolved)
       } else if (proxyUrl) {
         // CLI 已连接：使用本地 CLI 代理解析，强制 DASH，不再降级 MP4
         // PGC（番剧 ep/ss 链接）按 epId 走 CLI 番剧解析分支
@@ -634,6 +636,7 @@ export function MovieListPanel({
               signal: controller.signal,
             }
           )
+          if (!isEmbeddedBilibiliHost()) registerCliCandidates(proxyUrl, resolved)
         } else if (proxyUrl) {
           resolved = await resolveBangumiViaCli(
             proxyUrl,
@@ -696,6 +699,7 @@ export function MovieListPanel({
             signal: controller.signal,
           }
         )
+        if (!isEmbeddedBilibiliHost()) registerCliCandidates(proxyUrl, resolved)
       } else if (proxyUrl && targetPage) {
         // CLI 已连接：使用本地 CLI 代理解析目标分P，强制 DASH，不再降级 MP4
         const bvid = extractBvid(movie.url)

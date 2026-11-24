@@ -44,6 +44,8 @@ export interface ResolvedSource {
   title?: string
   videoUrl: string
   audioUrl?: string
+  videoBackupUrls?: string[]
+  audioBackupUrls?: string[]
   videoCodec?: string
   isHdr?: boolean
   hdrType?: 'hlg' | 'dolby-vision'
@@ -143,6 +145,8 @@ export interface ResolveProgressLine {
   title?: string
   videoUrl?: string
   audioUrl?: string
+  videoBackupUrls?: string[]
+  audioBackupUrls?: string[]
   videoCodec?: string
   isHdr?: boolean
   hdrType?: 'hlg' | 'dolby-vision'

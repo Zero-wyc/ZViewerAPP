@@ -154,6 +154,8 @@ export interface HarmonyNativeBridge {
 export interface BilibiliHostMedia {
   videoUrl: string
   audioUrl: string
+  videoBackupUrls?: string[]
+  audioBackupUrls?: string[]
   sessionVersion: number
 }
 
