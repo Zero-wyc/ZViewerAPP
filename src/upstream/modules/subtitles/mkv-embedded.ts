@@ -70,6 +70,7 @@ export interface ExtractedSubtitle {
 export interface ExtractOptions {
   headers?: Record<string, string>
   signal?: AbortSignal
+  knownSize?: number
   /** 进度回调（0-100 整数） */
   onProgress?: (pct: number) => void
   /**
@@ -100,7 +101,7 @@ export async function probeMkvSubtitleTracks(
   headers?: Record<string, string>,
   signal?: AbortSignal
 ): Promise<MkvSubtitleTrack[]> {
-  const { tracks } = await probeHead(url, headers, signal)
+  const { tracks } = await probeHead(url, headers, signal, undefined, false)
   return tracks
     .filter((t) => t.trackType === TRACK_TYPE.SUBTITLE)
     .map((t) => ({
@@ -139,7 +140,7 @@ export async function probeMkvMediaInfo(
   headers?: Record<string, string>,
   signal?: AbortSignal
 ): Promise<MkvMediaInfo> {
-  const { tracks } = await probeHead(url, headers, signal)
+  const { tracks } = await probeHead(url, headers, signal, undefined, false)
   const audioCodecs = tracks
     .filter((t) => t.trackType === TRACK_TYPE.AUDIO && t.codecId)
     .map((t) => matroskaAudioCodecName(t.codecId))
@@ -167,7 +168,9 @@ interface HeadInfo {
 async function probeHead(
   url: string,
   headers?: Record<string, string>,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  knownSize?: number,
+  needSize = true
 ): Promise<HeadInfo> {
   const res = await fetch(url, {
     headers: { ...headers, Range: `bytes=0-${PROBE_HEAD_BYTES - 1}` },
@@ -177,15 +180,12 @@ async function probeHead(
     throw new Error(`探测失败：HTTP ${res.status}`)
   }
   // 文件总大小（Content-Range: bytes 0-N-1/total）
-  let size: number | null = null
-  const cr = res.headers.get('content-range')
-  if (cr) {
-    const m = /\/(\d+)\s*$/.exec(cr)
-    if (m) size = parseInt(m[1]!, 10)
-  } else {
-    const cl = res.headers.get('content-length')
-    if (cl && res.status === 200) size = parseInt(cl, 10)
+  const cr = /\/(\d+)\s*$/.exec(res.headers.get('content-range') ?? '')
+  let size = positiveFileSize(Number(cr?.[1]))
+  if (size === null && res.status === 200) {
+    size = positiveFileSize(Number(res.headers.get('content-length')))
   }
+  size ??= positiveFileSize(knownSize)
 
   const reader = res.body?.getReader()
   if (!reader) throw new Error('响应无数据流')
@@ -225,9 +225,36 @@ async function probeHead(
   }
   if (!firstChunk) throw new Error('响应无数据')
 
+  // CORS CDN 可能隐藏 Content-Range，但 HEAD 的 Content-Length 可读。
+  if (needSize && size === null && res.status === 206) {
+    const controller = new AbortController()
+    const abort = () => controller.abort(signal?.reason)
+    if (signal?.aborted) abort()
+    else signal?.addEventListener('abort', abort, { once: true })
+    const timeout = setTimeout(() => controller.abort(), 4000)
+    try {
+      const head = await fetch(url, {
+        method: 'HEAD',
+        headers,
+        signal: controller.signal,
+      })
+      if (head.ok)
+        size = positiveFileSize(Number(head.headers.get('content-length')))
+    } catch (err) {
+      if (signal?.aborted) throw err
+    } finally {
+      clearTimeout(timeout)
+      signal?.removeEventListener('abort', abort)
+    }
+  }
+
   // Segment 数据区起点：EBML 头 + Segment ID + Segment Size
   const segmentDataStart = parseSegmentDataStart(firstChunk)
   return { tracks, tsScaleMs, size, segmentDataStart, durationSec }
+}
+
+function positiveFileSize(size?: number): number | null {
+  return size != null && Number.isFinite(size) && size > 0 ? size : null
 }
 
 /** 从文件首块字节解析 Segment 数据区起始偏移（未知长度同样适用）。 */
@@ -270,7 +297,7 @@ function parseElementHeader(
     id: idv.value,
     size: szv.value,
     dataStart,
-    end: szv.value >= 0xffffffffffffff ? -1 : dataStart + szv.value,
+    end: szv.value >= 2 ** 56 ? -1 : dataStart + szv.value,
   }
 }
 
@@ -336,7 +363,8 @@ export async function extractMkvSubtitleTracks(
   const { tracks, tsScaleMs, size, segmentDataStart } = await probeHead(
     url,
     opts.headers,
-    opts.signal
+    opts.signal,
+    opts.knownSize
   )
   const trackMap = new Map<number, DemuxedTrack>()
   for (const n of trackNumbers) {
@@ -685,7 +713,7 @@ async function walkAnchorSegment(
     const sz = await sparseReadVint(w, cur + id.length)
     const dataStart = cur + id.length + sz.length
     // unknown size（流式写入尾段）兜底为区间终点
-    const elSize = sz.value >= 0xffffffffffffff ? segEnd - dataStart : sz.value
+    const elSize = sz.value >= 2 ** 56 ? segEnd - dataStart : sz.value
     if (elSize <= 0) throw new Error(`@${cur} 元素尺寸异常（size=${elSize}）`)
     if (id.id === 0x1f43b675) {
       // Cluster：块链收集（nextBoundary 传 Cluster 自身结束位置）
@@ -724,7 +752,7 @@ async function walkClusterIntoAsync(
     )
   }
   const sz = await sparseReadVint(w, clusterStart + id.length)
-  const unknownSize = sz.value >= 0xffffffffffffff
+  const unknownSize = sz.value >= 2 ** 56
   const clusterEnd = unknownSize
     ? nextBoundary
     : clusterStart + id.length + sz.length + sz.value
@@ -745,7 +773,7 @@ async function walkClusterIntoAsync(
       continue
     }
     if (elId.id === 0xa3 || elId.id === 0xa0) break // 已到块区
-    if (elSz.value >= 0xffffffffffffff) break
+    if (elSz.value >= 2 ** 56) break
     cur = cur + elId.length + elSz.length + elSz.value
   }
 
@@ -754,8 +782,7 @@ async function walkClusterIntoAsync(
     const elId = await sparseReadElemId(w, cur)
     const elSz = await sparseReadVint(w, cur + elId.length)
     const dataStart = cur + elId.length + elSz.length
-    const elSize =
-      elSz.value >= 0xffffffffffffff ? nextBoundary - dataStart : elSz.value
+    const elSize = elSz.value >= 2 ** 56 ? nextBoundary - dataStart : elSz.value
     if (elSize < 0) break
     const nextCur = dataStart + elSize
     if (nextCur <= cur) break // 防御：解析异常时避免死循环
@@ -783,7 +810,7 @@ async function walkClusterIntoAsync(
         const bId = await sparseReadElemId(w, q)
         const bSz = await sparseReadVint(w, q + bId.length)
         const bData = q + bId.length + bSz.length
-        if (bSz.value >= 0xffffffffffffff) break
+        if (bSz.value >= 2 ** 56) break
         if (bId.id === 0xa1) {
           blockPos = bData
           blockSize = bSz.value
@@ -1042,7 +1069,7 @@ export async function streamMkvSubtitleTrack(
   opts: StreamOptions
 ): Promise<void> {
   const { tracks, tsScaleMs, size, segmentDataStart, durationSec } =
-    await probeHead(url, opts.headers, opts.signal)
+    await probeHead(url, opts.headers, opts.signal, opts.knownSize)
   const track = tracks.find((t) => t.trackNumber === trackNumber)
   if (
     !track ||

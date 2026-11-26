@@ -51,6 +51,7 @@ import { isGlobalAppearanceRuntime } from '../../../../platform/runtime'
 import { SettingsPanel } from '@/components/VideoPlayer/SettingsPanel'
 import { SubtitleOverlay } from '@/components/VideoPlayer/SubtitleOverlay'
 import { isCliProxyUrl } from '@/modules/player/services/url-proxy'
+import { getEmbyMediaSourceId } from '@/modules/emby/playbackMode'
 import type { ArtSlots } from './WatchTogetherPanel'
 import {
   isIOSDevice,
@@ -124,27 +125,14 @@ export function WatchTogetherCore({
     (state) => state.viewerCliResolvedSource
   )
   const currentMovieId = useRoomStore((state) => state.currentMovieId)
-  // 字幕提取继续使用挂载自身的标记，独立于媒体访问统计。
-  const currentMovieDirectLink = useRoomStore((state) => {
-    const m = state.movies.find((mv) => mv.id === state.currentMovieId)
-    if (!m) return false
-    if (m.sourceType === 'mp4') return true
-    return m.directLink ?? false
-  })
+  const currentMovie = useRoomStore(state => state.movies.find(movie => movie.id === state.currentMovieId))
+  const currentMovieDirectLink = currentMovie?.sourceType === 'mp4' || currentMovie?.directLink === true
   const currentPlaybackDirect = useRoomStore(state => isDirectPlayback(
     state.watchTogether,
     state.watchTogether.isPreview ? null : state.movies.find(movie => movie.id === state.currentMovieId)
   ))
-  // 当前影片的源类型，用于判断是否支持自动搜索字幕
-  const currentMovieSourceType = useRoomStore(
-    (state) =>
-      state.movies.find((m) => m.id === state.currentMovieId)?.sourceType ?? ''
-  )
-  // 当前影片的服务器文件路径（仅 server-files 源有值），用于加载内嵌字幕
-  const currentMoviePath = useRoomStore(
-    (state) =>
-      state.movies.find((m) => m.id === state.currentMovieId)?.path ?? null
-  )
+  const currentMovieSourceType = currentMovie?.sourceType ?? ''
+  const currentMoviePath = currentMovie?.path ?? null
   const {
     watchTogether,
     setWatchTogether,
@@ -172,6 +160,10 @@ export function WatchTogetherCore({
   // - webdav / openlist 中转或直链：前端 MKV demux 提取（直链时这是
   //   唯一路径，失败静默）
   // - emby / jellyfin：其自带字幕接口，不受直链/中转限制
+  const embyMediaSourceId =
+    currentMovieSourceType === 'emby' || currentMovieSourceType === 'jellyfin'
+      ? getEmbyMediaSourceId(watchTogether.sourceUrl || '') || getEmbyMediaSourceId(currentMovie?.url || '')
+      : undefined
   const embeddedSource: EmbeddedSource | null = (() => {
     if (currentMovieSourceType === 'server-files' && currentMoviePath) {
       return { kind: 'server-files', path: currentMoviePath }
@@ -185,6 +177,9 @@ export function WatchTogetherCore({
       return {
         kind: currentMovieSourceType as 'emby' | 'jellyfin',
         movieId: currentMovieId,
+        url: watchTogether.sourceUrl || undefined,
+        mediaSourceId: embyMediaSourceId,
+        directLink: currentMovieDirectLink,
       }
     }
     if (
@@ -347,6 +342,7 @@ export function WatchTogetherCore({
     isHost,
     currentMovieSourceType,
     currentMoviePath,
+    embyMediaSourceId,
     watchTogether.sourceUrl,
   ])
 
@@ -1886,6 +1882,7 @@ export function WatchTogetherCore({
         >
           {settingsOpen && (
             <SettingsPanel
+              key={JSON.stringify([roomId, currentMovieId, watchTogether.sourceUrl, embyMediaSourceId])}
               isHost={isHost}
               mobile={!!stageRef.current?.closest('.mobile-room')}
               onClose={() => setSettingsOpen(false)}
@@ -1937,7 +1934,11 @@ export function WatchTogetherCore({
               onExtractEmbeddedTrack={
                 canEnableEmbedded && embeddedSource
                   ? (track) =>
-                      subtitles.extractEmbeddedTrack(embeddedSource, track)
+                      subtitles.extractEmbeddedTrack(
+                        embeddedSource,
+                        track,
+                        () => videoRef.current?.currentTime ?? null
+                      )
                   : undefined
               }
               canLoadEmbeddedSubtitles={canEnableEmbedded}

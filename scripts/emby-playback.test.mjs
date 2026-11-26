@@ -7,6 +7,7 @@ import { parse } from '@babel/parser'
 import { create } from 'zustand'
 
 const real = {
+  '@/modules/subtitles/emby-mkv-match': 'modules/subtitles/emby-mkv-match.ts',
   '@/modules/emby/embyApi': 'modules/emby/embyApi.ts',
   '@/modules/emby/playbackMode': 'modules/emby/playbackMode.ts',
   '@/modules/emby/mediaLibraryOperation': 'modules/emby/mediaLibraryOperation.ts',
@@ -14,7 +15,7 @@ const real = {
   '@/lib/netAddress': 'lib/netAddress.ts', './mediaLibraryUrl': 'modules/emby/mediaLibraryUrl.ts',
 }
 async function load(file, overrides = {}) {
-  const context = createContext({ URL, URLSearchParams, Response, Error, console })
+  const context = createContext({ URL, URLSearchParams, Response, Error, AbortController, console })
   const cache = new Map()
   const mocks = { create, safeJson: response => response.json(), getApiUrl: () => 'https://zviewer.example',
     connectionUrl: value => value, unwrapCliProxyUrl: value => value, subscribeEmbeddedProxy: () => () => {},
@@ -187,3 +188,53 @@ test('private library relay changes are rejected before resolving or writing med
   await assert.rejects(api.useRoomStore.getState().saveMoviePlaybackSettings(7, { serverProxy: false }), /内网/)
   assert.equal(requests.some(item => item.url.includes('/movie-source') || item.options?.method === 'PUT'), false)
 })
+
+for (const kind of ['emby', 'jellyfin']) {
+  test(`${kind} subtitle fallback streams the selected version at the playhead and excludes external tracks`, async () => {
+    const requests = []
+    const streams = []
+    const probes = []
+    const source = { kind, movieId: 5, mediaSourceId: 'cut & 2', url: 'https://cdn.example/movie.mkv' }
+    const tracks = [
+      { index: 3, codecName: 'ass', label: 'External', isExternal: true },
+      { index: 7, codecName: 'ass', label: 'Embedded', language: 'eng' },
+    ]
+    let state
+    const api = await load('hooks/useSubtitles.ts', {
+      useSocket: () => ({}), useEffect() {}, useCallback: fn => fn, useRef: current => ({ current }),
+      useState(initial) {
+        state = initial()
+        return [state, update => { state = update(state) }]
+      },
+      getDefaultSubtitleFontSize: () => 12,
+      apiFetch: async path => {
+        const url = new URL(path, 'https://server.example')
+        requests.push(url)
+        return url.pathname.endsWith('/embedded-tracks')
+          ? Response.json({ success: true, fileSize: 8192, tracks })
+          : Response.json({ success: false }, { status: 404 })
+      },
+      appendAuthToken: url => url,
+      probeMkvSubtitleTracks: async url => {
+        probes.push(url)
+        return [{ trackNumber: 11, codecId: 'S_TEXT/ASS', language: 'eng', supported: true }]
+      },
+      streamMkvSubtitleTrack: async (url, number, options) => {
+        streams.push({ url, number, size: options.knownSize, time: options.getPriorityTime() })
+        options.onChunk({ cues: [{ start: 42, end: 43, text: 'fixture' }] })
+      },
+    })
+    const hook = api.useSubtitles({ roomId: 'room', isHost: true })
+    const [external, embedded] = await hook.listEmbeddedTracks(source)
+    assert.equal(external.embeddedOrdinal, undefined)
+    assert.equal(embedded.embeddedOrdinal, 0)
+    assert.equal(await hook.extractEmbeddedTrack(source, external), 0)
+    assert.equal(await hook.extractEmbeddedTrack(source, embedded, () => 42), 1)
+    assert.deepEqual(requests.map(url => url.searchParams.get('index')), [null, '3', '7'])
+    assert.ok(requests.every(url => url.searchParams.get('ms') === source.mediaSourceId))
+    assert.deepEqual(probes, [source.url])
+    assert.deepEqual(streams, [{ url: source.url, number: 11, size: 8192, time: 42 }])
+    assert.equal(state.subtitleTracks.length, 1)
+    assert.equal(state.subtitleTracks[state.activeTrackIndex].cues[0].text, 'fixture')
+  })
+}
