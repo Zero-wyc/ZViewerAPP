@@ -1,0 +1,59 @@
+name: Sync Release to GitCode
+
+# 手动把 GitHub 上最新的（或指定版本的）Release 镜像到
+# https://gitcode.com/Zero-wyc/ZViewerAPP-Release。
+#
+# 为什么单独做一个入口：GitHub Release 的附件走 objects.githubusercontent.com，
+# 国内直连经常断流；本工作流把安装包与 latest.json 平铺到 GitCode 仓库，下载不用翻。
+# 发版流程与它无关——Release 发布完想镜像了，点一次就行。
+#
+# 需要 Secret：GITCODE_TOKEN（对 GitCode 的 Zero-wyc/ZViewerAPP-Release 有写权限）。
+# 仓库若是只读镜像仓（开了 Pull 镜像），先去「项目设置 → 仓库镜像」关掉，否则会被拒收。
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要同步的版本号（如 client-v2.6.2）。留空=GitHub 上最新的正式版'
+        required: false
+        default: ''
+      force:
+        description: '强制重推（忽略「GitCode 已是这一版」的短路判断）'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# 同一时间只跑一份：两次并发推同一个孤儿提交，后到的会把先到的覆盖掉。
+concurrency:
+  group: sync-release-gitcode
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    # 正常一两分钟；跨境链路卡住时由脚本内部的超时与重试兜住，这里是最后一道闸。
+    timeout-minutes: 60
+    steps:
+      - name: Checkout（只需要脚本）
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+          sparse-checkout-cone-mode: false
+
+      - name: Mirror GitHub Release to GitCode
+        shell: bash
+        env:
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+          FORCE: ${{ inputs.force && '1' || '0' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GITCODE_TOKEN}" ]; then
+            echo "::error::未配置 Secret GITCODE_TOKEN（需对 GitCode 的 Zero-wyc/ZViewerAPP-Release 有写权限），无法同步"
+            exit 1
+          fi
+          bash scripts/sync-release-gitcode.sh
