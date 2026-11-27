@@ -134,6 +134,7 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
     connectionState,
     retry: createPc,
     state: shareState,
+    sharingMode,
     edges,
   } = usePiikShareViewer({
     roomId,
@@ -339,7 +340,7 @@ function WebrtcWatchPage({ roomId, playerOnly }: WebrtcWatchPageProps) {
       }
     >
       <PlayerGestureNotice text={gestureNotice} />
-      {!inlinePiP && !isPictureInPicture && <ScreenShareDiagnostics edges={edges} overlay />}
+      {!inlinePiP && !isPictureInPicture && <ScreenShareDiagnostics edges={edges} overlay relaying={sharingMode === 'relay'} />}
       <RemoteVideoPlayer
         videoRef={videoRef}
         setVideoRef={setVideoRef}

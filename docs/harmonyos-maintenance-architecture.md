@@ -1,15 +1,25 @@
 # HarmonyOS 客户端维护文档
 
-维护入口：[当前基线](#当前维护基线2026-11-26) · [架构源码](#架构与源码入口) · [构建与清理](#构建发布与清理) · [历史记录](#历史版本记录)
+维护入口：[当前基线](#当前维护基线2026-11-27) · [架构源码](#架构与源码入口) · [构建与清理](#构建发布与清理) · [历史记录](#历史版本记录)
 
-## 当前维护基线（2026-11-26）
+## 当前维护基线（2026-11-27）
 
-- Android / HarmonyOS 当前本地构建版本为 2.6.2 / 262，对齐服务端上游 `v5.3.4`（`679342e6`）；上一正式发行版为 2.6.1 / 261。NAS 部署独立于客户端构建。
+- Android / HarmonyOS 当前本地构建版本为 2.6.3 / 263，对齐服务端上游 `v5.3.5`（`e173fca3`）；上一正式发行版为 2.6.2 / 262。NAS 部署独立于客户端构建。
 - **客户端目前不支持 Live2D**：不提供角色显示、模型导入、动作表情、语音口型或摄像头动捕。已移除入口、模块、Cubism/MediaPipe/Pixi 依赖、静态资源及专用摄像头权限。后续同步服务端更新时，不得自动恢复此功能。
 - 保留 B站点播/直播、房主身份解析与候选 CDN 自动换节点、番剧聚合、音乐、弹幕字幕、Piik 语音与投屏，以及完整中文字体和 FFmpeg 等在用播放器资源。
 - Android 仅发行 ARM64，启用原生库 ZIP 压缩、R8 和资源压缩；HarmonyOS 解压随包网页资源，保留离线启动能力。
 - iOS 维持 2.3.6 / build40；本轮不修改或构建 iOS。
 - 旧记录描述当时状态；2.5.0 的 Live2D 支持已在 2.5.1 移除。
+
+## 2.6.3 对齐服务端 v5.3.5（2026-11-27）
+
+- 本地服务端源码由 `v5.3.4`（`679342e6`）更新至上游 `v5.3.5`（`e173fca3`）。上游为屏幕共享接入 Piik 内嵌 SFU，默认 `SHARE_SFU_MODE=fallback`（直连优先，打不通再由服务端中转），并新增自带 STUN（3478/udp）。
+- 观众侧：`piik-share/endpoint.ts` 新增独立的 SFU 订阅边（`sfuEdges`），处理 `sfu` 候选、`sfu-config` 与服务端 `sfu-signal` offer。ICE 候选在远端描述就绪前缓存，连通后只发一次 `route-transport-connected` 和 `route-ready`。收到候选后 3 秒仍无 offer 时补发一次 `subscribe`。换回直连上游或换代时关闭订阅边。
+- 订阅边 20 秒未连通或持续断开 12 秒时，保留连接并发送 `subscribe` 请服务端做 ICE 重启（服务端 `RestartSubscriber`），同时调用 `onRouteFailure` 计入会话 3 次媒体恢复上限，随后重新等待 20 秒。offer 按连接串行处理；订阅边 `failed` 时只关本地连接，不上报 `route-failed`（与上游一致）。`receivingPeer`、统计、`stateOf`、`connectionIds` 均覆盖订阅边。
+- `usePiikShareViewer` 按 `relaySubscribed` 返回 `sharingMode`，观看页「连接与画质」面板显示「服务器转发」。
+- 未实现：移动端作为房主时经 SFU 发布。Android 房主仍只走原生直连（`screenShareSession.ts`），服务端对它下发的发布端 `sfu-config` 会被忽略；直连不通的观众与此前一样收不到 Android 房主的画面。
+- 服务端新增的 3478/udp（STUN）和共享中转端口需在 NAS 部署时映射，属服务端部署事项，与客户端构建无关。
+- 480 项客户端回归中 479 项通过、1 项为既有跳过，包含 10 项 SFU 订阅端测试。改动经 gemini-4-neon 独立审查，核实的 4 项问题已修复（Codex 审查席因沙箱无法启动命令未完成）。HarmonyOS 构建产物为签名 HAP（Release，verify-app 签名验证通过）。真机中转播放待验收。安装包见 [2.6.3 Release](https://github.com/Zero-wyc/ZViewerAPP/releases/tag/client-v2.6.3)。
 
 ## 2.6.2 对齐服务端 v5.3.4（2026-11-26）
 

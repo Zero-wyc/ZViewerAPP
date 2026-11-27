@@ -7,12 +7,12 @@ const stateLabels = { new: '等待', connecting: '连接中', connected: '已连
 const reasons = { none: '无', cpu: '编码性能', bandwidth: '带宽', other: '其他' }
 const number = (value: number | null | undefined, suffix: string, digits = 0) => value == null || !Number.isFinite(value) ? '暂无' : `${value.toFixed(digits)} ${suffix}`
 
-export function ScreenShareDiagnostics({ edges, settings, overlay = false }: { edges: ShareEdgeStats[]; settings?: ScreenShareSettings; overlay?: boolean }) {
+export function ScreenShareDiagnostics({ edges, settings, overlay = false, relaying = false }: { edges: ShareEdgeStats[]; settings?: ScreenShareSettings; overlay?: boolean; relaying?: boolean }) {
   const aggregate = aggregateEdgeStats(edges)
   return <details className="screen-share-diagnostics" data-overlay={overlay || undefined}>
     <summary><Activity size={16} aria-hidden="true" /><span>连接与画质</span><ChevronDown size={16} aria-hidden="true" /></summary>
     <div className="screen-share-diagnostics-content">
-      <p>连接 {aggregate.connectedCount} / {aggregate.edgeCount} · {edges.some(edge => edge.direction === 'inbound') ? '接收' : '发送'} {number(aggregate.bitrate == null ? null : aggregate.bitrate / 1e6, 'Mbps', 2)}</p>
+      <p>连接 {aggregate.connectedCount} / {aggregate.edgeCount}{relaying ? ' · 服务器转发' : ''} · {edges.some(edge => edge.direction === 'inbound') ? '接收' : '发送'} {number(aggregate.bitrate == null ? null : aggregate.bitrate / 1e6, 'Mbps', 2)}</p>
       {settings && <>
         <p>目标 {number(settings.targetFrameRate, 'fps')} · 采集配置 {number(settings.configuredFrameRate, 'fps')} · 采集实测 {settings.frameRateMeasured ? number(settings.frameRate, 'fps', 1) : '暂无'}</p>
         {settings.videoReason && <p>{settings.videoReason}</p>}

@@ -56,6 +56,8 @@ export function usePiikShareViewer(
   const [connectionState, setConnectionState] =
     useState<RTCPeerConnectionState>('new')
   const [generation, setGeneration] = useState(0)
+  /** 上游是否由服务端转发；状态面板据此显示「服务器转发」。 */
+  const [relaying, setRelaying] = useState(false)
   const onAutoplayBlockedRef = useRef(onAutoplayBlocked)
   useEffect(() => {
     onAutoplayBlockedRef.current = onAutoplayBlocked
@@ -67,10 +69,15 @@ export function usePiikShareViewer(
     setState(INITIAL_STATE)
     setRemoteStream(null)
     setConnectionState('new')
+    setRelaying(false)
     const session = new PiikShareSession(roomId, {
       onStatus: (status) => {
         if (disposed) return
-        if (status === 'closed') { setConnectionState('disconnected'); setRemoteStream(null) }
+        if (status === 'closed') {
+          setConnectionState('disconnected')
+          setRemoteStream(null)
+          setRelaying(false)
+        }
         setState((prev) => ({
           ...prev,
           recovering: status === 'reconnecting',
@@ -89,6 +96,7 @@ export function usePiikShareViewer(
       onStateChange: (_connectionId, next) => {
         if (disposed) return
         setConnectionState(next)
+        setRelaying(sessionRef.current?.relaySubscribed ?? false)
         if (next === 'closed' || next === 'failed') setRemoteStream(null)
         setState((prev) => ({
           ...prev,
@@ -106,19 +114,23 @@ export function usePiikShareViewer(
       },
       onSharingStopped: () => {
         setRemoteStream(null)
+        setRelaying(false)
         setState((prev) => ({ ...prev, sharing: false, paused: false, active: false }))
       },
-      onRoomClosed: () =>
+      onRoomClosed: () => {
+        setRelaying(false)
         setState((prev) => ({
           ...prev,
           error: t('房间已关闭'),
           exhausted: true,
-        })),
+        }))
+      },
       onAuthenticated: () =>
         setState((prev) => ({ ...prev, joined: true, error: null, exhausted: false })),
       onError: (message) => setState((prev) => ({ ...prev, error: message })),
       onRecoveryExhausted: () => {
         setRemoteStream(null)
+        setRelaying(false)
         setState(prev => ({ ...prev, active: false, hasVideo: false, recovering: false, exhausted: true }))
       },
     })
@@ -136,6 +148,7 @@ export function usePiikShareViewer(
       session.stop()
       sessionRef.current = null
       setRemoteStream(null)
+      setRelaying(false)
     }
   }, [roomId, generation])
 
@@ -170,7 +183,7 @@ export function usePiikShareViewer(
     hasRemoteAudio: tracks.some((track) => track.kind === 'audio'),
     connectionState,
     state,
-    sharingMode: 'direct',
+    sharingMode: relaying ? 'relay' : 'direct',
     edges,
     retry,
     pc: sessionRef.current?.receivingPeer ?? null,

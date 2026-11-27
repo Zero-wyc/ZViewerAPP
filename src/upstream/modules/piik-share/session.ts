@@ -108,6 +108,10 @@ export class PiikShareSession {
     return this.endpoint?.receivingPeer ?? null
   }
 
+  get relaySubscribed(): boolean {
+    return this.endpoint?.relaySubscribed ?? false
+  }
+
   private resetEndpoint(): void {
     this.endpoint?.close()
     this.endpoint = new ShareEndpoint(this.iceConfig, this.stream, {
